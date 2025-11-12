@@ -30,11 +30,3 @@ bassline (could be just fixed LEDs arranged on a staff printed on Lexan), a
 small speaker, and some input/output connections (maybe MIDI in/out, sound
 in/out, and/or USB for either). Then, the whole thing would be placed on the
 market only to realize there is no market for continuo-training toys ...
-
-### Prerequisites
-
-    sudo apt install python3-venv
-    python3 -m venv ~/continuo-venv
-    source ~/continuo-venv/bin/activate
-    pip install mido python-rtmidi music21 pygame
-
