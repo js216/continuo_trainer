@@ -17,10 +17,12 @@ struct note {
 };
 
 struct app_state {
-   char text[64];        /**< Generic text buffer */
-   char status[64];      /**< Status message */
-   int notes[MAX_NOTES]; /**< Added note positions */
-   int note_count;       /**< Number of notes added */
+   char text[64];         /**< Generic text buffer */
+   char status[64];       /**< Status message */
+   int notes[MAX_NOTES];  /**< Main note positions */
+   int chords[MAX_NOTES]; /**< Chord note positions */
+   int note_count;        /**< Number of main notes added (usually 1) */
+   int chord_count;       /**< Number of chords added above main note */
 };
 
 static const struct note NOTES[] = {

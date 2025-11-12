@@ -18,18 +18,27 @@ static void set_status(struct app_state *state, const char *fmt, ...)
    va_end(args);
 }
 
-static void add_note(struct app_state *state, int position, const char *name)
-{
-   if (state->note_count < 10) {
-      state->notes[state->note_count++] = position;
-      set_status(state, "Added %s", name);
-   }
-}
-
 void clear_notes(struct app_state *state)
 {
-   state->note_count = 0;
+   state->note_count  = 0;
+   state->chord_count = 0;
    set_status(state, "Cleared");
+}
+
+void select_note(struct app_state *state, int position, const char *name)
+{
+   state->note_count  = 1;
+   state->notes[0]    = position;
+   state->chord_count = 0;
+   set_status(state, "Selected %s", name);
+}
+
+void add_chord(struct app_state *state, int position, const char *name)
+{
+   if (state->chord_count < 10) {
+      state->chords[state->chord_count++] = position;
+      set_status(state, "Added chord %s", name);
+   }
 }
 
 static void draw_staff(ImDrawList *draw_list, ImVec2 pos, float width,
@@ -43,12 +52,21 @@ static void draw_staff(ImDrawList *draw_list, ImVec2 pos, float width,
 }
 
 static void draw_notes(ImDrawList *draw_list, ImVec2 pos, float spacing,
-                       struct app_state *state, ImU32 color)
+                       struct app_state *state, ImU32 main_color,
+                       ImU32 chord_color)
 {
-   for (int i = 0; i < state->note_count; i++) {
-      float note_y = pos.y + spacing + spacing * (float)state->notes[i] / 2.0F;
-      float note_x = pos.x + 50 + (float)i * 60;
-      draw_list->AddCircleFilled(ImVec2(note_x, note_y), 8.0F, color);
+   // Draw main note
+   if (state->note_count > 0) {
+      float note_y = pos.y + spacing + spacing * (float)state->notes[0] / 2.0F;
+      float note_x = pos.x + 50;
+      draw_list->AddCircleFilled(ImVec2(note_x, note_y), 10.0F, main_color);
+   }
+
+   // Draw chords (same horizontal as main note)
+   for (int i = 0; i < state->chord_count; i++) {
+      float note_y = pos.y + spacing + spacing * (float)state->chords[i] / 2.0F;
+      float note_x = pos.x + 50;  // same x as main note
+      draw_list->AddCircleFilled(ImVec2(note_x, note_y), 8.0F, chord_color);
    }
 }
 
@@ -56,7 +74,10 @@ void init_state(struct app_state *state)
 {
    snprintf(state->text, sizeof(state->text), "Type here");
    set_status(state, "Ready");
-   state->note_count = 0;
+   state->note_count  = 0;
+   state->chord_count = 0;
+
+   select_note(state, 5, "C3");
 }
 
 void render_ui(struct app_state *state)
@@ -76,27 +97,30 @@ void render_ui(struct app_state *state)
    ImVec2 p              = ImGui::GetCursorScreenPos();
    float width           = ImGui::GetContentRegionAvail().x;
    float spacing         = staff_height / 6.0F;
-   ImU32 line_color      = ImGui::GetColorU32(ImGuiCol_Text);
+   ImU32 main_color      = ImGui::GetColorU32(ImGuiCol_Text);
+   ImU32 chord_color     = IM_COL32(255, 100, 100, 255);
 
-   draw_staff(draw_list, p, width, spacing, line_color);
-   draw_notes(draw_list, p, spacing, state, line_color);
+   draw_staff(draw_list, p, width, spacing, main_color);
+   draw_notes(draw_list, p, spacing, state, main_color, chord_color);
 
    ImGui::EndChild();
 
-   // Bottom 20%: Controls
-   ImGui::BeginChild("Controls", ImVec2(0, 0), true);
+   // Bottom 20%: Controls + status
+   ImGui::BeginChild("Controls", ImVec2(0, total_height * 0.2F), true);
    for (size_t i = 0; i < NOTE_COUNT; i++) {
       if (ImGui::Button(NOTES[i].name))
-         add_note(state, NOTES[i].position, NOTES[i].name);
+         add_chord(state, NOTES[i].position, NOTES[i].name);
       if (i < NOTE_COUNT - 1)
          ImGui::SameLine();
    }
    if (ImGui::Button("Clear"))
       clear_notes(state);
-   ImGui::EndChild();
 
+   // Status at the bottom of this child
    ImGui::Separator();
    ImGui::Text("Status: %s", state->status);
+
+   ImGui::EndChild();
 
    ImGui::End();
 }
