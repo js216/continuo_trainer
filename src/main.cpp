@@ -8,11 +8,12 @@
 #include "backends/imgui_impl_opengl3.h"
 #include "backends/imgui_impl_sdl2.h"
 #include "imgui.h"
+#include "notes.h"
 #include <SDL.h>
 #include <SDL_opengl.h>
 #include <stdio.h>
 
-static bool handle_events(struct app_state *state)
+static bool handle_events(void)
 {
    SDL_Event event;
 
@@ -21,11 +22,6 @@ static bool handle_events(struct app_state *state)
 
       if (event.type == SDL_QUIT)
          return false;
-
-      if (event.type == SDL_KEYDOWN) {
-         if (event.key.keysym.sym == SDLK_SPACE)
-            clear_notes(state);
-      }
 
       while (SDL_PollEvent(&event)) {
          ImGui_ImplSDL2_ProcessEvent(&event);
@@ -55,7 +51,7 @@ int main(void)
    struct app_state state = {};
    init_state(&state);
 
-   while (handle_events(&state)) {
+   while (handle_events()) {
       ImGui_ImplOpenGL3_NewFrame();
       ImGui_ImplSDL2_NewFrame();
       ImGui::NewFrame();

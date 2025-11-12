@@ -29,7 +29,8 @@ Checks: >
   -modernize-use-nullptr,
   -modernize-redundant-void-arg,
   -*-use-auto,
-  -cert-err33-c
+  -cert-err33-c,
+  -cppcoreguidelines-pro-bounds-pointer-arithmetic
 
 WarningsAsErrors: '*'
 
