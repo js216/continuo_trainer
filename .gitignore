@@ -1,4 +1,6 @@
 *.o
 *.swp
 
+continuo_trainer
+compile_commands.json
 bin

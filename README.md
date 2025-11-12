@@ -30,3 +30,9 @@ bassline (could be just fixed LEDs arranged on a staff printed on Lexan), a
 small speaker, and some input/output connections (maybe MIDI in/out, sound
 in/out, and/or USB for either). Then, the whole thing would be placed on the
 market only to realize there is no market for continuo-training toys ...
+
+### Prerequisites
+
+For compiling: SDL2, G++.
+
+For checking: bear, clang-tidy, clang-format, cppcheck.

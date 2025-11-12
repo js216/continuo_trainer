@@ -1,0 +1,39 @@
+Checks: >
+  clang-analyzer-*,
+  bugprone-*,
+  cert-*,
+  cppcoreguidelines-*,
+  hicpp-*,
+  misc-*,
+  modernize-*,
+  performance-*,
+  portability-*,
+  readability-*,
+  -*-braces-around-statements,
+  -readability-identifier-length,
+  -cppcoreguidelines-avoid-non-const-global-variables,
+  -*-non-const-parameter,
+  -bugprone-easily-swappable-parameters,
+  -*-magic-numbers,
+  -*-macro-to-enum,
+  -performance-no-int-to-ptr,
+  -*-deprecated-headers,
+  -*-avoid-c-arrays,
+  -*-vararg,
+  -cert-dcl50-cpp,
+  -*-no-array-decay,
+  -cppcoreguidelines-pro-bounds-array-to-pointer-decay,
+  -cppcoreguidelines-pro-bounds-constant-array-index,
+  -modernize-use-trailing-return-type,
+  -readability-implicit-bool-conversion,
+  -modernize-use-nullptr,
+  -modernize-redundant-void-arg,
+  -*-use-auto
+
+WarningsAsErrors: '*'
+
+CheckOptions:
+  - key:             readability-identifier-naming.VariableCase
+    value:           lower_case
+  - key:             readability-identifier-naming.FunctionCase
+    value:           lower_case
