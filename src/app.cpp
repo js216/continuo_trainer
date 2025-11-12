@@ -5,18 +5,35 @@
  */
 
 #include "app.h"
+#include "imgui.h"
 #include "util.h"
+#include <stdarg.h>
 #include <stdio.h>
 
-void init_state(struct app_state *state)
+static void set_status(struct app_state *state, const char *fmt, ...)
 {
-   snprintf(state->text, sizeof(state->text), "Type here");
-   snprintf(state->status, sizeof(state->status), "Ready");
-   state->note_count = 0;
+   va_list args;
+   va_start(args, fmt);
+   vsnprintf(state->status, sizeof(state->status), fmt, args);
+   va_end(args);
 }
 
-void draw_staff(ImDrawList *draw_list, ImVec2 pos, float width, float spacing,
-                ImU32 color)
+static void add_note(struct app_state *state, int position, const char *name)
+{
+   if (state->note_count < 10) {
+      state->notes[state->note_count++] = position;
+      set_status(state, "Added %s", name);
+   }
+}
+
+void clear_notes(struct app_state *state)
+{
+   state->note_count = 0;
+   set_status(state, "Cleared");
+}
+
+static void draw_staff(ImDrawList *draw_list, ImVec2 pos, float width,
+                       float spacing, ImU32 color)
 {
    for (int i = 0; i < 5; i++) {
       float y = pos.y + spacing + (float)i * spacing;
@@ -25,8 +42,8 @@ void draw_staff(ImDrawList *draw_list, ImVec2 pos, float width, float spacing,
    }
 }
 
-void draw_notes(ImDrawList *draw_list, ImVec2 pos, float spacing,
-                struct app_state *state, ImU32 color)
+static void draw_notes(ImDrawList *draw_list, ImVec2 pos, float spacing,
+                       struct app_state *state, ImU32 color)
 {
    for (int i = 0; i < state->note_count; i++) {
       float note_y = pos.y + spacing + spacing * (float)state->notes[i] / 2.0F;
@@ -35,27 +52,11 @@ void draw_notes(ImDrawList *draw_list, ImVec2 pos, float spacing,
    }
 }
 
-void add_note(struct app_state *state, int position, const char *name)
+void init_state(struct app_state *state)
 {
-   if (state->note_count < 10) {
-      state->notes[state->note_count++] = position;
-      snprintf(state->status, sizeof(state->status), "Added %s", name);
-   }
-}
-
-void action_add_c(struct app_state *state)
-{
-   add_note(state, 6, "C");
-}
-void action_add_g(struct app_state *state)
-{
-   add_note(state, 2, "G");
-}
-
-void action_clear(struct app_state *state)
-{
+   snprintf(state->text, sizeof(state->text), "Type here");
+   set_status(state, "Ready");
    state->note_count = 0;
-   snprintf(state->status, sizeof(state->status), "Cleared");
 }
 
 void render_ui(struct app_state *state)
@@ -83,14 +84,16 @@ void render_ui(struct app_state *state)
    ImGui::EndChild();
 
    // Bottom 20%: Controls
-   if (ImGui::Button("C"))
-      action_add_c(state);
-   ImGui::SameLine();
-   if (ImGui::Button("G"))
-      action_add_g(state);
-   ImGui::SameLine();
+   ImGui::BeginChild("Controls", ImVec2(0, 0), true);
+   for (size_t i = 0; i < NOTE_COUNT; i++) {
+      if (ImGui::Button(NOTES[i].name))
+         add_note(state, NOTES[i].position, NOTES[i].name);
+      if (i < NOTE_COUNT - 1)
+         ImGui::SameLine();
+   }
    if (ImGui::Button("Clear"))
-      action_clear(state);
+      clear_notes(state);
+   ImGui::EndChild();
 
    ImGui::Separator();
    ImGui::Text("Status: %s", state->status);

@@ -15,24 +15,25 @@
 static bool handle_events(struct app_state *state)
 {
    SDL_Event event;
+
    if (SDL_WaitEvent(&event)) {
       ImGui_ImplSDL2_ProcessEvent(&event);
+
       if (event.type == SDL_QUIT)
          return false;
+
       if (event.type == SDL_KEYDOWN) {
-         if (event.key.keysym.sym == SDLK_F1)
-            action_add_c(state);
-         else if (event.key.keysym.sym == SDLK_F2)
-            action_add_g(state);
-         else if (event.key.keysym.sym == SDLK_F3)
-            action_clear(state);
+         if (event.key.keysym.sym == SDLK_SPACE)
+            clear_notes(state);
       }
+
       while (SDL_PollEvent(&event)) {
          ImGui_ImplSDL2_ProcessEvent(&event);
          if (event.type == SDL_QUIT)
             return false;
       }
    }
+
    return true;
 }
 
