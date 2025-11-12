@@ -1,13 +1,11 @@
 /*
- * @file debug.h
- *
- * Debug macros.
- *
- * Jakob Kastelic, 2025.
+ * @file util.h
+ * @brief Utility macros.
+ * @author Jakob Kastelic
  */
 
-#ifndef DEBUG_H
-#define DEBUG_H
+#ifndef UTIL_H
+#define UTIL_H
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -18,6 +16,4 @@
       abort();                                                                 \
    } while (0)
 
-#endif // DEBUG_H
-
-// end file debug.h
+#endif // UTIL_H

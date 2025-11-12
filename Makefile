@@ -36,8 +36,9 @@ format:
 	clang-format --dry-run -Werror $(SRC)
 
 tidy:
-	bear -- make $(TARGET)
-	clang-tidy $(SRC)
+	make clean
+	bear -- make -j8 $(TARGET)
+	clang-tidy -p . $(SRC)
 
 cppcheck:
 	cppcheck --enable=all --inconclusive --std=c++17 --force --quiet \

@@ -28,7 +28,8 @@ Checks: >
   -readability-implicit-bool-conversion,
   -modernize-use-nullptr,
   -modernize-redundant-void-arg,
-  -*-use-auto
+  -*-use-auto,
+  -cert-err33-c
 
 WarningsAsErrors: '*'
 
