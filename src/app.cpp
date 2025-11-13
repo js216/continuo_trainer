@@ -14,8 +14,8 @@
 #include "state.h"
 #include "style.h"
 #include "util.h"
+#include <cstdio>
 #include <span>
-#include <stdio.h>
 
 void init_state(struct state *state)
 {
@@ -67,7 +67,7 @@ static void app_buttons(struct state *state)
 
 static void app_midi(struct state *state)
 {
-   ImGui::Text("MIDI Devices:");
+   ImGui::TextUnformatted("MIDI Devices:");
    if (ImGui::BeginListBox(
            "##midi_list",
            ImVec2(-FLT_MIN, 5 * ImGui::GetTextLineHeightWithSpacing()))) {
@@ -75,12 +75,8 @@ static void app_midi(struct state *state)
          bool selected = (state->selected_device == i);
          if (ImGui::Selectable(state->midi_devices[i].c_str(), selected)) {
             state->selected_device = i;
-
-            // Set status message when user clicks on a device
-            char msg[128];
-            snprintf(msg, sizeof(msg), "Selected MIDI device: %s",
-                     state->midi_devices[i].c_str());
-            state_status(state, msg);
+            state_status(state, "Selected MIDI device: ",
+                         state->midi_devices[i].c_str());
          }
       }
       ImGui::EndListBox();
@@ -96,7 +92,7 @@ static void app_controls(struct state *state)
    app_midi(state);
 
    ImGui::Separator();
-   ImGui::Text("Status: %s", state->status.c_str());
+   ImGui::TextUnformatted(("Status: " + state->status).c_str());
 
    ImGui::EndChild();
 }
@@ -107,7 +103,7 @@ void render_ui(struct state *state)
 
    ImGui::SetNextWindowPos(ImVec2(0, 0));
    ImGui::SetNextWindowSize(io.DisplaySize);
-   ImGui::Begin("Main", NULL,
+   ImGui::Begin("Main", nullptr,
                 ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoResize);
 
    app_controls(state);

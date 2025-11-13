@@ -9,11 +9,11 @@
 #include "logic.h"
 #include "state.h"
 #include "util.h"
+#include <cstddef>
+#include <cstdlib>
 #include <iostream>
 #include <iterator>
 #include <random>
-#include <stddef.h>
-#include <stdlib.h>
 
 static midi_note get_note(void)
 {

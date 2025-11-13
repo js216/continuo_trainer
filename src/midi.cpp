@@ -9,7 +9,7 @@
 #include "RtMidi.h"
 #include "state.h"
 #include <algorithm>
-#include <string.h>
+#include <cstring>
 #include <string>
 
 void refresh_midi_devices(struct state *state)

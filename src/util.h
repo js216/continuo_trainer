@@ -9,13 +9,11 @@
 #ifndef UTIL_H
 #define UTIL_H
 
-#include <stdio.h>
-#include <stdlib.h>
+#include <iostream>
 
 #define ERROR(msg)                                                             \
    do {                                                                        \
-      (void)fprintf(stderr, "ERROR: %s\n", msg);                               \
-      abort();                                                                 \
+      std::cerr << "ERROR: " << msg << "\n";                                   \
    } while (0)
 
 #endif // UTIL_H

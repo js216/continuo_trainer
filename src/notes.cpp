@@ -11,10 +11,10 @@
 #include "logic.h"
 #include "state.h"
 #include "style.h"
+#include <array>
+#include <cstddef>
+#include <cstdint>
 #include <span>
-#include <stdbool.h>
-#include <stddef.h>
-#include <stdint.h>
 
 static int note_to_bass(const enum midi_note n)
 {
@@ -80,8 +80,8 @@ void notes_staff(void)
    ImVec2 p              = ImGui::GetCursorScreenPos();
    ImVec2 size           = ImGui::GetContentRegionAvail();
 
-   static const enum midi_note staff_lines[] = {NOTES_G2, NOTES_B2, NOTES_D3,
-                                                NOTES_F3, NOTES_A3};
+   static const std::array<midi_note, 6> staff_lines = {
+       NOTES_G2, NOTES_B2, NOTES_D3, NOTES_F3, NOTES_A3, NOTES_C4};
 
    for (const auto &line : staff_lines) {
       float y = calc_y(line);
@@ -124,7 +124,7 @@ static void notes_dot(midi_note n, int x_idx, uint32_t color)
    float font_size         = 3.0F * note_radius;
 
    float x = ((float)x_idx + 1) * size.x / (MAX_CHORDS + 1.0F);
-   float y = static_cast<float>(calc_y(n));
+   float y = calc_y(n);
 
    ImDrawList *draw_list = ImGui::GetWindowDrawList();
    ImFont *font          = ImGui::GetFont();

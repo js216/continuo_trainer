@@ -15,7 +15,6 @@
 #include "state.h"
 #include <SDL.h>
 #include <SDL_opengl.h>
-#include <stdio.h>
 
 static bool handle_events(void)
 {
