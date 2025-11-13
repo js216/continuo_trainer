@@ -15,16 +15,7 @@
 #include "style.h"
 #include "util.h"
 #include <span>
-#include <stdarg.h>
 #include <stdio.h>
-
-static void set_status(struct state *state, const char *fmt, ...)
-{
-   va_list args;
-   va_start(args, fmt);
-   vsnprintf(state->status, sizeof(state->status), fmt, args);
-   va_end(args);
-}
 
 void init_state(struct state *state)
 {
@@ -34,38 +25,38 @@ void init_state(struct state *state)
    set_font("fonts/Roboto-Regular.ttf", 18.0F);
    dark_mode();
 
-   set_status(state, "Ready");
+   state_status(state, "Ready");
 }
 
 static void app_buttons(struct state *state)
 {
    if (ImGui::Button("Good")) {
       logic_good(state);
-      set_status(state, "One good placed");
+      state_status(state, "One good placed");
    }
 
    ImGui::SameLine();
    if (ImGui::Button("Bad")) {
       logic_bad(state);
-      set_status(state, "One bad placed");
+      state_status(state, "One bad placed");
    }
 
    ImGui::SameLine();
    if (ImGui::Button("Populate")) {
       logic_pop(state);
-      set_status(state, "All populated");
+      state_status(state, "All populated");
    }
 
    ImGui::SameLine();
    if (ImGui::Button("Clear")) {
       logic_clear(state);
-      set_status(state, "Cleared");
+      state_status(state, "Cleared");
    }
 
    ImGui::SameLine();
    if (ImGui::Button("MIDI Refresh")) {
       refresh_midi_devices(state);
-      set_status(state, "MIDI devices refreshed");
+      state_status(state, "MIDI devices refreshed");
    }
 
    ImGui::SameLine();
@@ -89,7 +80,7 @@ static void app_midi(struct state *state)
             char msg[128];
             snprintf(msg, sizeof(msg), "Selected MIDI device: %s",
                      state->midi_devices[i].c_str());
-            set_status(state, msg);
+            state_status(state, msg);
          }
       }
       ImGui::EndListBox();
@@ -105,7 +96,7 @@ static void app_controls(struct state *state)
    app_midi(state);
 
    ImGui::Separator();
-   ImGui::Text("Status: %s", state->status);
+   ImGui::Text("Status: %s", state->status.c_str());
 
    ImGui::EndChild();
 }

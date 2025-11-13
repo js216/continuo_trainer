@@ -37,7 +37,7 @@ void init_midi(struct state *state)
 {
    if (state->selected_device < 0 ||
        state->selected_device >= (int)state->midi_devices.size()) {
-      snprintf(state->status, sizeof(state->status), "No MIDI device selected");
+      state_status(state, "No MIDI device selected");
       return;
    }
 
@@ -50,11 +50,10 @@ void init_midi(struct state *state)
       state->midi_in->openPort(state->selected_device);
       state->midi_in->ignoreTypes(false, false, false);
 
-      snprintf(state->status, sizeof(state->status), "MIDI input opened: %s",
-               state->midi_devices[state->selected_device].c_str());
+      state_status(state, "MIDI input opened: %s",
+                   state->midi_devices[state->selected_device].c_str());
    } catch (RtMidiError &error) {
-      snprintf(state->status, sizeof(state->status), "RtMidi error: %s",
-               error.getMessage().c_str());
+      state_status(state, "RtMidi error: %s", error.getMessage().c_str());
       state->midi_in.reset(); // ensure it's null
    }
 }
@@ -77,16 +76,15 @@ void remove_pressed_note(struct state *state, unsigned char note)
 void update_status(struct state *state)
 {
    if (state->pressed_notes.empty()) {
-      strncpy(state->status, "All notes released", sizeof(state->status) - 1);
+      state_status(state, "All notes released");
       state->all_released = true;
    } else {
       std::string s = "Pressed: ";
       for (auto n : state->pressed_notes)
          s += std::to_string(n) + " ";
-      strncpy(state->status, s.c_str(), sizeof(state->status) - 1);
+      state_status(state, "%s", s.c_str());
       state->all_released = false;
    }
-   state->status[sizeof(state->status) - 1] = '\0';
 }
 
 void poll_midi(struct state *state)

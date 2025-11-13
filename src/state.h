@@ -11,6 +11,7 @@
 
 #include "RtMidi.h"
 #include <memory>
+#include <sstream>
 #include <string>
 #include <vector>
 
@@ -45,7 +46,7 @@ enum midi_note {
 };
 
 struct state {
-   char status[256];
+   std::string status;
 
    std::vector<enum midi_note> bassline;
    std::vector<std::vector<midi_note>> chords_ok;
@@ -59,5 +60,12 @@ struct state {
    bool all_released = true;
    int chord_index;
 };
+
+template <typename... Args> void state_status(state *s, Args &&...args)
+{
+   std::ostringstream oss;
+   (oss << ... << args);
+   s->status = oss.str();
+}
 
 #endif /* STATE_H */
