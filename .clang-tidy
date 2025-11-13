@@ -30,7 +30,8 @@ Checks: >
   -modernize-redundant-void-arg,
   -*-use-auto,
   -cert-err33-c,
-  -cppcoreguidelines-pro-bounds-pointer-arithmetic
+  -cppcoreguidelines-pro-bounds-pointer-arithmetic,
+  -modernize-loop-convert
 
 WarningsAsErrors: '*'
 
