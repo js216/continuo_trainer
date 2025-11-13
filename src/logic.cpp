@@ -9,7 +9,6 @@
 #include "logic.h"
 #include "state.h"
 #include "util.h"
-#include <algorithm>
 #include <iostream>
 #include <iterator>
 #include <random>
@@ -30,13 +29,11 @@ static midi_note get_note(void)
 
 void logic_clear(struct state *state)
 {
+   state->pressed_notes.clear();
+   state->chord_buffer.clear();
    state->bassline.clear();
-
    state->chords_ok.clear();
-   state->chords_ok.resize(MAX_CHORDS);
-
    state->chords_bad.clear();
-   state->chords_bad.resize(MAX_CHORDS);
 }
 
 void logic_pop(state *state)
@@ -45,63 +42,48 @@ void logic_pop(state *state)
    std::generate_n(std::back_inserter(state->bassline), MAX_CHORDS, get_note);
 }
 
-void logic_good(state *state)
+void logic_good(struct state *state)
 {
-   for (auto &row : state->chords_ok) {
-      if (row.size() < MAX_CHORDS) {
-         row.push_back(get_note());
-         return;
-      }
+   if (state->chords_ok.size() < MAX_CHORDS) {
+      state->chords_ok.emplace_back();
+      state->chords_ok.back().push_back(get_note());
+      return;
+   }
+
+   auto it = std::min_element(
+       state->chords_ok.begin(), state->chords_ok.end(),
+       [](const auto &a, const auto &b) { return a.size() < b.size(); });
+
+   if (it != state->chords_ok.end()) {
+      it->push_back(get_note());
    }
 }
 
-void logic_bad(state *state)
+void logic_bad(struct state *state)
 {
-   if (state->chords_bad.empty())
-      ERROR("chords_bad too small");
-
-   auto &row = state->chords_bad[0]; // first row only
-   if (row.size() < MAX_CHORDS)
-      row.push_back(get_note());
+   if (state->chords_bad.size() < MAX_CHORDS) {
+      state->chords_bad.emplace_back();
+      state->chords_bad.back().push_back(get_note());
+   }
 }
 
 void logic_interpret(struct state *state)
 {
-   static std::vector<unsigned char> chord_buffer; // notes for current chord
-   static bool chord_active = false; // true while keys are pressed
-
    if (!state->pressed_notes.empty()) {
-      // accumulate notes
-      for (auto note : state->pressed_notes) {
-         if (std::find(chord_buffer.begin(), chord_buffer.end(), note) ==
-             chord_buffer.end())
-            chord_buffer.push_back(note);
-      }
+      for (auto note : state->pressed_notes)
+         state->chord_buffer.insert(static_cast<midi_note>(note));
 
-      chord_active = true;
+      if (state->chords_ok.empty())
+         state->chords_ok.emplace_back();
 
-      // copy buffer to current column
-      for (int i = 0; i < NOTES_PER_CHORD; ++i) {
-         if (i < (int)chord_buffer.size())
-            state->chords_ok[i][state->chord_index] =
-                static_cast<enum midi_note>(chord_buffer[i]);
-         else
-            state->chords_ok[i][state->chord_index] = NOTES_NONE;
-      }
-
-      return;
+      state->chords_ok.back().assign(state->chord_buffer.begin(),
+                                     state->chord_buffer.end());
    }
 
-   // all notes released -> prepare next chord
-   if (chord_active) {
-      chord_active = false;
-      chord_buffer.clear();
+   else if (!state->chord_buffer.empty()) {
+      state->chord_buffer.clear();
 
-      // advance column index
-      state->chord_index = (state->chord_index + 1) % MAX_CHORDS;
-
-      // clear the next column (only now)
-      for (auto &col : state->chords_ok)
-         col[state->chord_index] = NOTES_NONE;
+      if (state->chords_ok.size() >= MAX_CHORDS)
+         state->chords_ok.clear();
    }
 }

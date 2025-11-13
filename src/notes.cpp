@@ -92,16 +92,6 @@ void notes_staff(void)
    ImGui::EndChild();
 }
 
-/**
- * @brief Draw ledger lines through a note outside the staff.
- *
- * @param draw_list ImGui draw list
- * @param x X position of the note
- * @param y Y position of the note
- * @param note_val MIDI note value
- * @param color Color to draw
- * @param note_radius Radius of the note circle
- */
 static void draw_ledger_lines(ImDrawList *draw_list, float x, float y,
                               int note_val, float note_radius)
 {
@@ -115,17 +105,6 @@ static void draw_ledger_lines(ImDrawList *draw_list, float x, float y,
    }
 }
 
-/**
- * @brief Draw a sharp symbol next to a note.
- *
- * @param draw_list ImGui draw list
- * @param font ImGui font pointer
- * @param font_size Font size in pixels
- * @param x X position of the note
- * @param y Y position of the note
- * @param note_radius Radius of the note circle
- * @param color Color of the sharp
- */
 static void draw_sharp(ImDrawList *draw_list, ImFont *font, float font_size,
                        float x, float y, float note_radius, uint32_t color)
 {
@@ -138,43 +117,53 @@ static void draw_sharp(ImDrawList *draw_list, ImFont *font, float font_size,
        sharp);
 }
 
-void notes_dots(const std::vector<midi_note> &notes, uint32_t color)
+static void notes_dot(midi_note n, int x_idx, uint32_t color)
+{
+   ImVec2 size             = ImGui::GetContentRegionAvail();
+   const float note_radius = size.y / 30.0F;
+   float font_size         = 3.0F * note_radius;
+
+   float x = ((float)x_idx + 1) * size.x / (MAX_CHORDS + 1.0F);
+   float y = static_cast<float>(calc_y(n));
+
+   ImDrawList *draw_list = ImGui::GetWindowDrawList();
+   ImFont *font          = ImGui::GetFont();
+
+   if (note_has_sharp(n))
+      draw_sharp(draw_list, font, font_size, x, y, note_radius, color);
+
+   draw_ledger_lines(draw_list, x, y, static_cast<int>(n), note_radius);
+   draw_list->AddCircleFilled(ImVec2(x, y), note_radius, color);
+}
+
+void notes_single(const std::vector<midi_note> &notes, uint32_t color)
 {
    if (!ImGui::BeginChild("Staff", ImVec2(0, 0), false)) {
       ImGui::EndChild();
       return;
    }
 
-   ImDrawList *draw_list = ImGui::GetWindowDrawList();
-   ImVec2 p              = ImGui::GetCursorScreenPos();
-   ImVec2 size           = ImGui::GetContentRegionAvail();
-
-   const float note_radius = size.y / 30.0F;
-   const float x_space =
-       size.x / (MAX_CHORDS + 1.0F); // reserve slots for max possible notes
-
-   ImFont *font    = ImGui::GetFont();
-   float font_size = 3.0F * note_radius;
-
-   for (size_t i = 0; i < notes.size(); ++i) {
-      float x = p.x + ((float)i + 1) * x_space;
-      float y = static_cast<float>(calc_y(notes[i]));
-
-      if (note_has_sharp(notes[i]))
-         draw_sharp(draw_list, font, font_size, x, y, note_radius, color);
-
-      draw_ledger_lines(draw_list, x, y, static_cast<int>(notes[i]),
-                        note_radius);
-      draw_list->AddCircleFilled(ImVec2(x, y), note_radius, color);
-   }
+   for (size_t i = 0; i < notes.size(); ++i)
+      notes_dot(notes[i], static_cast<int>(i), color);
 
    ImGui::EndChild();
 }
 
-void notes_chords(const std::vector<std::vector<midi_note>> &ch_arr,
+void notes_chords(const std::vector<std::vector<midi_note>> &chords,
                   uint32_t color)
 {
-   for (const auto &line : ch_arr) {
-      notes_dots(line, color);
+   if (!ImGui::BeginChild("Staff", ImVec2(0, 0), false)) {
+      ImGui::EndChild();
+      return;
    }
+
+   int x_idx = 0;
+   for (const auto &chord : chords) {
+      for (auto n : chord) {
+         notes_dot(n, x_idx, color);
+      }
+      ++x_idx;
+   }
+
+   ImGui::EndChild();
 }

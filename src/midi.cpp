@@ -77,13 +77,11 @@ void update_status(struct state *state)
 {
    if (state->pressed_notes.empty()) {
       state_status(state, "All notes released");
-      state->all_released = true;
    } else {
       std::string s = "Pressed: ";
       for (auto n : state->pressed_notes)
          s += std::to_string(n) + " ";
       state_status(state, "%s", s.c_str());
-      state->all_released = false;
    }
 }
 

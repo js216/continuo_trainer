@@ -55,9 +55,8 @@ market only to realize there is no market for continuo-training toys ...
 
 ### Todo
 
-- add the treble staff
-- no need for <algorithm> to convert midi
 - function to decide if a given note is bad
+- add the treble staff
 - array of continuo figures to display
 - restore last used MIDI dev
 - write state to file

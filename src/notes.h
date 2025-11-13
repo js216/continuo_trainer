@@ -16,9 +16,9 @@
 
 void notes_staff(void);
 
-void notes_dots(const std::vector<midi_note> &notes, uint32_t color);
+void notes_single(const std::vector<midi_note> &notes, uint32_t color);
 
-void notes_chords(const std::vector<std::vector<midi_note>> &ch_arr,
+void notes_chords(const std::vector<std::vector<midi_note>> &chords,
                   uint32_t color);
 
 #endif /* NOTES_H */

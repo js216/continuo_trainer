@@ -113,7 +113,7 @@ void render_ui(struct state *state)
    app_controls(state);
 
    notes_staff();
-   notes_dots(state->bassline, STYLE_WHITE);
+   notes_single(state->bassline, STYLE_WHITE);
    notes_chords(state->chords_ok, STYLE_GREEN);
    notes_chords(state->chords_bad, STYLE_RED);
 

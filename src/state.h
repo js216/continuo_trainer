@@ -13,14 +13,14 @@
 #include <memory>
 #include <sstream>
 #include <string>
+#include <unordered_set>
 #include <vector>
 
 #define NOTES_PER_CHORD 10
 #define MAX_CHORDS      20
 
 enum midi_note {
-   NOTES_NONE = 0,
-   NOTES_E2   = 40,
+   NOTES_E2 = 40,
    NOTES_F2,
    NOTES_Fs2,
    NOTES_G2,
@@ -46,19 +46,22 @@ enum midi_note {
 };
 
 struct state {
+   // status bar
    std::string status;
 
+   // sheet music display
    std::vector<enum midi_note> bassline;
    std::vector<std::vector<midi_note>> chords_ok;
    std::vector<std::vector<midi_note>> chords_bad;
 
+   // MIDI devices
    std::vector<std::string> midi_devices;
    int selected_device = -1;
    std::unique_ptr<RtMidiIn> midi_in;
 
+   // receiving notes into chords
    std::vector<unsigned char> pressed_notes;
-   bool all_released = true;
-   int chord_index;
+   std::unordered_set<midi_note> chord_buffer;
 };
 
 template <typename... Args> void state_status(state *s, Args &&...args)
