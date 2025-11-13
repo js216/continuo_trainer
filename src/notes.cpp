@@ -82,7 +82,7 @@ void notes_staff(void)
 
    for (size_t i = 0; i < sizeof(staff_lines) / sizeof(staff_lines[0]); i++) {
       float y = calc_y(staff_lines[i]);
-      draw_list->AddLine(ImVec2(p.x, y), ImVec2(p.x + size.x, y), STYLE_WHITE,
+      draw_list->AddLine(ImVec2(p.x, y), ImVec2(p.x + size.x, y), STYLE_GRAY,
                          STYLE_LINE_THICKNESS);
    }
 
@@ -100,14 +100,14 @@ void notes_staff(void)
  * @param note_radius Radius of the note circle
  */
 static void draw_ledger_lines(ImDrawList *draw_list, float x, float y,
-                              int note_val, uint32_t color, float note_radius)
+                              int note_val, float note_radius)
 {
    const float ledger_width = 4.0F * note_radius;
 
    if (note_val < NOTES_G2 || note_val > NOTES_B3) {
       // Draw a single line through the dot
       draw_list->AddLine(ImVec2(x - ledger_width / 2, y),
-                         ImVec2(x + ledger_width / 2, y), color,
+                         ImVec2(x + ledger_width / 2, y), STYLE_GRAY,
                          STYLE_LINE_THICKNESS);
    }
 }
@@ -161,13 +161,13 @@ void notes_dots(const enum midi_note *const n_arr, const size_t count,
       float x = p.x + ((float)i + 1) * x_space;
       float y = (float)calc_y(n_arr[i]);
 
-      draw_list->AddCircleFilled(ImVec2(x, y), note_radius, color);
-
       if (note_has_sharp(n_arr[i])) {
          draw_sharp(draw_list, font, font_size, x, y, note_radius, color);
       }
 
-      draw_ledger_lines(draw_list, x, y, (int)n_arr[i], color, note_radius);
+      draw_ledger_lines(draw_list, x, y, (int)n_arr[i], note_radius);
+
+      draw_list->AddCircleFilled(ImVec2(x, y), note_radius, color);
    }
 
    ImGui::EndChild();
