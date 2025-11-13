@@ -22,7 +22,7 @@ void init_state(struct state *state)
    logic_clear(state);
 
    set_style();
-   set_font("fonts/Roboto-Regular.ttf", 18.0F);
+   set_font();
    dark_mode();
 
    state_status(state, "Ready");

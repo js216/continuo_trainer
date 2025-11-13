@@ -62,17 +62,10 @@ void set_style(void)
    style.AntiAliasedFill    = true;
 }
 
-void set_font(const char *const ttf_path, const float size_pixels)
+void set_font(void)
 {
    ImGuiIO &io = ImGui::GetIO();
-   io.Fonts->Clear();
-
-   ImFont *font = io.Fonts->AddFontFromFileTTF(ttf_path, size_pixels);
-   if (font == nullptr) {
-      font = io.FontDefault;
-   }
-
-   io.FontDefault = font;
+   io.Fonts->AddFontFromFileTTF("fonts/Roboto-Regular.ttf", 18.0F);
 }
 
 void dark_mode(void)

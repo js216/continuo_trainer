@@ -16,7 +16,9 @@
 #include <cstdint>
 #include <span>
 
-static int note_to_bass(const enum midi_note n)
+#define NOTES_OUT_OF_RANGE -100
+
+static float note_to_bass(const enum midi_note n)
 {
    switch (n) {
       case NOTES_E2: return -2;
@@ -41,7 +43,33 @@ static int note_to_bass(const enum midi_note n)
       case NOTES_B3: return 9;
       case NOTES_C4:
       case NOTES_Cs4: return 10;
-      default: return -3;
+      default: return NOTES_OUT_OF_RANGE;
+   }
+}
+
+static float note_to_treble(const enum midi_note n)
+{
+   switch (n) {
+      case NOTES_E4 : return 0;
+      case NOTES_F4 :
+      case NOTES_Fs4 : return 1;
+      case NOTES_G4 :
+      case NOTES_Gs4 : return 2;
+      case NOTES_A4 :
+      case NOTES_As4 : return 3;
+      case NOTES_B4 : return 4;
+      case NOTES_C5 :
+      case NOTES_Cs5 : return 5;
+      case NOTES_D5 :
+      case NOTES_Ds5 : return 6;
+      case NOTES_E5 : return 7;
+      case NOTES_F5 :
+      case NOTES_Fs5 : return 8;
+      case NOTES_G5 :
+      case NOTES_Gs5 : return 9;
+      case NOTES_A5 :
+      case NOTES_As5 : return 10;
+      default: return NOTES_OUT_OF_RANGE;
    }
 }
 
@@ -60,15 +88,36 @@ static bool note_has_sharp(const enum midi_note n)
 
 static float calc_y(const enum midi_note n)
 {
-   ImVec2 p    = ImGui::GetCursorScreenPos();
-   ImVec2 size = ImGui::GetContentRegionAvail();
+    ImVec2 p    = ImGui::GetCursorScreenPos();
+    ImVec2 size = ImGui::GetContentRegionAvail();
 
-   const float top     = p.y + size.y * 0.2F;
-   const float bottom  = p.y + size.y * 0.8F;
-   const float spacing = (bottom - top) / 4.0F;
+    const float top     = p.y + size.y * 0.2F;
+    const float bottom  = p.y + size.y * 0.8F;
+    const float spacing = (bottom - top) / 8.0F;
+    const float staff_gap = spacing * 2.5F;
 
-   return bottom - spacing * (float)note_to_bass(n) / 2.0F;
+    float nb = 0;
+    float y = 0;
+
+    if (n >= NOTES_E4) {
+        nb = note_to_treble(n);
+        if (nb == NOTES_OUT_OF_RANGE)
+            return NOTES_OUT_OF_RANGE;
+
+        const float treble_bottom = top + spacing * 4.0F;
+        y = treble_bottom - spacing * (nb / 2.0F) - staff_gap/2;
+
+    } else {
+        nb = note_to_bass(n);
+        if (nb == NOTES_OUT_OF_RANGE)
+            return NOTES_OUT_OF_RANGE;
+
+        y = bottom - spacing * (nb / 2.0F) + staff_gap/2;
+    }
+
+    return y;
 }
+
 
 void notes_staff(void)
 {
@@ -80,11 +129,19 @@ void notes_staff(void)
    ImVec2 p              = ImGui::GetCursorScreenPos();
    ImVec2 size           = ImGui::GetContentRegionAvail();
 
-   static const std::array<midi_note, 6> staff_lines = {
-       NOTES_G2, NOTES_B2, NOTES_D3, NOTES_F3, NOTES_A3, NOTES_C4};
+   static const std::array<midi_note, 10> staff_lines = {
+       NOTES_G2,
+       NOTES_B2, NOTES_D3, NOTES_F3,
+       NOTES_A3,
+       NOTES_E4,
+       NOTES_G4, NOTES_B4, NOTES_D5,
+       NOTES_F5};
 
    for (const auto &line : staff_lines) {
       float y = calc_y(line);
+      if (y == NOTES_OUT_OF_RANGE)
+         continue;
+
       draw_list->AddLine(ImVec2(p.x, y), ImVec2(p.x + size.x, y), STYLE_GRAY,
                          STYLE_LINE_THICKNESS);
    }
@@ -125,6 +182,8 @@ static void notes_dot(midi_note n, int x_idx, uint32_t color)
 
    float x = ((float)x_idx + 1) * size.x / (MAX_CHORDS + 1.0F);
    float y = calc_y(n);
+   if (y == NOTES_OUT_OF_RANGE)
+      return;
 
    ImDrawList *draw_list = ImGui::GetWindowDrawList();
    ImFont *font          = ImGui::GetFont();

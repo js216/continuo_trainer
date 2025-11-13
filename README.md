@@ -55,8 +55,6 @@ market only to realize there is no market for continuo-training toys ...
 
 ### Todo
 
-- add the treble staff
-- window should be resizable
 - array of continuo figures to display
 - implement the function to decide if a given note is bad
 - restore last used MIDI dev
