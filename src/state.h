@@ -66,6 +66,13 @@ enum midi_note {
    NOTES_NUM
 };
 
+enum accidental { ACC_NONE, ACC_SHARP, ACC_FLAT, ACC_NATURAL, ACC_NUM };
+
+struct figure {
+   int num;
+   enum accidental acc;
+};
+
 struct state {
    // status bar
    std::string status;
@@ -74,13 +81,12 @@ struct state {
    std::vector<enum midi_note> bassline;
    std::vector<std::unordered_set<midi_note>> chords_ok;
    std::vector<std::unordered_set<midi_note>> chords_bad;
+   std::vector<std::vector<struct figure>> figures;
 
-   // MIDI devices
+   // MIDI devices and data
    std::vector<std::string> midi_devices;
    int selected_device = -1;
    std::unique_ptr<RtMidiIn> midi_in;
-
-   // receiving notes into chords
    std::vector<unsigned char> pressed_notes;
 };
 

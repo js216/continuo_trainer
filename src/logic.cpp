@@ -15,18 +15,6 @@
 #include <iterator>
 #include <random>
 
-static midi_note get_note(void)
-{
-   constexpr int min = NOTES_E2;
-   constexpr int max = NOTES_NUM - 1;
-
-   static std::random_device rd;
-   static std::mt19937 engine(rd());
-   static std::uniform_int_distribution<int> dist(min, max);
-
-   return static_cast<midi_note>(dist(engine));
-}
-
 void logic_clear(struct state *state)
 {
    state->pressed_notes.clear();
@@ -35,10 +23,44 @@ void logic_clear(struct state *state)
    state->chords_bad.clear();
 }
 
-void logic_pop(state *state)
+static enum midi_note get_note(void)
 {
+   static std::random_device rd;
+   static std::mt19937 engine(rd());
+   static std::uniform_int_distribution<int> dist(NOTES_E2, NOTES_NUM - 1);
+
+   return static_cast<midi_note>(dist(engine));
+}
+
+static std::vector<figure> get_figures(void)
+{
+   static std::random_device rd;
+   static std::mt19937 engine(rd());
+   static std::uniform_int_distribution<int> dist_num(1, 8);
+   static std::uniform_int_distribution<int> dist_acc(ACC_NONE, ACC_NUM - 1);
+   static std::uniform_int_distribution<int> dist_count(1, 3);
+
+   int n_figures = dist_count(engine);
+   std::vector<figure> figs;
+   figs.reserve(n_figures);
+
+   for (int i = 0; i < n_figures; ++i) {
+      figs.push_back(
+          figure{dist_num(engine), (enum accidental)dist_acc(engine)});
+   }
+
+   return figs;
+}
+
+void logic_populate(state *state)
+{
+   // notes
    state->bassline.clear();
    std::generate_n(std::back_inserter(state->bassline), MAX_CHORDS, get_note);
+
+   // figures
+   state->figures.clear();
+   std::generate_n(std::back_inserter(state->figures), MAX_CHORDS, get_figures);
 }
 
 void logic_good(struct state *state)
@@ -66,16 +88,35 @@ void logic_bad(struct state *state)
    }
 }
 
-bool logic_adjudicate(enum midi_note bass_note, enum midi_note realization)
+static bool logic_adjudicate(enum midi_note bass_note,
+                             const std::vector<figure> &figures,
+                             enum midi_note realization)
 {
-   (void)bass_note;
-   (void)realization;
+   int realized_pc = (int)realization % 12;
 
-   static std::random_device rd;
-   static std::mt19937 gen(rd());
-   static std::uniform_int_distribution<int> dist(0, 1);
+   for (const auto &fig : figures) {
+      int interval = 0;
+      switch (fig.num) {
+         case 3: interval = 4; break;
+         case 5: interval = 7; break;
+         case 6: interval = 9; break;
+         case 7: interval = 10; break;
+         case 8: interval = 12; break;
+         default: continue;
+      }
 
-   return dist(gen) != 0;
+      if (fig.acc == ACC_SHARP) {
+         interval += 1;
+      } else if (fig.acc == ACC_FLAT) {
+         interval -= 1;
+      }
+
+      int expected_pc = ((int)bass_note + interval + 12) % 12;
+      if (realized_pc == expected_pc)
+         return true; // correct realization
+   }
+
+   return false; // no match found
 }
 
 static void process_note(struct state *state, midi_note realization)
@@ -86,8 +127,9 @@ static void process_note(struct state *state, midi_note realization)
    size_t back_idx = state->chords_ok.size() - 1;
 
    if (back_idx < state->bassline.size()) {
-      midi_note bass_note = state->bassline[back_idx];
-      if (logic_adjudicate(bass_note, realization))
+      enum midi_note bass_note        = state->bassline[back_idx];
+      const std::vector<figure> &figs = state->figures[back_idx];
+      if (logic_adjudicate(bass_note, figs, realization))
          state->chords_ok.back().insert(realization);
       else
          state->chords_bad.back().insert(realization);

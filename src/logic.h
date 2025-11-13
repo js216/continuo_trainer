@@ -14,7 +14,7 @@
 
 void logic_clear(struct state *state);
 
-void logic_pop(struct state *state);
+void logic_populate(struct state *state);
 
 void logic_good(struct state *state);
 

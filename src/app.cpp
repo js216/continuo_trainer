@@ -43,7 +43,7 @@ static void app_buttons(struct state *state)
 
    ImGui::SameLine();
    if (ImGui::Button("Populate")) {
-      logic_pop(state);
+      logic_populate(state);
       state_status(state, "All populated");
    }
 
@@ -112,6 +112,7 @@ void render_ui(struct state *state)
    notes_single(state->bassline, STYLE_WHITE);
    notes_chords(state->chords_ok, STYLE_GREEN);
    notes_chords(state->chords_bad, STYLE_RED);
+   notes_figures(state->bassline, state->figures, STYLE_WHITE);
 
    ImGui::End();
 }

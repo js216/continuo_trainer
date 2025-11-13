@@ -21,4 +21,8 @@ void notes_single(const std::vector<midi_note> &notes, uint32_t color);
 void notes_chords(const std::vector<std::unordered_set<midi_note>> &chords,
                   uint32_t color);
 
+void notes_figures(const std::vector<midi_note> &notes,
+                   const std::vector<std::vector<figure>> &figures,
+                   uint32_t color);
+
 #endif /* NOTES_H */
