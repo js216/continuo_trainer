@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-2.0-or-later
+
 /**
  * @file main.cpp
  * @brief Platform-specific entry point and SDL/OpenGL/ImGui integration.

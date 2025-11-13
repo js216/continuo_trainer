@@ -84,3 +84,8 @@ market only to realize there is no market for continuo-training toys ...
 ### Author
 
 Jakob Kastelic
+
+## License
+
+This project is licensed under the GNU General Public License v2.0 or later.
+See the [LICENSE](LICENSE) file for details.

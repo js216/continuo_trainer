@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-2.0-or-later
+
 /**
  * @file app.h
  * @brief Portable application logic interface.
