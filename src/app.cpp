@@ -44,6 +44,7 @@ static void app_buttons(struct state *state)
         set_status(state, "One bad placed");
     }
 
+    ImGui::SameLine();
     if (ImGui::Button("Populate")) {
         logic_pop(state);
         set_status(state, "All populated");
@@ -54,10 +55,8 @@ static void app_buttons(struct state *state)
         logic_clear(state);
         set_status(state, "Cleared");
     }
-}
 
-static void app_midi(struct state *state)
-{
+    ImGui::SameLine();
     if (ImGui::Button("MIDI Refresh")) {
         refresh_midi_devices(state);
         set_status(state, "MIDI devices refreshed");
@@ -68,6 +67,10 @@ static void app_midi(struct state *state)
         init_midi(state);
     }
 
+}
+
+static void app_midi(struct state *state)
+{
     ImGui::Text("MIDI Devices:");
     if (ImGui::BeginListBox("##midi_list",
                             ImVec2(-FLT_MIN,
@@ -95,11 +98,8 @@ static void app_controls(struct state *state)
     float controls_height = ImGui::GetFrameHeightWithSpacing() * 6.0F;
     ImGui::BeginChild("Controls", ImVec2(0, controls_height), true);
 
-    ImGui::Columns(2, "control_columns", true);
     app_buttons(state);
-    ImGui::NextColumn();
     app_midi(state);
-    ImGui::Columns(1);
 
     ImGui::Separator();
     ImGui::Text("Status: %s", state->status);

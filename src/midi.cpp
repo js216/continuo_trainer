@@ -4,7 +4,9 @@
  * @author Jakob Kastelic
  */
 
+#include <algorithm>
 #include <string>
+#include <string.h>
 #include "state.h"
 #include "RtMidi.h"
 
@@ -61,27 +63,61 @@ void init_midi(struct state* state)
 }
 
 
+void add_pressed_note(struct state* state, unsigned char note)
+{
+    auto& notes = state->pressed_notes;
+    if (std::find(notes.begin(), notes.end(), note) == notes.end())
+        notes.push_back(note);
+}
+
+void remove_pressed_note(struct state* state, unsigned char note)
+{
+    auto& notes = state->pressed_notes;
+    auto it = std::find(notes.begin(), notes.end(), note);
+    if (it != notes.end())
+        notes.erase(it);
+}
+
+void update_status(struct state* state)
+{
+    if (state->pressed_notes.empty()) {
+        strncpy(state->status, "All notes released", sizeof(state->status)-1);
+        state->all_released = true;
+    } else {
+        std::string s = "Pressed: ";
+        for (auto n : state->pressed_notes)
+            s += std::to_string(n) + " ";
+        strncpy(state->status, s.c_str(), sizeof(state->status)-1);
+        state->all_released = false;
+    }
+    state->status[sizeof(state->status)-1] = '\0';
+}
+
 void poll_midi(struct state* state)
 {
-    if (!state->midi_in) return;  // MIDI not initialized
+    if (!state->midi_in) return;
 
     std::vector<unsigned char> message;
     double stamp;
+    bool changed = false;
 
     while ((stamp = state->midi_in->getMessage(&message)) != 0.0) {
-        if (message.size() >= 3) {
-            unsigned char status = message[0] & 0xF0;
-            unsigned char note   = message[1];
-            unsigned char velocity = message[2];
+        if (message.size() < 3) continue;
 
-            if (status == 0x90 && velocity > 0) {
-                snprintf(state->status, sizeof(state->status),
-                         "Note ON: %u (vel %u)", note, velocity);
-            } else if (status == 0x80 || (status == 0x90 && velocity == 0)) {
-                snprintf(state->status, sizeof(state->status),
-                         "Note OFF: %u", note);
-            }
+        unsigned char status   = message[0] & 0xF0;
+        unsigned char note     = message[1];
+        unsigned char velocity = message[2];
+
+        if (status == 0x90 && velocity > 0) {
+            add_pressed_note(state, note);
+            changed = true;
+        } else if (status == 0x80 || (status == 0x90 && velocity == 0)) {
+            remove_pressed_note(state, note);
+            changed = true;
         }
     }
+
+    if (changed)
+        update_status(state);
 }
 

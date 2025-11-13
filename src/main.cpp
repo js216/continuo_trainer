@@ -49,6 +49,7 @@ int main(void)
 
    while (handle_events()) {
       poll_midi(&state);
+      logic_interpret(&state);
 
       ImGui_ImplOpenGL3_NewFrame();
       ImGui_ImplSDL2_NewFrame();

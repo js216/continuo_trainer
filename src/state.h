@@ -55,6 +55,7 @@ struct state {
 
    std::vector<unsigned char> pressed_notes;
    bool all_released = true;
+   int chord_index;
 };
 
 #endif /* STATE_H */
