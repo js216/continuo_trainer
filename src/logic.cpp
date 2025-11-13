@@ -30,7 +30,6 @@ static midi_note get_note(void)
 void logic_clear(struct state *state)
 {
    state->pressed_notes.clear();
-   state->chord_buffer.clear();
    state->bassline.clear();
    state->chords_ok.clear();
    state->chords_bad.clear();
@@ -46,7 +45,7 @@ void logic_good(struct state *state)
 {
    if (state->chords_ok.size() < MAX_CHORDS) {
       state->chords_ok.emplace_back();
-      state->chords_ok.back().push_back(get_note());
+      state->chords_ok.back().insert(get_note());
       return;
    }
 
@@ -55,7 +54,7 @@ void logic_good(struct state *state)
        [](const auto &a, const auto &b) { return a.size() < b.size(); });
 
    if (it != state->chords_ok.end()) {
-      it->push_back(get_note());
+      it->insert(get_note());
    }
 }
 
@@ -63,27 +62,62 @@ void logic_bad(struct state *state)
 {
    if (state->chords_bad.size() < MAX_CHORDS) {
       state->chords_bad.emplace_back();
-      state->chords_bad.back().push_back(get_note());
+      state->chords_bad.back().insert(get_note());
    }
 }
 
-void logic_interpret(struct state *state)
+bool logic_adjudicate(enum midi_note bass_note, enum midi_note realization)
+{
+   (void)bass_note;
+   (void)realization;
+
+   static std::random_device rd;
+   static std::mt19937 gen(rd());
+   static std::uniform_int_distribution<int> dist(0, 1);
+
+   return dist(gen) != 0;
+}
+
+static void process_note(struct state *state, midi_note realization)
+{
+   if (state->chords_ok.size() != state->chords_bad.size())
+      ERROR("set size mismatch");
+
+   size_t back_idx = state->chords_ok.size() - 1;
+
+   if (back_idx < state->bassline.size()) {
+      midi_note bass_note = state->bassline[back_idx];
+      if (logic_adjudicate(bass_note, realization))
+         state->chords_ok.back().insert(realization);
+      else
+         state->chords_bad.back().insert(realization);
+   } else {
+      state->chords_bad.back().insert(realization);
+   }
+}
+
+void logic_receive(struct state *state)
 {
    if (!state->pressed_notes.empty()) {
-      for (auto note : state->pressed_notes)
-         state->chord_buffer.insert(static_cast<midi_note>(note));
-
-      if (state->chords_ok.empty())
-         state->chords_ok.emplace_back();
-
-      state->chords_ok.back().assign(state->chord_buffer.begin(),
-                                     state->chord_buffer.end());
+      // accumulate all pressed notes into the current back column
+      for (auto note_val : state->pressed_notes)
+         process_note(state, static_cast<midi_note>(note_val));
    }
 
-   else if (!state->chord_buffer.empty()) {
-      state->chord_buffer.clear();
+   else {
+      // all notes released → ensure there's an empty column for the next chord
+      if (!state->chords_ok.empty() && (!state->chords_ok.back().empty() ||
+                                        !state->chords_bad.back().empty())) {
+         state->chords_ok.emplace_back();
+         state->chords_bad.emplace_back();
+      }
 
-      if (state->chords_ok.size() >= MAX_CHORDS)
+      // clear everything if MAX_CHORDS reached
+      if (state->chords_ok.size() >= MAX_CHORDS ||
+          state->chords_bad.size() >= MAX_CHORDS) {
          state->chords_ok.clear();
+         state->chords_bad.clear();
+         state->bassline.clear();
+      }
    }
 }

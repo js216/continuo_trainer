@@ -15,6 +15,7 @@
 #define ERROR(msg)                                                             \
    do {                                                                        \
       (void)fprintf(stderr, "ERROR: %s\n", msg);                               \
+      abort();                                                                 \
    } while (0)
 
 #endif // UTIL_H

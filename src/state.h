@@ -51,8 +51,8 @@ struct state {
 
    // sheet music display
    std::vector<enum midi_note> bassline;
-   std::vector<std::vector<midi_note>> chords_ok;
-   std::vector<std::vector<midi_note>> chords_bad;
+   std::vector<std::unordered_set<midi_note>> chords_ok;
+   std::vector<std::unordered_set<midi_note>> chords_bad;
 
    // MIDI devices
    std::vector<std::string> midi_devices;
@@ -61,7 +61,6 @@ struct state {
 
    // receiving notes into chords
    std::vector<unsigned char> pressed_notes;
-   std::unordered_set<midi_note> chord_buffer;
 };
 
 template <typename... Args> void state_status(state *s, Args &&...args)

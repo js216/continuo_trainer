@@ -20,6 +20,6 @@ void logic_good(struct state *state);
 
 void logic_bad(struct state *state);
 
-void logic_interpret(struct state *state);
+void logic_receive(struct state *state);
 
 #endif /* LOGIC_H */
