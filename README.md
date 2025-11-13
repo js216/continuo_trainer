@@ -1,4 +1,26 @@
-# Continuo trainer
+# Continuo Trainer
+
+An interactive AI-based basso continuo trainer that analyzes your performance on
+a MIDI keyboard against a displayed bassline, giving feedback on harmony,
+rhythm, and style while adapting exercises through spaced repetition and
+gamified learning; eventually envisioned as a compact standalone practice
+device.
+
+![Screenshot](screenshot.png)
+
+### Getting Started
+
+Prerequisites: SDL2. (For static code analysis also need bear, clang-tidy,
+clang-format, cppcheck.)
+
+To build, just clone project and call make, and then run the program:
+
+    $ git clone git@github.com:js216/continuo_trainer.git
+    $ cd continuo_trainer
+    $ make -j4
+    $ ./continuo_trainer
+
+### The Story
 
 I wondered how hard it would be to create a little AI system for practicing
 continuo. The program would show a bassline and you have to realize it, and then
@@ -31,8 +53,34 @@ small speaker, and some input/output connections (maybe MIDI in/out, sound
 in/out, and/or USB for either). Then, the whole thing would be placed on the
 market only to realize there is no market for continuo-training toys ...
 
-### Prerequisites
+### Todo
 
-For compiling: SDL2, G++.
+- add the treble staff
+- no need for <algorithm> to convert midi
+- function to decide if a given note is bad
+- array of continuo figures to display
+- use std::string throughout instead of char*
+- use std::vector instead of arrays
+- restore last used MIDI dev
+- write state to file
+- enforce header inclusion DAG
+- put status bar on the bottom of the screen
+- hide MIDI selection box when connected
+- support for key signatures
+- notes out of range displayed octave up/dn
+- window should be resizable
+- right half of status displays MIDI device
+- read lessons from text files
+- record times and all notes pressed to logs
+- lessons can have a melody (different color)
+- free-timing vs fixed rhythm mode
+- melody playback via MIDI or audio
+- display the clef symbol
+- analyze lessons to generate new ones
+- support for several lines of music
+- voice leading analysis; hints displayed
+- research gamification, motivation strategy
 
-For checking: bear, clang-tidy, clang-format, cppcheck.
+### Author
+
+Jakob Kastelic

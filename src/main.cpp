@@ -8,9 +8,9 @@
 #include "backends/imgui_impl_opengl3.h"
 #include "backends/imgui_impl_sdl2.h"
 #include "imgui.h"
+#include "midi.h"
 #include "notes.h"
 #include "state.h"
-#include "midi.h"
 #include <SDL.h>
 #include <SDL_opengl.h>
 #include <stdio.h>

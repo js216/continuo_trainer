@@ -4,9 +4,9 @@
  * @author Jakob Kastelic
  */
 
-#include <algorithm>
 #include "logic.h"
 #include "state.h"
+#include <algorithm>
 #include <stddef.h>
 #include <stdlib.h>
 
@@ -60,41 +60,41 @@ void logic_bad(struct state *state)
 
 void logic_interpret(struct state *state)
 {
-    static std::vector<unsigned char> chord_buffer; // notes for current chord
-    static bool chord_active = false;               // true while keys are pressed
+   static std::vector<unsigned char> chord_buffer; // notes for current chord
+   static bool chord_active = false; // true while keys are pressed
 
-    if (!state->pressed_notes.empty()) {
-        // accumulate notes
-        for (auto note : state->pressed_notes) {
-            if (std::find(chord_buffer.begin(), chord_buffer.end(), note) == chord_buffer.end())
-                chord_buffer.push_back(note);
-        }
+   if (!state->pressed_notes.empty()) {
+      // accumulate notes
+      for (auto note : state->pressed_notes) {
+         if (std::find(chord_buffer.begin(), chord_buffer.end(), note) ==
+             chord_buffer.end())
+            chord_buffer.push_back(note);
+      }
 
-        chord_active = true;
+      chord_active = true;
 
-        // copy buffer to current column
-        for (int i = 0; i < NOTES_PER_CHORD; ++i) {
-            if (i < (int)chord_buffer.size())
-                state->chords_ok[i][state->chord_index] =
-                    static_cast<enum midi_note>(chord_buffer[i]);
-            else
-                state->chords_ok[i][state->chord_index] = NOTES_NONE;
-        }
-
-        return;
-    }
-
-    // all notes released -> prepare next chord
-    if (chord_active) {
-        chord_active = false;
-        chord_buffer.clear();
-
-        // advance column index
-        state->chord_index = (state->chord_index + 1) % MAX_CHORDS;
-
-        // clear the next column (only now)
-        for (int i = 0; i < NOTES_PER_CHORD; ++i)
+      // copy buffer to current column
+      for (int i = 0; i < NOTES_PER_CHORD; ++i) {
+         if (i < (int)chord_buffer.size())
+            state->chords_ok[i][state->chord_index] =
+                static_cast<enum midi_note>(chord_buffer[i]);
+         else
             state->chords_ok[i][state->chord_index] = NOTES_NONE;
-    }
-}
+      }
 
+      return;
+   }
+
+   // all notes released -> prepare next chord
+   if (chord_active) {
+      chord_active = false;
+      chord_buffer.clear();
+
+      // advance column index
+      state->chord_index = (state->chord_index + 1) % MAX_CHORDS;
+
+      // clear the next column (only now)
+      for (int i = 0; i < NOTES_PER_CHORD; ++i)
+         state->chords_ok[i][state->chord_index] = NOTES_NONE;
+   }
+}

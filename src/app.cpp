@@ -33,78 +33,75 @@ void init_state(struct state *state)
 
 static void app_buttons(struct state *state)
 {
-    if (ImGui::Button("Good")) {
-        logic_good(state);
-        set_status(state, "One good placed");
-    }
+   if (ImGui::Button("Good")) {
+      logic_good(state);
+      set_status(state, "One good placed");
+   }
 
-    ImGui::SameLine();
-    if (ImGui::Button("Bad")) {
-        logic_bad(state);
-        set_status(state, "One bad placed");
-    }
+   ImGui::SameLine();
+   if (ImGui::Button("Bad")) {
+      logic_bad(state);
+      set_status(state, "One bad placed");
+   }
 
-    ImGui::SameLine();
-    if (ImGui::Button("Populate")) {
-        logic_pop(state);
-        set_status(state, "All populated");
-    }
+   ImGui::SameLine();
+   if (ImGui::Button("Populate")) {
+      logic_pop(state);
+      set_status(state, "All populated");
+   }
 
-    ImGui::SameLine();
-    if (ImGui::Button("Clear")) {
-        logic_clear(state);
-        set_status(state, "Cleared");
-    }
+   ImGui::SameLine();
+   if (ImGui::Button("Clear")) {
+      logic_clear(state);
+      set_status(state, "Cleared");
+   }
 
-    ImGui::SameLine();
-    if (ImGui::Button("MIDI Refresh")) {
-        refresh_midi_devices(state);
-        set_status(state, "MIDI devices refreshed");
-    }
+   ImGui::SameLine();
+   if (ImGui::Button("MIDI Refresh")) {
+      refresh_midi_devices(state);
+      set_status(state, "MIDI devices refreshed");
+   }
 
-    ImGui::SameLine();
-    if (ImGui::Button("Connect")) {
-        init_midi(state);
-    }
-
+   ImGui::SameLine();
+   if (ImGui::Button("Connect")) {
+      init_midi(state);
+   }
 }
 
 static void app_midi(struct state *state)
 {
-    ImGui::Text("MIDI Devices:");
-    if (ImGui::BeginListBox("##midi_list",
-                            ImVec2(-FLT_MIN,
-                                   5 * ImGui::GetTextLineHeightWithSpacing())))
-    {
-        for (int i = 0; i < (int)state->midi_devices.size(); i++) {
-            bool selected = (state->selected_device == i);
-            if (ImGui::Selectable(state->midi_devices[i].c_str(), selected)) {
-                state->selected_device = i;
+   ImGui::Text("MIDI Devices:");
+   if (ImGui::BeginListBox(
+           "##midi_list",
+           ImVec2(-FLT_MIN, 5 * ImGui::GetTextLineHeightWithSpacing()))) {
+      for (int i = 0; i < (int)state->midi_devices.size(); i++) {
+         bool selected = (state->selected_device == i);
+         if (ImGui::Selectable(state->midi_devices[i].c_str(), selected)) {
+            state->selected_device = i;
 
-                // Set status message when user clicks on a device
-                char msg[128];
-                snprintf(msg, sizeof(msg), "Selected MIDI device: %s",
-                         state->midi_devices[i].c_str());
-                set_status(state, msg);
-            }
-        }
-        ImGui::EndListBox();
-    }
+            // Set status message when user clicks on a device
+            char msg[128];
+            snprintf(msg, sizeof(msg), "Selected MIDI device: %s",
+                     state->midi_devices[i].c_str());
+            set_status(state, msg);
+         }
+      }
+      ImGui::EndListBox();
+   }
 }
-
 
 static void app_controls(struct state *state)
 {
-    float controls_height = ImGui::GetFrameHeightWithSpacing() * 6.0F;
-    ImGui::BeginChild("Controls", ImVec2(0, controls_height), true);
+   float controls_height = ImGui::GetFrameHeightWithSpacing() * 6.0F;
+   ImGui::BeginChild("Controls", ImVec2(0, controls_height), true);
 
-    app_buttons(state);
-    app_midi(state);
+   app_buttons(state);
+   app_midi(state);
 
-    ImGui::Separator();
-    ImGui::Text("Status: %s", state->status);
+   ImGui::Separator();
+   ImGui::Text("Status: %s", state->status);
 
-    ImGui::EndChild();
+   ImGui::EndChild();
 }
 
 void render_ui(struct state *state)

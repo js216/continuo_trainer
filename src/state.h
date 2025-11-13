@@ -7,10 +7,10 @@
 #ifndef STATE_H
 #define STATE_H
 
+#include "RtMidi.h"
+#include <memory>
 #include <string>
 #include <vector>
-#include <memory>
-#include "RtMidi.h"
 
 #define NOTES_PER_CHORD 10
 #define MAX_CHORDS      20

@@ -3,10 +3,11 @@ CFLAGS  = -Iimgui -Irtmidi -Isrc -Wall -Wextra -std=c++17 `pkg-config --cflags s
 LDFLAGS = `pkg-config --libs sdl2` -lGL -lasound -lpthread
 
 TARGET  = continuo_trainer
-SRC = $(wildcard src/*.cpp) rtmidi/RtMidi.cpp
+SRC = $(wildcard src/*.cpp)
 OBJS = $(SRC:.cpp=.o)
 
-IMGUI_OBJS = \
+LIB_OBJS = \
+	rtmidi/RtMidi.o \
 	imgui/imgui.o \
 	imgui/imgui_draw.o \
 	imgui/imgui_tables.o \
@@ -16,7 +17,7 @@ IMGUI_OBJS = \
 
 all: $(TARGET)
 
-$(TARGET): $(IMGUI_OBJS) $(OBJS)
+$(TARGET): $(LIB_OBJS) $(OBJS)
 	$(CC) -o $@ $^ $(LDFLAGS)
 
 rtmidi/RtMidi.o: rtmidi/RtMidi.cpp
@@ -26,7 +27,7 @@ rtmidi/RtMidi.o: rtmidi/RtMidi.cpp
 	$(CC) $(CFLAGS) -c $< -o $@
 
 clean:
-	rm -f $(IMGUI_OBJS) $(OBJS) $(TARGET) compile_commands.json
+	rm -f $(LIB_OBJS) $(OBJS) $(TARGET) compile_commands.json
 
 # Testing and linting
 
