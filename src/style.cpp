@@ -21,19 +21,19 @@ void set_style(void)
    style.DisplaySafeAreaPadding = ImVec2(0.0F, 0.0F);
 
    // spacing
-   style.ItemSpacing       = ImVec2(0.0F, 10.0F);
+   style.ItemSpacing       = ImVec2(10.0F, 10.0F);
    style.ItemInnerSpacing  = ImVec2(0.0F, 0.0F);
    style.IndentSpacing     = 0.0F;
    style.ColumnsMinSpacing = 0.0F;
 
    // rounding
-   style.WindowRounding    = 0.0F;
-   style.ChildRounding     = 0.0F;
-   style.PopupRounding     = 0.0F;
-   style.FrameRounding     = 0.0F;
-   style.TabRounding       = 0.0F;
-   style.ScrollbarRounding = 0.0F;
-   style.GrabRounding      = 0.0F;
+   style.WindowRounding    = 5.0F;
+   style.ChildRounding     = 5.0F;
+   style.PopupRounding     = 5.0F;
+   style.FrameRounding     = 5.0F;
+   style.TabRounding       = 5.0F;
+   style.ScrollbarRounding = 5.0F;
+   style.GrabRounding      = 5.0F;
 
    // border size
    style.WindowBorderSize        = 1.0F;
@@ -57,6 +57,19 @@ void set_style(void)
    style.MouseCursorScale   = 0.0F;
    style.AntiAliasedLines   = true;
    style.AntiAliasedFill    = true;
+}
+
+void set_font(const char *const ttf_path, const float size_pixels)
+{
+   ImGuiIO &io = ImGui::GetIO();
+   io.Fonts->Clear();
+
+   ImFont *font = io.Fonts->AddFontFromFileTTF(ttf_path, size_pixels);
+   if (font == nullptr) {
+      font = io.FontDefault;
+   }
+
+   io.FontDefault = font;
 }
 
 void dark_mode(void)
@@ -97,4 +110,9 @@ void dark_mode(void)
    colors[ImGuiCol_TabActive]          = ImVec4(0.20F, 0.20F, 0.25F, 1.00F);
    colors[ImGuiCol_TabUnfocused]       = ImVec4(0.13F, 0.13F, 0.16F, 1.00F);
    colors[ImGuiCol_TabUnfocusedActive] = ImVec4(0.16F, 0.16F, 0.20F, 1.00F);
+
+   // buttons
+   colors[ImGuiCol_Button]        = ImVec4(0.2F, 0.2F, 0.3F, 1.0F); // normal
+   colors[ImGuiCol_ButtonHovered] = ImVec4(0.3F, 0.8F, 0.4F, 1.0F); // hover
+   colors[ImGuiCol_ButtonActive]  = ImVec4(0.1F, 0.6F, 0.2F, 1.0F); // pressed
 }

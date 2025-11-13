@@ -7,14 +7,14 @@
 #ifndef APP_H
 #define APP_H
 
+#include "logic.h"
 #include "notes.h"
 #include <stddef.h>
 
-#define APP_MAX_NOTES 20
-
 struct app_state {
    char status[64];
-   enum midi_note bassline[APP_MAX_NOTES];
+   enum midi_note bassline[MAX_CHORDS];
+   enum midi_note chords[NOTES_PER_CHORD][MAX_CHORDS];
 };
 
 void init_state(struct app_state *state);

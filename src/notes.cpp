@@ -6,6 +6,7 @@
 
 #include "notes.h"
 #include "imgui.h"
+#include "logic.h"
 #include "style.h"
 #include <stdbool.h>
 #include <stddef.h>
@@ -129,4 +130,11 @@ void notes_dots(const enum midi_note *const n_arr, const size_t count,
    }
 
    ImGui::EndChild();
+}
+
+void notes_chords(const enum midi_note ch_arr[NOTES_PER_CHORD][MAX_CHORDS],
+                  const uint32_t color)
+{
+   for (size_t i = 0; i < NOTES_PER_CHORD; i++)
+      notes_dots(ch_arr[i], MAX_CHORDS, color);
 }

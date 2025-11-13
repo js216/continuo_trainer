@@ -25,6 +25,7 @@
 #define STYLE_GREY   0xFF9E9E9EU
 
 void set_style(void);
+void set_font(const char *ttf_path, float size_pixels);
 void dark_mode(void);
 
 #endif /* STYLE_H */
