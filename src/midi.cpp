@@ -17,14 +17,14 @@ void refresh_midi_devices(struct state *state)
    state->midi_devices.clear();
    try {
       RtMidiIn midi_in;
-      unsigned int nPorts = midi_in.getPortCount();
+      unsigned int n_ports = midi_in.getPortCount();
 
-      for (unsigned int i = 0; i < nPorts; ++i) {
+      for (unsigned int i = 0; i < n_ports; ++i) {
          state->midi_devices.push_back(midi_in.getPortName(i));
       }
 
       if (state->midi_devices.empty()) {
-         state->midi_devices.push_back("(no MIDI devices)");
+         state->midi_devices.emplace_back("(no MIDI devices)");
       }
    } catch (RtMidiError &error) {
       state->midi_devices.clear();
@@ -95,14 +95,13 @@ void poll_midi(struct state *state)
       return;
 
    std::vector<unsigned char> message;
-   double stamp;
    bool changed = false;
 
-   while ((stamp = state->midi_in->getMessage(&message)) != 0.0) {
+   while (state->midi_in->getMessage(&message) != 0.0) {
       if (message.size() < 3)
          continue;
 
-      unsigned char status   = message[0] & 0xF0;
+      unsigned char status   = message[0] & 0xF0U;
       unsigned char note     = message[1];
       unsigned char velocity = message[2];
 

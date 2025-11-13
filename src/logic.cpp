@@ -8,56 +8,61 @@
 
 #include "logic.h"
 #include "state.h"
+#include "util.h"
 #include <algorithm>
+#include <iostream>
+#include <iterator>
+#include <random>
 #include <stddef.h>
 #include <stdlib.h>
 
-static enum midi_note get_note()
+static midi_note get_note(void)
 {
-   int min = NOTES_E2;
-   int max = NOTES_NUM - 1;
+   constexpr int min = NOTES_E2;
+   constexpr int max = NOTES_NUM - 1;
 
-   enum midi_note n = (enum midi_note)(min + rand() % (max - min + 1));
-   return n;
+   static std::random_device rd;
+   static std::mt19937 engine(rd());
+   static std::uniform_int_distribution<int> dist(min, max);
+
+   return static_cast<midi_note>(dist(engine));
 }
 
 void logic_clear(struct state *state)
 {
-   for (size_t i = 0; i < MAX_CHORDS; i++) {
-      state->bassline[i] = NOTES_NONE;
-      for (size_t j = 0; j < NOTES_PER_CHORD; j++) {
-         state->chords_ok[j][i]  = NOTES_NONE;
-         state->chords_bad[j][i] = NOTES_NONE;
+   state->bassline.clear();
+
+   state->chords_ok.clear();
+   state->chords_ok.resize(MAX_CHORDS);
+
+   state->chords_bad.clear();
+   state->chords_bad.resize(MAX_CHORDS);
+}
+
+void logic_pop(state *state)
+{
+   state->bassline.clear();
+   std::generate_n(std::back_inserter(state->bassline), MAX_CHORDS, get_note);
+}
+
+void logic_good(state *state)
+{
+   for (auto &row : state->chords_ok) {
+      if (row.size() < MAX_CHORDS) {
+         row.push_back(get_note());
+         return;
       }
    }
 }
 
-void logic_pop(struct state *state)
+void logic_bad(state *state)
 {
-   for (size_t i = 0; i < MAX_CHORDS; i++)
-      state->bassline[i] = get_note();
-}
+   if (state->chords_bad.empty())
+      ERROR("chords_bad too small");
 
-void logic_good(struct state *state)
-{
-   for (size_t j = 0; j < NOTES_PER_CHORD; j++) {
-      for (size_t i = 0; i < MAX_CHORDS; i++) {
-         if (state->chords_ok[j][i] == NOTES_NONE) {
-            state->chords_ok[j][i] = get_note();
-            return;
-         }
-      }
-   }
-}
-
-void logic_bad(struct state *state)
-{
-   for (size_t i = 0; i < MAX_CHORDS; i++) {
-      if (state->chords_bad[0][i] == NOTES_NONE) {
-         state->chords_bad[0][i] = get_note();
-         break;
-      }
-   }
+   auto &row = state->chords_bad[0]; // first row only
+   if (row.size() < MAX_CHORDS)
+      row.push_back(get_note());
 }
 
 void logic_interpret(struct state *state)
@@ -96,7 +101,7 @@ void logic_interpret(struct state *state)
       state->chord_index = (state->chord_index + 1) % MAX_CHORDS;
 
       // clear the next column (only now)
-      for (int i = 0; i < NOTES_PER_CHORD; ++i)
-         state->chords_ok[i][state->chord_index] = NOTES_NONE;
+      for (auto &col : state->chords_ok)
+         col[state->chord_index] = NOTES_NONE;
    }
 }

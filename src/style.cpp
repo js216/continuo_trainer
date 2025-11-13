@@ -8,6 +8,7 @@
 
 #include "style.h"
 #include "imgui.h"
+#include <span>
 
 void set_style(void)
 {
@@ -76,7 +77,7 @@ void set_font(const char *const ttf_path, const float size_pixels)
 
 void dark_mode(void)
 {
-   ImVec4 *colors = ImGui::GetStyle().Colors;
+   std::span<ImVec4> colors(ImGui::GetStyle().Colors, ImGuiCol_COUNT);
 
    // background colors
    colors[ImGuiCol_WindowBg] = ImVec4(0.11F, 0.11F, 0.13F, 1.00F);
@@ -114,7 +115,7 @@ void dark_mode(void)
    colors[ImGuiCol_TabUnfocusedActive] = ImVec4(0.16F, 0.16F, 0.20F, 1.00F);
 
    // buttons
-   colors[ImGuiCol_Button]        = ImVec4(0.2F, 0.2F, 0.3F, 1.0F); // normal
-   colors[ImGuiCol_ButtonHovered] = ImVec4(0.3F, 0.8F, 0.4F, 1.0F); // hover
-   colors[ImGuiCol_ButtonActive]  = ImVec4(0.1F, 0.6F, 0.2F, 1.0F); // pressed
+   colors[ImGuiCol_Button]        = ImVec4(0.2F, 0.2F, 0.3F, 1.0F);
+   colors[ImGuiCol_ButtonHovered] = ImVec4(0.3F, 0.8F, 0.4F, 1.0F);
+   colors[ImGuiCol_ButtonActive]  = ImVec4(0.1F, 0.6F, 0.2F, 1.0F);
 }

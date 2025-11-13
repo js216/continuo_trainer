@@ -47,9 +47,9 @@ enum midi_note {
 struct state {
    char status[256];
 
-   enum midi_note bassline[MAX_CHORDS];
-   enum midi_note chords_ok[NOTES_PER_CHORD][MAX_CHORDS];
-   enum midi_note chords_bad[NOTES_PER_CHORD][MAX_CHORDS];
+   std::vector<enum midi_note> bassline;
+   std::vector<std::vector<midi_note>> chords_ok;
+   std::vector<std::vector<midi_note>> chords_bad;
 
    std::vector<std::string> midi_devices;
    int selected_device = -1;

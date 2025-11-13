@@ -1,5 +1,5 @@
 CC      = g++
-CFLAGS  = -Iimgui -Irtmidi -Isrc -Wall -Wextra -std=c++17 `pkg-config --cflags sdl2`
+CFLAGS  = -Iimgui -Irtmidi -Isrc -Wall -Wextra -std=c++20 `pkg-config --cflags sdl2`
 LDFLAGS = `pkg-config --libs sdl2` -lGL -lasound -lpthread
 
 TARGET  = continuo_trainer

@@ -30,11 +30,6 @@ Checks: >
   -modernize-redundant-void-arg,
   -*-use-auto,
   -cert-err33-c,
-  -cppcoreguidelines-pro-bounds-pointer-arithmetic,
-  -modernize-loop-convert,
-  -cert-msc30-c,
-  -cert-msc50-cpp,
-  misc-use-anonymous-namespace
 
 WarningsAsErrors: '*'
 

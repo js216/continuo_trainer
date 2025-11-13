@@ -14,6 +14,7 @@
 #include "state.h"
 #include "style.h"
 #include "util.h"
+#include <span>
 #include <stdarg.h>
 #include <stdio.h>
 
@@ -27,9 +28,12 @@ static void set_status(struct state *state, const char *fmt, ...)
 
 void init_state(struct state *state)
 {
+   logic_clear(state);
+
    set_style();
    set_font("fonts/Roboto-Regular.ttf", 18.0F);
    dark_mode();
+
    set_status(state, "Ready");
 }
 
@@ -118,7 +122,7 @@ void render_ui(struct state *state)
    app_controls(state);
 
    notes_staff();
-   notes_dots(state->bassline, MAX_CHORDS, STYLE_WHITE);
+   notes_dots(state->bassline, STYLE_WHITE);
    notes_chords(state->chords_ok, STYLE_GREEN);
    notes_chords(state->chords_bad, STYLE_RED);
 

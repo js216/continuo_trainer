@@ -10,14 +10,15 @@
 #define NOTES_H
 
 #include "logic.h"
+#include <span>
 #include <stddef.h>
 #include <stdint.h>
 
 void notes_staff(void);
 
-void notes_dots(const enum midi_note *n_arr, size_t count, uint32_t color);
+void notes_dots(const std::vector<midi_note> &notes, uint32_t color);
 
-void notes_chords(const enum midi_note ch_arr[NOTES_PER_CHORD][MAX_CHORDS],
+void notes_chords(const std::vector<std::vector<midi_note>> &ch_arr,
                   uint32_t color);
 
 #endif /* NOTES_H */
