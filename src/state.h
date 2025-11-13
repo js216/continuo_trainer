@@ -7,6 +7,11 @@
 #ifndef STATE_H
 #define STATE_H
 
+#include <string>
+#include <vector>
+#include <memory>
+#include "RtMidi.h"
+
 #define NOTES_PER_CHORD 10
 #define MAX_CHORDS      20
 
@@ -38,10 +43,18 @@ enum midi_note {
 };
 
 struct state {
-   char status[64];
+   char status[256];
+
    enum midi_note bassline[MAX_CHORDS];
    enum midi_note chords_ok[NOTES_PER_CHORD][MAX_CHORDS];
    enum midi_note chords_bad[NOTES_PER_CHORD][MAX_CHORDS];
+
+   std::vector<std::string> midi_devices;
+   int selected_device = -1;
+   std::unique_ptr<RtMidiIn> midi_in;
+
+   std::vector<unsigned char> pressed_notes;
+   bool all_released = true;
 };
 
 #endif /* STATE_H */

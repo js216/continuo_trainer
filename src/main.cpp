@@ -10,6 +10,7 @@
 #include "imgui.h"
 #include "notes.h"
 #include "state.h"
+#include "midi.h"
 #include <SDL.h>
 #include <SDL_opengl.h>
 #include <stdio.h>
@@ -18,19 +19,13 @@ static bool handle_events(void)
 {
    SDL_Event event;
 
-   if (SDL_WaitEvent(&event)) {
+   while (SDL_PollEvent(&event)) {
       ImGui_ImplSDL2_ProcessEvent(&event);
-
       if (event.type == SDL_QUIT)
          return false;
-
-      while (SDL_PollEvent(&event)) {
-         ImGui_ImplSDL2_ProcessEvent(&event);
-         if (event.type == SDL_QUIT)
-            return false;
-      }
    }
 
+   SDL_Delay(16);
    return true;
 }
 
@@ -53,6 +48,8 @@ int main(void)
    init_state(&state);
 
    while (handle_events()) {
+      poll_midi(&state);
+
       ImGui_ImplOpenGL3_NewFrame();
       ImGui_ImplSDL2_NewFrame();
       ImGui::NewFrame();

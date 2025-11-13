@@ -7,6 +7,7 @@
 #include "app.h"
 #include "imgui.h"
 #include "logic.h"
+#include "midi.h"
 #include "notes.h"
 #include "state.h"
 #include "style.h"
@@ -30,36 +31,80 @@ void init_state(struct state *state)
    set_status(state, "Ready");
 }
 
+static void app_buttons(struct state *state)
+{
+    if (ImGui::Button("Good")) {
+        logic_good(state);
+        set_status(state, "One good placed");
+    }
+
+    ImGui::SameLine();
+    if (ImGui::Button("Bad")) {
+        logic_bad(state);
+        set_status(state, "One bad placed");
+    }
+
+    if (ImGui::Button("Populate")) {
+        logic_pop(state);
+        set_status(state, "All populated");
+    }
+
+    ImGui::SameLine();
+    if (ImGui::Button("Clear")) {
+        logic_clear(state);
+        set_status(state, "Cleared");
+    }
+}
+
+static void app_midi(struct state *state)
+{
+    if (ImGui::Button("MIDI Refresh")) {
+        refresh_midi_devices(state);
+        set_status(state, "MIDI devices refreshed");
+    }
+
+    ImGui::SameLine();
+    if (ImGui::Button("Connect")) {
+        init_midi(state);
+    }
+
+    ImGui::Text("MIDI Devices:");
+    if (ImGui::BeginListBox("##midi_list",
+                            ImVec2(-FLT_MIN,
+                                   5 * ImGui::GetTextLineHeightWithSpacing())))
+    {
+        for (int i = 0; i < (int)state->midi_devices.size(); i++) {
+            bool selected = (state->selected_device == i);
+            if (ImGui::Selectable(state->midi_devices[i].c_str(), selected)) {
+                state->selected_device = i;
+
+                // Set status message when user clicks on a device
+                char msg[128];
+                snprintf(msg, sizeof(msg), "Selected MIDI device: %s",
+                         state->midi_devices[i].c_str());
+                set_status(state, msg);
+            }
+        }
+        ImGui::EndListBox();
+    }
+}
+
+
 static void app_controls(struct state *state)
 {
-   float controls_height = ImGui::GetFrameHeightWithSpacing() * 3.0F;
-   ImGui::BeginChild("Controls", ImVec2(0, controls_height), true);
+    float controls_height = ImGui::GetFrameHeightWithSpacing() * 6.0F;
+    ImGui::BeginChild("Controls", ImVec2(0, controls_height), true);
 
-   if (ImGui::Button("Good")) {
-      logic_good(state);
-      set_status(state, "One good placed");
-   }
+    ImGui::Columns(2, "control_columns", true);
+    app_buttons(state);
+    ImGui::NextColumn();
+    app_midi(state);
+    ImGui::Columns(1);
 
-   ImGui::SameLine();
-   if (ImGui::Button("Bad")) {
-      logic_bad(state);
-      set_status(state, "One bad placed");
-   }
+    ImGui::Separator();
+    ImGui::Text("Status: %s", state->status);
 
-   ImGui::SameLine();
-   if (ImGui::Button("Populate")) {
-      logic_pop(state);
-      set_status(state, "All populated");
-   }
-
-   ImGui::SameLine();
-   if (ImGui::Button("Clear")) {
-      logic_clear(state);
-      set_status(state, "Cleared");
-   }
-
-   ImGui::Text("Status: %s", state->status);
-   ImGui::EndChild();
+    ImGui::EndChild();
 }
 
 void render_ui(struct state *state)
@@ -72,6 +117,7 @@ void render_ui(struct state *state)
                 ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoResize);
 
    app_controls(state);
+
    notes_staff();
    notes_dots(state->bassline, MAX_CHORDS, STYLE_WHITE);
    notes_chords(state->chords_ok, STYLE_GREEN);

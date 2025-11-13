@@ -1,9 +1,9 @@
 CC      = g++
-CFLAGS  = -Iimgui -Isrc -Wall -Wextra -std=c++17 `pkg-config --cflags sdl2`
-LDFLAGS = `pkg-config --libs sdl2` -lGL
+CFLAGS  = -Iimgui -Irtmidi -Isrc -Wall -Wextra -std=c++17 `pkg-config --cflags sdl2`
+LDFLAGS = `pkg-config --libs sdl2` -lGL -lasound -lpthread
 
 TARGET  = continuo_trainer
-SRC = $(wildcard src/*.cpp)
+SRC = $(wildcard src/*.cpp) rtmidi/RtMidi.cpp
 OBJS = $(SRC:.cpp=.o)
 
 IMGUI_OBJS = \
@@ -19,10 +19,10 @@ all: $(TARGET)
 $(TARGET): $(IMGUI_OBJS) $(OBJS)
 	$(CC) -o $@ $^ $(LDFLAGS)
 
-imgui/%.o: imgui/%.cpp
-	$(CC) $(CFLAGS) -c $< -o $@
+rtmidi/RtMidi.o: rtmidi/RtMidi.cpp
+	$(CC) -Wall -D__LINUX_ALSA__ -c $< -o $@
 
-src/%.o: src/%.cpp
+%.o: %.cpp
 	$(CC) $(CFLAGS) -c $< -o $@
 
 clean:
