@@ -50,10 +50,10 @@ void init_midi(struct state *state)
       state->midi_in->openPort(state->selected_device);
       state->midi_in->ignoreTypes(false, false, false);
 
-      state_status(state, "MIDI input opened: %s",
+      state_status(state, "MIDI input opened: ",
                    state->midi_devices[state->selected_device].c_str());
    } catch (RtMidiError &error) {
-      state_status(state, "RtMidi error: %s", error.getMessage().c_str());
+      state_status(state, "RtMidi error: ", error.getMessage().c_str());
       state->midi_in.reset(); // ensure it's null
    }
 }
@@ -81,7 +81,7 @@ void update_status(struct state *state)
       std::string s = "Pressed: ";
       for (auto n : state->pressed_notes)
          s += std::to_string(n) + " ";
-      state_status(state, "%s", s.c_str());
+      state_status(state, s);
    }
 }
 

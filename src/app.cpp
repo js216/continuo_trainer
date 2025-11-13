@@ -92,7 +92,7 @@ static void app_controls(struct state *state)
    app_midi(state);
 
    ImGui::Separator();
-   ImGui::TextUnformatted(("Status: " + state->status).c_str());
+   ImGui::TextUnformatted(state->status.c_str());
 
    ImGui::EndChild();
 }

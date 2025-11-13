@@ -13,6 +13,7 @@
 #include <cstdlib>
 #include <iostream>
 #include <iterator>
+#include <algorithm>
 #include <random>
 
 static midi_note get_note(void)
@@ -78,12 +79,22 @@ bool logic_adjudicate(enum midi_note bass_note, enum midi_note realization)
    return dist(gen) != 0;
 }
 
+
 static void process_note(struct state *state, midi_note realization)
 {
    if (state->chords_ok.size() != state->chords_bad.size())
       ERROR("set size mismatch");
 
+    if (state->chords_ok.empty()) {
+      state->chords_ok.emplace_back();
+      state->chords_bad.emplace_back();
+   }
+
    size_t back_idx = state->chords_ok.size() - 1;
+
+   if (state->chords_ok[back_idx].count(realization) ||
+         state->chords_bad[back_idx].count(realization))
+      return;
 
    if (back_idx < state->bassline.size()) {
       midi_note bass_note = state->bassline[back_idx];

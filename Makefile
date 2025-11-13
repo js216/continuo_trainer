@@ -2,6 +2,9 @@ CC      = g++
 CFLAGS  = -Iimgui -Irtmidi -Isrc -Wall -Wextra -std=c++20 `pkg-config --cflags sdl2`
 LDFLAGS = `pkg-config --libs sdl2` -lGL -lasound -lpthread
 
+CFLAGS  += -g -fsanitize=address -fno-omit-frame-pointer -g
+LDFLAGS += -fsanitize=address
+
 TARGET  = continuo_trainer
 SRC = $(wildcard src/*.cpp)
 OBJS = $(SRC:.cpp=.o)
