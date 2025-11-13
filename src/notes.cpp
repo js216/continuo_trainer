@@ -38,9 +38,6 @@ static int note_to_bass(const enum midi_note n)
       case NOTES_B3: return 9;
       case NOTES_C4:
       case NOTES_Cs4: return 10;
-      case NOTES_D4:
-      case NOTES_Ds4: return 11;
-      case NOTES_E4: return 12;
       default: return -3;
    }
 }
@@ -86,10 +83,57 @@ void notes_staff(void)
    for (size_t i = 0; i < sizeof(staff_lines) / sizeof(staff_lines[0]); i++) {
       float y = calc_y(staff_lines[i]);
       draw_list->AddLine(ImVec2(p.x, y), ImVec2(p.x + size.x, y), STYLE_WHITE,
-                         1.0F);
+                         STYLE_LINE_THICKNESS);
    }
 
    ImGui::EndChild();
+}
+
+/**
+ * @brief Draw ledger lines through a note outside the staff.
+ *
+ * @param draw_list ImGui draw list
+ * @param x X position of the note
+ * @param y Y position of the note
+ * @param note_val MIDI note value
+ * @param color Color to draw
+ * @param note_radius Radius of the note circle
+ */
+static void draw_ledger_lines(ImDrawList *draw_list, float x, float y,
+                              int note_val, uint32_t color, float note_radius)
+{
+   const float ledger_width = 4.0F * note_radius;
+
+   if (note_val < NOTES_G2 || note_val > NOTES_B3) {
+      // Draw a single line through the dot
+      draw_list->AddLine(ImVec2(x - ledger_width / 2, y),
+                         ImVec2(x + ledger_width / 2, y), color,
+                         STYLE_LINE_THICKNESS);
+   }
+}
+
+/**
+ * @brief Draw a sharp symbol next to a note.
+ *
+ * @param draw_list ImGui draw list
+ * @param font ImGui font pointer
+ * @param font_size Font size in pixels
+ * @param x X position of the note
+ * @param y Y position of the note
+ * @param note_radius Radius of the note circle
+ * @param color Color of the sharp
+ */
+static void draw_sharp(ImDrawList *draw_list, ImFont *font, float font_size,
+                       float x, float y, float note_radius, uint32_t color)
+{
+   const char *sharp = "#";
+   ImVec2 text_size  = font->CalcTextSizeA(font_size, FLT_MAX, 0.0F, sharp);
+
+   // Draw the sharp to the left of the note, vertically centered
+   draw_list->AddText(
+       font, font_size,
+       ImVec2(x - note_radius - text_size.x, y - text_size.y / 2), color,
+       sharp);
 }
 
 void notes_dots(const enum midi_note *const n_arr, const size_t count,
@@ -120,14 +164,10 @@ void notes_dots(const enum midi_note *const n_arr, const size_t count,
       draw_list->AddCircleFilled(ImVec2(x, y), note_radius, color);
 
       if (note_has_sharp(n_arr[i])) {
-         const char *sharp = "#";
-         ImVec2 text_size =
-             font->CalcTextSizeA(font_size, FLT_MAX, 0.0F, sharp);
-         draw_list->AddText(
-             font, font_size,
-             ImVec2(x - note_radius - text_size.x, y - text_size.y / 2), color,
-             sharp);
+         draw_sharp(draw_list, font, font_size, x, y, note_radius, color);
       }
+
+      draw_ledger_lines(draw_list, x, y, (int)n_arr[i], color, note_radius);
    }
 
    ImGui::EndChild();

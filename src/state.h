@@ -34,9 +34,6 @@ enum midi_note {
    NOTES_B3,
    NOTES_C4,
    NOTES_Cs4,
-   NOTES_D4,
-   NOTES_Ds4,
-   NOTES_E4,
    NOTES_NUM
 };
 
