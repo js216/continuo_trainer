@@ -56,6 +56,7 @@ market only to realize there is no market for continuo-training toys ...
 ### Todo
 
 - add the treble staff
+- window should be resizable
 - array of continuo figures to display
 - implement the function to decide if a given note is bad
 - restore last used MIDI dev
@@ -65,7 +66,6 @@ market only to realize there is no market for continuo-training toys ...
 - hide MIDI selection box when connected
 - support for key signatures
 - notes out of range displayed octave up/dn
-- window should be resizable
 - right half of status displays MIDI device
 - read lessons from text files
 - record times and all notes pressed to logs
