@@ -37,10 +37,12 @@ void logic_pop(struct state *state)
 
 void logic_good(struct state *state)
 {
-   for (size_t i = 0; i < MAX_CHORDS; i++) {
-      if (state->chords_ok[0][i] == NOTES_NONE) {
-         state->chords_ok[0][i] = get_note();
-         break;
+   for (size_t j = 0; j < NOTES_PER_CHORD; j++) {
+      for (size_t i = 0; i < MAX_CHORDS; i++) {
+         if (state->chords_ok[j][i] == NOTES_NONE) {
+            state->chords_ok[j][i] = get_note();
+            return;
+         }
       }
    }
 }
