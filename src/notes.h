@@ -8,9 +8,11 @@
 #define NOTES_H
 
 #include <stddef.h>
+#include <stdint.h>
 
 enum midi_note {
-   NOTES_C0 = 12,
+   NOTES_NONE = 0,
+   NOTES_C0   = 12,
    NOTES_Cs0,
    NOTES_D0,
    NOTES_Ds0,
@@ -111,6 +113,6 @@ enum midi_note {
 
 void notes_staff(void);
 
-void notes_dots(const enum midi_note *n_arr, size_t count);
+void notes_dots(const enum midi_note *n_arr, size_t count, uint32_t color);
 
 #endif /* NOTES_H */

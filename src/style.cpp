@@ -1,5 +1,5 @@
 /**
- * @file style.h
+ * @file style.cpp
  * @brief App styling.
  * @author Jakob Kastelic
  */

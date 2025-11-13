@@ -9,6 +9,7 @@
 #include "style.h"
 #include <stdbool.h>
 #include <stddef.h>
+#include <stdint.h>
 
 static int note_to_bass(const enum midi_note n)
 {
@@ -89,7 +90,8 @@ void notes_staff(void)
    ImGui::EndChild();
 }
 
-void notes_dots(const enum midi_note *n_arr, size_t count)
+void notes_dots(const enum midi_note *const n_arr, const size_t count,
+                const uint32_t color)
 {
    if (!ImGui::BeginChild("Staff", ImVec2(0, 0), false)) {
       ImGui::EndChild();
@@ -107,10 +109,13 @@ void notes_dots(const enum midi_note *n_arr, size_t count)
    float font_size = 3 * note_radius;
 
    for (size_t i = 0; i < count; i++) {
+      if (note_to_bass(n_arr[i]) < -2)
+         continue;
+
       float x = p.x + ((float)i + 1) * x_space;
       float y = (float)calc_y(n_arr[i]);
 
-      draw_list->AddCircleFilled(ImVec2(x, y), note_radius, STYLE_WHITE);
+      draw_list->AddCircleFilled(ImVec2(x, y), note_radius, color);
 
       if (note_has_sharp(n_arr[i])) {
          const char *sharp = "#";
@@ -118,8 +123,8 @@ void notes_dots(const enum midi_note *n_arr, size_t count)
              font->CalcTextSizeA(font_size, FLT_MAX, 0.0F, sharp);
          draw_list->AddText(
              font, font_size,
-             ImVec2(x - note_radius - text_size.x, y - text_size.y / 2),
-             STYLE_WHITE, sharp);
+             ImVec2(x - note_radius - text_size.x, y - text_size.y / 2), color,
+             sharp);
       }
    }
 

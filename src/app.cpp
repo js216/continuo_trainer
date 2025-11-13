@@ -6,6 +6,7 @@
 
 #include "app.h"
 #include "imgui.h"
+#include "logic.h"
 #include "notes.h"
 #include "style.h"
 #include "util.h"
@@ -22,20 +23,23 @@ static void set_status(struct app_state *state, const char *fmt, ...)
 
 void init_state(struct app_state *state)
 {
-   for (int i = 0; i < APP_MAX_NOTES; i++)
-      state->bassline[i] = (enum midi_note)(NOTES_E2 + i);
-
    set_style();
    dark_mode();
    set_status(state, "Ready");
 }
 
-static void app_buttons(struct app_state *state)
+static void app_controls(struct app_state *state)
 {
    float controls_height = ImGui::GetFrameHeightWithSpacing() * 3.0F;
    ImGui::BeginChild("Controls", ImVec2(0, controls_height), true);
+
+   if (ImGui::Button("Populate"))
+      logic_pop(state->bassline, APP_MAX_NOTES);
+
+   ImGui::SameLine();
    if (ImGui::Button("Clear"))
-      set_status(state, "Cleared");
+      logic_clear(state->bassline, APP_MAX_NOTES);
+
    ImGui::Separator();
    ImGui::Text("Status: %s", state->status);
    ImGui::EndChild();
@@ -50,9 +54,9 @@ void render_ui(struct app_state *state)
    ImGui::Begin("Main", NULL,
                 ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoResize);
 
-   app_buttons(state);
+   app_controls(state);
    notes_staff();
-   notes_dots(state->bassline, APP_MAX_NOTES);
+   notes_dots(state->bassline, APP_MAX_NOTES, STYLE_WHITE);
 
    ImGui::End();
 }
