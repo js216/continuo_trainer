@@ -9,6 +9,7 @@
 #include "backends/imgui_impl_sdl2.h"
 #include "imgui.h"
 #include "notes.h"
+#include "state.h"
 #include <SDL.h>
 #include <SDL_opengl.h>
 #include <stdio.h>
@@ -48,7 +49,7 @@ int main(void)
    ImGui_ImplSDL2_InitForOpenGL(window, gl_context);
    ImGui_ImplOpenGL3_Init("#version 130");
 
-   struct app_state state = {};
+   struct state state = {};
    init_state(&state);
 
    while (handle_events()) {

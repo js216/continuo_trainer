@@ -5,27 +5,42 @@
  */
 
 #include "logic.h"
+#include "state.h"
 #include <stddef.h>
 #include <stdlib.h>
 
-void logic_clear(enum midi_note *const n_arr, const size_t count)
+void logic_clear(struct state *state)
 {
-   for (size_t i = 0; i < count; i++) {
-      n_arr[i] = NOTES_NONE;
+   for (size_t i = 0; i < MAX_CHORDS; i++) {
+      state->bassline[i] = NOTES_NONE;
+      for (size_t j = 0; j < NOTES_PER_CHORD; j++) {
+         state->chords_ok[j][i]  = NOTES_NONE;
+         state->chords_bad[j][i] = NOTES_NONE;
+      }
    }
 }
 
-void logic_pop(enum midi_note *const n_arr, const size_t count)
+void logic_pop(struct state *state)
 {
-   for (size_t i = 0; i < count; i++)
-      n_arr[i] = (enum midi_note)(NOTES_E2 + i);
+   for (size_t i = 0; i < MAX_CHORDS; i++)
+      state->bassline[i] = (enum midi_note)(NOTES_E2 + i);
 }
 
-void logic_one(enum midi_note ch_arr[NOTES_PER_CHORD][MAX_CHORDS])
+void logic_good(struct state *state)
 {
    for (size_t i = 0; i < MAX_CHORDS; i++) {
-      if (ch_arr[0][i] == NOTES_NONE) {
-         ch_arr[0][i] = (enum midi_note)(rand() % NOTES_NUM);
+      if (state->chords_ok[0][i] == NOTES_NONE) {
+         state->chords_ok[0][i] = (enum midi_note)(rand() % NOTES_NUM);
+         break;
+      }
+   }
+}
+
+void logic_bad(struct state *state)
+{
+   for (size_t i = 0; i < MAX_CHORDS; i++) {
+      if (state->chords_bad[0][i] == NOTES_NONE) {
+         state->chords_bad[0][i] = (enum midi_note)(rand() % NOTES_NUM);
          break;
       }
    }

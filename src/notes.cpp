@@ -7,6 +7,7 @@
 #include "notes.h"
 #include "imgui.h"
 #include "logic.h"
+#include "state.h"
 #include "style.h"
 #include <stdbool.h>
 #include <stddef.h>
