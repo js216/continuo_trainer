@@ -50,8 +50,7 @@ void init_midi(struct state *state)
       state->midi_in->openPort(state->selected_device);
       state->midi_in->ignoreTypes(false, false, false);
 
-      state_status(state, "MIDI input opened: ",
-                   state->midi_devices[state->selected_device].c_str());
+      state_status(state, "MIDI input opened");
    } catch (RtMidiError &error) {
       state_status(state, "RtMidi error: ", error.getMessage().c_str());
       state->midi_in.reset(); // ensure it's null

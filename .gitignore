@@ -3,6 +3,7 @@
 *.swp
 *.pdf
 *.dot
+*.log
 
 continuo_trainer
 compile_commands.json

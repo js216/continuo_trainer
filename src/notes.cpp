@@ -44,6 +44,8 @@ static float note_to_bass(const enum midi_note n)
       case NOTES_B3: return 9;
       case NOTES_C4:
       case NOTES_Cs4: return 10;
+      case NOTES_D4:
+      case NOTES_Ds4: return 11;
       default: return NOTES_OUT_OF_RANGE;
    }
 }
@@ -95,7 +97,7 @@ static float calc_y(const enum midi_note n)
    const float top       = p.y + size.y * 0.35F;
    const float bottom    = p.y + size.y * 0.8F;
    const float spacing   = (bottom - top) / 8.0F;
-   const float staff_gap = spacing * 2.5F;
+   const float staff_gap = spacing * 2.0F;
 
    float nb = 0;
    float y  = 0;
@@ -147,15 +149,25 @@ void notes_staff(void)
 static void draw_ledger_lines(ImDrawList *draw_list, float x, float y,
                               int note_val, float note_radius)
 {
-   const float ledger_width = 4.0F * note_radius;
+    const float ledger_width = 4.0f * note_radius;
 
-   if (note_val < NOTES_G2 || note_val > NOTES_B3) {
-      // Draw a single line through the dot
-      draw_list->AddLine(ImVec2(x - ledger_width / 2, y),
-                         ImVec2(x + ledger_width / 2, y), STYLE_GRAY,
-                         STYLE_LINE_THICKNESS);
-   }
+    // Convert note to staff position
+    float pos = note_to_bass((midi_note)note_val);
+
+    // Out of staff range? Staff is 0..8
+    if (pos >= 0.0f && pos <= 8.0f)
+        return;
+
+    // Ledger lines only occur on LINE positions (even pos)
+    if (((int)pos & 1) != 0)   // odd = space → no line
+        return;
+
+    // Draw the ledger line through the note
+    draw_list->AddLine(ImVec2(x - ledger_width / 2, y),
+                       ImVec2(x + ledger_width / 2, y),
+                       STYLE_GRAY, STYLE_LINE_THICKNESS);
 }
+
 
 static void draw_sharp(ImDrawList *draw_list, float font_size, float x, float y,
                        float note_radius, uint32_t color)
