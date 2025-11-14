@@ -149,25 +149,24 @@ void notes_staff(void)
 static void draw_ledger_lines(ImDrawList *draw_list, float x, float y,
                               int note_val, float note_radius)
 {
-    const float ledger_width = 4.0f * note_radius;
+   const float ledger_width = 4.0F * note_radius;
 
-    // Convert note to staff position
-    float pos = note_to_bass((midi_note)note_val);
+   // Convert note to staff position
+   float pos = note_to_bass((midi_note)note_val);
 
-    // Out of staff range? Staff is 0..8
-    if (pos >= 0.0f && pos <= 8.0f)
-        return;
+   // Out of staff range? Staff is 0..8
+   if (pos >= 0.0F && pos <= 8.0F)
+      return;
 
-    // Ledger lines only occur on LINE positions (even pos)
-    if (((int)pos & 1) != 0)   // odd = space → no line
-        return;
+   // Ledger lines only occur on LINE positions (even pos)
+   if (((unsigned int)pos & 1U) != 0) // odd = space → no line
+      return;
 
-    // Draw the ledger line through the note
-    draw_list->AddLine(ImVec2(x - ledger_width / 2, y),
-                       ImVec2(x + ledger_width / 2, y),
-                       STYLE_GRAY, STYLE_LINE_THICKNESS);
+   // Draw the ledger line through the note
+   draw_list->AddLine(ImVec2(x - ledger_width / 2, y),
+                      ImVec2(x + ledger_width / 2, y), STYLE_GRAY,
+                      STYLE_LINE_THICKNESS);
 }
-
 
 static void draw_sharp(ImDrawList *draw_list, float font_size, float x, float y,
                        float note_radius, uint32_t color)
