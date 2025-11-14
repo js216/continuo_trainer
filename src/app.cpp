@@ -69,8 +69,12 @@ static void app_buttons(struct state *state)
    }
 
    ImGui::SameLine();
-   if (ImGui::Button("Connect", b)) {
-      init_midi(state);
+   if (state->midi_in) {
+      if (ImGui::Button("Disconnect", b))
+         deinit_midi(state);
+   } else {
+      if (ImGui::Button("Connect", b))
+         init_midi(state);
    }
 }
 
@@ -104,12 +108,15 @@ void render_ui(struct state *state)
    float avail_height  = io.DisplaySize.y - 3 * STYLE_PAD_Y -
                         8 * STYLE_PAD_BORDER - status_height;
    float controls_height = avail_height * 0.4F;
-   float staff_height    = avail_height * 0.6F;
+   if (state->midi_in)
+      controls_height = STYLE_BTN_H + 2 * STYLE_PAD_Y;
+   float staff_height = avail_height - controls_height;
 
    // Controls
    ImGui::BeginChild("Controls", ImVec2(0, controls_height), true);
    app_buttons(state);
-   app_midi(state, controls_height);
+   if (!state->midi_in)
+      app_midi(state, controls_height);
    ImGui::EndChild();
 
    // Staff

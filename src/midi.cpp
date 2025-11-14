@@ -58,6 +58,18 @@ void init_midi(struct state *state)
    }
 }
 
+void deinit_midi(struct state *state)
+{
+   if (state->midi_in) {
+      // Closing the port is automatic on RtMidiIn destructor
+      state->midi_in.reset(); // releases the unique_ptr
+
+      state_status(state, "MIDI input disconnected");
+   } else {
+      state_status(state, "No MIDI device connected");
+   }
+}
+
 void add_pressed_note(struct state *state, unsigned char note)
 {
    auto &notes = state->pressed_notes;

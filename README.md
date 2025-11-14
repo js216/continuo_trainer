@@ -55,10 +55,9 @@ market only to realize there is no market for continuo-training toys ...
 
 ### Todo
 
-- hide MIDI selection box when connected
+- right half of status displays MIDI device
 - support for key signatures
 - notes out of range displayed octave up/dn
-- right half of status displays MIDI device
 - read lessons from text files
 - record times and all notes pressed to logs
 - lessons can have a melody (different color)
@@ -69,7 +68,6 @@ market only to realize there is no market for continuo-training toys ...
 - support for several lines of music
 - voice leading analysis; hints displayed
 - research gamification, motivation strategy
-- remove as many of the clang-tidy exclusions as possible
 
 ### Author
 
