@@ -122,24 +122,29 @@ static float calc_y(const enum midi_note n)
    return y;
 }
 
-static void draw_clefs(struct state *state, ImDrawList *draw_list,
-                       ImVec2 origin)
+static void draw_clefs(ImVec2 origin)
 {
    float staff_space = fabsf(calc_y(NOTES_A3) - calc_y(NOTES_C4));
    float x           = origin.x + 8.0F;
-   float ch          = staff_space * STYLE_FONT_RATIO;
+   float fs          = 2.0F * staff_space;
+
+   font_config cfg = {.fontsize     = fs,
+                      .anch         = ANCHOR_TOP_LEFT,
+                      .color        = STYLE_GRAY,
+                      .border_size  = 0.0F,
+                      .border_color = 0,
+                      .anchor_size  = 0.0F,
+                      .anchor_color = 0};
 
    // --- TREBLE CLEF ---
    float g_line   = calc_y(NOTES_G4);
-   float y_treble = g_line - ch * 0.5F;
-   draw_list->AddText(state->music_font, ch, ImVec2(x, y_treble), STYLE_GRAY,
-                      "\uE050");
+   float y_treble = g_line - fs * 0.5F;
+   style_text("\uE050", x, y_treble, &cfg);
 
    // --- BASS CLEF ---
    float f_line = calc_y(NOTES_F3);
-   float y_bass = f_line - ch * 0.5F;
-   draw_list->AddText(state->music_font, ch, ImVec2(x, y_bass), STYLE_GRAY,
-                      "\uE062");
+   float y_bass = f_line - fs * 0.5F;
+   style_text("\uE062", x, y_bass, &cfg);
 }
 
 static int key_sig_acc_count(enum key_sig key)
@@ -163,35 +168,41 @@ static int key_sig_acc_count(enum key_sig key)
    }
 }
 
-static void draw_key_sig(struct state *state, ImDrawList *draw_list,
-                         ImVec2 origin, bool treble)
-{
-   float staff_space = fabsf(calc_y(NOTES_A3) - calc_y(NOTES_C4));
-   float ch          = staff_space * STYLE_FONT_RATIO;
-   float x           = origin.x + 8.0F + ch * 1.1F;
+#include <array>
+#include <cmath>
 
-   static const midi_note treble_sharps[] = {
+static void draw_key_sig(struct state *state, ImVec2 origin, bool treble)
+{
+   float staff_space = std::fabs(calc_y(NOTES_A3) - calc_y(NOTES_C4));
+   float fs          = 1.5F * staff_space;
+   float x           = origin.x + 8.0F + fs * 1.8F;
+
+   static const std::array<midi_note, 7> treble_sharps = {
        NOTES_F4, NOTES_C5, NOTES_G4, NOTES_D4, NOTES_A4, NOTES_E4, NOTES_B4};
-   static const midi_note bass_sharps[] = {
+   static const std::array<midi_note, 7> bass_sharps = {
        NOTES_F3, NOTES_C3, NOTES_G3, NOTES_D4, NOTES_A3, NOTES_E4, NOTES_B3};
-   static const midi_note treble_flats[] = {
+   static const std::array<midi_note, 7> treble_flats = {
        NOTES_B3, NOTES_E4, NOTES_A3, NOTES_D4, NOTES_G3, NOTES_C4, NOTES_F4};
-   static const midi_note bass_flats[] = {
+   static const std::array<midi_note, 7> bass_flats = {
        NOTES_D3, NOTES_G3, NOTES_C4, NOTES_F3, NOTES_B2, NOTES_E3, NOTES_A3};
 
    int acc_count = key_sig_acc_count(state->key);
 
+   font_config cfg = {
+       .fontsize = fs,
+       .anch     = ANCHOR_CENTER,
+       .color    = STYLE_GRAY,
+   };
+
    if (acc_count > 0) { // sharps
       for (int i = 0; i < acc_count; ++i) {
-         float y = calc_y(treble ? treble_sharps[i] : bass_sharps[i]);
-         draw_list->AddCircleFilled(ImVec2(x, y), 10, STYLE_RED);
+         float y = calc_y(treble ? treble_sharps.at(i) : bass_sharps.at(i));
+         style_text("\uE262", x + static_cast<float>(i) * fs * 0.6F, y, &cfg);
       }
-   }
-
-   else if (acc_count < 0) { // flats
+   } else if (acc_count < 0) { // flats
       for (int i = 0; i < -acc_count; ++i) {
-         float y = calc_y(treble ? treble_flats[i] : bass_flats[i]);
-         draw_list->AddCircleFilled(ImVec2(x, y), 10, STYLE_GREEN);
+         float y = calc_y(treble ? treble_flats.at(i) : bass_flats.at(i));
+         style_text("\uE260", x + static_cast<float>(i) * fs * 0.6F, y, &cfg);
       }
    }
 }
@@ -218,9 +229,9 @@ void notes_staff(struct state *state)
                          STYLE_LINE_THICKNESS);
    }
 
-   draw_clefs(state, draw_list, p);
-   draw_key_sig(state, draw_list, p, false);
-   draw_key_sig(state, draw_list, p, true);
+   draw_clefs(p);
+   draw_key_sig(state, p, false);
+   draw_key_sig(state, p, true);
 
    ImGui::EndChild();
 }
@@ -247,22 +258,25 @@ static void draw_ledger_lines(ImDrawList *draw_list, float x, float y,
                       STYLE_LINE_THICKNESS);
 }
 
-static void draw_sharp(struct state *state, ImDrawList *draw_list, float x,
-                       float y, float note_radius, uint32_t color)
+static void draw_sharp(float x, float y, float note_radius, uint32_t color)
 {
    float staff_space = fabsf(calc_y(NOTES_A3) - calc_y(NOTES_C4));
-   float font_size   = staff_space * 7.0F;
-   const char *sharp = "\uE262";
+   float fs          = 2.0F * staff_space;
 
-   ImVec2 text_size =
-       state->music_font->CalcTextSizeA(font_size, FLT_MAX, 0.0F, sharp);
-   ImVec2 pos(x - 1.5F * note_radius - text_size.x, y - text_size.y / 2);
+   font_config cfg = {.fontsize = fs,
+                      .anch     = ANCHOR_CENTER_RIGHT,
+                      .color    = color,
+                      // TODO: remove this
+                      .border_size  = 1.0F,
+                      .border_color = STYLE_RED,
+                      .anchor_size  = 5.0F,
+                      .anchor_color = STYLE_RED};
 
-   draw_list->AddText(state->music_font, font_size, pos, color, sharp);
+   float sharp_x = x - 1.5F * note_radius;
+   style_text("\uE262", sharp_x, y, &cfg);
 }
 
-static void notes_dot(struct state *state, midi_note n, int x_idx,
-                      uint32_t color)
+static void notes_dot(midi_note n, int x_idx, uint32_t color)
 {
    ImVec2 size             = ImGui::GetContentRegionAvail();
    const float note_radius = size.y / 45.0F;
@@ -275,14 +289,13 @@ static void notes_dot(struct state *state, midi_note n, int x_idx,
    ImDrawList *draw_list = ImGui::GetWindowDrawList();
 
    if (note_has_sharp(n))
-      draw_sharp(state, draw_list, x, y, note_radius, color);
+      draw_sharp(x, y, note_radius, color);
 
    draw_ledger_lines(draw_list, x, y, static_cast<int>(n), note_radius);
    draw_list->AddCircleFilled(ImVec2(x, y), note_radius, color);
 }
 
-void notes_single(struct state *state, const std::vector<midi_note> &notes,
-                  uint32_t color)
+void notes_single(const std::vector<midi_note> &notes, uint32_t color)
 {
    if (!ImGui::BeginChild("Staff", ImVec2(0, 0), false)) {
       ImGui::EndChild();
@@ -290,13 +303,12 @@ void notes_single(struct state *state, const std::vector<midi_note> &notes,
    }
 
    for (size_t i = 0; i < notes.size(); ++i)
-      notes_dot(state, notes[i], static_cast<int>(i), color);
+      notes_dot(notes[i], static_cast<int>(i), color);
 
    ImGui::EndChild();
 }
 
-void notes_chords(struct state *state,
-                  const std::vector<std::unordered_set<midi_note>> &chords,
+void notes_chords(const std::vector<std::unordered_set<midi_note>> &chords,
                   uint32_t color)
 {
    if (!ImGui::BeginChild("Staff", ImVec2(0, 0), false)) {
@@ -307,7 +319,7 @@ void notes_chords(struct state *state,
    int x_idx = 0;
    for (const auto &chord : chords) {
       for (auto n : chord) {
-         notes_dot(state, n, x_idx, color);
+         notes_dot(n, x_idx, color);
       }
       ++x_idx;
    }
@@ -325,31 +337,32 @@ static const char *accidental_symbol(enum accidental a)
    }
 }
 
-static void draw_chord_figures(struct state *state, ImDrawList *draw,
-                               float font_size, float x, float y,
+static void draw_chord_figures(float font_size, float x, float y,
                                const std::vector<figure> &figs, uint32_t color)
 {
    ImVec2 size               = ImGui::GetContentRegionAvail();
    const float figure_offset = size.y / 8.0F;
    float offset_step         = figure_offset * 0.5F;
 
+   font_config cfg = {
+       .fontsize = font_size, .anch = ANCHOR_TOP_LEFT, .color = color};
+
    for (size_t i = 0; i < figs.size(); ++i) {
       // figure
       float fx = x - 0.25F * font_size;
       float fy = y - (float)i * offset_step - figure_offset;
-      draw->AddText(ImGui::GetFont(), font_size, ImVec2(fx, fy), color,
-                    std::to_string(figs[i].num).c_str());
+      style_text(std::to_string(figs[i].num).c_str(), fx, fy, &cfg);
 
       // accidental
-      float nx = fx - 0.5F * font_size;
-      float ny = fy - 0.41F * STYLE_FONT_RATIO * font_size;
-      if (figs[i].acc != ACC_NONE)
-         draw->AddText(state->music_font, STYLE_FONT_RATIO * font_size,
-                       ImVec2(nx, ny), color, accidental_symbol(figs[i].acc));
+      if (figs[i].acc != ACC_NONE) {
+         float nx = fx - 0.7F * font_size;
+         float ny = fy - 0.30F * font_size;
+         style_text(accidental_symbol(figs[i].acc), nx, ny, &cfg);
+      }
    }
 }
 
-void notes_figures(struct state *state, const std::vector<midi_note> &notes,
+void notes_figures(const std::vector<midi_note> &notes,
                    const std::vector<std::vector<figure>> &figures,
                    uint32_t color)
 {
@@ -358,9 +371,8 @@ void notes_figures(struct state *state, const std::vector<midi_note> &notes,
       return;
    }
 
-   ImDrawList *draw = ImGui::GetWindowDrawList();
-   ImVec2 size      = ImGui::GetContentRegionAvail();
-   float font_size  = size.y / 16.0F;
+   ImVec2 size     = ImGui::GetContentRegionAvail();
+   float font_size = size.y / 16.0F;
 
    const size_t n = std::min(notes.size(), figures.size());
 
@@ -373,7 +385,7 @@ void notes_figures(struct state *state, const std::vector<midi_note> &notes,
       if (y == NOTES_OUT_OF_RANGE)
          continue;
 
-      draw_chord_figures(state, draw, font_size, x, y, figs, color);
+      draw_chord_figures(font_size, x, y, figs, color);
    }
 
    ImGui::EndChild();

@@ -9,6 +9,7 @@
 #ifndef STYLE_H
 #define STYLE_H
 
+#include <cstdint>
 #include <imgui.h>
 
 #define STYLE_LINE_THICKNESS 1.5F
@@ -24,10 +25,32 @@
 #define STYLE_PAD_Y      7.0F
 #define STYLE_PAD_BORDER 1.0F
 
-#define STYLE_FONT_RATIO 6.0F
+enum anchor {
+   ANCHOR_TOP_LEFT,
+   ANCHOR_TOP_CENTER,
+   ANCHOR_TOP_RIGHT,
+   ANCHOR_CENTER_LEFT,
+   ANCHOR_CENTER,
+   ANCHOR_CENTER_RIGHT,
+   ANCHOR_BOTTOM_LEFT,
+   ANCHOR_BOTTOM_CENTER,
+   ANCHOR_BOTTOM_RIGHT
+};
+
+struct font_config {
+   float fontsize;
+   enum anchor anch;
+   uint32_t color;
+   float border_size     = 0;
+   uint32_t border_color = 0;
+   float anchor_size     = 0;
+   uint32_t anchor_color = 0;
+};
 
 void set_font(struct state *state);
 void set_style(void);
 void dark_mode(void);
+
+void style_text(const char *text, float x, float y, const font_config *cfg);
 
 #endif /* STYLE_H */

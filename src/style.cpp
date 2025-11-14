@@ -10,15 +10,26 @@
 #include "imgui.h"
 #include "state.h"
 #include "util.h"
+#include <array>
 #include <span>
 
 void set_font(struct state *state)
 {
    ImGuiIO &io = ImGui::GetIO();
 
+   // Load base font
    io.Fonts->AddFontFromFileTTF("fonts/Roboto-Regular.ttf", 18.0F);
 
-   state->music_font = io.Fonts->AddFontFromFileTTF("fonts/Bravura.otf", 18.0F);
+   // Merge music font with full Unicode range
+   ImFontConfig config;
+   config.MergeMode        = true;
+   config.GlyphMinAdvanceX = 18.0F; // Make music symbols monospace-ish
+
+   static const std::array<ImWchar, 3> ranges = {0x0020, 0xFFFF, 0};
+
+   state->music_font = io.Fonts->AddFontFromFileTTF("fonts/Bravura.otf", 90.0F,
+                                                    &config, ranges.data());
+
    if (!state->music_font)
       ERROR("Failed to load music font Bravura.otf\n");
 }
@@ -118,4 +129,56 @@ void dark_mode(void)
    colors[ImGuiCol_Button]        = ImVec4(0.2F, 0.2F, 0.3F, 1.0F);
    colors[ImGuiCol_ButtonHovered] = ImVec4(0.3F, 0.8F, 0.4F, 1.0F);
    colors[ImGuiCol_ButtonActive]  = ImVec4(0.1F, 0.6F, 0.2F, 1.0F);
+}
+
+static ImVec2 anchor_offset(enum anchor anch, const ImVec2 &text_size)
+{
+   switch (anch) {
+      case ANCHOR_TOP_LEFT: return {0.0F, 0.0F};
+      case ANCHOR_TOP_CENTER: return {-text_size.x / 2, 0.0F};
+      case ANCHOR_TOP_RIGHT: return {-text_size.x, 0.0F};
+      case ANCHOR_CENTER_LEFT: return {0.0F, -text_size.y / 2};
+      case ANCHOR_CENTER: return {-text_size.x / 2, -text_size.y / 2};
+      case ANCHOR_CENTER_RIGHT: return {-text_size.x, -text_size.y / 2};
+      case ANCHOR_BOTTOM_LEFT: return {0.0F, -text_size.y};
+      case ANCHOR_BOTTOM_CENTER: return {-text_size.x / 2, -text_size.y};
+      case ANCHOR_BOTTOM_RIGHT: return {-text_size.x, -text_size.y};
+      default: return {0.0F, 0.0F};
+   }
+}
+
+void style_text(const char *text, float x, float y, const font_config *cfg)
+{
+   static const font_config default_cfg = {
+       .fontsize     = 18.0F,
+       .anch         = ANCHOR_TOP_LEFT,
+       .color        = STYLE_WHITE,
+       .border_size  = 0.0F,
+       .border_color = STYLE_WHITE,
+       .anchor_size  = 0.0F,
+       .anchor_color = STYLE_WHITE,
+   };
+
+   if (!cfg)
+      cfg = &default_cfg;
+
+   ImFont *font    = ImGui::GetFont();
+   float font_size = cfg->fontsize;
+   uint32_t color  = cfg->color;
+
+   ImVec2 text_size = font->CalcTextSizeA(font_size, FLT_MAX, 0.0F, text);
+   ImVec2 offset    = anchor_offset(cfg->anch, text_size);
+   ImVec2 pos       = ImVec2(x + offset.x, y + offset.y);
+
+   ImDrawList *draw = ImGui::GetWindowDrawList();
+   draw->AddText(font, font_size, pos, color, text);
+
+   if (cfg->border_size > 0.0F) {
+      draw->AddRect(pos, ImVec2(pos.x + text_size.x, pos.y + text_size.y),
+                    cfg->border_color, 0.0F, 0, cfg->border_size);
+   }
+
+   if (cfg->anchor_size > 0.0F) {
+      draw->AddCircleFilled(ImVec2(x, y), cfg->anchor_size, cfg->anchor_color);
+   }
 }

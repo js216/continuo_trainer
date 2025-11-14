@@ -145,11 +145,11 @@ void render_ui(struct state *state)
    // Staff
    ImGui::BeginChild("Staff", ImVec2(0, staff_height), false);
    notes_staff(state);
-   notes_single(state, state->bassline, STYLE_WHITE);
-   notes_chords(state, state->chords_ok, STYLE_GREEN);
-   notes_chords(state, state->chords_bad, STYLE_RED);
-   notes_chords(state, state->melody, STYLE_BLUE);
-   notes_figures(state, state->bassline, state->figures, STYLE_WHITE);
+   notes_single(state->bassline, STYLE_WHITE);
+   notes_chords(state->chords_ok, STYLE_GREEN);
+   notes_chords(state->chords_bad, STYLE_RED);
+   notes_chords(state->melody, STYLE_BLUE);
+   notes_figures(state->bassline, state->figures, STYLE_WHITE);
    ImGui::EndChild();
 
    // Status bar
