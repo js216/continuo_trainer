@@ -12,6 +12,7 @@
 #include "state.h"
 #include "style.h"
 #include <array>
+#include <cmath>
 #include <cstddef>
 #include <cstdint>
 #include <ranges>
@@ -121,7 +122,27 @@ static float calc_y(const enum midi_note n)
    return y;
 }
 
-void notes_staff(void)
+static void draw_clefs(struct state *state, ImDrawList *draw_list,
+                       ImVec2 origin)
+{
+   float staff_space = fabsf(calc_y(NOTES_A3) - calc_y(NOTES_C4));
+   float x           = origin.x + 8.0F;
+   float ch          = staff_space * STYLE_FONT_RATIO;
+
+   // --- TREBLE CLEF ---
+   float g_line   = calc_y(NOTES_G4);
+   float y_treble = g_line - ch * 0.5F;
+   draw_list->AddText(state->music_font, ch, ImVec2(x, y_treble), STYLE_GRAY,
+                      "\uE050");
+
+   // --- BASS CLEF ---
+   float f_line = calc_y(NOTES_F3);
+   float y_bass = f_line - ch * 0.5F;
+   draw_list->AddText(state->music_font, ch, ImVec2(x, y_bass), STYLE_GRAY,
+                      "\uE062");
+}
+
+void notes_staff(struct state *state)
 {
    ImVec2 avail = ImGui::GetContentRegionAvail();
    ImGui::BeginChild("Staff", avail, true);
@@ -142,6 +163,8 @@ void notes_staff(void)
       draw_list->AddLine(ImVec2(p.x, y), ImVec2(p.x + size.x, y), STYLE_GRAY,
                          STYLE_LINE_THICKNESS);
    }
+
+   draw_clefs(state, draw_list, p);
 
    ImGui::EndChild();
 }
@@ -168,24 +191,25 @@ static void draw_ledger_lines(ImDrawList *draw_list, float x, float y,
                       STYLE_LINE_THICKNESS);
 }
 
-static void draw_sharp(ImDrawList *draw_list, float font_size, float x, float y,
-                       float note_radius, uint32_t color)
+static void draw_sharp(struct state *state, ImDrawList *draw_list, float x,
+                       float y, float note_radius, uint32_t color)
 {
-   const char *sharp = "#";
-   ImFont *font      = ImGui::GetFont();
-   ImVec2 text_size  = font->CalcTextSizeA(font_size, FLT_MAX, 0.0F, sharp);
+   float staff_space = fabsf(calc_y(NOTES_A3) - calc_y(NOTES_C4));
+   float font_size   = staff_space * 7.0F;
+   const char *sharp = "\uE262";
 
-   draw_list->AddText(
-       font, font_size,
-       ImVec2(x - note_radius - text_size.x, y - text_size.y / 2), color,
-       sharp);
+   ImVec2 text_size =
+       state->music_font->CalcTextSizeA(font_size, FLT_MAX, 0.0F, sharp);
+   ImVec2 pos(x - 1.5F * note_radius - text_size.x, y - text_size.y / 2);
+
+   draw_list->AddText(state->music_font, font_size, pos, color, sharp);
 }
 
-static void notes_dot(midi_note n, int x_idx, uint32_t color)
+static void notes_dot(struct state *state, midi_note n, int x_idx,
+                      uint32_t color)
 {
    ImVec2 size             = ImGui::GetContentRegionAvail();
    const float note_radius = size.y / 45.0F;
-   float font_size         = 3.0F * note_radius;
 
    float x = ((float)x_idx + 1) * size.x / (MAX_CHORDS + 1.0F);
    float y = calc_y(n);
@@ -195,13 +219,14 @@ static void notes_dot(midi_note n, int x_idx, uint32_t color)
    ImDrawList *draw_list = ImGui::GetWindowDrawList();
 
    if (note_has_sharp(n))
-      draw_sharp(draw_list, font_size, x, y, note_radius, color);
+      draw_sharp(state, draw_list, x, y, note_radius, color);
 
    draw_ledger_lines(draw_list, x, y, static_cast<int>(n), note_radius);
    draw_list->AddCircleFilled(ImVec2(x, y), note_radius, color);
 }
 
-void notes_single(const std::vector<midi_note> &notes, uint32_t color)
+void notes_single(struct state *state, const std::vector<midi_note> &notes,
+                  uint32_t color)
 {
    if (!ImGui::BeginChild("Staff", ImVec2(0, 0), false)) {
       ImGui::EndChild();
@@ -209,12 +234,13 @@ void notes_single(const std::vector<midi_note> &notes, uint32_t color)
    }
 
    for (size_t i = 0; i < notes.size(); ++i)
-      notes_dot(notes[i], static_cast<int>(i), color);
+      notes_dot(state, notes[i], static_cast<int>(i), color);
 
    ImGui::EndChild();
 }
 
-void notes_chords(const std::vector<std::unordered_set<midi_note>> &chords,
+void notes_chords(struct state *state,
+                  const std::vector<std::unordered_set<midi_note>> &chords,
                   uint32_t color)
 {
    if (!ImGui::BeginChild("Staff", ImVec2(0, 0), false)) {
@@ -225,7 +251,7 @@ void notes_chords(const std::vector<std::unordered_set<midi_note>> &chords,
    int x_idx = 0;
    for (const auto &chord : chords) {
       for (auto n : chord) {
-         notes_dot(n, x_idx, color);
+         notes_dot(state, n, x_idx, color);
       }
       ++x_idx;
    }
@@ -236,49 +262,38 @@ void notes_chords(const std::vector<std::unordered_set<midi_note>> &chords,
 static const char *accidental_symbol(enum accidental a)
 {
    switch (a) {
-      case ACC_SHARP: return "#";
-      case ACC_FLAT: return "b";
-      case ACC_NATURAL: return "n";
+      case ACC_SHARP: return "\uE262";   // SMuFL sharp
+      case ACC_FLAT: return "\uE260";    // SMuFL flat
+      case ACC_NATURAL: return "\uE261"; // SMuFL natural
       default: return "";
    }
 }
 
-static void draw_figure(ImDrawList *draw, ImFont *font, float font_size,
-                        float x, float y, const figure &fig, uint32_t color,
-                        float figure_offset)
+static void draw_chord_figures(struct state *state, ImDrawList *draw,
+                               float font_size, float x, float y,
+                               const std::vector<figure> &figs, uint32_t color)
 {
-   // number
-   const std::string num_str = std::to_string(fig.num);
-   ImVec2 ts = font->CalcTextSizeA(font_size, FLT_MAX, 0.0F, num_str.c_str());
-
-   float fx = x - ts.x * 0.5F;
-   float fy = y - figure_offset;
-
-   draw->AddText(font, font_size, ImVec2(fx, fy), color, num_str.c_str());
-
-   // accidental
-   if (fig.acc != ACC_NONE) {
-      const char *acc = accidental_symbol(fig.acc);
-      ImVec2 as       = font->CalcTextSizeA(font_size, FLT_MAX, 0.0F, acc);
-      draw->AddText(font, font_size, ImVec2(fx - as.x - 2.0F, fy), color, acc);
-   }
-}
-
-static void draw_chord_figures(ImDrawList *draw, ImFont *font, float font_size,
-                               float x, float y,
-                               const std::vector<figure> &figs, uint32_t color,
-                               float figure_offset)
-{
-   // space between stacked figures
-   float offset_step = figure_offset * 0.5F;
+   ImVec2 size               = ImGui::GetContentRegionAvail();
+   const float figure_offset = size.y / 8.0F;
+   float offset_step         = figure_offset * 0.5F;
 
    for (size_t i = 0; i < figs.size(); ++i) {
-      draw_figure(draw, font, font_size, x, y - (float)i * offset_step, figs[i],
-                  color, figure_offset);
+      // figure
+      float fx = x - 0.25F * font_size;
+      float fy = y - (float)i * offset_step - figure_offset;
+      draw->AddText(ImGui::GetFont(), font_size, ImVec2(fx, fy), color,
+                    std::to_string(figs[i].num).c_str());
+
+      // accidental
+      float nx = fx - 0.5F * font_size;
+      float ny = fy - 0.41F * STYLE_FONT_RATIO * font_size;
+      if (figs[i].acc != ACC_NONE)
+         draw->AddText(state->music_font, STYLE_FONT_RATIO * font_size,
+                       ImVec2(nx, ny), color, accidental_symbol(figs[i].acc));
    }
 }
 
-void notes_figures(const std::vector<midi_note> &notes,
+void notes_figures(struct state *state, const std::vector<midi_note> &notes,
                    const std::vector<std::vector<figure>> &figures,
                    uint32_t color)
 {
@@ -287,11 +302,9 @@ void notes_figures(const std::vector<midi_note> &notes,
       return;
    }
 
-   ImDrawList *draw          = ImGui::GetWindowDrawList();
-   ImVec2 size               = ImGui::GetContentRegionAvail();
-   const float figure_offset = size.y / 8.0F;
-   float font_size           = size.y / 16.0F;
-   ImFont *font              = ImGui::GetFont();
+   ImDrawList *draw = ImGui::GetWindowDrawList();
+   ImVec2 size      = ImGui::GetContentRegionAvail();
+   float font_size  = size.y / 16.0F;
 
    const size_t n = std::min(notes.size(), figures.size());
 
@@ -304,8 +317,7 @@ void notes_figures(const std::vector<midi_note> &notes,
       if (y == NOTES_OUT_OF_RANGE)
          continue;
 
-      draw_chord_figures(draw, font, font_size, x, y, figs, color,
-                         figure_offset);
+      draw_chord_figures(state, draw, font_size, x, y, figs, color);
    }
 
    ImGui::EndChild();

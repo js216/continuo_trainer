@@ -10,6 +10,7 @@
 #define STATE_H
 
 #include "RtMidi.h"
+#include "imgui.h"
 #include <memory>
 #include <sstream>
 #include <string>
@@ -77,6 +78,7 @@ struct state {
    // program general
    std::string config_file;
    std::string status;
+   ImFont *music_font;
 
    // sheet music display
    std::vector<enum midi_note> bassline;

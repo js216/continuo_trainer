@@ -8,7 +8,20 @@
 
 #include "style.h"
 #include "imgui.h"
+#include "state.h"
+#include "util.h"
 #include <span>
+
+void set_font(struct state *state)
+{
+   ImGuiIO &io = ImGui::GetIO();
+
+   io.Fonts->AddFontFromFileTTF("fonts/Roboto-Regular.ttf", 18.0F);
+
+   state->music_font = io.Fonts->AddFontFromFileTTF("fonts/Bravura.otf", 18.0F);
+   if (!state->music_font)
+      ERROR("Failed to load music font Bravura.otf\n");
+}
 
 void set_style(void)
 {
@@ -60,12 +73,6 @@ void set_style(void)
    style.MouseCursorScale   = 0.0F;
    style.AntiAliasedLines   = true;
    style.AntiAliasedFill    = true;
-}
-
-void set_font(void)
-{
-   ImGuiIO &io = ImGui::GetIO();
-   io.Fonts->AddFontFromFileTTF("fonts/Roboto-Regular.ttf", 18.0F);
 }
 
 void dark_mode(void)

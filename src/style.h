@@ -9,6 +9,8 @@
 #ifndef STYLE_H
 #define STYLE_H
 
+#include <imgui.h>
+
 #define STYLE_LINE_THICKNESS 1.5F
 
 #define STYLE_WHITE 0xFFFFFFFFU
@@ -22,8 +24,10 @@
 #define STYLE_PAD_Y      7.0F
 #define STYLE_PAD_BORDER 1.0F
 
+#define STYLE_FONT_RATIO 6.0F
+
+void set_font(struct state *state);
 void set_style(void);
-void set_font(void);
 void dark_mode(void);
 
 #endif /* STYLE_H */

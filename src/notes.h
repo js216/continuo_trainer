@@ -14,14 +14,16 @@
 #include <stddef.h>
 #include <stdint.h>
 
-void notes_staff(void);
+void notes_staff(struct state *state);
 
-void notes_single(const std::vector<midi_note> &notes, uint32_t color);
-
-void notes_chords(const std::vector<std::unordered_set<midi_note>> &chords,
+void notes_single(struct state *state, const std::vector<midi_note> &notes,
                   uint32_t color);
 
-void notes_figures(const std::vector<midi_note> &notes,
+void notes_chords(struct state *state,
+                  const std::vector<std::unordered_set<midi_note>> &chords,
+                  uint32_t color);
+
+void notes_figures(struct state *state, const std::vector<midi_note> &notes,
                    const std::vector<std::vector<figure>> &figures,
                    uint32_t color);
 
