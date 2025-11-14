@@ -92,8 +92,8 @@ static float calc_y(const enum midi_note n)
    ImVec2 p    = ImGui::GetCursorScreenPos();
    ImVec2 size = ImGui::GetContentRegionAvail();
 
-   const float top       = p.y + size.y * 0.3F;
-   const float bottom    = p.y + size.y * 0.7F;
+   const float top       = p.y + size.y * 0.35F;
+   const float bottom    = p.y + size.y * 0.8F;
    const float spacing   = (bottom - top) / 8.0F;
    const float staff_gap = spacing * 2.5F;
 
@@ -122,7 +122,6 @@ static float calc_y(const enum midi_note n)
 void notes_staff(void)
 {
    ImVec2 avail = ImGui::GetContentRegionAvail();
-
    ImGui::BeginChild("Staff", avail, true);
 
    ImDrawList *draw_list = ImGui::GetWindowDrawList();
@@ -174,7 +173,7 @@ static void draw_sharp(ImDrawList *draw_list, float font_size, float x, float y,
 static void notes_dot(midi_note n, int x_idx, uint32_t color)
 {
    ImVec2 size             = ImGui::GetContentRegionAvail();
-   const float note_radius = size.y / 30.0F;
+   const float note_radius = size.y / 45.0F;
    float font_size         = 3.0F * note_radius;
 
    float x = ((float)x_idx + 1) * size.x / (MAX_CHORDS + 1.0F);

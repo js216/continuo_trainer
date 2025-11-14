@@ -17,7 +17,7 @@
 #include <vector>
 
 #define NOTES_PER_CHORD 10
-#define MAX_CHORDS      20
+#define MAX_CHORDS      15
 
 enum midi_note {
    NOTES_E2 = 40,
