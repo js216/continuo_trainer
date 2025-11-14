@@ -82,6 +82,7 @@ struct state {
    std::vector<enum midi_note> bassline;
    std::vector<std::unordered_set<midi_note>> chords_ok;
    std::vector<std::unordered_set<midi_note>> chords_bad;
+   std::vector<std::unordered_set<midi_note>> melody;
    std::vector<std::vector<struct figure>> figures;
 
    // MIDI devices and data

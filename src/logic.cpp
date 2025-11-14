@@ -21,6 +21,7 @@ void logic_clear(struct state *state)
    state->bassline.clear();
    state->chords_ok.clear();
    state->chords_bad.clear();
+   state->melody.clear();
 }
 
 static enum midi_note get_note(void)
@@ -85,6 +86,11 @@ void logic_bad(struct state *state)
    if (state->chords_bad.size() < MAX_CHORDS) {
       state->chords_bad.emplace_back();
       state->chords_bad.back().insert(get_note());
+   }
+
+   if (state->melody.size() < MAX_CHORDS) {
+      state->melody.emplace_back();
+      state->melody.back().insert(get_note());
    }
 }
 

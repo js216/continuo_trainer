@@ -55,18 +55,15 @@ market only to realize there is no market for continuo-training toys ...
 
 ### Todo
 
+- display the clef symbols
 - support for key signatures
-- notes out of range displayed octave up/dn
 - read lessons from text files
 - record times and all notes pressed to logs
-- lessons can have a melody (different color)
 - free-timing vs fixed rhythm mode
 - melody playback via MIDI or audio
-- display the clef symbol
 - analyze lessons to generate new ones
-- support for several lines of music
 - voice leading analysis; hints displayed
-- research gamification, motivation strategy
+- research gamification, motivation strategy; scores, levels
 
 ### Author
 
