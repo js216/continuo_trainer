@@ -95,6 +95,29 @@ static void app_midi(struct state *state, const float controls_height)
    }
 }
 
+static void draw_status_bar(const struct state *state, float height)
+{
+   ImGui::BeginChild("StatusBar", ImVec2(0, height), true);
+
+   // Left-aligned status text
+   ImGui::TextUnformatted(("Status: " + state->status).c_str());
+
+   // Right-aligned MIDI device name
+   if (state->midi_in && state->selected_device >= 0 &&
+       state->selected_device < (int)state->midi_devices.size()) {
+      const char *dev_name =
+          state->midi_devices[state->selected_device].c_str();
+      float avail_width = ImGui::GetContentRegionAvail().x;
+      float text_width  = ImGui::CalcTextSize(dev_name).x;
+
+      // Move cursor to right edge minus text width
+      ImGui::SameLine(avail_width - text_width);
+      ImGui::TextUnformatted(dev_name);
+   }
+
+   ImGui::EndChild();
+}
+
 void render_ui(struct state *state)
 {
    const ImGuiIO &io = ImGui::GetIO();
@@ -129,9 +152,7 @@ void render_ui(struct state *state)
    ImGui::EndChild();
 
    // Status bar
-   ImGui::BeginChild("StatusBar", ImVec2(0, status_height), true);
-   ImGui::TextUnformatted(("Status: " + state->status).c_str());
-   ImGui::EndChild();
+   draw_status_bar(state, status_height);
 
    ImGui::End();
 }
