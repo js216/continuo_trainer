@@ -15,8 +15,8 @@ void set_style(void)
    ImGuiStyle &style = ImGui::GetStyle();
 
    // padding
-   style.WindowPadding          = ImVec2(10.0F, 10.0F);
-   style.FramePadding           = ImVec2(10.0F, 10.0F);
+   style.WindowPadding          = ImVec2(STYLE_PAD_X, STYLE_PAD_Y);
+   style.FramePadding           = ImVec2(STYLE_PAD_X, STYLE_PAD_Y);
    style.TouchExtraPadding      = ImVec2(0.0F, 0.0F);
    style.SeparatorTextPadding   = ImVec2(0.0F, 0.0F);
    style.CellPadding            = ImVec2(0.0F, 0.0F);
@@ -24,7 +24,7 @@ void set_style(void)
    style.DisplaySafeAreaPadding = ImVec2(0.0F, 0.0F);
 
    // spacing
-   style.ItemSpacing       = ImVec2(10.0F, 10.0F);
+   style.ItemSpacing       = ImVec2(STYLE_PAD_X, STYLE_PAD_Y);
    style.ItemInnerSpacing  = ImVec2(0.0F, 0.0F);
    style.IndentSpacing     = 0.0F;
    style.ColumnsMinSpacing = 0.0F;
@@ -39,13 +39,13 @@ void set_style(void)
    style.GrabRounding      = 5.0F;
 
    // border size
-   style.WindowBorderSize        = 1.0F;
-   style.ChildBorderSize         = 1.0F;
-   style.PopupBorderSize         = 1.0F;
-   style.FrameBorderSize         = 1.0F;
-   style.TabBorderSize           = 1.0F;
-   style.TabBarBorderSize        = 1.0F;
-   style.SeparatorTextBorderSize = 1.0F;
+   style.WindowBorderSize        = STYLE_PAD_BORDER;
+   style.ChildBorderSize         = STYLE_PAD_BORDER;
+   style.PopupBorderSize         = STYLE_PAD_BORDER;
+   style.FrameBorderSize         = STYLE_PAD_BORDER;
+   style.TabBorderSize           = STYLE_PAD_BORDER;
+   style.TabBarBorderSize        = STYLE_PAD_BORDER;
+   style.SeparatorTextBorderSize = STYLE_PAD_BORDER;
 
    // window & child windows
    style.WindowMinSize            = ImVec2(2.0F, 32.0F);
@@ -62,17 +62,10 @@ void set_style(void)
    style.AntiAliasedFill    = true;
 }
 
-void set_font(const char *const ttf_path, const float size_pixels)
+void set_font(void)
 {
    ImGuiIO &io = ImGui::GetIO();
-   io.Fonts->Clear();
-
-   ImFont *font = io.Fonts->AddFontFromFileTTF(ttf_path, size_pixels);
-   if (font == nullptr) {
-      font = io.FontDefault;
-   }
-
-   io.FontDefault = font;
+   io.Fonts->AddFontFromFileTTF("fonts/Roboto-Regular.ttf", 18.0F);
 }
 
 void dark_mode(void)

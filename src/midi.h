@@ -15,6 +15,8 @@ void refresh_midi_devices(struct state *state);
 
 void init_midi(struct state *state);
 
+void deinit_midi(struct state *state);
+
 void poll_midi(struct state *state);
 
 #endif // MIDI_H

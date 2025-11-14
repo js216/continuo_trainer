@@ -11,7 +11,7 @@ device.
 ### Getting Started
 
 Prerequisites: SDL2. (For static code analysis also need bear, clang-tidy,
-clang-format, cppcheck.)
+clang-format, cppcheck, graphviz.)
 
 To build, just clone project and call make, and then run the program:
 
@@ -55,29 +55,15 @@ market only to realize there is no market for continuo-training toys ...
 
 ### Todo
 
-- add the treble staff
-- window should be resizable
-- array of continuo figures to display
-- implement the function to decide if a given note is bad
-- restore last used MIDI dev
-- write state to file
-- enforce header inclusion DAG
-- put status bar on the bottom of the screen
-- hide MIDI selection box when connected
+- display the clef symbols
 - support for key signatures
-- notes out of range displayed octave up/dn
-- right half of status displays MIDI device
 - read lessons from text files
 - record times and all notes pressed to logs
-- lessons can have a melody (different color)
 - free-timing vs fixed rhythm mode
 - melody playback via MIDI or audio
-- display the clef symbol
 - analyze lessons to generate new ones
-- support for several lines of music
 - voice leading analysis; hints displayed
-- research gamification, motivation strategy
-- remove as many of the clang-tidy exclusions as possible
+- research gamification, motivation strategy; scores, levels
 
 ### Author
 

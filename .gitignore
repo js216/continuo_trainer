@@ -1,6 +1,8 @@
 *.d
 *.o
 *.swp
+*.pdf
+*.dot
 
 continuo_trainer
 compile_commands.json

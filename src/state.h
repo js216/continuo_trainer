@@ -17,7 +17,7 @@
 #include <vector>
 
 #define NOTES_PER_CHORD 10
-#define MAX_CHORDS      20
+#define MAX_CHORDS      15
 
 enum midi_note {
    NOTES_E2 = 40,
@@ -42,32 +42,65 @@ enum midi_note {
    NOTES_B3,
    NOTES_C4,
    NOTES_Cs4,
+   NOTES_D4,
+   NOTES_Ds4,
+   NOTES_E4,
+   NOTES_F4,
+   NOTES_Fs4,
+   NOTES_G4,
+   NOTES_Gs4,
+   NOTES_A4,
+   NOTES_As4,
+   NOTES_B4,
+   NOTES_C5,
+   NOTES_Cs5,
+   NOTES_D5,
+   NOTES_Ds5,
+   NOTES_E5,
+   NOTES_F5,
+   NOTES_Fs5,
+   NOTES_G5,
+   NOTES_Gs5,
+   NOTES_A5,
+   NOTES_As5,
    NOTES_NUM
 };
 
+enum accidental { ACC_NONE, ACC_SHARP, ACC_FLAT, ACC_NATURAL, ACC_NUM };
+
+struct figure {
+   int num;
+   enum accidental acc;
+};
+
 struct state {
-   // status bar
+   // program general
+   std::string config_file;
    std::string status;
 
    // sheet music display
    std::vector<enum midi_note> bassline;
    std::vector<std::unordered_set<midi_note>> chords_ok;
    std::vector<std::unordered_set<midi_note>> chords_bad;
+   std::vector<std::unordered_set<midi_note>> melody;
+   std::vector<std::vector<struct figure>> figures;
 
-   // MIDI devices
+   // MIDI devices and data
    std::vector<std::string> midi_devices;
    int selected_device = -1;
    std::unique_ptr<RtMidiIn> midi_in;
-
-   // receiving notes into chords
    std::vector<unsigned char> pressed_notes;
 };
 
-template <typename... Args> void state_status(state *s, Args &&...args)
+template <typename... Args> void state_status(state *state, Args &&...args)
 {
    std::ostringstream oss;
    (oss << ... << args);
-   s->status = oss.str();
+   state->status = oss.str();
 }
+
+void state_load(struct state *state);
+
+void state_save(const struct state *state);
 
 #endif /* STATE_H */
