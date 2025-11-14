@@ -4,7 +4,11 @@ LDFLAGS = `pkg-config --libs sdl2` -lGL -lasound -lpthread
 
 TARGET  = continuo_trainer
 SRC = $(wildcard src/*.cpp)
+HDRS = $(wildcard src/*.h src/*.hpp)
 OBJS = $(SRC:.cpp=.o)
+
+GRAPH_FILE = inclusions.dot
+PDF_FILE = inclusions.pdf
 
 LIB_OBJS = \
 	rtmidi/RtMidi.o \
@@ -28,10 +32,11 @@ rtmidi/RtMidi.o: rtmidi/RtMidi.cpp
 
 clean:
 	rm -f $(LIB_OBJS) $(OBJS) $(TARGET) compile_commands.json
+	rm -f $(GRAPH_FILE) $(PDF_FILE)
 
 # Testing and linting
 
-check: format cppcheck tidy
+check: format cppcheck tidy inclusions
 
 format:
 	clang-format --dry-run -Werror $(SRC)
@@ -45,4 +50,11 @@ cppcheck:
 	cppcheck --enable=all --inconclusive --std=c++17 --force --quiet \
 		--error-exitcode=1 --suppress=missingInclude src
 
-.PHONY: all clean check format cppcheck tidy
+inclusions: $(INC_SRCS) scripts/inclusions.py
+	python3 scripts/inclusions.py $(SRC) $(HDRS) > $(GRAPH_FILE) ; \
+	PYTHON_EXIT=$$? ; \
+	dot -Tpdf $(GRAPH_FILE) -o $(PDF_FILE) ; \
+	exit $$PYTHON_EXIT
+
+
+.PHONY: all clean check format cppcheck tidy inclusions

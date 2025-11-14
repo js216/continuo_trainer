@@ -11,7 +11,7 @@ device.
 ### Getting Started
 
 Prerequisites: SDL2. (For static code analysis also need bear, clang-tidy,
-clang-format, cppcheck.)
+clang-format, cppcheck, graphviz.)
 
 To build, just clone project and call make, and then run the program:
 
@@ -56,8 +56,6 @@ market only to realize there is no market for continuo-training toys ...
 ### Todo
 
 - restore last used MIDI dev
-- write state to file
-- enforce header inclusion DAG
 - put status bar on the bottom of the screen
 - hide MIDI selection box when connected
 - support for key signatures
