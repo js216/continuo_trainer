@@ -50,11 +50,10 @@ int main(int argc, const char **argv)
    ImGui_ImplOpenGL3_Init("#version 130");
 
    struct state state = {};
-   init_state(&state);
-
    std::span<const char *> args(argv, static_cast<size_t>(argc));
    if (args.size() > 1)
       state.config_file = args[1];
+   init_state(&state);
 
    while (handle_events(&state)) {
       poll_midi(&state);
