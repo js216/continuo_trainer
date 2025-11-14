@@ -20,6 +20,40 @@
 
 #define NOTES_OUT_OF_RANGE (-100)
 
+static const char *acc_sym(enum accidental a)
+{
+   switch (a) {
+      case ACC_SHARP: return "\uE262";   // SMuFL sharp
+      case ACC_FLAT: return "\uE260";    // SMuFL flat
+      case ACC_NATURAL: return "\uE261"; // SMuFL natural
+      default: return "";
+   }
+}
+
+static enum accidental key_sig_accidental(enum key_sig key, midi_note n)
+{
+   static const std::array<std::array<int, 12>, KEY_NUM> table = {
+       {
+        {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
+        {0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0},
+        {0, 1, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0},
+        {0, 1, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0},
+        {0, 1, 0, 1, 0, 1, 0, 0, 1, 0, 0, 0},
+        {0, 1, 0, 1, 0, 1, 0, 0, 1, 0, 1, 0},
+        {0, 1, 0, 1, 1, 1, 0, 0, 1, 0, 1, 0},
+        {1, 1, 0, 1, 1, 1, 0, 0, 1, 0, 1, 1},
+        {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0},
+        {0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 1, 0},
+        {0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 1, 0},
+        {0, 1, 0, 1, 0, 0, 0, 1, 0, 0, 1, 0},
+        {0, 1, 0, 1, 0, 1, 1, 1, 0, 0, 1, 0},
+        {1, 1, 0, 1, 0, 1, 1, 1, 0, 0, 1, 0},
+        {1, 1, 0, 1, 0, 1, 1, 1, 0, 1, 1, 1},
+        }
+   };
+   return table[key][n % 12] ? ACC_NATURAL : ACC_NONE;
+}
+
 static float note_to_bass(const enum midi_note n)
 {
    switch (n) {
@@ -77,16 +111,24 @@ static float note_to_treble(const enum midi_note n)
    }
 }
 
-static bool note_has_sharp(const enum midi_note n)
+static int key_sig_acc_count(enum key_sig key)
 {
-   switch (n % 12) {
-      case 1:  // C#
-      case 3:  // D#
-      case 6:  // F#
-      case 8:  // G#
-      case 10: // A#
-         return true;
-      default: return false;
+   switch (key) {
+      case KEY_SIG_1_SHARP: return 1;
+      case KEY_SIG_2_SHARP: return 2;
+      case KEY_SIG_3_SHARP: return 3;
+      case KEY_SIG_4_SHARP: return 4;
+      case KEY_SIG_5_SHARP: return 5;
+      case KEY_SIG_6_SHARP: return 6;
+      case KEY_SIG_7_SHARP: return 7;
+      case KEY_SIG_1_FLAT: return -1;
+      case KEY_SIG_2_FLAT: return -2;
+      case KEY_SIG_3_FLAT: return -3;
+      case KEY_SIG_4_FLAT: return -4;
+      case KEY_SIG_5_FLAT: return -5;
+      case KEY_SIG_6_FLAT: return -6;
+      case KEY_SIG_7_FLAT: return -7;
+      default: return 0;
    }
 }
 
@@ -147,30 +189,6 @@ static void draw_clefs(ImVec2 origin)
    style_text("\uE062", x, y_bass, &cfg);
 }
 
-static int key_sig_acc_count(enum key_sig key)
-{
-   switch (key) {
-      case KEY_SIG_1_SHARP: return 1;
-      case KEY_SIG_2_SHARP: return 2;
-      case KEY_SIG_3_SHARP: return 3;
-      case KEY_SIG_4_SHARP: return 4;
-      case KEY_SIG_5_SHARP: return 5;
-      case KEY_SIG_6_SHARP: return 6;
-      case KEY_SIG_7_SHARP: return 7;
-      case KEY_SIG_1_FLAT: return -1;
-      case KEY_SIG_2_FLAT: return -2;
-      case KEY_SIG_3_FLAT: return -3;
-      case KEY_SIG_4_FLAT: return -4;
-      case KEY_SIG_5_FLAT: return -5;
-      case KEY_SIG_6_FLAT: return -6;
-      case KEY_SIG_7_FLAT: return -7;
-      default: return 0;
-   }
-}
-
-#include <array>
-#include <cmath>
-
 static void draw_key_sig(struct state *state, ImVec2 origin, bool treble)
 {
    float staff_space = std::fabs(calc_y(NOTES_A3) - calc_y(NOTES_C4));
@@ -197,12 +215,14 @@ static void draw_key_sig(struct state *state, ImVec2 origin, bool treble)
    if (acc_count > 0) { // sharps
       for (int i = 0; i < acc_count; ++i) {
          float y = calc_y(treble ? treble_sharps.at(i) : bass_sharps.at(i));
-         style_text("\uE262", x + static_cast<float>(i) * fs * 0.6F, y, &cfg);
+         style_text(acc_sym(ACC_SHARP), x + static_cast<float>(i) * fs * 0.6F,
+                    y, &cfg);
       }
    } else if (acc_count < 0) { // flats
       for (int i = 0; i < -acc_count; ++i) {
          float y = calc_y(treble ? treble_flats.at(i) : bass_flats.at(i));
-         style_text("\uE260", x + static_cast<float>(i) * fs * 0.6F, y, &cfg);
+         style_text(acc_sym(ACC_FLAT), x + static_cast<float>(i) * fs * 0.6F, y,
+                    &cfg);
       }
    }
 }
@@ -258,25 +278,28 @@ static void draw_ledger_lines(ImDrawList *draw_list, float x, float y,
                       STYLE_LINE_THICKNESS);
 }
 
-static void draw_sharp(float x, float y, float note_radius, uint32_t color)
+static void draw_accidental(float x, float y, float note_radius, uint32_t color,
+                            enum accidental acc)
 {
-   float staff_space = fabsf(calc_y(NOTES_A3) - calc_y(NOTES_C4));
+   if (acc == ACC_NONE)
+      return;
+
+   float staff_space = std::fabs(calc_y(NOTES_A3) - calc_y(NOTES_C4));
    float fs          = 2.0F * staff_space;
 
-   font_config cfg = {.fontsize = fs,
-                      .anch     = ANCHOR_CENTER_RIGHT,
-                      .color    = color,
-                      // TODO: remove this
-                      .border_size  = 1.0F,
+   font_config cfg = {.fontsize     = fs,
+                      .anch         = ANCHOR_CENTER_RIGHT,
+                      .color        = color,
+                      .border_size  = 1.0F, // optional debug
                       .border_color = STYLE_RED,
                       .anchor_size  = 5.0F,
                       .anchor_color = STYLE_RED};
 
-   float sharp_x = x - 1.5F * note_radius;
-   style_text("\uE262", sharp_x, y, &cfg);
+   float offset_x = x - 1.5F * note_radius;
+   style_text(acc_sym(acc), offset_x, y, &cfg);
 }
 
-static void notes_dot(midi_note n, int x_idx, uint32_t color)
+static void notes_dot(enum key_sig key, midi_note n, int x_idx, uint32_t color)
 {
    ImVec2 size             = ImGui::GetContentRegionAvail();
    const float note_radius = size.y / 45.0F;
@@ -288,14 +311,15 @@ static void notes_dot(midi_note n, int x_idx, uint32_t color)
 
    ImDrawList *draw_list = ImGui::GetWindowDrawList();
 
-   if (note_has_sharp(n))
-      draw_sharp(x, y, note_radius, color);
+   enum accidental acc = key_sig_accidental(key, n);
+   draw_accidental(x, y, note_radius, color, acc);
 
    draw_ledger_lines(draw_list, x, y, static_cast<int>(n), note_radius);
    draw_list->AddCircleFilled(ImVec2(x, y), note_radius, color);
 }
 
-void notes_single(const std::vector<midi_note> &notes, uint32_t color)
+void notes_single(enum key_sig key, const std::vector<midi_note> &notes,
+                  uint32_t color)
 {
    if (!ImGui::BeginChild("Staff", ImVec2(0, 0), false)) {
       ImGui::EndChild();
@@ -303,12 +327,13 @@ void notes_single(const std::vector<midi_note> &notes, uint32_t color)
    }
 
    for (size_t i = 0; i < notes.size(); ++i)
-      notes_dot(notes[i], static_cast<int>(i), color);
+      notes_dot(key, notes[i], static_cast<int>(i), color);
 
    ImGui::EndChild();
 }
 
-void notes_chords(const std::vector<std::unordered_set<midi_note>> &chords,
+void notes_chords(enum key_sig key,
+                  const std::vector<std::unordered_set<midi_note>> &chords,
                   uint32_t color)
 {
    if (!ImGui::BeginChild("Staff", ImVec2(0, 0), false)) {
@@ -319,22 +344,12 @@ void notes_chords(const std::vector<std::unordered_set<midi_note>> &chords,
    int x_idx = 0;
    for (const auto &chord : chords) {
       for (auto n : chord) {
-         notes_dot(n, x_idx, color);
+         notes_dot(key, n, x_idx, color);
       }
       ++x_idx;
    }
 
    ImGui::EndChild();
-}
-
-static const char *accidental_symbol(enum accidental a)
-{
-   switch (a) {
-      case ACC_SHARP: return "\uE262";   // SMuFL sharp
-      case ACC_FLAT: return "\uE260";    // SMuFL flat
-      case ACC_NATURAL: return "\uE261"; // SMuFL natural
-      default: return "";
-   }
 }
 
 static void draw_chord_figures(float font_size, float x, float y,
@@ -357,7 +372,7 @@ static void draw_chord_figures(float font_size, float x, float y,
       if (figs[i].acc != ACC_NONE) {
          float nx = fx - 0.7F * font_size;
          float ny = fy - 0.30F * font_size;
-         style_text(accidental_symbol(figs[i].acc), nx, ny, &cfg);
+         style_text(acc_sym(figs[i].acc), nx, ny, &cfg);
       }
    }
 }

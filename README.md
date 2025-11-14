@@ -55,7 +55,6 @@ market only to realize there is no market for continuo-training toys ...
 
 ### Todo
 
-- support for key signatures
 - read lessons from text files
 - record times and all notes pressed to logs
 - free-timing vs fixed rhythm mode

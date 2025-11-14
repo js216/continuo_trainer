@@ -145,10 +145,10 @@ void render_ui(struct state *state)
    // Staff
    ImGui::BeginChild("Staff", ImVec2(0, staff_height), false);
    notes_staff(state);
-   notes_single(state->bassline, STYLE_WHITE);
-   notes_chords(state->chords_ok, STYLE_GREEN);
-   notes_chords(state->chords_bad, STYLE_RED);
-   notes_chords(state->melody, STYLE_BLUE);
+   notes_single(state->key, state->bassline, STYLE_WHITE);
+   notes_chords(state->key, state->chords_ok, STYLE_GREEN);
+   notes_chords(state->key, state->chords_bad, STYLE_RED);
+   notes_chords(state->key, state->melody, STYLE_BLUE);
    notes_figures(state->bassline, state->figures, STYLE_WHITE);
    ImGui::EndChild();
 
