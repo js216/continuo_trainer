@@ -18,6 +18,7 @@
 
 void logic_clear(struct state *state)
 {
+   state->key = KEY_SIG_2_SHARP;
    state->pressed_notes.clear();
    state->bassline.clear();
    state->chords_ok.clear();

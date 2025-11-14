@@ -67,6 +67,25 @@ enum midi_note {
    NOTES_NUM
 };
 
+enum key_sig {
+   KEY_SIG_0,
+   KEY_SIG_1_SHARP,
+   KEY_SIG_2_SHARP,
+   KEY_SIG_3_SHARP,
+   KEY_SIG_4_SHARP,
+   KEY_SIG_5_SHARP,
+   KEY_SIG_6_SHARP,
+   KEY_SIG_7_SHARP,
+   KEY_SIG_1_FLAT,
+   KEY_SIG_2_FLAT,
+   KEY_SIG_3_FLAT,
+   KEY_SIG_4_FLAT,
+   KEY_SIG_5_FLAT,
+   KEY_SIG_6_FLAT,
+   KEY_SIG_7_FLAT,
+   KEY_NUM
+};
+
 enum accidental { ACC_NONE, ACC_SHARP, ACC_FLAT, ACC_NATURAL, ACC_NUM };
 
 struct figure {
@@ -81,6 +100,7 @@ struct state {
    ImFont *music_font;
 
    // sheet music display
+   enum key_sig key;
    std::vector<enum midi_note> bassline;
    std::vector<std::unordered_set<midi_note>> chords_ok;
    std::vector<std::unordered_set<midi_note>> chords_bad;

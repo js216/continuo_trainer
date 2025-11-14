@@ -142,6 +142,60 @@ static void draw_clefs(struct state *state, ImDrawList *draw_list,
                       "\uE062");
 }
 
+static int key_sig_acc_count(enum key_sig key)
+{
+   switch (key) {
+      case KEY_SIG_1_SHARP: return 1;
+      case KEY_SIG_2_SHARP: return 2;
+      case KEY_SIG_3_SHARP: return 3;
+      case KEY_SIG_4_SHARP: return 4;
+      case KEY_SIG_5_SHARP: return 5;
+      case KEY_SIG_6_SHARP: return 6;
+      case KEY_SIG_7_SHARP: return 7;
+      case KEY_SIG_1_FLAT: return -1;
+      case KEY_SIG_2_FLAT: return -2;
+      case KEY_SIG_3_FLAT: return -3;
+      case KEY_SIG_4_FLAT: return -4;
+      case KEY_SIG_5_FLAT: return -5;
+      case KEY_SIG_6_FLAT: return -6;
+      case KEY_SIG_7_FLAT: return -7;
+      default: return 0;
+   }
+}
+
+static void draw_key_sig(struct state *state, ImDrawList *draw_list,
+                         ImVec2 origin, bool treble)
+{
+   float staff_space = fabsf(calc_y(NOTES_A3) - calc_y(NOTES_C4));
+   float ch          = staff_space * STYLE_FONT_RATIO;
+   float x           = origin.x + 8.0F + ch * 1.1F;
+
+   static const midi_note treble_sharps[] = {
+       NOTES_F4, NOTES_C5, NOTES_G4, NOTES_D4, NOTES_A4, NOTES_E4, NOTES_B4};
+   static const midi_note bass_sharps[] = {
+       NOTES_F3, NOTES_C3, NOTES_G3, NOTES_D4, NOTES_A3, NOTES_E4, NOTES_B3};
+   static const midi_note treble_flats[] = {
+       NOTES_B3, NOTES_E4, NOTES_A3, NOTES_D4, NOTES_G3, NOTES_C4, NOTES_F4};
+   static const midi_note bass_flats[] = {
+       NOTES_D3, NOTES_G3, NOTES_C4, NOTES_F3, NOTES_B2, NOTES_E3, NOTES_A3};
+
+   int acc_count = key_sig_acc_count(state->key);
+
+   if (acc_count > 0) { // sharps
+      for (int i = 0; i < acc_count; ++i) {
+         float y = calc_y(treble ? treble_sharps[i] : bass_sharps[i]);
+         draw_list->AddCircleFilled(ImVec2(x, y), 10, STYLE_RED);
+      }
+   }
+
+   else if (acc_count < 0) { // flats
+      for (int i = 0; i < -acc_count; ++i) {
+         float y = calc_y(treble ? treble_flats[i] : bass_flats[i]);
+         draw_list->AddCircleFilled(ImVec2(x, y), 10, STYLE_GREEN);
+      }
+   }
+}
+
 void notes_staff(struct state *state)
 {
    ImVec2 avail = ImGui::GetContentRegionAvail();
@@ -165,6 +219,8 @@ void notes_staff(struct state *state)
    }
 
    draw_clefs(state, draw_list, p);
+   draw_key_sig(state, draw_list, p, false);
+   draw_key_sig(state, draw_list, p, true);
 
    ImGui::EndChild();
 }
