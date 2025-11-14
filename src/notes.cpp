@@ -168,7 +168,7 @@ static void draw_clefs(ImVec2 origin)
 {
    float staff_space = fabsf(calc_y(NOTES_A3) - calc_y(NOTES_C4));
    float x           = origin.x + 8.0F;
-   float fs          = 2.0F * staff_space;
+   float fs          = 2.6F * staff_space;
 
    font_config cfg = {.fontsize     = fs,
                       .anch         = ANCHOR_TOP_LEFT,
@@ -180,12 +180,12 @@ static void draw_clefs(ImVec2 origin)
 
    // --- TREBLE CLEF ---
    float g_line   = calc_y(NOTES_G4);
-   float y_treble = g_line - fs * 0.5F;
+   float y_treble = g_line - fs * 0.8F;
    style_text("\uE050", x, y_treble, &cfg);
 
    // --- BASS CLEF ---
    float f_line = calc_y(NOTES_F3);
-   float y_bass = f_line - fs * 0.5F;
+   float y_bass = f_line - fs * 0.8F;
    style_text("\uE062", x, y_bass, &cfg);
 }
 
@@ -193,16 +193,16 @@ static void draw_key_sig(struct state *state, ImVec2 origin, bool treble)
 {
    float staff_space = std::fabs(calc_y(NOTES_A3) - calc_y(NOTES_C4));
    float fs          = 1.5F * staff_space;
-   float x           = origin.x + 8.0F + fs * 1.8F;
+   float x           = origin.x + fs * 2.4F;
 
    static const std::array<midi_note, 7> treble_sharps = {
-       NOTES_F4, NOTES_C5, NOTES_G4, NOTES_D4, NOTES_A4, NOTES_E4, NOTES_B4};
+       NOTES_F5, NOTES_C5, NOTES_G5, NOTES_D5, NOTES_A4, NOTES_E5, NOTES_B4};
    static const std::array<midi_note, 7> bass_sharps = {
-       NOTES_F3, NOTES_C3, NOTES_G3, NOTES_D4, NOTES_A3, NOTES_E4, NOTES_B3};
+       NOTES_F3, NOTES_C3, NOTES_G3, NOTES_D3, NOTES_A2, NOTES_E3, NOTES_B2};
    static const std::array<midi_note, 7> treble_flats = {
-       NOTES_B3, NOTES_E4, NOTES_A3, NOTES_D4, NOTES_G3, NOTES_C4, NOTES_F4};
+       NOTES_B4, NOTES_E5, NOTES_A4, NOTES_D5, NOTES_G4, NOTES_C5, NOTES_F4};
    static const std::array<midi_note, 7> bass_flats = {
-       NOTES_D3, NOTES_G3, NOTES_C4, NOTES_F3, NOTES_B2, NOTES_E3, NOTES_A3};
+       NOTES_B2, NOTES_E3, NOTES_A2, NOTES_D3, NOTES_G2, NOTES_C3, NOTES_F2};
 
    int acc_count = key_sig_acc_count(state->key);
 
@@ -214,14 +214,14 @@ static void draw_key_sig(struct state *state, ImVec2 origin, bool treble)
 
    if (acc_count > 0) { // sharps
       for (int i = 0; i < acc_count; ++i) {
-         float y = calc_y(treble ? treble_sharps.at(i) : bass_sharps.at(i));
-         style_text(acc_sym(ACC_SHARP), x + static_cast<float>(i) * fs * 0.6F,
+         float y = calc_y(treble ? treble_sharps.at(i) : bass_sharps.at(i)) - 0.3F * fs;
+         style_text(acc_sym(ACC_SHARP), x + static_cast<float>(i) * fs * 0.3F,
                     y, &cfg);
       }
    } else if (acc_count < 0) { // flats
       for (int i = 0; i < -acc_count; ++i) {
-         float y = calc_y(treble ? treble_flats.at(i) : bass_flats.at(i));
-         style_text(acc_sym(ACC_FLAT), x + static_cast<float>(i) * fs * 0.6F, y,
+         float y = calc_y(treble ? treble_flats.at(i) : bass_flats.at(i)) - 0.25F * fs;
+         style_text(acc_sym(ACC_FLAT), x + static_cast<float>(i) * fs * 0.3F, y,
                     &cfg);
       }
    }

@@ -39,15 +39,13 @@ static void app_buttons(struct state *state)
    const float bw    = (io.DisplaySize.x - 9 * STYLE_PAD_X) / 6.0F;
    ImVec2 b(bw, STYLE_BTN_H);
 
-   if (ImGui::Button("Good", b)) {
-      logic_good(state);
-      state_status(state, "One good placed");
+   if (ImGui::Button("Inc", b)) {
+      logic_inc(state);
    }
 
    ImGui::SameLine();
-   if (ImGui::Button("Bad", b)) {
-      logic_bad(state);
-      state_status(state, "One bad placed");
+   if (ImGui::Button("Dec", b)) {
+      logic_dec(state);
    }
 
    ImGui::SameLine();

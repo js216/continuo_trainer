@@ -18,7 +18,7 @@
 
 void logic_clear(struct state *state)
 {
-   state->key = KEY_SIG_2_SHARP;
+   state->key = KEY_SIG_1_FLAT;
    state->pressed_notes.clear();
    state->bassline.clear();
    state->chords_ok.clear();
@@ -66,34 +66,14 @@ void logic_populate(state *state)
    std::generate_n(std::back_inserter(state->figures), MAX_CHORDS, get_figures);
 }
 
-void logic_good(struct state *state)
+void logic_inc(struct state *state)
 {
-   if (state->chords_ok.size() < MAX_CHORDS) {
-      state->chords_ok.emplace_back();
-      state->chords_ok.back().insert(get_note());
-      return;
-   }
-
-   auto it = std::min_element(
-       state->chords_ok.begin(), state->chords_ok.end(),
-       [](const auto &a, const auto &b) { return a.size() < b.size(); });
-
-   if (it != state->chords_ok.end()) {
-      it->insert(get_note());
-   }
+   state->key = static_cast<enum key_sig>(static_cast<int>(state->key) + 1);
 }
 
-void logic_bad(struct state *state)
+void logic_dec(struct state *state)
 {
-   if (state->chords_bad.size() < MAX_CHORDS) {
-      state->chords_bad.emplace_back();
-      state->chords_bad.back().insert(get_note());
-   }
-
-   if (state->melody.size() < MAX_CHORDS) {
-      state->melody.emplace_back();
-      state->melody.back().insert(get_note());
-   }
+   state->key = static_cast<enum key_sig>(static_cast<int>(state->key) - 1);
 }
 
 static bool logic_adjudicate(enum midi_note bass_note,
