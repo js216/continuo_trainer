@@ -74,7 +74,8 @@ struct figure {
 };
 
 struct state {
-   // status bar
+   // program general
+   std::string config_file;
    std::string status;
 
    // sheet music display
@@ -90,11 +91,15 @@ struct state {
    std::vector<unsigned char> pressed_notes;
 };
 
-template <typename... Args> void state_status(state *s, Args &&...args)
+template <typename... Args> void state_status(state *state, Args &&...args)
 {
    std::ostringstream oss;
    (oss << ... << args);
-   s->status = oss.str();
+   state->status = oss.str();
 }
+
+void state_load(struct state *state);
+
+void state_save(const struct state *state);
 
 #endif /* STATE_H */

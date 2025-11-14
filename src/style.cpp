@@ -16,7 +16,7 @@ void set_style(void)
 
    // padding
    style.WindowPadding          = ImVec2(STYLE_PAD_X, STYLE_PAD_Y);
-   style.FramePadding           = ImVec2(0.0F, 0.0F);
+   style.FramePadding           = ImVec2(STYLE_PAD_X, STYLE_PAD_Y);
    style.TouchExtraPadding      = ImVec2(0.0F, 0.0F);
    style.SeparatorTextPadding   = ImVec2(0.0F, 0.0F);
    style.CellPadding            = ImVec2(0.0F, 0.0F);

@@ -21,6 +21,11 @@ void init_state(struct state *state)
 {
    logic_clear(state);
 
+   refresh_midi_devices(state);
+   state_load(state);
+   if (state->config_file.empty())
+      init_midi(state);
+
    set_style();
    set_font();
    dark_mode();

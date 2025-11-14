@@ -15,22 +15,25 @@
 #include "state.h"
 #include <SDL.h>
 #include <SDL_opengl.h>
+#include <span>
 
-static bool handle_events(void)
+static bool handle_events(struct state *state)
 {
    SDL_Event event;
 
    while (SDL_PollEvent(&event)) {
       ImGui_ImplSDL2_ProcessEvent(&event);
-      if (event.type == SDL_QUIT)
+      if (event.type == SDL_QUIT) {
+         state_save(state);
          return false;
+      }
    }
 
    SDL_Delay(16);
    return true;
 }
 
-int main(void)
+int main(int argc, const char **argv)
 {
    SDL_Init(SDL_INIT_VIDEO);
    SDL_Window *window =
@@ -49,7 +52,11 @@ int main(void)
    struct state state = {};
    init_state(&state);
 
-   while (handle_events()) {
+   std::span<const char *> args(argv, static_cast<size_t>(argc));
+   if (args.size() > 1)
+      state.config_file = args[1];
+
+   while (handle_events(&state)) {
       poll_midi(&state);
       logic_receive(&state);
 

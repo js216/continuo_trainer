@@ -55,7 +55,6 @@ market only to realize there is no market for continuo-training toys ...
 
 ### Todo
 
-- restore last used MIDI dev
 - hide MIDI selection box when connected
 - support for key signatures
 - notes out of range displayed octave up/dn
