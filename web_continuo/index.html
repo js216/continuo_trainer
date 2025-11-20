@@ -9,29 +9,39 @@
   <h1>Continuo Trainer</h1>
 
   <div class="controls">
-    <label for="keySig">Key Signature: </label>
-    <select id="keySig">
-      <option value="-7">C♭ Major (7 Flats)</option>
-      <option value="-6">G♭ Major (6 Flats)</option>
-      <option value="-5">D♭ Major (5 Flats)</option>
-      <option value="-4">A♭ Major (4 Flats)</option>
-      <option value="-3">E♭ Major (3 Flats)</option>
-      <option value="-2">B♭ Major (2 Flats)</option>
-      <option value="-1">F Major (1 Flat)</option>
-      <option value="0" selected>C Major (No sharps/flats)</option>
-      <option value="1">G Major (1 Sharp)</option>
-      <option value="2">D Major (2 Sharps)</option>
-      <option value="3">A Major (3 Sharps)</option>
-      <option value="4">E Major (4 Sharps)</option>
-      <option value="5">B Major (5 Sharps)</option>
-      <option value="6">F# Major (6 Sharps)</option>
-      <option value="7">C# Major (7 Sharps)</option>
-    </select>
+    <div class="control-group">
+      <label for="lessonSelect">Lesson: </label>
+      <select id="lessonSelect">
+        </select>
+    </div>
+    
+    <div id="lessonDescription" class="description-box"></div>
+
+    <div class="control-group">
+      <label for="keySig">Key Signature: </label>
+      <select id="keySig">
+        <option value="-7">C♭ Major (7 Flats)</option>
+        <option value="-6">G♭ Major (6 Flats)</option>
+        <option value="-5">D♭ Major (5 Flats)</option>
+        <option value="-4">A♭ Major (4 Flats)</option>
+        <option value="-3">E♭ Major (3 Flats)</option>
+        <option value="-2">B♭ Major (2 Flats)</option>
+        <option value="-1">F Major (1 Flat)</option>
+        <option value="0" selected>C Major (No sharps/flats)</option>
+        <option value="1">G Major (1 Sharp)</option>
+        <option value="2">D Major (2 Sharps)</option>
+        <option value="3">A Major (3 Sharps)</option>
+        <option value="4">E Major (4 Sharps)</option>
+        <option value="5">B Major (5 Sharps)</option>
+        <option value="6">F# Major (6 Sharps)</option>
+        <option value="7">C# Major (7 Sharps)</option>
+      </select>
+    </div>
   </div>
 
-  <div id="scoreboard">Score: 0 | Streak: 0</div>
+  <div id="scoreboard">Score: 0</div>
 
-  <canvas id="sheet" width="800" height="200"></canvas>
+  <canvas id="sheet" width="800" height="250"></canvas>
 
   <div id="keyboard"></div>
 

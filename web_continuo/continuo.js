@@ -3,22 +3,75 @@ const SHARP_ORDER = ['F', 'C', 'G', 'D', 'A', 'E', 'B'];
 const FLAT_ORDER = ['B', 'E', 'A', 'D', 'G', 'C', 'F'];
 
 const KEY_SCALES = {
-  "-7": ['Cb', 'Db', 'Eb', 'Fb', 'Gb', 'Ab', 'Bb'], // Cb Major
-  "-6": ['Gb', 'Ab', 'Bb', 'Cb', 'Db', 'Eb', 'F'],  // Gb Major
-  "-5": ['Db', 'Eb', 'F', 'Gb', 'Ab', 'Bb', 'C'],   // Db Major
-  "-4": ['Ab', 'Bb', 'C', 'Db', 'Eb', 'F', 'G'],    // Ab Major
-  "-3": ['Eb', 'F', 'G', 'Ab', 'Bb', 'C', 'D'],     // Eb Major
-  "-2": ['Bb', 'C', 'D', 'Eb', 'F', 'G', 'A'],      // Bb Major
-  "-1": ['F', 'G', 'A', 'Bb', 'C', 'D', 'E'],       // F Major
-  "0":  ['C', 'D', 'E', 'F', 'G', 'A', 'B'],        // C Major
-  "1":  ['G', 'A', 'B', 'C', 'D', 'E', 'F#'],       // G Major
-  "2":  ['D', 'E', 'F#', 'G', 'A', 'B', 'C#'],      // D Major
-  "3":  ['A', 'B', 'C#', 'D', 'E', 'F#', 'G#'],     // A Major
-  "4":  ['E', 'F#', 'G#', 'A', 'B', 'C#', 'D#'],    // E Major
-  "5":  ['B', 'C#', 'D#', 'E', 'F#', 'G#', 'A#'],   // B Major
-  "6":  ['F#', 'G#', 'A#', 'B', 'C#', 'D#', 'E#'],  // F# Major
-  "7":  ['C#', 'D#', 'E#', 'F#', 'G#', 'A#', 'B#']  // C# Major
+  "-7": ['Cb', 'Db', 'Eb', 'Fb', 'Gb', 'Ab', 'Bb'],
+  "-6": ['Gb', 'Ab', 'Bb', 'Cb', 'Db', 'Eb', 'F'],
+  "-5": ['Db', 'Eb', 'F', 'Gb', 'Ab', 'Bb', 'C'],
+  "-4": ['Ab', 'Bb', 'C', 'Db', 'Eb', 'F', 'G'],
+  "-3": ['Eb', 'F', 'G', 'Ab', 'Bb', 'C', 'D'],
+  "-2": ['Bb', 'C', 'D', 'Eb', 'F', 'G', 'A'],
+  "-1": ['F', 'G', 'A', 'Bb', 'C', 'D', 'E'],
+  "0":  ['C', 'D', 'E', 'F', 'G', 'A', 'B'],
+  "1":  ['G', 'A', 'B', 'C', 'D', 'E', 'F#'],
+  "2":  ['D', 'E', 'F#', 'G', 'A', 'B', 'C#'],
+  "3":  ['A', 'B', 'C#', 'D', 'E', 'F#', 'G#'],
+  "4":  ['E', 'F#', 'G#', 'A', 'B', 'C#', 'D#'],
+  "5":  ['B', 'C#', 'D#', 'E', 'F#', 'G#', 'A#'],
+  "6":  ['F#', 'G#', 'A#', 'B', 'C#', 'D#', 'E#'],
+  "7":  ['C#', 'D#', 'E#', 'F#', 'G#', 'A#', 'B#']
 };
+
+// ---------------------- Lesson Definitions ----------------------
+const LESSONS = [
+  {
+    id: "triads",
+    name: "Lesson 1: Root Position Triads",
+    description: "Play the 3rd and 5th above the bass. (Common figures: None, 5, 3)",
+    defaultKey: 0,
+    sequence: [
+      { bass: "C3", figure: "" },
+      { bass: "F3", figure: "" },
+      { bass: "G3", figure: "" },
+      { bass: "C3", figure: "" }
+    ]
+  },
+  {
+    id: "inversion1",
+    name: "Lesson 2: First Inversion",
+    description: "The figure '6' indicates a first inversion chord (intervals 3rd and 6th).",
+    defaultKey: 1, // G Major
+    sequence: [
+      { bass: "B2", figure: "6" },
+      { bass: "C3", figure: "6" },
+      { bass: "D3", figure: "6" },
+      { bass: "G2", figure: "" }
+    ]
+  },
+  {
+    id: "cadence",
+    name: "Lesson 3: Simple Cadence",
+    description: "Practice the I - IV - V - I progression.",
+    defaultKey: 0,
+    sequence: [
+      { bass: "C3", figure: "" },
+      { bass: "F2", figure: "" },
+      { bass: "G2", figure: "" },
+      { bass: "C3", figure: "" }
+    ]
+  },
+  {
+    id: "sevenths",
+    name: "Lesson 4: Dominant Sevenths",
+    description: "The figure '7' adds a 7th above the bass.",
+    defaultKey: 0,
+    sequence: [
+      { bass: "C3", figure: "" },
+      { bass: "G2", figure: "7" },
+      { bass: "C3", figure: "" },
+      { bass: "D3", figure: "7" },
+      { bass: "G2", figure: "" }
+    ]
+  }
+];
 
 // ---------------------- CanvasRenderer ----------------------
 class CanvasRenderer {
@@ -26,13 +79,16 @@ class CanvasRenderer {
     this.canvas = canvas;
     this.ctx = canvas.getContext("2d");
 
-    this.staffTop = 40;
-    this.lineSpacing = 12;
+    this.staffTop = 50;
+    this.lineSpacing = 10;
     this.numLines = 5;
-    this.staffGap = 80;
+    this.staffGap = 80; // Distance between treble and bass staves
     
-    // Current Key Signature (controlled by generator)
     this.currentKeySig = 0; 
+  }
+
+  clear() {
+    this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
   }
 
   getDiatonicRank(note) {
@@ -43,8 +99,8 @@ class CanvasRenderer {
   }
 
   getNoteY(note, clef) {
-    const trebleRefRank = this.getDiatonicRank("B4"); // Middle line treble
-    const bassRefRank = this.getDiatonicRank("D3");   // Middle line bass
+    const trebleRefRank = this.getDiatonicRank("B4"); 
+    const bassRefRank = this.getDiatonicRank("D3");   
     const currentRank = this.getDiatonicRank(note);
     
     let baseLineY;
@@ -60,384 +116,347 @@ class CanvasRenderer {
     return baseLineY - (rankDiff * (this.lineSpacing / 2));
   }
 
-  drawStaff(yTop) {
+  drawStaves() {
     const ctx = this.ctx;
     ctx.strokeStyle = "#000";
     ctx.lineWidth = 1;
     ctx.fillStyle = "#000";
+    
+    // Treble
     for (let i = 0; i < this.numLines; i++) {
-      const y = yTop + i * this.lineSpacing;
-      ctx.beginPath();
-      ctx.moveTo(10, y);
-      ctx.lineTo(this.canvas.width - 10, y);
-      ctx.stroke();
+      const y = this.staffTop + i * this.lineSpacing;
+      ctx.beginPath(); ctx.moveTo(10, y); ctx.lineTo(this.canvas.width - 10, y); ctx.stroke();
     }
+    // Bass
+    const bassTop = this.staffTop + this.staffGap;
+    for (let i = 0; i < this.numLines; i++) {
+      const y = bassTop + i * this.lineSpacing;
+      ctx.beginPath(); ctx.moveTo(10, y); ctx.lineTo(this.canvas.width - 10, y); ctx.stroke();
+    }
+
+    // Clefs
+    ctx.font = `${this.lineSpacing * 3.5}px serif`;
+    ctx.fillText("𝄞", 10, this.staffTop + 30);
+    ctx.fillText("𝄢", 10, bassTop + 25);
   }
 
-  drawClef(clef, x = 20) {
-    const ctx = this.ctx;
-    const y = clef === "treble"
-      ? this.staffTop + 2 * this.lineSpacing + 5
-      : this.staffTop + this.staffGap + 2 * this.lineSpacing + 5;
-    ctx.font = `${this.lineSpacing * 3}px serif`;
-    ctx.fillStyle = "black";
-    ctx.fillText(clef === "treble" ? "𝄞" : "𝄢", x, y);
-  }
-
-  drawKeySignature(num, xStart) {
+  drawKeySignature(num) {
     const ctx = this.ctx;
     ctx.font = `${this.lineSpacing * 2}px serif`;
     const isSharp = num > 0;
     const count = Math.abs(num);
     const symbol = isSharp ? "♯" : "♭";
-    
-    // Offsets for sharps/flats pattern on staff (roughly)
-    const sharpOffsetsTreble = [0, 1.5, -0.5, 1, 2.5, 0.5, 2]; // relative to top line F5
-    const flatOffsetsTreble = [2, 0.5, 2.5, 1, 3, 1.5, 3.5]; // relative to middle line B4
-    
-    const sharpOffsetsBass = [1, 2.5, 0.5, 2, 3.5, 1.5, 3]; // relative to top line A3
-    const flatOffsetsBass = [3, 1.5, 3.5, 2, 4, 2.5, 4.5]; // relative to middle line D3
+    const xStart = 50;
+
+    const sharpNotesT = ['F5','C5','G5','D5','A4','E5','B4'];
+    const sharpNotesB = ['F3','C3','G3','D3','A2','E3','B2'];
+    const flatNotesT = ['B4','E5','A4','D5','G4','C5','F4'];
+    const flatNotesB = ['B2','E3','A2','D3','G2','C3','F2'];
+
+    const targetT = isSharp ? sharpNotesT : flatNotesT;
+    const targetB = isSharp ? sharpNotesB : flatNotesB;
 
     for(let i=0; i<count; i++) {
-      const x = xStart + (i * 10);
-      
-      // Treble
-      let yOff = isSharp ? sharpOffsetsTreble[i] * this.lineSpacing : flatOffsetsTreble[i] * this.lineSpacing;
-      // Adjust base for treble (Top line is F5 for sharp ref, B4 for flat ref approx)
-      let base = isSharp ? this.staffTop : this.staffTop + 2 * this.lineSpacing; 
-      // Hardcoded adjustments to look right
-      if(isSharp) base = this.staffTop; // F5 line
-      else base = this.staffTop + 2*this.lineSpacing; // B4 line
-
-      // Actually, simpler to map specific notes
-      let tNote = isSharp ? SHARP_ORDER[i] + '5' : FLAT_ORDER[i] + '4';
-      if(isSharp && ['A','B'].includes(SHARP_ORDER[i])) tNote = SHARP_ORDER[i] + '4'; 
-      if(!isSharp && ['C','F','G'].includes(FLAT_ORDER[i])) tNote = FLAT_ORDER[i] + '5';
-      
-      let y = this.getNoteY(tNote, 'treble');
-      ctx.fillText(symbol, x, y + this.lineSpacing/2);
-
-      // Bass
-      let bNote = isSharp ? SHARP_ORDER[i] + '3' : FLAT_ORDER[i] + '2';
-      if(isSharp && ['A','B'].includes(SHARP_ORDER[i])) bNote = SHARP_ORDER[i] + '2';
-      if(!isSharp && ['C','F','G'].includes(FLAT_ORDER[i])) bNote = FLAT_ORDER[i] + '3';
-
-      y = this.getNoteY(bNote, 'bass');
-      ctx.fillText(symbol, x, y + this.lineSpacing/2);
+      const x = xStart + (i * 12);
+      ctx.fillText(symbol, x, this.getNoteY(targetT[i], 'treble') + 4);
+      ctx.fillText(symbol, x, this.getNoteY(targetB[i], 'bass') + 4);
     }
   }
 
-  // Returns the accidental symbol needed for this note in the current key
   getAccidentalSymbol(note, keySig) {
     const letter = note.replace(/[\d#b]+/, '');
     const acc = note.includes('#') ? '#' : (note.includes('b') ? 'b' : '');
-    
     const scale = KEY_SCALES[keySig.toString()];
-    // Find what this letter is in the current key
     const keyNote = scale.find(n => n.startsWith(letter));
     const keyAcc = keyNote.includes('#') ? '#' : (keyNote.includes('b') ? 'b' : '');
 
-    if (acc === keyAcc) return null; // No accidental needed (diatonic)
+    if (acc === keyAcc) return null; 
     if (acc === '#' && keyAcc !== '#') return '♯';
     if (acc === 'b' && keyAcc !== 'b') return '♭';
     if (acc === '' && keyAcc !== '') return '♮';
     return null;
   }
 
-  drawNote(note, x, clef, color = "black") {
+  drawNote(note, x, clef, color = "black", alpha = 1.0) {
     const y = this.getNoteY(note, clef);
     const ctx = this.ctx;
     
-    // 1. Draw Note Head and Stem
+    ctx.globalAlpha = alpha;
     ctx.fillStyle = color;
     ctx.strokeStyle = color;
     
+    // Head
     ctx.beginPath();
     ctx.arc(x, y, this.lineSpacing / 2, 0, 2 * Math.PI);
     ctx.fill();
     
+    // Stem
     ctx.beginPath();
     ctx.moveTo(x + this.lineSpacing / 2, y);
-    ctx.lineTo(x + this.lineSpacing / 2, y - 3 * this.lineSpacing / 2);
+    ctx.lineTo(x + this.lineSpacing / 2, y - 35);
     ctx.stroke();
 
-    // 2. Draw Accidental if needed (Smart Logic)
+    // Accidental
     const accidental = this.getAccidentalSymbol(note, this.currentKeySig);
     if (accidental) {
-      ctx.font = `${this.lineSpacing * 1.8}px serif`;
-      ctx.fillText(accidental, x - 18, y + this.lineSpacing / 1.5);
+      ctx.font = `${this.lineSpacing * 2}px serif`;
+      ctx.fillText(accidental, x - 15, y + 5);
     }
 
-    // 3. Draw Ledger Lines (Always Black)
-    ctx.strokeStyle = "black"; 
-
+    // Ledger Lines
+    ctx.strokeStyle = "black"; // Ledgers always black
     const topLineY = clef === "treble" ? this.staffTop : this.staffTop + this.staffGap;
     const bottomLineY = topLineY + (this.numLines - 1) * this.lineSpacing;
 
     if (y < topLineY) {
       for (let ly = topLineY - this.lineSpacing; ly >= y - 1; ly -= this.lineSpacing) {
-        ctx.beginPath();
-        ctx.moveTo(x - this.lineSpacing, ly);
-        ctx.lineTo(x + this.lineSpacing, ly);
-        ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(x - 8, ly); ctx.lineTo(x + 8, ly); ctx.stroke();
       }
     }
-    
     if (y > bottomLineY) {
       for (let ly = bottomLineY + this.lineSpacing; ly <= y + 1; ly += this.lineSpacing) {
-        ctx.beginPath();
-        ctx.moveTo(x - this.lineSpacing, ly);
-        ctx.lineTo(x + this.lineSpacing, ly);
-        ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(x - 8, ly); ctx.lineTo(x + 8, ly); ctx.stroke();
       }
     }
+    ctx.globalAlpha = 1.0;
   }
 
-  drawFigureAboveNote(figure, x, note, clef) {
-    const y = this.getNoteY(note, clef) - this.lineSpacing * 2.5;
-    this.ctx.font = `bold ${this.lineSpacing * 1.2}px serif`;
+  drawFigure(figure, x, note, clef) {
+    const y = this.getNoteY(note, clef) - 30;
+    this.ctx.font = `bold ${this.lineSpacing * 1.4}px serif`;
     this.ctx.fillStyle = "black";
     this.ctx.fillText(figure, x, y);
   }
 
-  renderChallenge(challenge) {
-    this.currentKeySig = challenge.keySig; // Update renderer state
+  // The main render loop
+  renderLessonState(lesson, currentStepIndex, userHistory, currentHeldNotes) {
+    this.currentKeySig = lesson.defaultKey; 
+    this.clear();
+    this.drawStaves();
+    this.drawKeySignature(lesson.defaultKey);
 
-    const x = 150; // moved over to make room for key sig
-    this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+    const startX = 160;
+    const spacing = 80;
 
-    this.drawStaff(this.staffTop);
-    this.drawStaff(this.staffTop + this.staffGap);
-
-    this.drawClef("treble");
-    this.drawClef("bass");
-    
-    this.drawKeySignature(challenge.keySig, 60);
-
-    // Bass note is always black
-    this.drawNote(challenge.bass, x, "bass", "black");
-    this.drawFigureAboveNote(challenge.figure, x, challenge.bass, "bass");
-  }
-
-  renderFeedback(challenge, userNote, correct, correctNotes) {
-    this.renderChallenge(challenge);
-
-    const userX = 240;
-    const octave = parseInt(userNote.match(/-?\d+/)[0]);
-    const userClef = octave >= 4 ? 'treble' : 'bass';
-
-    this.ctx.save();
-
-    const userColor = correct ? '#22c55e' : '#ef4444';
-    this.drawNote(userNote, userX, userClef, userColor);
-
-    if (!correct && correctNotes) {
-      correctNotes.forEach((note, i) => {
-        const nOctave = parseInt(note.match(/-?\d+/)[0]);
-        const nClef = nOctave >= 4 ? 'treble' : 'bass';
-        const xOffset = userX + 40 + (i * 40);
-        this.drawNote(note, xOffset, nClef, '#3b82f6');
-      });
-    }
-
-    this.ctx.restore();
-  }
-}
-
-// ---------------------- ChallengeGenerator ----------------------
-class ChallengeGenerator {
-  constructor() {
-    this.figures = ["", "6", "6/4", "7", "6/5"];
-    this.currentKeySig = 0;
-  }
-
-  setKeySignature(num) {
-    this.currentKeySig = parseInt(num);
-  }
-
-  // Diatonic Intervals (steps above bass in the scale)
-  // 0 = unison, 2 = third, 4 = fifth, etc.
-  getIntervalsForFigure(figure) {
-    switch(figure) {
-      case "": return [0, 2, 4];      // 1 3 5
-      case "6": return [0, 2, 5];     // 1 3 6
-      case "6/4": return [0, 3, 5];   // 1 4 6
-      case "7": return [0, 2, 4, 6];  // 1 3 5 7
-      case "6/5": return [0, 2, 4, 5]; // 1 3 5 6
-      default: return [0, 2, 4];
-    }
-  }
-
-  nextChallenge() {
-    const scale = KEY_SCALES[this.currentKeySig.toString()];
-    
-    // Pick a random degree of the scale (0 to 6)
-    const degree = Math.floor(Math.random() * 7);
-    const rootName = scale[degree];
-    
-    // Decide Octave for bass (Keep between C2 and G3)
-    // We just pick reasonable octaves.
-    // Let's construct a pool of diatonic bass notes from C2 to G3
-    const diatonicBassPool = [];
-    
-    // Range C2 (midi 36) to G3 (midi 55)
-    for (let octave = 2; octave <= 3; octave++) {
-      scale.forEach(note => {
-         const fullNote = note + octave;
-         const midi = this.noteToMidi(fullNote);
-         if (midi >= 36 && midi <= 55) {
-           diatonicBassPool.push(fullNote);
-         }
-      });
-    }
-    
-    const bass = diatonicBassPool[Math.floor(Math.random() * diatonicBassPool.length)];
-    const figure = this.figures[Math.floor(Math.random() * this.figures.length)];
-    
-    const correctNotes = this.getCorrectNotes(bass, figure, scale);
-    
-    return { bass, figure, chordNotes: correctNotes, keySig: this.currentKeySig };
-  }
-
-  getCorrectNotes(bassNote, figure, scale) {
-    // 1. Find where the bass note is in the scale (index)
-    const bassLetter = bassNote.replace(/[\d-]+/, '');
-    // Note: Scale might be ['F#', 'G#'] and bass is 'F#'. 
-    // Or scale has 'F' and bass is 'F'
-    // We must align scale to start at the bass note to calculate intervals easily?
-    // Actually, just mapping scale indices is easier.
-    
-    // Find index of bass note class in the scale array
-    let scaleIndex = scale.indexOf(bassLetter);
-    
-    // If bass note isn't in scale (shouldn't happen with current logic, but safety):
-    if (scaleIndex === -1) scaleIndex = 0;
-
-    const intervals = this.getIntervalsForFigure(figure); // e.g., [0, 2, 4]
-    const correctNotes = [];
-    
-    const bassMidi = this.noteToMidi(bassNote);
-
-    intervals.forEach(intervalStep => {
-      // Calculate target scale degree
-      const targetIndex = (scaleIndex + intervalStep) % 7;
-      const targetLetter = scale[targetIndex];
+    // 1. Draw the fixed sequence of Bass notes
+    lesson.sequence.forEach((step, index) => {
+      const x = startX + (index * spacing);
       
-      // We need to find the specific pitch (Octave)
-      // Minimal movement: look for this note in the range C4-C6
-      // Brute force: generate candidate octaves and pick the one in range
-      let bestNote = targetLetter + "4";
-      
-      // Create valid candidates in treble range
-      for(let oct = 3; oct <= 6; oct++) {
-        const candidate = targetLetter + oct;
-        const candMidi = this.noteToMidi(candidate);
-        if (candMidi >= 60 && candMidi <= 84) { // C4 to C6
-           // We want specifically the one that corresponds to the chord voicing. 
-           // But for this trainer, "any valid note in the chord" is usually acceptable
-           // or specific voicing? The prompt says "correct notes" (plural). 
-           // The simple checker just checks if the USER note is ONE of these.
-           correctNotes.push(candidate);
-        }
+      // Highlight current measure background lightly
+      if (index === currentStepIndex) {
+        this.ctx.fillStyle = "rgba(255, 255, 0, 0.2)";
+        this.ctx.fillRect(x - 30, 0, 60, this.canvas.height);
+      }
+
+      // Draw Bass Note
+      this.drawNote(step.bass, x, "bass", "black");
+      this.drawFigure(step.figure, x, step.bass, "bass");
+
+      // Draw User History for this step (if any)
+      if (userHistory[index]) {
+        userHistory[index].forEach(attempt => {
+           // Determine clef based on octave
+           const octave = parseInt(attempt.note.match(/-?\d+/)[0]);
+           const clef = octave >= 4 ? 'treble' : 'bass';
+           const color = attempt.correct ? '#22c55e' : '#ef4444';
+           this.drawNote(attempt.note, x, clef, color);
+        });
       }
     });
-    
-    // Remove duplicates if any
-    return [...new Set(correctNotes)];
-  }
 
-  noteToMidi(note) {
-    const noteMap = { 'C': 0, 'D': 2, 'E': 4, 'F': 5, 'G': 7, 'A': 9, 'B': 11 };
-    const letter = note.replace(/[\d#b-]+/, '');
-    const acc = note.includes('#') ? 1 : (note.includes('b') ? -1 : 0);
-    const octave = parseInt(note.match(/-?\d+/)[0]);
-    
-    return (octave + 1) * 12 + noteMap[letter] + acc;
-  }
-
-  checkNote(challenge, userNote) {
-    // Compare Pitch Classes (ignoring octave)
-    // But must allow for enharmonics? For now, exact string match on pitch class.
-    // User input from keyboard is always sharp (e.g., C#, D#).
-    // Scale might use flats (Db, Eb).
-    // We need to normalize to Midi Pitch Class (0-11)
-    
-    const userMidiClass = this.noteToMidi(userNote) % 12;
-    const correctMidiClasses = challenge.chordNotes.map(n => this.noteToMidi(n) % 12);
-    
-    return correctMidiClasses.includes(userMidiClass);
+    // 2. Draw currently held notes (Live Feedback)
+    // These are drawn at the current step index position
+    if (currentHeldNotes && currentHeldNotes.size > 0) {
+      const x = startX + (currentStepIndex * spacing);
+      currentHeldNotes.forEach(note => {
+        const octave = parseInt(note.match(/-?\d+/)[0]);
+        const clef = octave >= 4 ? 'treble' : 'bass';
+        // Draw visually distinct (blue, semi-transparent) until submitted
+        this.drawNote(note, x, clef, 'blue', 0.7);
+      });
+    }
   }
 }
 
-// ---------------------- SessionManager ----------------------
-class SessionManager {
-  constructor() {
-    this.score = 0;
-    this.streak = 0;
-  }
-
-  logAttempt(correct) {
-    if (correct) {
-      this.streak++;
-      let points = 1;
-      if (this.streak >= 3) points++;
-      this.score += points;
-    } else this.streak = 0;
-    this.updateScoreboard();
-  }
-
-  updateScoreboard() {
-    const div = document.getElementById("scoreboard");
-    if (div) div.textContent = `Score: ${this.score} | Streak: ${this.streak}`;
-  }
-}
-
-// ---------------------- InputHandler ----------------------
-class InputHandler {
-  constructor(renderer, generator, session) {
+// ---------------------- Logic / State Manager ----------------------
+class LessonManager {
+  constructor(renderer) {
     this.renderer = renderer;
-    this.generator = generator;
-    this.session = session;
-    this.currentChallenge = null;
+    this.currentLesson = null;
+    this.currentStepIndex = 0;
     
-    // Hook up Key Select
-    const keySelect = document.getElementById("keySig");
-    keySelect.addEventListener("change", (e) => {
-       this.generator.setKeySignature(e.target.value);
-       this.startNext();
+    // History: Array of arrays. history[stepIndex] = [{note: 'C4', correct: true}, ...]
+    this.history = []; 
+    this.score = 0;
+  }
+
+  loadLesson(lessonId) {
+    // Find lesson data
+    const data = LESSONS.find(l => l.id === lessonId) || LESSONS[0];
+    
+    // Clone to avoid mutating const
+    this.currentLesson = JSON.parse(JSON.stringify(data)); 
+    
+    // Reset State
+    this.currentStepIndex = 0;
+    this.history = new Array(this.currentLesson.sequence.length).fill(null).map(() => []);
+    this.score = 0;
+
+    // Update UI
+    document.getElementById("lessonDescription").textContent = this.currentLesson.description;
+    document.getElementById("keySig").value = this.currentLesson.defaultKey;
+    document.getElementById("scoreboard").textContent = `Score: 0`;
+
+    this.render();
+  }
+
+  updateKeySig(newKey) {
+    if (this.currentLesson) {
+      this.currentLesson.defaultKey = parseInt(newKey);
+      this.render();
+    }
+  }
+
+  // Logic to calculate correct notes for the current step
+  getCorrectNotesForStep(step) {
+    const { bass, figure } = step;
+    const scale = KEY_SCALES[this.currentLesson.defaultKey.toString()];
+    
+    const bassLetter = bass.replace(/[\d-]+/, '');
+    let scaleIndex = scale.indexOf(bassLetter);
+    if (scaleIndex === -1) scaleIndex = 0; // Fallback
+
+    // Interpret Figure
+    let intervals = [0, 2, 4]; // Default triad
+    if (figure === "6") intervals = [0, 2, 5];
+    if (figure === "6/4") intervals = [0, 3, 5];
+    if (figure === "7") intervals = [0, 2, 4, 6];
+    if (figure === "6/5") intervals = [0, 2, 4, 5];
+
+    const correctPitchClasses = [];
+    
+    intervals.forEach(iv => {
+      const targetIndex = (scaleIndex + iv) % 7;
+      const noteName = scale[targetIndex];
+      // Convert scale note (e.g., F#) to midi class (0-11)
+      correctPitchClasses.push(this.noteToMidiClass(noteName));
+    });
+
+    return correctPitchClasses;
+  }
+
+  noteToMidiClass(noteName) {
+    const map = { 'C': 0, 'D': 2, 'E': 4, 'F': 5, 'G': 7, 'A': 9, 'B': 11 };
+    const letter = noteName.replace(/[\d#b-]+/, '');
+    const acc = noteName.includes('#') ? 1 : (noteName.includes('b') ? -1 : 0);
+    return (map[letter] + acc + 12) % 12;
+  }
+
+  // Called when user releases all keys
+  submitChord(notesPlayed) {
+    if (!this.currentLesson) return;
+    if (this.currentStepIndex >= this.currentLesson.sequence.length) return;
+
+    const currentStep = this.currentLesson.sequence[this.currentStepIndex];
+    const correctClasses = this.getCorrectNotesForStep(currentStep);
+
+    // Evaluate each played note
+    const stepResult = [];
+    let allCorrect = true;
+
+    notesPlayed.forEach(note => {
+       const noteClass = this.noteToMidiClass(note);
+       const isCorrect = correctClasses.includes(noteClass);
+       if (!isCorrect) allCorrect = false;
+       stepResult.push({ note: note, correct: isCorrect });
+    });
+
+    // Save to history
+    this.history[this.currentStepIndex] = stepResult;
+
+    // Scoring (simple: if all notes played were part of the chord)
+    if (allCorrect && notesPlayed.length > 0) {
+      this.score += 10;
+    }
+
+    document.getElementById("scoreboard").textContent = `Score: ${this.score}`;
+
+    // Advance step
+    if (this.currentStepIndex < this.currentLesson.sequence.length - 1) {
+      this.currentStepIndex++;
+    } else {
+      // End of lesson? (Could loop or alert)
+      // For now, just stay on last step
+    }
+
+    this.render();
+  }
+
+  render(currentHeldNotes = new Set()) {
+    if (!this.currentLesson) return;
+    this.renderer.renderLessonState(
+      this.currentLesson, 
+      this.currentStepIndex, 
+      this.history,
+      currentHeldNotes
+    );
+  }
+}
+
+// ---------------------- Input Handler (Chord Logic) ----------------------
+class InputHandler {
+  constructor(manager) {
+    this.manager = manager;
+    this.heldNotes = new Set(); // Currently holding down
+    this.chordBuffer = new Set(); // All notes pressed in this "gesture"
+    this.timeout = null;
+  }
+
+  handleNoteOn(note) {
+    this.heldNotes.add(note);
+    this.chordBuffer.add(note);
+    this.updateVisuals();
+  }
+
+  handleNoteOff(note) {
+    this.heldNotes.delete(note);
+    this.updateVisuals();
+
+    // Logic: When Last Key is released, submit the chord
+    if (this.heldNotes.size === 0 && this.chordBuffer.size > 0) {
+      // Small delay to ensure it's not just a jittery finger lift during a chord change
+      // though "upon release" usually implies immediate.
+      this.submit();
+    }
+  }
+
+  updateVisuals() {
+    // Tell manager to draw held notes
+    this.manager.render(this.heldNotes);
+    
+    // Update Keyboard UI classes
+    document.querySelectorAll('.white-key, .black-key').forEach(el => {
+      if (this.heldNotes.has(el.dataset.note)) {
+        el.classList.add('active');
+      } else {
+        el.classList.remove('active');
+      }
     });
   }
 
-  startNext() {
-    this.currentChallenge = this.generator.nextChallenge();
-    this.renderer.renderChallenge(this.currentChallenge);
-  }
-
-  handleInput(note) {
-    if (!this.currentChallenge) return;
-    const correct = this.generator.checkNote(this.currentChallenge, note);
-    this.session.logAttempt(correct);
-
-    this.renderer.renderFeedback(
-      this.currentChallenge,
-      note,
-      correct,
-      this.currentChallenge.chordNotes
-    );
-
-    setTimeout(() => this.startNext(), 1500);
+  submit() {
+    const notes = Array.from(this.chordBuffer);
+    this.manager.submitChord(notes);
+    this.chordBuffer.clear(); // Reset for next chord
   }
 }
 
 // ---------------------- Keyboard ----------------------
 class Keyboard {
-  static create(containerId, onKeyPress) {
+  static create(containerId, inputHandler) {
     const container = document.getElementById(containerId);
-    if (!container) return;
     container.innerHTML = "";
-    container.style.position = "relative";
-    container.style.height = "120px";
-
+    
     const whiteKeyWidth = 40;
     const whiteKeyHeight = 120;
     const blackKeyWidth = 25;
@@ -449,6 +468,26 @@ class Keyboard {
       'C6'
     ];
 
+    // Helper to attach pointer events
+    const attachEvents = (el, note) => {
+      el.dataset.note = note; // Store note in DOM for easy access
+      
+      el.addEventListener("pointerdown", (e) => {
+        e.preventDefault();
+        el.setPointerCapture(e.pointerId);
+        inputHandler.handleNoteOn(note);
+      });
+
+      el.addEventListener("pointerup", (e) => {
+        e.preventDefault();
+        inputHandler.handleNoteOff(note);
+      });
+
+      el.addEventListener("pointercancel", (e) => {
+         inputHandler.handleNoteOff(note);
+      });
+    };
+
     whiteNotes.forEach((note, i) => {
       const key = document.createElement("div");
       key.className = "white-key";
@@ -458,12 +497,12 @@ class Keyboard {
       key.style.display = "flex";
       key.style.alignItems = "flex-end";
       key.style.justifyContent = "center";
-      key.style.fontWeight = "bold";
-      key.style.cursor = "pointer";
-      key.style.paddingBottom = "8px";
+      key.style.paddingBottom = "5px";
       key.style.fontSize = "10px";
+      key.style.fontWeight = "bold";
       key.textContent = note;
-      key.onclick = () => onKeyPress(note);
+      
+      attachEvents(key, note);
       container.appendChild(key);
     });
 
@@ -486,8 +525,8 @@ class Keyboard {
       key.style.left = `${(afterWhiteIndex + 1) * whiteKeyWidth - blackKeyWidth / 2}px`;
       key.style.width = `${blackKeyWidth}px`;
       key.style.height = `${blackKeyHeight}px`;
-      key.style.cursor = "pointer";
-      key.onclick = () => onKeyPress(note);
+      
+      attachEvents(key, note);
       container.appendChild(key);
     });
 
@@ -498,15 +537,28 @@ class Keyboard {
 // ---------------------- Init ----------------------
 window.addEventListener("DOMContentLoaded", () => {
   const renderer = new CanvasRenderer(document.getElementById("sheet"));
-  const generator = new ChallengeGenerator();
-  const session = new SessionManager();
-  const inputHandler = new InputHandler(renderer, generator, session);
+  const manager = new LessonManager(renderer);
+  const inputHandler = new InputHandler(manager);
 
-  Keyboard.create("keyboard", n => inputHandler.handleInput(n));
+  // Populate Lesson Dropdown
+  const lessonSelect = document.getElementById("lessonSelect");
+  LESSONS.forEach(l => {
+    const opt = document.createElement("option");
+    opt.value = l.id;
+    opt.textContent = l.name;
+    lessonSelect.appendChild(opt);
+  });
 
-  // Clean up potential duplicate debugs
-  const existingDebug = document.getElementById("debug");
-  if (existingDebug) existingDebug.remove();
+  // Event Listeners
+  lessonSelect.addEventListener("change", (e) => manager.loadLesson(e.target.value));
+  
+  document.getElementById("keySig").addEventListener("change", (e) => {
+    manager.updateKeySig(e.target.value);
+  });
 
-  inputHandler.startNext();
+  // Generate Keyboard
+  Keyboard.create("keyboard", inputHandler);
+
+  // Start first lesson
+  manager.loadLesson(LESSONS[0].id);
 });

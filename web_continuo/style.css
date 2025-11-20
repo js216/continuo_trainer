@@ -3,10 +3,27 @@ body {
   font-family: sans-serif;
   text-align: center;
   margin: 20px;
+  user-select: none; /* Prevent text selection while playing */
 }
 
 .controls {
   margin-bottom: 15px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+}
+
+.control-group {
+  margin: 5px;
+}
+
+.description-box {
+  font-style: italic;
+  color: #555;
+  max-width: 600px;
+  margin: 5px auto;
+  min-height: 1.2em;
 }
 
 select {
@@ -18,19 +35,22 @@ select {
 canvas {
   border: 1px solid black;
   margin-bottom: 20px;
+  background-color: #fff;
 }
 
 /* Scoreboard */
 #scoreboard {
   font-size: 18px;
-  margin-bottom: 20px;
+  margin-bottom: 10px;
+  font-weight: bold;
 }
 
 #keyboard {
   position: relative;
-  margin: 0 auto;      /* center horizontally */
-  display: block;      /* ensure margin auto works */
-  height: 120px;       /* keep the same height */
+  margin: 0 auto;
+  display: block;
+  height: 120px;
+  touch-action: none; /* Crucial for multi-touch on mobile */
 }
 
 .white-key {
@@ -39,6 +59,8 @@ canvas {
   box-sizing: border-box;
   position: absolute;
   z-index: 1;
+  border-bottom-left-radius: 4px;
+  border-bottom-right-radius: 4px;
 }
 
 .black-key {
@@ -48,11 +70,13 @@ canvas {
   z-index: 2;
 }
 
-.white-key:hover {
-  background: #eee;
+/* Visual feedback for pressing keys via class */
+.white-key.active {
+  background: #ddd;
+  transform: translateY(2px);
 }
 
-.black-key:hover {
-  background: #444;
-  border-bottom: 2px solid #222;
+.black-key.active {
+  background: #333;
+  transform: translateY(2px);
 }
