@@ -5,6 +5,6 @@
 *.dot
 *.log
 
-continuo_trainer
-compile_commands.json
-bin
+imgui_continuo/continuo_trainer
+imgui_continuo/compile_commands.json
+imgui_continuo/bin
