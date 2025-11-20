@@ -1,57 +1,22 @@
-// ---------------------- Audio Engine ----------------------
-class AudioEngine {
-   constructor() {
-      this.ctx = null;
-      this.masterGain = null;
-   }
+// ---------------------- 1. CONSTANTS & CONFIG ----------------------
 
-   init() {
-      if (!this.ctx) {
-         this.ctx = new (window.AudioContext || window.webkitAudioContext)();
-         this.masterGain = this.ctx.createGain();
-         this.masterGain.gain.value = 0.3; // Master volume
-         this.masterGain.connect(this.ctx.destination);
-      }
-      if (this.ctx.state === 'suspended') {
-         this.ctx.resume();
-      }
-   }
+const CONFIG = {
+   BEAT_SPACING_PX: 50,
+   NOTE_HEAD_FONT_SIZE: 38,
+   STEM_HEIGHT: 35,
+   LINE_SPACING: 10,
+   KEY_WIDTH: 40
+};
 
-   playNote(note, durationSec = 0.5, type = 'triangle') {
-      if (!this.ctx) this.init();
+// Duration Code to Beats Map (4 = Quarter = 1 Beat)
+const DURATION_MAP = {
+   0: 8, // Breve (Double Whole)
+   1: 4, // Whole
+   2: 2, // Half
+   4: 1, // Quarter
+   8: 0.5 // Eighth
+};
 
-      const osc = this.ctx.createOscillator();
-      const gain = this.ctx.createGain();
-
-      osc.type = type;
-      osc.frequency.value = this.noteToFreq(note);
-
-      // Envelope
-      gain.gain.setValueAtTime(0, this.ctx.currentTime);
-      gain.gain.linearRampToValueAtTime(1, this.ctx.currentTime + 0.05);
-      gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + durationSec);
-
-      osc.connect(gain);
-      gain.connect(this.masterGain);
-
-      osc.start();
-      osc.stop(this.ctx.currentTime + durationSec);
-   }
-
-   noteToFreq(note) {
-      const noteMap = { 'C': -9, 'D': -7, 'E': -5, 'F': -4, 'G': -2, 'A': 0, 'B': 2 };
-      const letter = note.replace(/[\d#b-]+/, '');
-      const acc = note.includes('#') ? 1 : (note.includes('b') ? -1 : 0);
-      const octave = parseInt(note.match(/-?\d+/)[0]);
-
-      // A4 is 440Hz. A4 index is 0.
-      // Steps from A4
-      const semitones = (octave - 4) * 12 + noteMap[letter] + acc;
-      return 440 * Math.pow(2, semitones / 12);
-   }
-}
-
-// ---------------------- Music Constants & Lessons ----------------------
 const KEY_SCALES = {
    "-7": ['Cb', 'Db', 'Eb', 'Fb', 'Gb', 'Ab', 'Bb'],
    "-6": ['Gb', 'Ab', 'Bb', 'Cb', 'Db', 'Eb', 'F'],
@@ -70,12 +35,12 @@ const KEY_SCALES = {
    "7":  ['C#', 'D#', 'E#', 'F#', 'G#', 'A#', 'B#']
 };
 
-// Duration: 4 = Whole, 2 = Half, 1 = Quarter
+// Updated Lesson Data with new Duration codes
 const LESSONS = [
    {
       id: "triads",
       name: "Lesson 1: Root Position Triads",
-      description: "Play the 3rd and 5th above the bass. (Common figures: None, 5, 3)",
+      description: "Play the 3rd and 5th above the bass.",
       defaultKey: 0,
       timeSignature: [4, 4],
       sequence: [
@@ -91,7 +56,7 @@ const LESSONS = [
          { bass: "A3", figure: "", duration: 2 },
          { bass: "F3", figure: "", duration: 2 },
          { bass: "G3", figure: "", duration: 2 },
-         { bass: "C3", figure: "", duration: 4 }
+         { bass: "C3", figure: "", duration: 1 } // Whole note
       ]
    },
    {
@@ -104,7 +69,7 @@ const LESSONS = [
          { bass: "B2", figure: "6", duration: 2 },
          { bass: "C3", figure: "6", duration: 2 },
          { bass: "D3", figure: "6", duration: 2 },
-         { bass: "G2", figure: "", duration: 2 }
+         { bass: "G2", figure: "", duration: 0 }
       ]
    },
    {
@@ -114,10 +79,10 @@ const LESSONS = [
       defaultKey: 0,
       timeSignature: [3, 4],
       sequence: [
-         { bass: "C3", figure: "", duration: 1 },
-         { bass: "F2", figure: "", duration: 1 },
-         { bass: "G2", figure: "", duration: 1 },
-         { bass: "C3", figure: "", duration: 3 }
+         { bass: "C3", figure: "", duration: 4 },
+         { bass: "F2", figure: "", duration: 4 },
+         { bass: "G2", figure: "", duration: 4 },
+         { bass: "C3", figure: "", duration: 2 } // Dotted half logic? We'll use half for now, custom handling needed for dotted.
       ]
    },
    {
@@ -129,22 +94,72 @@ const LESSONS = [
       sequence: [
          { bass: "C3", figure: "", duration: 2 },
          { bass: "G2", figure: "7", duration: 2 },
-         { bass: "C3", figure: "", duration: 4 }
+         { bass: "C3", figure: "", duration: 1 }
       ]
    }
 ];
 
-// ---------------------- CanvasRenderer ----------------------
+// ---------------------- 2. CLASSES ----------------------
+
+class AudioEngine {
+   constructor() {
+      this.ctx = null;
+      this.masterGain = null;
+   }
+
+   init() {
+      if (!this.ctx) {
+         this.ctx = new (window.AudioContext || window.webkitAudioContext)();
+         this.masterGain = this.ctx.createGain();
+         this.masterGain.gain.value = 0.3; 
+         this.masterGain.connect(this.ctx.destination);
+      }
+      if (this.ctx.state === 'suspended') {
+         this.ctx.resume();
+      }
+   }
+
+   playNote(note, durationSec = 0.5, type = 'triangle') {
+      if (!this.ctx) this.init();
+      const osc = this.ctx.createOscillator();
+      const gain = this.ctx.createGain();
+      osc.type = type;
+      osc.frequency.value = this.noteToFreq(note);
+      gain.gain.setValueAtTime(0, this.ctx.currentTime);
+      gain.gain.linearRampToValueAtTime(1, this.ctx.currentTime + 0.02);
+      gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + durationSec);
+      osc.connect(gain);
+      gain.connect(this.masterGain);
+      osc.start();
+      osc.stop(this.ctx.currentTime + durationSec);
+   }
+
+   noteToFreq(note) {
+      const noteMap = { 'C': -9, 'D': -7, 'E': -5, 'F': -4, 'G': -2, 'A': 0, 'B': 2 };
+      const letter = note.replace(/[\d#b-]+/, '');
+      const acc = note.includes('#') ? 1 : (note.includes('b') ? -1 : 0);
+      const octave = parseInt(note.match(/-?\d+/)[0]);
+      const semitones = (octave - 4) * 12 + noteMap[letter] + acc;
+      return 440 * Math.pow(2, semitones / 12);
+   }
+}
+
 class CanvasRenderer {
    constructor(canvas) {
       this.canvas = canvas;
       this.ctx = canvas.getContext("2d");
-
       this.staffTop = 60;
-      this.lineSpacing = 10;
+      this.lineSpacing = CONFIG.LINE_SPACING;
       this.numLines = 5;
       this.staffGap = 90; 
       this.currentKeySig = 0; 
+      this.viewportOffsetX = 0; 
+   }
+
+   resize() {
+      const rect = this.canvas.parentElement.getBoundingClientRect();
+      this.canvas.width = rect.width;
+      this.canvas.height = 280;
    }
 
    clear() {
@@ -159,6 +174,7 @@ class CanvasRenderer {
    }
 
    getNoteY(note, clef) {
+      // Treble Ref: B4 (Center Line) | Bass Ref: D3 (Center Line)
       const trebleRefRank = this.getDiatonicRank("B4"); 
       const bassRefRank = this.getDiatonicRank("D3");   
       const currentRank = this.getDiatonicRank(note);
@@ -181,28 +197,35 @@ class CanvasRenderer {
       ctx.strokeStyle = "#000";
       ctx.lineWidth = 1;
       ctx.fillStyle = "#000";
+      const width = this.canvas.width;
 
-      // Treble
+      // Treble Staff
       for (let i = 0; i < this.numLines; i++) {
          const y = this.staffTop + i * this.lineSpacing;
-         ctx.beginPath(); ctx.moveTo(10, y); ctx.lineTo(this.canvas.width - 10, y); ctx.stroke();
+         ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(width, y); ctx.stroke();
       }
-      // Bass
+      // Bass Staff
       const bassTop = this.staffTop + this.staffGap;
       for (let i = 0; i < this.numLines; i++) {
          const y = bassTop + i * this.lineSpacing;
-         ctx.beginPath(); ctx.moveTo(10, y); ctx.lineTo(this.canvas.width - 10, y); ctx.stroke();
+         ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(width, y); ctx.stroke();
       }
 
-      // Clefs
+      // [POINT 6] Clef Alignment
+      // Treble Clef (G clef) centers on 2nd line from bottom (G line).
+      // G line Y = staffTop + 3 * spacing.
+      ctx.font = `${this.lineSpacing * 4}px serif`;
+      ctx.fillText("𝄞", 10, this.staffTop + 3 * this.lineSpacing + (this.lineSpacing/2)); // Adjusted visually
+
+      // Bass Clef (F clef) centers on 2nd line from top (F line).
+      // F line Y = bassTop + 1 * spacing.
       ctx.font = `${this.lineSpacing * 3.5}px serif`;
-      ctx.fillText("𝄞", 10, this.staffTop + 30);
-      ctx.fillText("𝄢", 10, bassTop + 25);
+      ctx.fillText("𝄢", 10, bassTop + 2.5 * this.lineSpacing);
    }
 
    drawKeySignature(num) {
       const ctx = this.ctx;
-      ctx.font = `${this.lineSpacing * 2}px serif`;
+      ctx.font = `${this.lineSpacing * 2.5}px serif`;
       const isSharp = num > 0;
       const count = Math.abs(num);
       const symbol = isSharp ? "♯" : "♭";
@@ -217,25 +240,160 @@ class CanvasRenderer {
       const targetB = isSharp ? sharpNotesB : flatNotesB;
 
       for(let i=0; i<count; i++) {
-         const x = xStart + (i * 12);
-         ctx.fillText(symbol, x, this.getNoteY(targetT[i], 'treble') + 4);
-         ctx.fillText(symbol, x, this.getNoteY(targetB[i], 'bass') + 4);
+         const x = xStart + (i * 14);
+         ctx.fillText(symbol, x, this.getNoteY(targetT[i], 'treble') + 5);
+         ctx.fillText(symbol, x, this.getNoteY(targetB[i], 'bass') + 5);
       }
    }
 
-   drawTimeSignature(timeSig) {
+   drawTimeSignature(timeSig, keySigCount) {
       if (!timeSig) return;
       const [num, den] = timeSig;
-      const x = 50 + (Math.abs(this.currentKeySig) * 12) + 15;
+      const x = 60 + (Math.abs(keySigCount) * 14) + 25;
       const ctx = this.ctx;
-      ctx.font = `bold ${this.lineSpacing * 2}px serif`;
-      // Treble
-      ctx.fillText(num, x, this.staffTop + 20);
-      ctx.fillText(den, x, this.staffTop + 40);
-      // Bass
-      ctx.fillText(num, x, this.staffTop + this.staffGap + 20);
-      ctx.fillText(den, x, this.staffTop + this.staffGap + 40);
-      return x + 30; // Return X offset for notes
+
+      ctx.font = `bold ${this.lineSpacing * 2.8}px serif`;
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+
+      const trebleMidY = this.staffTop + (2 * this.lineSpacing);
+      const bassMidY = this.staffTop + this.staffGap + (2 * this.lineSpacing);
+
+      let symbol = null;
+      if (num === 4 && den === 4) symbol = "𝄴";
+      else if (num === 2 && den === 2) symbol = "𝄵";
+
+      if (symbol) {
+         ctx.fillText(symbol, x, trebleMidY);
+         ctx.fillText(symbol, x, bassMidY);
+      } else {
+         const offset = this.lineSpacing; 
+         ctx.font = `bold ${this.lineSpacing * 2}px serif`;
+         ctx.fillText(num, x, trebleMidY - offset);
+         ctx.fillText(den, x, trebleMidY + offset);
+         ctx.fillText(num, x, bassMidY - offset);
+         ctx.fillText(den, x, bassMidY + offset);
+      }
+      return x + 40; 
+   }
+
+   // [POINT 7] End Barline
+   drawEndBarline(x) {
+      const ctx = this.ctx;
+      if (x < 0 || x > this.canvas.width) return;
+
+      const topY = this.staffTop;
+      const botY = this.staffTop + this.staffGap + (this.numLines - 1) * this.lineSpacing;
+
+      // Thin line
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(x - 6, topY);
+      ctx.lineTo(x - 6, botY);
+      ctx.stroke();
+
+      // Thick line
+      ctx.lineWidth = 4;
+      ctx.beginPath();
+      ctx.moveTo(x, topY);
+      ctx.lineTo(x, botY);
+      ctx.stroke();
+
+      ctx.lineWidth = 1;
+   }
+
+   drawBarLine(x) {
+      const ctx = this.ctx;
+      if (x < 0 || x > this.canvas.width) return;
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(x, this.staffTop);
+      ctx.lineTo(x, this.staffTop + this.staffGap + (this.numLines-1)*this.lineSpacing);
+      ctx.stroke();
+   }
+
+   // [POINT 3] Unicode Noteheads & Stem Logic
+   drawNote(note, x, clef, color = "black", durationCode = 4, alpha = 1.0) {
+      const drawX = x - this.viewportOffsetX;
+      // Cull if offscreen
+      if (drawX < -50 || drawX > this.canvas.width + 50) return;
+
+      const y = this.getNoteY(note, clef);
+      const ctx = this.ctx;
+
+      ctx.globalAlpha = alpha;
+      ctx.fillStyle = color;
+      ctx.strokeStyle = color;
+      ctx.font = `${CONFIG.NOTE_HEAD_FONT_SIZE}px serif`;
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+
+      // Map durationCode to Unicode Noteheads
+      let glyph = "𝅘"; // Default Filled (Quarter, Eighth)
+      let hasStem = true;
+      if (durationCode === 2) { glyph = "𝅗"; hasStem = true; } // Half
+      if (durationCode === 1) { glyph = "𝅝"; hasStem = false; } // Whole
+      if (durationCode === 0) { glyph = "𝅜"; hasStem = false; } // Breve
+
+      // Visual Adjustment:
+      // The unicode notehead needs to be shifted up slightly to sit centered on the line.
+      const visualY = y - (this.lineSpacing * 0.6); 
+
+      // Draw Notehead
+      ctx.fillText(glyph, drawX, visualY); 
+
+      // Draw Stem
+      if (hasStem) {
+         ctx.lineWidth = 1.5;
+         ctx.beginPath();
+
+         const middleLineY = (clef === "treble") 
+            ? (this.staffTop + 2 * this.lineSpacing)
+            : (this.staffTop + this.staffGap + 2 * this.lineSpacing);
+
+         // Stem Direction
+         // y > middleLineY means lower pitch (physically lower on screen) -> Stem UP
+         const isUp = y > middleLineY; 
+         const stemLen = CONFIG.STEM_HEIGHT;
+
+         // Stem Offsets
+         const xOffset = isUp ? 3.2 : -3.2; 
+
+         const stemBaseY = visualY + 4;
+         const stemTopY = stemBaseY - stemLen;    // Upwards direction
+         const stemBotY = stemBaseY + stemLen;    // Downwards direction
+
+         ctx.moveTo(drawX + xOffset, stemBaseY);
+         ctx.lineTo(drawX + xOffset, isUp ? stemTopY : stemBotY);
+         ctx.stroke();
+      }
+
+      // Accidentals
+      const accidental = this.getAccidentalSymbol(note, this.currentKeySig);
+      if (accidental) {
+         ctx.font = `${this.lineSpacing * 2.5}px serif`;
+         ctx.textAlign = "center";
+         ctx.textBaseline = "middle";
+         ctx.fillText(accidental, drawX - 22, visualY);
+      }
+
+      // Ledger Lines
+      const topLineY = clef === "treble" ? this.staffTop : this.staffTop + this.staffGap;
+      const bottomLineY = topLineY + (this.numLines - 1) * this.lineSpacing;
+      const ledgerWidth = 24;
+
+      ctx.lineWidth = 1;
+      if (y <= topLineY - this.lineSpacing) {
+         for (let ly = topLineY - this.lineSpacing; ly >= y - 2; ly -= this.lineSpacing) {
+            ctx.beginPath(); ctx.moveTo(drawX - ledgerWidth/2, ly); ctx.lineTo(drawX + ledgerWidth/2, ly); ctx.stroke();
+         }
+      }
+      if (y >= bottomLineY + this.lineSpacing) {
+         for (let ly = bottomLineY + this.lineSpacing; ly <= y + 2; ly += this.lineSpacing) {
+            ctx.beginPath(); ctx.moveTo(drawX - ledgerWidth/2, ly); ctx.lineTo(drawX + ledgerWidth/2, ly); ctx.stroke();
+         }
+      }
+      ctx.globalAlpha = 1.0;
    }
 
    getAccidentalSymbol(note, keySig) {
@@ -252,102 +410,14 @@ class CanvasRenderer {
       return null;
    }
 
-   // Duration: 4=Whole, 2=Half, 1=Quarter
-   drawNote(note, x, clef, color = "black", duration = 4, alpha = 1.0) {
-      const y = this.getNoteY(note, clef);
-      const ctx = this.ctx;
-
-      ctx.globalAlpha = alpha;
-      ctx.fillStyle = color;
-      ctx.textAlign = "center";
-      ctx.textBaseline = "middle";
-
-      // Notehead size tuned to staff geometry
-      const fontSize = this.lineSpacing * 5.5; // Strongly scaled up
-      ctx.font = `${fontSize}px serif`;
-
-      // Correct duration mapping
-      let glyph;
-      if (duration >= 4) glyph = "𝅝";   // Whole
-      else if (duration >= 2) glyph = "𝅗𝅥"; // Half
-      else glyph = "♩";                 // Quarter
-
-      // Raise glyph center into proper pitch position
-      const yOffset = -this.lineSpacing * 1.1;
-
-      ctx.fillText(glyph, x-0.9*this.lineSpacing, y + yOffset);
-
-      // Accidentals — scale up proportionally
-      const accidental = this.getAccidentalSymbol(note, this.currentKeySig);
-      if (accidental) {
-         ctx.font = `${this.lineSpacing * 3.3}px serif`;
-         ctx.fillText(accidental, x - this.lineSpacing * 3.0, y + yOffset);
-      }
-
-      // ------- Ledger Lines (unchanged) -------
-      ctx.strokeStyle = color;
-      ctx.lineWidth = 1;
-      const topLineY = clef === "treble" ? this.staffTop : this.staffTop + this.staffGap;
-      const bottomLineY = topLineY + (this.numLines - 1) * this.lineSpacing;
-
-      const drawLedger = (ly) => {
-         ctx.beginPath();
-         ctx.moveTo(x - 1.5*this.lineSpacing, ly);
-         ctx.lineTo(x + 1.5*this.lineSpacing, ly);
-         ctx.stroke();
-      };
-
-      if (y < topLineY) {
-         for (let ly = topLineY - this.lineSpacing; ly >= y; ly -= this.lineSpacing) {
-            drawLedger(ly);
-         }
-      }
-      if (y > bottomLineY) {
-         for (let ly = bottomLineY + this.lineSpacing; ly <= y; ly += this.lineSpacing) {
-            drawLedger(ly);
-         }
-      }
-
-      ctx.globalAlpha = 1.0;
-   }
-
-
    drawFigure(figure, x, note, clef) {
-      const y = this.getNoteY(note, clef) - 35;
+      const drawX = x - this.viewportOffsetX;
+      if (drawX < -50 || drawX > this.canvas.width + 50) return;
+      const y = this.getNoteY(note, clef) + 45; 
       this.ctx.font = `bold ${this.lineSpacing * 1.4}px serif`;
+      this.ctx.textAlign = "center";
       this.ctx.fillStyle = "black";
-      this.ctx.fillText(figure, x, y);
-   }
-
-   drawBarLine(x) {
-      const ctx = this.ctx;
-      ctx.beginPath();
-      ctx.moveTo(x, this.staffTop);
-      ctx.lineTo(x, this.staffTop + (this.numLines-1)*this.lineSpacing);
-      ctx.stroke();
-
-      ctx.beginPath();
-      ctx.moveTo(x, this.staffTop + this.staffGap);
-      ctx.lineTo(x, this.staffTop + this.staffGap + (this.numLines-1)*this.lineSpacing);
-      ctx.stroke();
-   }
-
-   drawFinalBarLine(x) {
-      const ctx = this.ctx;
-      // Thin line
-      this.drawBarLine(x);
-      // Thick line
-      ctx.lineWidth = 4;
-      ctx.beginPath();
-      ctx.moveTo(x + 6, this.staffTop);
-      ctx.lineTo(x + 6, this.staffTop + (this.numLines-1)*this.lineSpacing);
-      ctx.stroke();
-
-      ctx.beginPath();
-      ctx.moveTo(x + 6, this.staffTop + this.staffGap);
-      ctx.lineTo(x + 6, this.staffTop + this.staffGap + (this.numLines-1)*this.lineSpacing);
-      ctx.stroke();
-      ctx.lineWidth = 1;
+      this.ctx.fillText(figure, drawX, y);
    }
 
    renderLessonState(lesson, currentStepIndex, userHistory, currentHeldNotes, correctionNotes) {
@@ -355,82 +425,110 @@ class CanvasRenderer {
       this.clear();
       this.drawStaves();
       this.drawKeySignature(lesson.defaultKey);
-      let cursorX = this.drawTimeSignature(lesson.timeSignature);
 
-      // Spacing based on duration (simple scaling)
-      // 1 beat = 60px
-      const beatPixels = 60;
+      const contentStartX = this.drawTimeSignature(lesson.timeSignature, lesson.defaultKey);
+
+      let cursorX = contentStartX;
       let currentMeasureBeats = 0;
       const beatsPerMeasure = lesson.timeSignature[0];
+      let activeNoteX = 0;
 
-      lesson.sequence.forEach((step, index) => {
-         const x = cursorX + (beatPixels * (step.duration / 2)); // Centered in its time slot approx
+      // First pass: positioning
+      const stepsWithPos = lesson.sequence.map((step, index) => {
+         const beats = DURATION_MAP[step.duration];
+         const width = beats * CONFIG.BEAT_SPACING_PX; 
+         const pos = cursorX + (width / 2); 
 
-         // Highlight current measure
-         if (index === currentStepIndex) {
-            this.ctx.fillStyle = "rgba(255, 255, 0, 0.2)";
-            this.ctx.fillRect(cursorX, 0, beatPixels * step.duration, this.canvas.height);
+         if (index === currentStepIndex) activeNoteX = pos;
+
+         const stepData = { x: pos, width: width, ...step };
+         cursorX += width;
+         currentMeasureBeats += beats;
+
+         let barlineX = null;
+         // Simple measure logic: if measure full, draw line.
+         if (Math.abs(currentMeasureBeats - beatsPerMeasure) < 0.01 || currentMeasureBeats > beatsPerMeasure) {
+            barlineX = cursorX;
+            currentMeasureBeats = 0;
          }
 
-         // Draw Bass
-         this.drawNote(step.bass, x, "bass", "black", step.duration);
-         this.drawFigure(step.figure, x, step.bass, "bass");
+         return { step: stepData, barlineX: barlineX, index: index };
+      });
 
-         // Draw User History
+      // [POINT 4] Continuous Smooth Scrolling
+      // Goal: activeNoteX - viewportOffsetX = 1/3 of screen width
+      const targetScreenX = this.canvas.width / 3;
+      const desiredOffset = activeNoteX - targetScreenX;
+
+      // Smoothly update viewportOffsetX or just snap? User said "jump... is good... but better by aiming to keep...".
+      // "Do not jump ... only when reaching end". "Aim to display 2-3 already played".
+      // We will use the calculated desiredOffset but clamp it so it doesn't go < 0.
+      this.viewportOffsetX = Math.max(0, desiredOffset);
+
+
+      // Second pass: Draw
+      stepsWithPos.forEach((item) => {
+         const { step, barlineX, index } = item;
+
+         // Highlight active
+         if (index === currentStepIndex) {
+            const drawX = step.x - (step.width/2) - this.viewportOffsetX;
+            if (drawX > -100 && drawX < this.canvas.width) {
+               this.ctx.fillStyle = "rgba(255, 255, 0, 0.2)";
+               this.ctx.fillRect(drawX, 0, step.width, this.canvas.height);
+            }
+         }
+
+         this.drawNote(step.bass, step.x, "bass", "black", step.duration);
+         this.drawFigure(step.figure, step.x, step.bass, "bass");
+
+         // History
          if (userHistory[index]) {
             userHistory[index].forEach(attempt => {
                const octave = parseInt(attempt.note.match(/-?\d+/)[0]);
                const clef = octave >= 4 ? 'treble' : 'bass';
                const color = attempt.correct ? '#22c55e' : '#ef4444';
-               this.drawNote(attempt.note, x, clef, color, step.duration);
+               this.drawNote(attempt.note, step.x, clef, color, step.duration);
             });
 
-            // Draw Corrections (Yellow) if they exist for this step
             if (correctionNotes && correctionNotes[index]) {
                correctionNotes[index].forEach(note => {
                   const octave = parseInt(note.match(/-?\d+/)[0]);
                   const clef = octave >= 4 ? 'treble' : 'bass';
-                  // Offset slightly to right (x + 20)
-                  this.drawNote(note, x + 15, clef, '#eab308', step.duration); 
+                  this.drawNote(note, step.x + 15, clef, '#eab308', step.duration); 
                });
             }
          }
 
-         // Draw Active Held Notes (only for current step)
-         if (index === currentStepIndex && currentHeldNotes && currentHeldNotes.size > 0) {
+         // Held
+         if (index === currentStepIndex && currentHeldNotes.size > 0) {
             currentHeldNotes.forEach(note => {
                const octave = parseInt(note.match(/-?\d+/)[0]);
                const clef = octave >= 4 ? 'treble' : 'bass';
-               this.drawNote(note, x, clef, 'blue', step.duration, 0.7);
+               this.drawNote(note, step.x, clef, 'blue', step.duration, 0.7);
             });
          }
 
-         // Advance Cursor
-         cursorX += beatPixels * step.duration;
-         currentMeasureBeats += step.duration;
-
-         // Draw Barlines
-         if (currentMeasureBeats >= beatsPerMeasure) {
-            this.drawBarLine(cursorX);
-            currentMeasureBeats = 0; // simplistic reset
+         if (barlineX) {
+            // Check if it's the very last barline of the piece
+            if (index === stepsWithPos.length - 1) {
+               this.drawEndBarline(barlineX - this.viewportOffsetX);
+            } else {
+               this.drawBarLine(barlineX - this.viewportOffsetX);
+            }
          }
       });
-
-      // Final Barline
-      this.drawFinalBarLine(cursorX);
    }
 }
 
-// ---------------------- Logic / State Manager ----------------------
 class LessonManager {
    constructor(renderer, audio) {
       this.renderer = renderer;
       this.audio = audio;
       this.currentLesson = null;
       this.currentStepIndex = 0;
-
       this.history = []; 
-      this.corrections = {}; // Map stepIndex -> [Notes]
+      this.corrections = {}; 
       this.score = 0;
    }
 
@@ -438,10 +536,16 @@ class LessonManager {
       const data = LESSONS.find(l => l.id === lessonId) || LESSONS[0];
       this.currentLesson = JSON.parse(JSON.stringify(data)); 
 
+      this.reset();
+   }
+
+   reset() {
+      if(!this.currentLesson) return;
       this.currentStepIndex = 0;
       this.history = new Array(this.currentLesson.sequence.length).fill(null).map(() => []);
       this.corrections = {};
       this.score = 0;
+      this.renderer.viewportOffsetX = 0; 
 
       document.getElementById("lessonDescription").textContent = this.currentLesson.description;
       document.getElementById("scoreboard").textContent = `Score: 0`;
@@ -455,8 +559,9 @@ class LessonManager {
       if (!this.currentLesson || this.currentStepIndex >= this.currentLesson.sequence.length) return;
 
       const step = this.currentLesson.sequence[this.currentStepIndex];
-      // Play slightly longer for whole notes? simplified to 0.5s or 1s
-      this.audio.playNote(step.bass, 0.5, 'triangle');
+      // Play longer for larger duration codes
+      const durBeats = DURATION_MAP[step.duration];
+      this.audio.playNote(step.bass, durBeats * 0.5, 'triangle');
    }
 
    getCorrectPitchClasses(step) {
@@ -478,17 +583,11 @@ class LessonManager {
    }
 
    generateCorrection(step) {
-      // Simple realization: Find notes in 4th octave that match pitch classes
       const classes = this.getCorrectPitchClasses(step);
       const correction = [];
-      // Brute force check C4 to G5
       const range = ['C4','C#4','D4','D#4','E4','F4','F#4','G4','G#4','A4','A#4','B4',
          'C5','C#5','D5','D#5','E5','F5','F#5','G5'];
-
-      // We just need one note per pitch class to show a "chord"
-      // This is a naive voicing generator but sufficient for visual feedback
       const usedClasses = new Set();
-
       range.forEach(note => {
          const nc = this.noteToMidiClass(note);
          if (classes.includes(nc) && !usedClasses.has(nc)) {
@@ -496,7 +595,7 @@ class LessonManager {
             usedClasses.add(nc);
          }
       });
-      return correction.slice(0, classes.length); // Limit to number of voices needed
+      return correction.slice(0, classes.length); 
    }
 
    noteToMidiClass(noteName) {
@@ -523,15 +622,11 @@ class LessonManager {
          stepResult.push({ note: note, correct: isCorrect });
       });
 
-      // Must play at least correct number of notes? For now, just check if what was played is right.
-      // Strict: must find all classes? Let's stay simple.
-
       this.history[this.currentStepIndex] = stepResult;
 
       if (allCorrect && notesPlayed.length > 0) {
          this.score += 10;
       } else {
-         // Generate Correction
          this.corrections[this.currentStepIndex] = this.generateCorrection(currentStep);
       }
 
@@ -539,7 +634,7 @@ class LessonManager {
 
       if (this.currentStepIndex < this.currentLesson.sequence.length - 1) {
          this.currentStepIndex++;
-         setTimeout(() => this.playBassForCurrentStep(), 500); // Play next bass after short delay
+         setTimeout(() => this.playBassForCurrentStep(), 500); 
       }
 
       this.render();
@@ -557,7 +652,6 @@ class LessonManager {
    }
 }
 
-// ---------------------- Input Handler ----------------------
 class InputHandler {
    constructor(manager, audio) {
       this.manager = manager;
@@ -567,11 +661,9 @@ class InputHandler {
    }
 
    handleNoteOn(note) {
-      // Audio Feedback
       if (document.getElementById("chkSoundUser").checked) {
          this.audio.playNote(note, 0.3, 'sine');
       }
-
       this.heldNotes.add(note);
       this.chordBuffer.add(note);
       this.manager.render(this.heldNotes);
@@ -604,112 +696,148 @@ class InputHandler {
       this.chordBuffer.clear();
    }
 
-   // MIDI Handling
    onMidiMessage(msg) {
       const [status, data1, data2] = msg.data;
       const command = status >> 4;
       const noteNum = data1;
-      const velocity = (data2 > 127) ? 127 : data2; // Safety
-
+      const velocity = (data2 > 127) ? 127 : data2; 
       const noteName = this.midiNumToNote(noteNum);
 
-      // Note On (command 9) with velocity > 0
-      if (command === 9 && velocity > 0) {
-         this.handleNoteOn(noteName);
-      }
-      // Note Off (command 8) or Note On with velocity 0
-      else if (command === 8 || (command === 9 && velocity === 0)) {
-         this.handleNoteOff(noteName);
-      }
+      if (command === 9 && velocity > 0) this.handleNoteOn(noteName);
+      else if (command === 8 || (command === 9 && velocity === 0)) this.handleNoteOff(noteName);
    }
 
    midiNumToNote(num) {
       const notes = ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
       const octave = Math.floor(num / 12) - 1;
-      const note = notes[num % 12];
-      return note + octave;
+      return notes[num % 12] + octave;
    }
 }
 
-// ---------------------- Keyboard ----------------------
 class Keyboard {
+   // [POINT 2] Exact Width Keyboard
    static create(containerId, inputHandler) {
       const container = document.getElementById(containerId);
+      const canvas = document.getElementById("sheet");
+
+      // Ensure container matches canvas EXACTLY
+      const width = canvas.width; // Get rendered width
+      container.style.width = `${width}px`;
       container.innerHTML = "";
 
-      const whiteKeyWidth = 40;
-      const whiteKeyHeight = 120;
-      const blackKeyWidth = 25;
-      const blackKeyHeight = 80;
+      // We want keys around C4 (Middle C). 
+      // Let's define a fixed Key Width and calculate how many fit.
+      const kWidth = CONFIG.KEY_WIDTH;
 
-      const whiteNotes = [
-         'C4', 'D4', 'E4', 'F4', 'G4', 'A4', 'B4',
-         'C5', 'D5', 'E5', 'F5', 'G5', 'A5', 'B5',
-         'C6'
-      ];
+      // Calculate number of keys needed to cover the width
+      const numKeysToDraw = Math.ceil(width / kWidth) + 2; // +2 buffer for edges
+
+      // We want C4 to be in the center.
+      // Screen Center X
+      const centerX = width / 2;
+
+      // Define range of notes.
+      // We generate a sequence of White Notes centered on C4.
+      // If numKeysToDraw is 20, we want 10 left of C4 and 10 right of C4.
+      const whiteNotes = [];
+      const centerIndexOffset = Math.floor(numKeysToDraw / 2);
+
+      // Helper to get white note n steps away from C4
+      const getWhiteNote = (offset) => {
+         const map = ['C','D','E','F','G','A','B'];
+         // Base C4 is index 0.
+         // offset -1 is B3. offset +1 is D4.
+         let index = offset;
+         let octave = 4 + Math.floor(index / 7);
+         let noteIdx = index % 7;
+         if (noteIdx < 0) noteIdx += 7;
+         return map[noteIdx] + octave;
+      };
+
+      for (let i = -centerIndexOffset; i <= centerIndexOffset; i++) {
+         whiteNotes.push({ note: getWhiteNote(i), offset: i });
+      }
+
+      // Render
+      const whiteKeyHeight = 120;
+      const blackKeyWidth = kWidth * 0.65;
+      const blackKeyHeight = 80;
 
       const attachEvents = (el, note) => {
          el.dataset.note = note;
          el.addEventListener("pointerdown", (e) => {
-            e.preventDefault();
-            el.setPointerCapture(e.pointerId);
-            inputHandler.handleNoteOn(note);
+            e.preventDefault(); el.setPointerCapture(e.pointerId); inputHandler.handleNoteOn(note);
          });
          el.addEventListener("pointerup", (e) => {
-            e.preventDefault();
-            inputHandler.handleNoteOff(note);
+            e.preventDefault(); inputHandler.handleNoteOff(note);
          });
          el.addEventListener("pointercancel", (e) => inputHandler.handleNoteOff(note));
       };
 
-      whiteNotes.forEach((note, i) => {
+      // Calculate start X so that C4 is at CenterX
+      // C4 is at offset 0.
+      // C4 left edge would be at...
+      // We want Center of C4 key to be at CenterX? Or Left edge? Usually keys are aligned.
+      // Let's put C4 roughly in middle.
+      // C4 is the element where offset=0.
+      // Its 'left' should be centerX - (kWidth/2).
+      const c4Left = centerX - (kWidth / 2);
+
+      whiteNotes.forEach(item => {
+         const left = c4Left + (item.offset * kWidth);
+
+         // Optimization: Don't draw if completely off screen
+         if (left > width || left + kWidth < 0) return;
+
          const key = document.createElement("div");
          key.className = "white-key";
-         key.style.left = `${i * whiteKeyWidth}px`;
-         key.style.width = `${whiteKeyWidth}px`;
+         key.style.left = `${left}px`;
+         key.style.width = `${kWidth}px`;
          key.style.height = `${whiteKeyHeight}px`;
-         key.textContent = note;
+         key.textContent = item.note.includes('C') ? item.note : '';
          key.style.display = "flex"; key.style.alignItems="flex-end"; key.style.justifyContent="center";
          key.style.fontSize="10px"; key.style.paddingBottom="5px"; key.style.fontWeight="bold";
-         attachEvents(key, note);
+         attachEvents(key, item.note);
          container.appendChild(key);
+
+         // Black Key?
+         const letter = item.note.charAt(0);
+         if (['C','D','F','G','A'].includes(letter)) {
+            const blackNote = letter + '#' + item.note.slice(-1);
+            const bKey = document.createElement("div");
+            bKey.className = "black-key";
+            bKey.style.left = `${left + kWidth - (blackKeyWidth / 2)}px`;
+            bKey.style.width = `${blackKeyWidth}px`;
+            bKey.style.height = `${blackKeyHeight}px`;
+            attachEvents(bKey, blackNote);
+            container.appendChild(bKey);
+         }
       });
-
-      const blackKeys = [
-         { note: 'C#4', afterWhiteIndex: 0 },
-         { note: 'D#4', afterWhiteIndex: 1 },
-         { note: 'F#4', afterWhiteIndex: 3 },
-         { note: 'G#4', afterWhiteIndex: 4 },
-         { note: 'A#4', afterWhiteIndex: 5 },
-         { note: 'C#5', afterWhiteIndex: 7 },
-         { note: 'D#5', afterWhiteIndex: 8 },
-         { note: 'F#5', afterWhiteIndex: 10 },
-         { note: 'G#5', afterWhiteIndex: 11 },
-         { note: 'A#5', afterWhiteIndex: 12 }
-      ];
-
-      blackKeys.forEach(({ note, afterWhiteIndex }) => {
-         const key = document.createElement("div");
-         key.className = "black-key";
-         key.style.left = `${(afterWhiteIndex + 1) * whiteKeyWidth - blackKeyWidth / 2}px`;
-         key.style.width = `${blackKeyWidth}px`;
-         key.style.height = `${blackKeyHeight}px`;
-         attachEvents(key, note);
-         container.appendChild(key);
-      });
-
-      container.style.width = `${whiteNotes.length * whiteKeyWidth}px`;
    }
 }
 
-// ---------------------- Init ----------------------
+// ---------------------- 3. INITIALIZATION ----------------------
+
 window.addEventListener("DOMContentLoaded", () => {
    const audio = new AudioEngine();
-   const renderer = new CanvasRenderer(document.getElementById("sheet"));
+   const canvas = document.getElementById("sheet");
+   const renderer = new CanvasRenderer(canvas);
    const manager = new LessonManager(renderer, audio);
    const inputHandler = new InputHandler(manager, audio);
 
-   // Populate UI
+   renderer.resize();
+   Keyboard.create("keyboard", inputHandler);
+
+   let resizeTimeout;
+   window.addEventListener("resize", () => {
+      clearTimeout(resizeTimeout);
+      resizeTimeout = setTimeout(() => {
+         renderer.resize();
+         Keyboard.create("keyboard", inputHandler);
+         manager.render();
+      }, 100);
+   });
+
    const lessonSelect = document.getElementById("lessonSelect");
    LESSONS.forEach(l => {
       const opt = document.createElement("option");
@@ -719,34 +847,26 @@ window.addEventListener("DOMContentLoaded", () => {
    });
 
    lessonSelect.addEventListener("change", (e) => manager.loadLesson(e.target.value));
+   document.getElementById("resetBtn").addEventListener("click", () => manager.reset());
 
-   // MIDI Connect
    document.getElementById("midiBtn").addEventListener("click", () => {
-      // Init audio context on user gesture as well
       audio.init();
       if (navigator.requestMIDIAccess) {
          navigator.requestMIDIAccess().then(access => {
             document.getElementById("midiBtn").classList.add("active");
             document.getElementById("midiBtn").textContent = "MIDI Connected";
-
             const inputs = access.inputs.values();
             for (let input of inputs) {
                input.onmidimessage = (msg) => inputHandler.onMidiMessage(msg);
             }
-
             access.onstatechange = (e) => {
                if(e.port.type === 'input' && e.port.state === 'connected') {
                   e.port.onmidimessage = (msg) => inputHandler.onMidiMessage(msg);
                }
             };
-         }, () => {
-            alert("MIDI Access Failed or Not Supported");
-         });
-      } else {
-         alert("Web MIDI API not supported in this browser.");
-      }
+         }, () => alert("MIDI Access Failed"));
+      } else alert("Web MIDI API not supported.");
    });
 
-   Keyboard.create("keyboard", inputHandler);
    manager.loadLesson(LESSONS[0].id);
 });

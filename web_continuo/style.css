@@ -5,6 +5,7 @@ body {
   margin: 20px;
   user-select: none;
   background-color: #f9fafb;
+  overflow-x: hidden;
 }
 
 h1 { margin-bottom: 10px; }
@@ -13,6 +14,12 @@ h1 { margin-bottom: 10px; }
   margin-bottom: 15px;
   display: flex;
   flex-direction: column;
+  align-items: center;
+  gap: 10px;
+}
+
+.control-group {
+  display: flex;
   align-items: center;
   gap: 10px;
 }
@@ -40,10 +47,7 @@ h1 { margin-bottom: 10px; }
   min-height: 1.2em;
 }
 
-select {
-  padding: 5px;
-  font-size: 16px;
-}
+select { padding: 5px; font-size: 16px; }
 
 button {
   padding: 6px 12px;
@@ -56,12 +60,22 @@ button {
 button:hover { background-color: #ddd; }
 button.active { background-color: #bfdbfe; border-color: #3b82f6; }
 
-/* Canvas for staff and notes */
-canvas {
-  border: 1px solid black;
-  margin-bottom: 20px;
+/* Canvas Container */
+.canvas-container {
+  width: 95%;
+  max-width: 1200px;
+  margin: 0 auto 20px auto;
+  overflow: hidden;
   background-color: #fff;
   box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+  border: 1px solid black;
+  position: relative;
+}
+
+canvas {
+  display: block;
+  width: 100%;
+  height: 280px;
 }
 
 /* Scoreboard */
@@ -71,12 +85,16 @@ canvas {
   font-weight: bold;
 }
 
+/* Keyboard Container */
 #keyboard {
   position: relative;
-  margin: 0 auto;
+  margin: 0 auto; /* Centered relative to parent */
   display: block;
   height: 120px;
   touch-action: none; 
+  overflow: hidden; /* Crucial for "cutting off" keys */
+  border-top: 1px solid #ccc;
+  /* Width will be set by JS to match canvas */
 }
 
 .white-key {
@@ -87,6 +105,9 @@ canvas {
   z-index: 1;
   border-bottom-left-radius: 4px;
   border-bottom-right-radius: 4px;
+  /* Enhance look */
+  background: linear-gradient(to bottom, #fff 0%, #f2f2f2 100%);
+  box-shadow: inset 0 -1px 0 rgba(0,0,0,0.1);
 }
 
 .black-key {
@@ -94,14 +115,9 @@ canvas {
   border-radius: 0 0 4px 4px;
   position: absolute;
   z-index: 2;
+  background: linear-gradient(to bottom, #333 0%, #000 100%);
+  box-shadow: 1px 1px 2px rgba(0,0,0,0.3);
 }
 
-.white-key.active {
-  background: #ddd;
-  transform: translateY(2px);
-}
-
-.black-key.active {
-  background: #333;
-  transform: translateY(2px);
-}
+.white-key.active { background: #ddd; transform: translateY(2px); }
+.black-key.active { background: #444; transform: translateY(2px); }
