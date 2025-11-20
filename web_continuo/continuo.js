@@ -275,7 +275,7 @@ class CanvasRenderer {
       // Raise glyph center into proper pitch position
       const yOffset = -this.lineSpacing * 1.1;
 
-      ctx.fillText(glyph, x, y + yOffset);
+      ctx.fillText(glyph, x-0.9*this.lineSpacing, y + yOffset);
 
       // Accidentals — scale up proportionally
       const accidental = this.getAccidentalSymbol(note, this.currentKeySig);
@@ -292,8 +292,8 @@ class CanvasRenderer {
 
       const drawLedger = (ly) => {
          ctx.beginPath();
-         ctx.moveTo(x - this.lineSpacing, ly);
-         ctx.lineTo(x + this.lineSpacing, ly);
+         ctx.moveTo(x - 1.5*this.lineSpacing, ly);
+         ctx.lineTo(x + 1.5*this.lineSpacing, ly);
          ctx.stroke();
       };
 
