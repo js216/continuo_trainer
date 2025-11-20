@@ -3,8 +3,11 @@ body {
   font-family: sans-serif;
   text-align: center;
   margin: 20px;
-  user-select: none; /* Prevent text selection while playing */
+  user-select: none;
+  background-color: #f9fafb;
 }
+
+h1 { margin-bottom: 10px; }
 
 .controls {
   margin-bottom: 15px;
@@ -14,15 +17,26 @@ body {
   gap: 10px;
 }
 
-.control-group {
-  margin: 5px;
+.control-row {
+  display: flex;
+  gap: 20px;
+  align-items: center;
+}
+
+.sound-controls {
+  display: flex;
+  gap: 10px;
+  border: 1px solid #ccc;
+  padding: 5px 10px;
+  border-radius: 4px;
+  background: white;
 }
 
 .description-box {
   font-style: italic;
   color: #555;
   max-width: 600px;
-  margin: 5px auto;
+  margin: 0 auto;
   min-height: 1.2em;
 }
 
@@ -31,11 +45,23 @@ select {
   font-size: 16px;
 }
 
+button {
+  padding: 6px 12px;
+  font-size: 14px;
+  cursor: pointer;
+  background-color: #eee;
+  border: 1px solid #999;
+  border-radius: 4px;
+}
+button:hover { background-color: #ddd; }
+button.active { background-color: #bfdbfe; border-color: #3b82f6; }
+
 /* Canvas for staff and notes */
 canvas {
   border: 1px solid black;
   margin-bottom: 20px;
   background-color: #fff;
+  box-shadow: 0 4px 6px rgba(0,0,0,0.1);
 }
 
 /* Scoreboard */
@@ -50,7 +76,7 @@ canvas {
   margin: 0 auto;
   display: block;
   height: 120px;
-  touch-action: none; /* Crucial for multi-touch on mobile */
+  touch-action: none; 
 }
 
 .white-key {
@@ -70,7 +96,6 @@ canvas {
   z-index: 2;
 }
 
-/* Visual feedback for pressing keys via class */
 .white-key.active {
   background: #ddd;
   transform: translateY(2px);
