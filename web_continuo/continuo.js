@@ -1,4 +1,65 @@
-// ---------------------- 1. CONSTANTS & CONFIG ----------------------
+/*
+ * TODO Gemini 3
+ *
+ * - CSS: add on-hover styling for the keys.
+ * - Make sure notes are not displayed in the same place as the clef/key/time
+ *   signature. Right now, when the score moves left as the user plays notes,
+ *   the old played notes are drawn on top of the clefs/signatures.
+ * - Allow dragging the score left/right if there are more notes than fit in the
+ *   display. However, as soon as a note is played, immediately snap back to the
+ *   default position (the position as currently implemented).
+ * - In one browser, the music is displayed correctly. But in another, the clefs
+ *   are on the wrong lines, and the note stems are detached from note heads.
+ *   This suggests that different fonts can be used for the notehead/clef
+ *   symbols which affect the spacing. Can I automatically detect the size of
+ *   each symbol, regardless of the font used, and correct spacing accordingly?
+ *   If not, use manual drawing primitives (you may have do define small helper
+ *   functions to keep the code clean) for all the music rendering: clefs and
+ *   notes.
+ * - Right now quarter and eighth notes appear the same, but eighth notes should
+ *   get a flag.
+ * - Add support for dotted notes. For example, duration=1.5 means a dotted
+ *   whole note.
+ * - Add support for anacrusis.
+ * - In 4/4 time, group 4 eighth notes together with a shared flag
+ * - In addition to the correctness score, also display the lesson time, which
+ *   is the time from the first note played to the last. If the user stops
+ *   playing for longer (like 5 s), then pause the clock. When the lesson is
+ *   played to the last note, remember the total duration, and display a "final
+ *   judgment" message next to the score (as implemented in some helper function
+ *   that takes the score and duration, and makes a message): for example, a
+ *   checkmark and note saying "Well done!" if it went well, or "Try again ..."
+ *   if not so well.
+ * - Left align the title ("Continuo Trainer") and the lesson selector pulldown
+ *   menu. The settings bar (MIDI, Sound) should be positioned at the very upper
+ *   right side of the website (right aligned perfectly with the right edge of
+ *   the staff box and keyboard, and in the same line as the title), as is
+ *   common on simple websites. Later we'll add the user profile and maybe a
+ *   settings button (gear icon) in the same place. So: first row is title on
+ *   the left and settings on the right, second row is the lesson selector and
+ *   reset button, then there's the music staff box, and below the keyboard.
+ * - The lesson description should be displayed in the upper left corner of the
+ *   music staff box, while the score/duration should be in the upper right
+ *   corner, also inside the staff box.
+ * - Let's implement a very simple form of data storage: for each lesson,
+ *   remember the top score and shortest duration till completion. When
+ *   switching between lessons, load the appropriate top score for each of them.
+ *   For now, keep all this in memory.
+ * - We want to communicate all the notes pressed in each lesson for each user,
+ *   and the time at which the notes were pressed (offset from the first note
+ *   pressed in the lesson), for analysis and generating new user-specific
+ *   lessons. Suggest some ways of implementing that, both the communication of
+ *   the notes pressed and their backend data storage, and prioritize
+ *   simplest-to-implement things with fewest "frameworks", ideally just
+ *   standard plain vanilla JS and simple SQLite and Python etc.
+ * - Implement the simple backend that we will choose and it should be very
+ *   simple at the start: just remember each user and their top scores for each
+ *   lesson. How to login and authenticate with a minimum of fuss? None of this
+ *   is particularly security critical, it's just a simple music game. It should
+ *   be possible to play without any login, but to store/remember data, and
+ *   generate new custom lessons, the login would be needed.
+ */
+
 
 const CONFIG = {
    BEAT_SPACING_PX: 50,
@@ -8,7 +69,6 @@ const CONFIG = {
    KEY_WIDTH: 40
 };
 
-// Duration Code to Beats Map (4 = Quarter = 1 Beat)
 const DURATION_MAP = {
    0: 8, // Breve (Double Whole)
    1: 4, // Whole
@@ -35,10 +95,9 @@ const KEY_SCALES = {
    "7":  ['C#', 'D#', 'E#', 'F#', 'G#', 'A#', 'B#']
 };
 
-// Updated Lesson Data with new Duration codes
 const LESSONS = [
    {
-      id: "triads",
+      id: "l1",
       name: "Lesson 1: Root Position Triads",
       description: "Play the 3rd and 5th above the bass.",
       defaultKey: 0,
@@ -59,37 +118,96 @@ const LESSONS = [
          { bass: "C3", figure: "", duration: 1 } // Whole note
       ]
    },
+
    {
-      id: "inversion1",
-      name: "Lesson 2: First Inversion",
-      description: "The figure '6' indicates a first inversion chord.",
+      id: "l2",
+      name: "Lesson 2: Root Position Triads",
+      description: "Play the 3rd and 5th above the bass.",
       defaultKey: 1, // G Major
       timeSignature: [4, 4],
       sequence: [
-         { bass: "B2", figure: "6", duration: 2 },
-         { bass: "C3", figure: "6", duration: 2 },
-         { bass: "D3", figure: "6", duration: 2 },
-         { bass: "G2", figure: "", duration: 0 }
-      ]
-   },
-   {
-      id: "cadence",
-      name: "Lesson 3: Simple Cadence",
-      description: "I - IV - V - I progression.",
-      defaultKey: 0,
-      timeSignature: [3, 4],
-      sequence: [
-         { bass: "C3", figure: "", duration: 4 },
-         { bass: "F2", figure: "", duration: 4 },
          { bass: "G2", figure: "", duration: 4 },
-         { bass: "C3", figure: "", duration: 2 } // Dotted half logic? We'll use half for now, custom handling needed for dotted.
+         { bass: "G3", figure: "", duration: 4 },
+         { bass: "E3", figure: "", duration: 4 },
+         { bass: "C3", figure: "", duration: 4 },
+         { bass: "D3", figure: "", duration: 4 },
+         { bass: "B2", figure: "", duration: 4 },
+         { bass: "E3", figure: "", duration: 4 },
+         { bass: "A2", figure: "", duration: 4 },
+         { bass: "D3", figure: "", duration: 4 },
+         { bass: "G2", figure: "", duration: 4 },
+         { bass: "C3", figure: "", duration: 4 },
+         { bass: "A2", figure: "", duration: 4 },
+         { bass: "E3", figure: "", duration: 4 },
+         { bass: "C3", figure: "", duration: 4 },
+         { bass: "G3", figure: "", duration: 4 },
+         { bass: "E3", figure: "", duration: 4 },
+         { bass: "B3", figure: "", duration: 4 },
+         { bass: "G3", figure: "", duration: 4 },
+         { bass: "D4", figure: "", duration: 4 },
+         { bass: "D3", figure: "", duration: 4 },
+         { bass: "E3", figure: "", duration: 4 },
+         { bass: "C3", figure: "", duration: 4 },
+         { bass: "D3", figure: "", duration: 2 },
+         { bass: "G2", figure: "", duration: 1 }
       ]
    },
+
    {
-      id: "sevenths",
-      name: "Lesson 4: Dominant Sevenths",
-      description: "The figure '7' adds a 7th above the bass.",
-      defaultKey: 0,
+      id: "l3",
+      name: "Lesson 3: Root Position Triads",
+      description: "Play the 3rd and 5th above the bass.",
+      defaultKey: -1, // F major
+      timeSignature: [4, 4],
+      sequence: [
+         { bass: "F3", figure: "", duration: 8 },
+         { bass: "G3", figure: "", duration: 8 },
+         { bass: "F3", figure: "", duration: 8 },
+         { bass: "E3", figure: "", duration: 8 },
+         { bass: "D3", figure: "", duration: 8 },
+         { bass: "A3", figure: "", duration: 8 },
+         { bass: "D4", figure: "", duration: 8 },
+         { bass: "C4", figure: "", duration: 8 },
+         { bass: "Bb3", figure: "", duration: 8 },
+         { bass: "C4", figure: "", duration: 8 },
+         { bass: "Bb3", figure: "", duration: 8 },
+         { bass: "A3", figure: "", duration: 8 },
+         { bass: "G3", figure: "", duration: 8 },
+         { bass: "F3", figure: "", duration: 8 },
+         { bass: "G3", figure: "", duration: 8 },
+         { bass: "G2", figure: "", duration: 8 },
+         { bass: "C3", figure: "", duration: 8 },
+         { bass: "D3", figure: "", duration: 8 },
+         { bass: "C3", figure: "", duration: 8 },
+         { bass: "Bb2", figure: "", duration: 8 },
+         { bass: "A2", figure: "", duration: 8 },
+         { bass: "G2", figure: "", duration: 8 },
+         { bass: "F2", figure: "", duration: 8 },
+         { bass: "A2", figure: "", duration: 8 },
+         { bass: "Bb2", figure: "", duration: 8 },
+         { bass: "A2", figure: "", duration: 8 },
+         { bass: "G2", figure: "", duration: 8 },
+         { bass: "Bb2", figure: "", duration: 8 },
+         { bass: "C3", figure: "", duration: 8 },
+         { bass: "Bb2", figure: "", duration: 8 },
+         { bass: "A2", figure: "", duration: 8 },
+         { bass: "C3", figure: "", duration: 8 },
+         { bass: "D3", figure: "", duration: 8 },
+         { bass: "C3", figure: "", duration: 8 },
+         { bass: "D3", figure: "", duration: 8 },
+         { bass: "E3", figure: "", duration: 8 },
+         { bass: "F3", figure: "", duration: 4 },
+         { bass: "Bb2", figure: "", duration: 4 },
+         { bass: "C3", figure: "", duration: 2 },
+         { bass: "F2", figure: "", duration: 2 }
+      ]
+   },
+
+   {
+      id: "l4",
+      name: "Lesson 4: Triple time, Minor key, raised 7th",
+      description: "The figure '#' raises the 7th note.",
+      defaultKey: -1, // D minor
       timeSignature: [4, 4],
       sequence: [
          { bass: "C3", figure: "", duration: 2 },
@@ -98,8 +216,6 @@ const LESSONS = [
       ]
    }
 ];
-
-// ---------------------- 2. CLASSES ----------------------
 
 class AudioEngine {
    constructor() {
@@ -815,8 +931,6 @@ class Keyboard {
       });
    }
 }
-
-// ---------------------- 3. INITIALIZATION ----------------------
 
 window.addEventListener("DOMContentLoaded", () => {
    const audio = new AudioEngine();
