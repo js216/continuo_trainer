@@ -1,0 +1,58 @@
+/* General page */
+body {
+  font-family: sans-serif;
+  text-align: center;
+  margin: 20px;
+}
+
+.controls {
+  margin-bottom: 15px;
+}
+
+select {
+  padding: 5px;
+  font-size: 16px;
+}
+
+/* Canvas for staff and notes */
+canvas {
+  border: 1px solid black;
+  margin-bottom: 20px;
+}
+
+/* Scoreboard */
+#scoreboard {
+  font-size: 18px;
+  margin-bottom: 20px;
+}
+
+#keyboard {
+  position: relative;
+  margin: 0 auto;      /* center horizontally */
+  display: block;      /* ensure margin auto works */
+  height: 120px;       /* keep the same height */
+}
+
+.white-key {
+  background: #fff;
+  border: 1px solid #333;
+  box-sizing: border-box;
+  position: absolute;
+  z-index: 1;
+}
+
+.black-key {
+  background: #000;
+  border-radius: 0 0 4px 4px;
+  position: absolute;
+  z-index: 2;
+}
+
+.white-key:hover {
+  background: #eee;
+}
+
+.black-key:hover {
+  background: #444;
+  border-bottom: 2px solid #222;
+}
