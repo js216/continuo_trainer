@@ -18,7 +18,27 @@ practice.
 
 ### Stage 1 — Core Loop MVP
 
-- Lesson ID should be auto-generated and not part of the LESSONS list.
+- Since there's the description and score etc. text in the staff box, all the
+  music (staves, clefs, notes, continuo figures, etc) need to move down a bit.
+  Can we introduce a parameter like musicVertOffs (or a similar name) that
+  controls the offset of the music from the top of the staff box (canvas)?
+- The lesson description is shown top left above the music and this is great.
+  But as the first 5 or so notes are played, the description should fade away
+  such that by the time the 10th note is played, it has disappeared. Of course,
+  reset or going to next lesson etc should make it visible again.
+- When there's 8 notes in a measure (e.g., 8th notes in 4/4 time), and the first
+  note in the lesson has an accidental, that accidental appears to be cut off.
+  Is this because of the logic that prevents notes to be drawn on top of the
+  clefs/signatures? Either way, make sure the first accidental can be visible,
+  if necessary by moving all the notes a tiny bit to the right.
+- When key signature is F major (one flat), pressing B-flat on the on-screen or
+  midi keyboard should not draw an A-sharp! Check the keyboard-to-drawing logic
+  to make sure that the note shown in the staves is consistent with the key
+  signature (i.e., prefer the enharmonic note consistent with the key signature,
+  so that the accidental is not necessary).
+- Lesson ID should be auto-generated (maybe it could the SHA256 hash of lesson
+  title, description, and the note sequence content if that's not too hard?) and
+  not part of the LESSONS list.
 - Make sure to not reset the total lesson time when the 5-second timeout
   expires.
 - Remove hardcoded correctness checking and instead have the correct answer as a
@@ -51,16 +71,18 @@ practice.
 - When reaching the end of the lesson (last chord played), send the data to
   backend as before, and only if that worked successfully and the backend
   received the data correctly, overlay three large-ish square buttons on top of
-  the score: (1) Targeted practice (does nothing for now, will implement later,
-  so mark the button as "coming soon!" in the GUI), (2) Repeat faster/slower
-  (depending on if the score was good or bad, and when pressed, the lesson
-  resets with the new tempo); (3) Go to next lesson (when clicked, should be the
-  same effect as navigating to the next lesson using the pulldown menu).
+  the sheet music: (1) Targeted practice (does nothing for now, will implement
+  later, so mark the button as "coming soon!" in the GUI), (2) Repeat
+  faster/slower (depending on if the score was good or bad, and when pressed,
+  the lesson resets with the new tempo); (3) Go to next lesson (when clicked,
+  should be the same effect as navigating to the next lesson using the pulldown
+  menu).
 
 ### Stage 2 — Variable Rewards & Early Feedback
 
 - Targeted practice
 - Dark mode / light mode
+- Very low bass notes are inaudible, use a different timbre for them
 - Check for contrary motion, and specially flag parallel 5ths
 - Implement variable-ratio reward system (small/none/medium/jackpot)
 - Audio flourishes of varying lengths for rewards
@@ -83,6 +105,7 @@ practice.
 - Add leaderboard placeholders (local for MVP)
 - Refine variable-ratio jackpot probabilities
 - Audio/visual reward variety expansion
+- Make a favicon, choose domain
 
 ### Stage 5 — Longer Bass Lines & Flow Loops
 

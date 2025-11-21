@@ -1,13 +1,5 @@
-/*
- * continuo.js
- *
- * Refactored Frontend Logic:
- * - Replaced Unicode music fonts with Canvas 2D Primitives.
- * - Implemented 8th note beaming.
- */
-
 const CONFIG = {
-   BEAT_SPACING_PX: 60, // Slightly wider to accommodate beams
+   BEAT_SPACING_PX: 60,
    NOTE_HEAD_WIDTH: 14,
    NOTE_HEAD_HEIGHT: 9,
    STEM_HEIGHT: 35,
@@ -15,7 +7,6 @@ const CONFIG = {
    KEY_WIDTH: 40
 };
 
-// Updated Duration Map
 const DURATION_MAP = {
    0: 8,   // Breve (Double Whole)
    1: 4,   // Whole
@@ -347,30 +338,31 @@ class CanvasRenderer {
       ctx.strokeStyle = "#000";
       ctx.lineWidth = 1;
       const width = this.canvas.width;
+      const lineHorizOffset = 10;
 
       // Treble Staff
       for (let i = 0; i < this.numLines; i++) {
          const y = this.staffTop + i * this.lineSpacing;
-         ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(width, y); ctx.stroke();
+         ctx.beginPath(); ctx.moveTo(lineHorizOffset, y); ctx.lineTo(width, y); ctx.stroke();
       }
 
       // Bass Staff
       const bassTop = this.staffTop + this.staffGap;
       for (let i = 0; i < this.numLines; i++) {
          const y = bassTop + i * this.lineSpacing;
-         ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(width, y); ctx.stroke();
+         ctx.beginPath(); ctx.moveTo(lineHorizOffset, y); ctx.lineTo(width, y); ctx.stroke();
       }
 
       // Connect Staves (Brace)
       ctx.beginPath();
-      ctx.moveTo(10, this.staffTop);
-      ctx.lineTo(10, bassTop + (this.numLines - 1) * this.lineSpacing);
-      ctx.lineWidth = 2;
+      ctx.moveTo(lineHorizOffset, this.staffTop);
+      ctx.lineTo(lineHorizOffset, bassTop + (this.numLines - 1) * this.lineSpacing);
+      ctx.lineWidth = 1;
       ctx.stroke();
 
       // Draw Clefs
-      this.drawTrebleClef(30, this.staffTop);
-      this.drawBassClef(30, bassTop);
+      this.drawTrebleClef(lineHorizOffset + 30, this.staffTop);
+      this.drawBassClef(lineHorizOffset + 30, bassTop);
    }
 
    drawTrebleClef(x, staffTopY) {
@@ -491,7 +483,7 @@ class CanvasRenderer {
       const isSharp = num > 0;
       const count = Math.abs(num);
       const symbol = isSharp ? "#" : "b";
-      const xStart = 80;
+      const xStart = 90;
 
       const sharpNotesT = ['F5','C5','G5','D5','A4','E5','B4'];
       const sharpNotesB = ['F3','C3','G3','D3','A2','E3','B2'];
@@ -511,7 +503,7 @@ class CanvasRenderer {
    drawTimeSignature(timeSig, keySigCount) {
       if (!timeSig) return 100;
       const [num, den] = timeSig;
-      const x = 70 + (Math.abs(keySigCount) * 12) + 25;
+      const x = 80 + (Math.abs(keySigCount) * 12) + 25;
       const ctx = this.ctx;
 
       ctx.font = `bold ${this.lineSpacing * 2}px serif`;
