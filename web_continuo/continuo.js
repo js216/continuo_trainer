@@ -1,65 +1,6 @@
 /*
- * TODO Gemini 3
- *
- * - CSS: add on-hover styling for the keys.
- * - Make sure notes are not displayed in the same place as the clef/key/time
- *   signature. Right now, when the score moves left as the user plays notes,
- *   the old played notes are drawn on top of the clefs/signatures.
- * - Allow dragging the score left/right if there are more notes than fit in the
- *   display. However, as soon as a note is played, immediately snap back to the
- *   default position (the position as currently implemented).
- * - In one browser, the music is displayed correctly. But in another, the clefs
- *   are on the wrong lines, and the note stems are detached from note heads.
- *   This suggests that different fonts can be used for the notehead/clef
- *   symbols which affect the spacing. Can I automatically detect the size of
- *   each symbol, regardless of the font used, and correct spacing accordingly?
- *   If not, use manual drawing primitives (you may have do define small helper
- *   functions to keep the code clean) for all the music rendering: clefs and
- *   notes.
- * - Right now quarter and eighth notes appear the same, but eighth notes should
- *   get a flag.
- * - Add support for dotted notes. For example, duration=1.5 means a dotted
- *   whole note.
- * - Add support for anacrusis.
- * - In 4/4 time, group 4 eighth notes together with a shared flag
- * - In addition to the correctness score, also display the lesson time, which
- *   is the time from the first note played to the last. If the user stops
- *   playing for longer (like 5 s), then pause the clock. When the lesson is
- *   played to the last note, remember the total duration, and display a "final
- *   judgment" message next to the score (as implemented in some helper function
- *   that takes the score and duration, and makes a message): for example, a
- *   checkmark and note saying "Well done!" if it went well, or "Try again ..."
- *   if not so well.
- * - Left align the title ("Continuo Trainer") and the lesson selector pulldown
- *   menu. The settings bar (MIDI, Sound) should be positioned at the very upper
- *   right side of the website (right aligned perfectly with the right edge of
- *   the staff box and keyboard, and in the same line as the title), as is
- *   common on simple websites. Later we'll add the user profile and maybe a
- *   settings button (gear icon) in the same place. So: first row is title on
- *   the left and settings on the right, second row is the lesson selector and
- *   reset button, then there's the music staff box, and below the keyboard.
- * - The lesson description should be displayed in the upper left corner of the
- *   music staff box, while the score/duration should be in the upper right
- *   corner, also inside the staff box.
- * - Let's implement a very simple form of data storage: for each lesson,
- *   remember the top score and shortest duration till completion. When
- *   switching between lessons, load the appropriate top score for each of them.
- *   For now, keep all this in memory.
- * - We want to communicate all the notes pressed in each lesson for each user,
- *   and the time at which the notes were pressed (offset from the first note
- *   pressed in the lesson), for analysis and generating new user-specific
- *   lessons. Suggest some ways of implementing that, both the communication of
- *   the notes pressed and their backend data storage, and prioritize
- *   simplest-to-implement things with fewest "frameworks", ideally just
- *   standard plain vanilla JS and simple SQLite and Python etc.
- * - Implement the simple backend that we will choose and it should be very
- *   simple at the start: just remember each user and their top scores for each
- *   lesson. How to login and authenticate with a minimum of fuss? None of this
- *   is particularly security critical, it's just a simple music game. It should
- *   be possible to play without any login, but to store/remember data, and
- *   generate new custom lessons, the login would be needed.
+ * continuo.js
  */
-
 
 const CONFIG = {
    BEAT_SPACING_PX: 50,
@@ -217,6 +158,7 @@ const LESSONS = [
    }
 ];
 
+
 class AudioEngine {
    constructor() {
       this.ctx = null;
@@ -227,7 +169,7 @@ class AudioEngine {
       if (!this.ctx) {
          this.ctx = new (window.AudioContext || window.webkitAudioContext)();
          this.masterGain = this.ctx.createGain();
-         this.masterGain.gain.value = 0.3; 
+         this.masterGain.gain.value = 0.3;
          this.masterGain.connect(this.ctx.destination);
       }
       if (this.ctx.state === 'suspended') {
@@ -267,9 +209,9 @@ class CanvasRenderer {
       this.staffTop = 60;
       this.lineSpacing = CONFIG.LINE_SPACING;
       this.numLines = 5;
-      this.staffGap = 90; 
-      this.currentKeySig = 0; 
-      this.viewportOffsetX = 0; 
+      this.staffGap = 90;
+      this.currentKeySig = 0;
+      this.viewportOffsetX = 0;
    }
 
    resize() {
@@ -283,7 +225,7 @@ class CanvasRenderer {
    }
 
    getDiatonicRank(note) {
-      const noteName = note.replace(/[\d#b]+/, ''); 
+      const noteName = note.replace(/[\d#b]+/, '');
       const octave = parseInt(note.match(/-?\d+/)[0]);
       const ranks = { 'C': 0, 'D': 1, 'E': 2, 'F': 3, 'G': 4, 'A': 5, 'B': 6 };
       return (octave * 7) + ranks[noteName];
@@ -291,8 +233,8 @@ class CanvasRenderer {
 
    getNoteY(note, clef) {
       // Treble Ref: B4 (Center Line) | Bass Ref: D3 (Center Line)
-      const trebleRefRank = this.getDiatonicRank("B4"); 
-      const bassRefRank = this.getDiatonicRank("D3");   
+      const trebleRefRank = this.getDiatonicRank("B4");
+      const bassRefRank = this.getDiatonicRank("D3");
       const currentRank = this.getDiatonicRank(note);
 
       let baseLineY;
@@ -327,7 +269,7 @@ class CanvasRenderer {
          ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(width, y); ctx.stroke();
       }
 
-      // [POINT 6] Clef Alignment
+      // Clef Alignment
       // Treble Clef (G clef) centers on 2nd line from bottom (G line).
       // G line Y = staffTop + 3 * spacing.
       ctx.font = `${this.lineSpacing * 4}px serif`;
@@ -383,17 +325,16 @@ class CanvasRenderer {
          ctx.fillText(symbol, x, trebleMidY);
          ctx.fillText(symbol, x, bassMidY);
       } else {
-         const offset = this.lineSpacing; 
+         const offset = this.lineSpacing;
          ctx.font = `bold ${this.lineSpacing * 2}px serif`;
          ctx.fillText(num, x, trebleMidY - offset);
          ctx.fillText(den, x, trebleMidY + offset);
          ctx.fillText(num, x, bassMidY - offset);
          ctx.fillText(den, x, bassMidY + offset);
       }
-      return x + 40; 
+      return x + 40;
    }
 
-   // [POINT 7] End Barline
    drawEndBarline(x) {
       const ctx = this.ctx;
       if (x < 0 || x > this.canvas.width) return;
@@ -428,7 +369,6 @@ class CanvasRenderer {
       ctx.stroke();
    }
 
-   // [POINT 3] Unicode Noteheads & Stem Logic
    drawNote(note, x, clef, color = "black", durationCode = 4, alpha = 1.0) {
       const drawX = x - this.viewportOffsetX;
       // Cull if offscreen
@@ -453,27 +393,27 @@ class CanvasRenderer {
 
       // Visual Adjustment:
       // The unicode notehead needs to be shifted up slightly to sit centered on the line.
-      const visualY = y - (this.lineSpacing * 0.6); 
+      const visualY = y - (this.lineSpacing * 0.6);
 
       // Draw Notehead
-      ctx.fillText(glyph, drawX, visualY); 
+      ctx.fillText(glyph, drawX, visualY);
 
       // Draw Stem
       if (hasStem) {
          ctx.lineWidth = 1.5;
          ctx.beginPath();
 
-         const middleLineY = (clef === "treble") 
+         const middleLineY = (clef === "treble")
             ? (this.staffTop + 2 * this.lineSpacing)
             : (this.staffTop + this.staffGap + 2 * this.lineSpacing);
 
          // Stem Direction
          // y > middleLineY means lower pitch (physically lower on screen) -> Stem UP
-         const isUp = y > middleLineY; 
+         const isUp = y > middleLineY;
          const stemLen = CONFIG.STEM_HEIGHT;
 
          // Stem Offsets
-         const xOffset = isUp ? 3.2 : -3.2; 
+         const xOffset = isUp ? 3.2 : -3.2;
 
          const stemBaseY = visualY + 4;
          const stemTopY = stemBaseY - stemLen;    // Upwards direction
@@ -519,7 +459,7 @@ class CanvasRenderer {
       const keyNote = scale.find(n => n.startsWith(letter));
       const keyAcc = keyNote.includes('#') ? '#' : (keyNote.includes('b') ? 'b' : '');
 
-      if (acc === keyAcc) return null; 
+      if (acc === keyAcc) return null;
       if (acc === '#' && keyAcc !== '#') return '♯';
       if (acc === 'b' && keyAcc !== 'b') return '♭';
       if (acc === '' && keyAcc !== '') return '♮';
@@ -529,7 +469,7 @@ class CanvasRenderer {
    drawFigure(figure, x, note, clef) {
       const drawX = x - this.viewportOffsetX;
       if (drawX < -50 || drawX > this.canvas.width + 50) return;
-      const y = this.getNoteY(note, clef) + 45; 
+      const y = this.getNoteY(note, clef) + 45;
       this.ctx.font = `bold ${this.lineSpacing * 1.4}px serif`;
       this.ctx.textAlign = "center";
       this.ctx.fillStyle = "black";
@@ -537,7 +477,7 @@ class CanvasRenderer {
    }
 
    renderLessonState(lesson, currentStepIndex, userHistory, currentHeldNotes, correctionNotes) {
-      this.currentKeySig = lesson.defaultKey; 
+      this.currentKeySig = lesson.defaultKey;
       this.clear();
       this.drawStaves();
       this.drawKeySignature(lesson.defaultKey);
@@ -552,8 +492,8 @@ class CanvasRenderer {
       // First pass: positioning
       const stepsWithPos = lesson.sequence.map((step, index) => {
          const beats = DURATION_MAP[step.duration];
-         const width = beats * CONFIG.BEAT_SPACING_PX; 
-         const pos = cursorX + (width / 2); 
+         const width = beats * CONFIG.BEAT_SPACING_PX;
+         const pos = cursorX + (width / 2);
 
          if (index === currentStepIndex) activeNoteX = pos;
 
@@ -571,14 +511,10 @@ class CanvasRenderer {
          return { step: stepData, barlineX: barlineX, index: index };
       });
 
-      // [POINT 4] Continuous Smooth Scrolling
+      // Continuous Smooth Scrolling
       // Goal: activeNoteX - viewportOffsetX = 1/3 of screen width
       const targetScreenX = this.canvas.width / 3;
       const desiredOffset = activeNoteX - targetScreenX;
-
-      // Smoothly update viewportOffsetX or just snap? User said "jump... is good... but better by aiming to keep...".
-      // "Do not jump ... only when reaching end". "Aim to display 2-3 already played".
-      // We will use the calculated desiredOffset but clamp it so it doesn't go < 0.
       this.viewportOffsetX = Math.max(0, desiredOffset);
 
 
@@ -611,7 +547,7 @@ class CanvasRenderer {
                correctionNotes[index].forEach(note => {
                   const octave = parseInt(note.match(/-?\d+/)[0]);
                   const clef = octave >= 4 ? 'treble' : 'bass';
-                  this.drawNote(note, step.x + 15, clef, '#eab308', step.duration); 
+                  this.drawNote(note, step.x + 15, clef, '#eab308', step.duration);
                });
             }
          }
@@ -643,15 +579,22 @@ class LessonManager {
       this.audio = audio;
       this.currentLesson = null;
       this.currentStepIndex = 0;
-      this.history = []; 
-      this.corrections = {}; 
+      this.history = [];
+      this.corrections = {};
       this.score = 0;
+
+      // Timer variables
+      this.timerInterval = null;
+      this.startTime = 0;          // When the current "active" segment started
+      this.accumulatedTime = 0;    // Time banked from previous segments
+      this.lastActivityTime = 0;   // Timestamp of last user input
+      this.isPlaying = false;      // Is the timer currently ticking?
+      this.isFinished = false;     // Is the lesson complete?
    }
 
    loadLesson(lessonId) {
       const data = LESSONS.find(l => l.id === lessonId) || LESSONS[0];
-      this.currentLesson = JSON.parse(JSON.stringify(data)); 
-
+      this.currentLesson = JSON.parse(JSON.stringify(data));
       this.reset();
    }
 
@@ -661,13 +604,85 @@ class LessonManager {
       this.history = new Array(this.currentLesson.sequence.length).fill(null).map(() => []);
       this.corrections = {};
       this.score = 0;
-      this.renderer.viewportOffsetX = 0; 
+      this.renderer.viewportOffsetX = 0;
+
+      // Reset Timer
+      this.stopTimer();
+      this.accumulatedTime = 0;
+      this.startTime = 0;
+      this.lastActivityTime = 0;
+      this.isPlaying = false;
+      this.isFinished = false;
 
       document.getElementById("lessonDescription").textContent = this.currentLesson.description;
-      document.getElementById("scoreboard").textContent = `Score: 0`;
+      this.updateScoreboard();
 
       this.render();
       this.playBassForCurrentStep();
+   }
+
+   // Called by InputHandler whenever a user touches a key
+   notifyActivity() {
+      if (this.isFinished) return;
+
+      const now = Date.now();
+      this.lastActivityTime = now;
+
+      // If we were paused or haven't started, start/resume now
+      if (!this.isPlaying) {
+         this.isPlaying = true;
+         this.startTime = now;
+         this.startTimerLoop();
+      }
+   }
+
+   // Internal timer loop
+   startTimerLoop() {
+      if (this.timerInterval) clearInterval(this.timerInterval);
+      this.timerInterval = setInterval(() => this._tick(), 100);
+   }
+
+   stopTimer() {
+      if (this.timerInterval) clearInterval(this.timerInterval);
+      this.timerInterval = null;
+   }
+
+   // Main timer logic
+   _tick() {
+      if (!this.isPlaying || this.isFinished) return;
+
+      const now = Date.now();
+
+      // Check for 5-second timeout
+      // If 5 seconds passed since last input, we consider them "Stopped"
+      // at the moment of the last input.
+      if (now - this.lastActivityTime > 5000) {
+         this.isPlaying = false;
+         // Bank the time up to the last interaction, discard the idle time
+         this.accumulatedTime += (this.lastActivityTime - this.startTime);
+         this.updateScoreboard(true); // Force update to show "Paused" state if desired
+         return;
+      }
+
+      this.updateScoreboard();
+   }
+
+   getTotalTimeMS() {
+      if (!this.isPlaying) return this.accumulatedTime;
+      return this.accumulatedTime + (Date.now() - this.startTime);
+   }
+
+   formatTime(ms) {
+      const totalSeconds = Math.floor(ms / 1000);
+      const m = Math.floor(totalSeconds / 60);
+      const s = totalSeconds % 60;
+      return `${m}:${s.toString().padStart(2, '0')}`;
+   }
+
+   updateScoreboard(isPaused = false) {
+      const timeStr = this.formatTime(this.getTotalTimeMS());
+      const pausedText = (isPaused || (!this.isPlaying && this.accumulatedTime > 0 && !this.isFinished)) ? " (Paused)" : "";
+      document.getElementById("scoreboard").textContent = `Score: ${this.score} | Time: ${timeStr}${pausedText}`;
    }
 
    playBassForCurrentStep() {
@@ -675,7 +690,6 @@ class LessonManager {
       if (!this.currentLesson || this.currentStepIndex >= this.currentLesson.sequence.length) return;
 
       const step = this.currentLesson.sequence[this.currentStepIndex];
-      // Play longer for larger duration codes
       const durBeats = DURATION_MAP[step.duration];
       this.audio.playNote(step.bass, durBeats * 0.5, 'triangle');
    }
@@ -687,7 +701,7 @@ class LessonManager {
       let scaleIndex = scale.indexOf(bassLetter);
       if (scaleIndex === -1) scaleIndex = 0;
 
-      let intervals = [0, 2, 4]; 
+      let intervals = [0, 2, 4];
       if (figure === "6") intervals = [0, 2, 5];
       if (figure === "6/4") intervals = [0, 3, 5];
       if (figure === "7") intervals = [0, 2, 4, 6];
@@ -711,7 +725,7 @@ class LessonManager {
             usedClasses.add(nc);
          }
       });
-      return correction.slice(0, classes.length); 
+      return correction.slice(0, classes.length);
    }
 
    noteToMidiClass(noteName) {
@@ -746,21 +760,56 @@ class LessonManager {
          this.corrections[this.currentStepIndex] = this.generateCorrection(currentStep);
       }
 
-      document.getElementById("scoreboard").textContent = `Score: ${this.score}`;
-
+      // Check for Lesson Completion
       if (this.currentStepIndex < this.currentLesson.sequence.length - 1) {
          this.currentStepIndex++;
-         setTimeout(() => this.playBassForCurrentStep(), 500); 
+         this.updateScoreboard(); // Update immediately
+         setTimeout(() => this.playBassForCurrentStep(), 500);
+      } else {
+         // Lesson Finished
+         this.isFinished = true;
+         this.accumulatedTime = this.getTotalTimeMS(); // Finalize time
+         this.isPlaying = false;
+         this.stopTimer();
+         this.showFinalJudgment();
       }
 
       this.render();
    }
 
+   // Generates final message
+   showFinalJudgment() {
+      const totalSteps = this.currentLesson.sequence.length;
+      const maxScore = totalSteps * 10;
+      const accuracy = this.score / maxScore; // 0.0 to 1.0
+      const totalSeconds = this.accumulatedTime / 1000;
+      const secondsPerStep = totalSeconds / totalSteps;
+
+      let msg = "";
+      let icon = "";
+
+      if (accuracy >= 0.9) {
+         if (secondsPerStep < 3) {
+            icon = "🏆"; msg = "Masterful! Fast and accurate.";
+         } else {
+            icon = "✅"; msg = "Excellent accuracy! Try to play faster next time.";
+         }
+      } else if (accuracy >= 0.7) {
+         icon = "🙂"; msg = "Good job. Keep practicing to improve accuracy.";
+      } else {
+         icon = "⚠️"; msg = "Try again. Focus on hitting the right notes.";
+      }
+
+      const timeStr = this.formatTime(this.accumulatedTime);
+      document.getElementById("scoreboard").innerHTML =
+         `Score: ${this.score} | Time: ${timeStr} <span style="color:#2563eb; margin-left:15px;">${icon} ${msg}</span>`;
+   }
+
    render(currentHeldNotes = new Set()) {
       if (!this.currentLesson) return;
       this.renderer.renderLessonState(
-         this.currentLesson, 
-         this.currentStepIndex, 
+         this.currentLesson,
+         this.currentStepIndex,
          this.history,
          currentHeldNotes,
          this.corrections
@@ -777,6 +826,9 @@ class InputHandler {
    }
 
    handleNoteOn(note) {
+      // Notify manager of activity to trigger timer
+      this.manager.notifyActivity();
+
       if (document.getElementById("chkSoundUser").checked) {
          this.audio.playNote(note, 0.3, 'sine');
       }
@@ -816,7 +868,7 @@ class InputHandler {
       const [status, data1, data2] = msg.data;
       const command = status >> 4;
       const noteNum = data1;
-      const velocity = (data2 > 127) ? 127 : data2; 
+      const velocity = (data2 > 127) ? 127 : data2;
       const noteName = this.midiNumToNote(noteNum);
 
       if (command === 9 && velocity > 0) this.handleNoteOn(noteName);
@@ -831,7 +883,7 @@ class InputHandler {
 }
 
 class Keyboard {
-   // [POINT 2] Exact Width Keyboard
+   // Exact Width Keyboard
    static create(containerId, inputHandler) {
       const container = document.getElementById(containerId);
       const canvas = document.getElementById("sheet");
@@ -841,7 +893,7 @@ class Keyboard {
       container.style.width = `${width}px`;
       container.innerHTML = "";
 
-      // We want keys around C4 (Middle C). 
+      // We want keys around C4 (Middle C).
       // Let's define a fixed Key Width and calculate how many fit.
       const kWidth = CONFIG.KEY_WIDTH;
 
@@ -891,12 +943,6 @@ class Keyboard {
       };
 
       // Calculate start X so that C4 is at CenterX
-      // C4 is at offset 0.
-      // C4 left edge would be at...
-      // We want Center of C4 key to be at CenterX? Or Left edge? Usually keys are aligned.
-      // Let's put C4 roughly in middle.
-      // C4 is the element where offset=0.
-      // Its 'left' should be centerX - (kWidth/2).
       const c4Left = centerX - (kWidth / 2);
 
       whiteNotes.forEach(item => {
