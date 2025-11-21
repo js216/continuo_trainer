@@ -46,8 +46,8 @@ const KEY_SCALES = {
 const LESSONS = [
    {
       id: "l1",
-      name: "Lesson 1: Root Position Triads (Anacrusis)",
-      description: "Play the 3rd and 5th above the bass. (2-beat pickup)",
+      name: "Lesson 1: Root Position Triads",
+      description: "Play the 3rd and 5th above the bass.",
       defaultKey: 0,
       timeSignature: [4, 4],
       anacrusisBeats: 0,
@@ -491,7 +491,7 @@ class CanvasRenderer {
       const isSharp = num > 0;
       const count = Math.abs(num);
       const symbol = isSharp ? "#" : "b";
-      const xStart = 60;
+      const xStart = 80;
 
       const sharpNotesT = ['F5','C5','G5','D5','A4','E5','B4'];
       const sharpNotesB = ['F3','C3','G3','D3','A2','E3','B2'];
