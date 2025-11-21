@@ -24,9 +24,38 @@ body {
   padding: 0 5px;
 }
 
+.header-right {
+  display: flex;
+  gap: 20px;
+  align-items: center;
+}
+
 h1 {
   margin: 0;
   font-size: 28px;
+}
+
+/* User Control */
+.user-control {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 14px;
+  background: #e5e7eb;
+  padding: 5px 10px;
+  border-radius: 4px;
+  border: 1px solid #ccc;
+}
+
+#userDisplay {
+  font-weight: bold;
+  color: #374151;
+  font-family: monospace;
+}
+
+.small-btn {
+  padding: 2px 6px;
+  font-size: 11px;
 }
 
 .settings-group {
@@ -48,10 +77,7 @@ h1 {
 /* Controls Row */
 .controls-row {
   display: flex;
-  justify-content: flex-start; /* Left aligned as requested? Or center? Prompt said 'Lesson selector' in 2nd row */
-  /* Prompt said "Left align the title ... The settings bar ... right aligned". 
-     "second row is the lesson selector ... then there's the music staff box" */
-  /* Usually controls are left aligned to match title flow, or centered. I'll stick to left to match title. */
+  justify-content: flex-start;
   margin-bottom: 15px;
   padding: 0 5px;
 }
@@ -77,13 +103,13 @@ button.active { background-color: #bfdbfe; border-color: #3b82f6; }
 
 /* Canvas Container */
 .canvas-container {
-  width: 100%; /* Fills the max-width 1200 layout */
+  width: 100%;
   height: 280px;
   margin-bottom: 20px;
   background-color: #fff;
   box-shadow: 0 4px 6px rgba(0,0,0,0.1);
   border: 1px solid black;
-  position: relative; /* Anchor for absolute overlays */
+  position: relative;
 }
 
 canvas {
@@ -121,9 +147,9 @@ canvas:active { cursor: grabbing; }
 /* Keyboard Container */
 #keyboard {
   position: relative;
-  width: 100%; /* Will be forced by JS but good default */
+  width: 100%;
   height: 120px;
-  touch-action: none; 
+  touch-action: none;
   overflow: hidden;
   border-top: 1px solid #ccc;
 }

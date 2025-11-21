@@ -10,7 +10,7 @@ const CONFIG = {
    KEY_WIDTH: 40
 };
 
-// Updated Duration Map including Dotted Whole (1.5 -> 6 beats)
+// Updated Duration Map including Dotted Whole
 const DURATION_MAP = {
    0: 8,   // Breve
    1: 4,   // Whole
@@ -160,6 +160,91 @@ const LESSONS = [
    }
 ];
 
+// --- AUTH & LOGGING ---
+
+class SessionManager {
+   constructor() {
+      this.userId = localStorage.getItem('continuo_user_id');
+      this.eventLog = [];
+      this.currentLessonId = null;
+
+      this.initAuth();
+   }
+
+   initAuth() {
+      if (!this.userId) {
+         this.userId = 'user-' + Math.random().toString(36).substr(2, 6);
+         localStorage.setItem('continuo_user_id', this.userId);
+         this.registerUser(this.userId); // Fire and forget
+      }
+      this.updateDisplay();
+
+      // UI Handler
+      document.getElementById('loginBtn').addEventListener('click', () => {
+         const input = prompt("Enter User ID (or leave empty for new):");
+         if (input !== null) {
+            if (input.trim() === "") {
+               this.userId = 'user-' + Math.random().toString(36).substr(2, 6);
+            } else {
+               this.userId = input.trim();
+            }
+            localStorage.setItem('continuo_user_id', this.userId);
+            this.registerUser(this.userId);
+            this.updateDisplay();
+         }
+      });
+   }
+
+   updateDisplay() {
+      document.getElementById('userDisplay').textContent = this.userId;
+   }
+
+   registerUser(uid) {
+      fetch('/api/login', {
+         method: 'POST',
+         headers: {'Content-Type': 'application/json'},
+         body: JSON.stringify({ userId: uid })
+      }).catch(e => console.error("Login sync failed", e));
+   }
+
+   startLesson(lessonId) {
+      this.currentLessonId = lessonId;
+      this.eventLog = [];
+   }
+
+   logEvent(timestamp, type, data) {
+      this.eventLog.push({ t: Math.floor(timestamp), type, ...data });
+   }
+
+   flushLog(totalDuration, score) {
+      if (this.eventLog.length === 0) return;
+
+      const payload = {
+         userId: this.userId,
+         lessonId: this.currentLessonId,
+         totalDuration: Math.floor(totalDuration),
+         score: score,
+         events: this.eventLog
+      };
+
+      console.log("Saving log...", payload);
+
+      // Send to Python Backend
+      fetch('/api/log', {
+         method: 'POST',
+         headers: {'Content-Type': 'application/json'},
+         body: JSON.stringify(payload)
+      }).then(res => res.json())
+        .then(d => console.log("Log saved:", d))
+        .catch(e => console.error("Logging failed", e));
+
+      // Clear after send? Or keep until next startLesson?
+      // Keeping until next start ensures we don't send partials
+   }
+}
+
+// --- ENGINE ---
+
 class AudioEngine {
    constructor() {
       this.ctx = null;
@@ -257,12 +342,10 @@ class CanvasRenderer {
       ctx.fillStyle = "#000";
       const width = this.canvas.width;
 
-      // Treble Staff
       for (let i = 0; i < this.numLines; i++) {
          const y = this.staffTop + i * this.lineSpacing;
          ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(width, y); ctx.stroke();
       }
-      // Bass Staff
       const bassTop = this.staffTop + this.staffGap;
       for (let i = 0; i < this.numLines; i++) {
          const y = bassTop + i * this.lineSpacing;
@@ -336,7 +419,6 @@ class CanvasRenderer {
    drawEndBarline(x) {
       const ctx = this.ctx;
       if (x < 0 || x > this.canvas.width) return;
-
       const topY = this.staffTop;
       const botY = this.staffTop + this.staffGap + (this.numLines - 1) * this.lineSpacing;
 
@@ -357,7 +439,6 @@ class CanvasRenderer {
       ctx.stroke();
    }
 
-   // Updated drawNote with support for Dots, Flags, and Beaming Geometry
    drawNote(note, x, clef, color = "black", durationCode = 4, alpha = 1.0, isBeamed = false) {
       const drawX = x - this.viewportOffsetX;
       if (drawX < -100 || drawX > this.canvas.width + 100) return null;
@@ -372,19 +453,10 @@ class CanvasRenderer {
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
 
-      // Decode Duration and Features
-      let glyph = "𝅘"; // Default Filled (Quarter, Eighth)
+      let glyph = "𝅘";
       let hasStem = true;
       let showDot = false;
       let isHollow = false;
-
-      // Logic:
-      // 0 = Breve
-      // 1 = Whole
-      // 1.5 = Dotted Whole
-      // 2 = Half
-      // 4 = Quarter
-      // 8 = Eighth
 
       if (durationCode === 1.5) {
          glyph = "𝅝"; hasStem = false; showDot = true; isHollow = true;
@@ -395,62 +467,43 @@ class CanvasRenderer {
       else if (durationCode === 4) { glyph = "𝅘"; hasStem = true; }
       else if (durationCode === 8) { glyph = "𝅘"; hasStem = true; }
 
-      // Visual Adjustment
       const visualY = y - (this.lineSpacing * 0.6);
-
-      // Draw Notehead
       ctx.fillText(glyph, drawX, visualY);
 
-      // Draw Dot
       if (showDot) {
          ctx.beginPath();
-         // Position dot to the right.
-         // If note is on a line, dot goes in space above?
-         // Simple impl: just right of note
          ctx.arc(drawX + 22, visualY, 3, 0, Math.PI * 2);
          ctx.fill();
       }
 
-      // Return Data for Beaming
       const middleLineY = (clef === "treble")
             ? (this.staffTop + 2 * this.lineSpacing)
             : (this.staffTop + this.staffGap + 2 * this.lineSpacing);
       const isUp = y > middleLineY;
       let stemTipY = visualY;
 
-      // Draw Stem
       if (hasStem) {
          ctx.lineWidth = 1.5;
          ctx.beginPath();
          const stemLen = CONFIG.STEM_HEIGHT;
-         const xOffset = isUp ? 3.2 : -3.2; // Right side if up, Left if down?
-         // Standard: Stem UP is on Right. Stem DOWN is on Left.
+         const xOffset = isUp ? 3.2 : -3.2;
+         const stemBaseY = visualY + (isHollow ? 0 : 4);
 
-         const stemBaseY = visualY + (isHollow ? 0 : 4); // tweak for filled vs hollow
-
-         const stemTopY = stemBaseY - stemLen;    // Upwards direction
-         const stemBotY = stemBaseY + stemLen;    // Downwards direction
+         const stemTopY = stemBaseY - stemLen;
+         const stemBotY = stemBaseY + stemLen;
 
          ctx.moveTo(drawX + xOffset, stemBaseY);
-
-         // If beamed, the stem length might be extended by the beam renderer later?
-         // For now, draw standard stem, and beam renderer will draw over or connect.
-         // Actually for beaming, we want the stem to reach the beam.
-         // We'll draw standard length here.
-
          const endY = isUp ? stemTopY : stemBotY;
          ctx.lineTo(drawX + xOffset, endY);
          ctx.stroke();
 
          stemTipY = endY;
 
-         // Draw Flag (Only for 8th, IF NOT BEAMED)
          if (durationCode === 8 && !isBeamed) {
              this.drawFlag(drawX + xOffset, endY, isUp);
          }
       }
 
-      // Ledger Lines
       const topLineY = clef === "treble" ? this.staffTop : this.staffTop + this.staffGap;
       const bottomLineY = topLineY + (this.numLines - 1) * this.lineSpacing;
       const ledgerWidth = 24;
@@ -474,15 +527,11 @@ class CanvasRenderer {
    drawFlag(x, y, isUp) {
       const ctx = this.ctx;
       ctx.beginPath();
-      // Simple quadratic curves for flags
       if (isUp) {
-         // Stem is UP, Flag hangs down to the right
          ctx.moveTo(x, y);
          ctx.quadraticCurveTo(x + 10, y + 10, x + 6, y + 35);
          ctx.stroke();
       } else {
-         // Stem is DOWN, Flag goes up to the right (usually)
-         // Actually, standard font flag is used in some apps, but drawing manually:
          ctx.moveTo(x, y);
          ctx.quadraticCurveTo(x + 10, y - 10, x + 6, y - 35);
          ctx.stroke();
@@ -492,20 +541,14 @@ class CanvasRenderer {
    drawBeams(beamGroups) {
       if (!beamGroups || beamGroups.length === 0) return;
       const ctx = this.ctx;
-      ctx.lineWidth = 5; // Beam thickness
+      ctx.lineWidth = 5;
 
       beamGroups.forEach(group => {
-         // Filter out notes that were culled (returned null)
          const validNotes = group.notes.filter(n => n !== null);
          if (validNotes.length < 2) return;
 
          const first = validNotes[0];
          const last = validNotes[validNotes.length - 1];
-
-         // Determine Beam Y
-         // Simple approach: Horizontal beam at the highest stem tip (for Up stems) or lowest (for Down)
-         // Or average.
-         // Let's use the first note's stem tip as anchor for simplicity in this Trainer
          const beamY = first.y;
 
          ctx.beginPath();
@@ -513,7 +556,6 @@ class CanvasRenderer {
          ctx.lineTo(last.x, beamY);
          ctx.stroke();
 
-         // Extend/Shorten stems to touch the beam
          ctx.lineWidth = 1.5;
          validNotes.forEach(note => {
             if (Math.abs(note.y - beamY) > 1) {
@@ -560,12 +602,10 @@ class CanvasRenderer {
       const beatsPerMeasure = lesson.timeSignature[0];
       let activeNoteX = 0;
 
-      // 1. Position Calculation
       const stepsWithPos = lesson.sequence.map((step, index) => {
-         // duration code -> beats
          let beats = 1;
          if (DURATION_MAP[step.duration]) beats = DURATION_MAP[step.duration];
-         else beats = 4; // Fallback
+         else beats = 4;
 
          const width = beats * CONFIG.BEAT_SPACING_PX;
          const pos = cursorX + (width / 2);
@@ -585,7 +625,6 @@ class CanvasRenderer {
          return { step: stepData, barlineX: barlineX, index: index };
       });
 
-      // 2. Viewport
       if (manualScrollX !== null) {
          this.viewportOffsetX = manualScrollX;
       } else {
@@ -594,7 +633,6 @@ class CanvasRenderer {
          this.viewportOffsetX = Math.max(0, desiredOffset);
       }
 
-      // 3. Draw Header
       this.ctx.save();
       this.ctx.beginPath();
       this.ctx.rect(0, 0, contentStartX, this.canvas.height);
@@ -604,7 +642,6 @@ class CanvasRenderer {
       this.drawTimeSignature(lesson.timeSignature, lesson.defaultKey);
       this.ctx.restore();
 
-      // 4. Draw Content
       this.ctx.save();
       this.ctx.beginPath();
       this.ctx.rect(contentStartX, 0, this.canvas.width - contentStartX, this.canvas.height);
@@ -612,9 +649,6 @@ class CanvasRenderer {
 
       this.drawStaves();
 
-      // Beam Detection Logic
-      // Only for 4/4 time and 8th notes (duration code 8)
-      // Group strictly in chunks of 4 for simplicity
       const beamGroupsToDraw = [];
       const beamedIndices = new Set();
 
@@ -625,7 +659,6 @@ class CanvasRenderer {
             if (s.step.duration === 8) {
                buffer.push(s);
                if (buffer.length === 4) {
-                  // Found a quad group
                   beamGroupsToDraw.push({ steps: [...buffer], notes: [] });
                   buffer.forEach(b => beamedIndices.add(b.index));
                   buffer = [];
@@ -636,7 +669,6 @@ class CanvasRenderer {
          }
       }
 
-      // Draw Notes
       stepsWithPos.forEach((item) => {
          const { step, barlineX, index } = item;
 
@@ -649,10 +681,8 @@ class CanvasRenderer {
          }
 
          const isBeamed = beamedIndices.has(index);
-         // drawNote returns {x, y, isUp} for beam rendering
          const noteGeom = this.drawNote(step.bass, step.x, "bass", "black", step.duration, 1.0, isBeamed);
 
-         // If part of a beam group, store geometry
          if (isBeamed && noteGeom) {
             const group = beamGroupsToDraw.find(g => g.steps.includes(item));
             if (group) group.notes.push(noteGeom);
@@ -694,7 +724,6 @@ class CanvasRenderer {
          }
       });
 
-      // Draw Beams
       this.drawBeams(beamGroupsToDraw);
 
       this.ctx.restore();
@@ -702,9 +731,10 @@ class CanvasRenderer {
 }
 
 class LessonManager {
-   constructor(renderer, audio) {
+   constructor(renderer, audio, session) {
       this.renderer = renderer;
       this.audio = audio;
+      this.session = session;
       this.currentLesson = null;
       this.currentStepIndex = 0;
       this.history = [];
@@ -738,6 +768,9 @@ class LessonManager {
       this.lastActivityTime = 0;
       this.isPlaying = false;
       this.isFinished = false;
+
+      // Log the reset as a new attempt start
+      this.session.startLesson(this.currentLesson.id);
 
       document.getElementById("lessonDescription").textContent = this.currentLesson.description;
       this.updateScoreboard();
@@ -784,6 +817,13 @@ class LessonManager {
       return this.accumulatedTime + (Date.now() - this.startTime);
    }
 
+   // Return just the offset for logging
+   getSessionTime() {
+      if (!this.isPlaying && this.accumulatedTime === 0) return 0;
+      if (!this.isPlaying) return this.accumulatedTime;
+      return this.accumulatedTime + (Date.now() - this.startTime);
+   }
+
    formatTime(ms) {
       const totalSeconds = Math.floor(ms / 1000);
       const m = Math.floor(totalSeconds / 60);
@@ -802,10 +842,6 @@ class LessonManager {
       if (!this.currentLesson || this.currentStepIndex >= this.currentLesson.sequence.length) return;
 
       const step = this.currentLesson.sequence[this.currentStepIndex];
-      // duration lookup might return beats. 0.5 * beats is usually seconds for playback?
-      // Original code: DURATION_MAP[step.duration] returns Beats.
-      // playNote(note, durationSec).
-      // If 4/4, 1 beat ~ 0.5 sec? Let's keep logic simple.
       const durBeats = DURATION_MAP[step.duration] || 1;
       this.audio.playNote(step.bass, durBeats * 0.5, 'triangle');
    }
@@ -870,11 +906,19 @@ class LessonManager {
 
       this.history[this.currentStepIndex] = stepResult;
 
-      if (allCorrect && notesPlayed.length > 0) {
+      const isSuccess = (allCorrect && notesPlayed.length > 0);
+      if (isSuccess) {
          this.score += 10;
       } else {
          this.corrections[this.currentStepIndex] = this.generateCorrection(currentStep);
       }
+
+      // Log Submission
+      this.session.logEvent(this.getSessionTime(), "submit", {
+         stepIndex: this.currentStepIndex,
+         notes: notesPlayed,
+         correct: isSuccess
+      });
 
       if (this.currentStepIndex < this.currentLesson.sequence.length - 1) {
          this.currentStepIndex++;
@@ -885,6 +929,8 @@ class LessonManager {
          this.accumulatedTime = this.getTotalTimeMS();
          this.isPlaying = false;
          this.stopTimer();
+         // Save to DB
+         this.session.flushLog(this.accumulatedTime, this.score);
          this.showFinalJudgment();
       }
 
@@ -942,6 +988,9 @@ class InputHandler {
    handleNoteOn(note) {
       this.manager.notifyActivity();
 
+      // Log RAW event
+      this.manager.session.logEvent(this.manager.getSessionTime(), "noteOn", { note: note });
+
       if (document.getElementById("chkSoundUser").checked) {
          this.audio.playNote(note, 0.3, 'sine');
       }
@@ -953,6 +1002,9 @@ class InputHandler {
    }
 
    handleNoteOff(note) {
+      // Log RAW event
+      this.manager.session.logEvent(this.manager.getSessionTime(), "noteOff", { note: note });
+
       this.heldNotes.delete(note);
       this.manager.render(this.heldNotes);
       this.updateKeyboardUI();
@@ -1073,16 +1125,16 @@ class Keyboard {
 }
 
 window.addEventListener("DOMContentLoaded", () => {
+   const session = new SessionManager();
    const audio = new AudioEngine();
    const canvas = document.getElementById("sheet");
    const renderer = new CanvasRenderer(canvas);
-   const manager = new LessonManager(renderer, audio);
+   const manager = new LessonManager(renderer, audio, session);
    const inputHandler = new InputHandler(manager, audio);
 
    renderer.resize();
    Keyboard.create("keyboard", inputHandler);
 
-   // Dragging Logic
    let isDragging = false;
    let startDragX = 0;
    let startScrollX = 0;

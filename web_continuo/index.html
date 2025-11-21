@@ -10,13 +10,20 @@
   <div class="main-layout">
     <header class="header-row">
       <h1>Continuo Trainer</h1>
-      
-      <div class="settings-group">
-        <button id="midiBtn">Connect MIDI</button>
-        <div class="sound-controls">
-          <span>Sound:</span>
-          <label><input type="checkbox" id="chkSoundBass"> Bass</label>
-          <label><input type="checkbox" id="chkSoundUser" checked> User</label>
+
+      <div class="header-right">
+        <div class="user-control">
+          <span id="userDisplay">Guest</span>
+          <button id="loginBtn" class="small-btn">Switch User</button>
+        </div>
+
+        <div class="settings-group">
+          <button id="midiBtn">Connect MIDI</button>
+          <div class="sound-controls">
+            <span>Sound:</span>
+            <label><input type="checkbox" id="chkSoundBass"> Bass</label>
+            <label><input type="checkbox" id="chkSoundUser" checked> User</label>
+          </div>
         </div>
       </div>
     </header>
