@@ -106,12 +106,6 @@ practice.
 
 ### TODO
 
-- Make sure notes are not displayed in the same place as the clef/key/time
-  signature. Right now, when the score moves left as the user plays notes,
-  the old played notes are drawn on top of the clefs/signatures.
-- Allow dragging the score left/right if there are more notes than fit in the
-  display. However, as soon as a note is played, immediately snap back to the
-  default position (the position as currently implemented).
 - In one browser, the music is displayed correctly. But in another, the clefs
   are on the wrong lines, and the note stems are detached from note heads.
   This suggests that different fonts can be used for the notehead/clef

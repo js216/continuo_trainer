@@ -332,7 +332,12 @@ class CanvasRenderer {
          ctx.fillText(num, x, bassMidY - offset);
          ctx.fillText(den, x, bassMidY + offset);
       }
-      return x + 40;
+   }
+
+   // Calculates the pixel width of the fixed header (clefs + key sig + time sig)
+   getHeaderWidth(keySigCount) {
+      // 60 (clef base) + keySigWidth + 25 (spacing) + 40 (approx time sig width)
+      return 60 + (Math.abs(keySigCount) * 14) + 25 + 40;
    }
 
    drawEndBarline(x) {
@@ -371,8 +376,8 @@ class CanvasRenderer {
 
    drawNote(note, x, clef, color = "black", durationCode = 4, alpha = 1.0) {
       const drawX = x - this.viewportOffsetX;
-      // Cull if offscreen
-      if (drawX < -50 || drawX > this.canvas.width + 50) return;
+      // Cull if offscreen (expanded range slightly to prevent popping)
+      if (drawX < -100 || drawX > this.canvas.width + 100) return;
 
       const y = this.getNoteY(note, clef);
       const ctx = this.ctx;
@@ -392,7 +397,6 @@ class CanvasRenderer {
       if (durationCode === 0) { glyph = "𝅜"; hasStem = false; } // Breve
 
       // Visual Adjustment:
-      // The unicode notehead needs to be shifted up slightly to sit centered on the line.
       const visualY = y - (this.lineSpacing * 0.6);
 
       // Draw Notehead
@@ -407,12 +411,8 @@ class CanvasRenderer {
             ? (this.staffTop + 2 * this.lineSpacing)
             : (this.staffTop + this.staffGap + 2 * this.lineSpacing);
 
-         // Stem Direction
-         // y > middleLineY means lower pitch (physically lower on screen) -> Stem UP
          const isUp = y > middleLineY;
          const stemLen = CONFIG.STEM_HEIGHT;
-
-         // Stem Offsets
          const xOffset = isUp ? 3.2 : -3.2;
 
          const stemBaseY = visualY + 4;
@@ -468,7 +468,7 @@ class CanvasRenderer {
 
    drawFigure(figure, x, note, clef) {
       const drawX = x - this.viewportOffsetX;
-      if (drawX < -50 || drawX > this.canvas.width + 50) return;
+      if (drawX < -100 || drawX > this.canvas.width + 100) return;
       const y = this.getNoteY(note, clef) + 45;
       this.ctx.font = `bold ${this.lineSpacing * 1.4}px serif`;
       this.ctx.textAlign = "center";
@@ -476,20 +476,18 @@ class CanvasRenderer {
       this.ctx.fillText(figure, drawX, y);
    }
 
-   renderLessonState(lesson, currentStepIndex, userHistory, currentHeldNotes, correctionNotes) {
+   renderLessonState(lesson, currentStepIndex, userHistory, currentHeldNotes, correctionNotes, manualScrollX = null) {
       this.currentKeySig = lesson.defaultKey;
       this.clear();
-      this.drawStaves();
-      this.drawKeySignature(lesson.defaultKey);
 
-      const contentStartX = this.drawTimeSignature(lesson.timeSignature, lesson.defaultKey);
-
+      // Determine Layout Geometry
+      const contentStartX = this.getHeaderWidth(lesson.defaultKey);
       let cursorX = contentStartX;
       let currentMeasureBeats = 0;
       const beatsPerMeasure = lesson.timeSignature[0];
       let activeNoteX = 0;
 
-      // First pass: positioning
+      // 1. Position Calculation Pass
       const stepsWithPos = lesson.sequence.map((step, index) => {
          const beats = DURATION_MAP[step.duration];
          const width = beats * CONFIG.BEAT_SPACING_PX;
@@ -502,7 +500,6 @@ class CanvasRenderer {
          currentMeasureBeats += beats;
 
          let barlineX = null;
-         // Simple measure logic: if measure full, draw line.
          if (Math.abs(currentMeasureBeats - beatsPerMeasure) < 0.01 || currentMeasureBeats > beatsPerMeasure) {
             barlineX = cursorX;
             currentMeasureBeats = 0;
@@ -511,20 +508,46 @@ class CanvasRenderer {
          return { step: stepData, barlineX: barlineX, index: index };
       });
 
-      // Continuous Smooth Scrolling
-      // Goal: activeNoteX - viewportOffsetX = 1/3 of screen width
-      const targetScreenX = this.canvas.width / 3;
-      const desiredOffset = activeNoteX - targetScreenX;
-      this.viewportOffsetX = Math.max(0, desiredOffset);
+      // 2. Determine Viewport Offset (Scrolling)
+      if (manualScrollX !== null) {
+         // User is dragging
+         this.viewportOffsetX = manualScrollX;
+      } else {
+         // Auto-snap to active note
+         const targetScreenX = this.canvas.width / 3;
+         const desiredOffset = activeNoteX - targetScreenX;
+         this.viewportOffsetX = Math.max(0, desiredOffset);
+      }
 
+      // 3. Draw Fixed Header (Left Side)
+      // We clip to the header area so lines are sharp, then draw staves and signatures.
+      this.ctx.save();
+      this.ctx.beginPath();
+      this.ctx.rect(0, 0, contentStartX, this.canvas.height);
+      this.ctx.clip();
 
-      // Second pass: Draw
+      this.drawStaves(); // Draws full width, but clipped to header area
+      this.drawKeySignature(lesson.defaultKey);
+      this.drawTimeSignature(lesson.timeSignature, lesson.defaultKey);
+
+      this.ctx.restore();
+
+      // 4. Draw Scrolling Content (Right Side)
+      // We clip everything else to start AFTER the header, so notes disappear behind it
+      this.ctx.save();
+      this.ctx.beginPath();
+      this.ctx.rect(contentStartX, 0, this.canvas.width - contentStartX, this.canvas.height);
+      this.ctx.clip();
+
+      this.drawStaves(); // Draw staves again for the scrolling region
+
       stepsWithPos.forEach((item) => {
          const { step, barlineX, index } = item;
 
          // Highlight active
          if (index === currentStepIndex) {
             const drawX = step.x - (step.width/2) - this.viewportOffsetX;
+            // Draw highlight if somewhat on screen
             if (drawX > -100 && drawX < this.canvas.width) {
                this.ctx.fillStyle = "rgba(255, 255, 0, 0.2)";
                this.ctx.fillRect(drawX, 0, step.width, this.canvas.height);
@@ -562,7 +585,6 @@ class CanvasRenderer {
          }
 
          if (barlineX) {
-            // Check if it's the very last barline of the piece
             if (index === stepsWithPos.length - 1) {
                this.drawEndBarline(barlineX - this.viewportOffsetX);
             } else {
@@ -570,6 +592,8 @@ class CanvasRenderer {
             }
          }
       });
+
+      this.ctx.restore();
    }
 }
 
@@ -774,7 +798,7 @@ class LessonManager {
          this.showFinalJudgment();
       }
 
-      this.render();
+      this.render(); // Will trigger snap back via renderLessonState defaults
    }
 
    // Generates final message
@@ -805,14 +829,15 @@ class LessonManager {
          `Score: ${this.score} | Time: ${timeStr} <span style="color:#2563eb; margin-left:15px;">${icon} ${msg}</span>`;
    }
 
-   render(currentHeldNotes = new Set()) {
+   render(currentHeldNotes = new Set(), manualScrollX = null) {
       if (!this.currentLesson) return;
       this.renderer.renderLessonState(
          this.currentLesson,
          this.currentStepIndex,
          this.history,
          currentHeldNotes,
-         this.corrections
+         this.corrections,
+         manualScrollX
       );
    }
 }
@@ -834,6 +859,8 @@ class InputHandler {
       }
       this.heldNotes.add(note);
       this.chordBuffer.add(note);
+
+      // When playing a note, we do NOT pass a manual offset, forcing a snap-back.
       this.manager.render(this.heldNotes);
       this.updateKeyboardUI();
    }
@@ -987,6 +1014,41 @@ window.addEventListener("DOMContentLoaded", () => {
 
    renderer.resize();
    Keyboard.create("keyboard", inputHandler);
+
+   // --- Dragging Logic ---
+   let isDragging = false;
+   let startDragX = 0;
+   let startScrollX = 0;
+
+   const startDrag = (x) => {
+      isDragging = true;
+      startDragX = x;
+      startScrollX = renderer.viewportOffsetX;
+      canvas.style.cursor = 'grabbing';
+   };
+
+   const moveDrag = (x) => {
+      if (!isDragging) return;
+      const delta = startDragX - x;
+      const newOffset = Math.max(0, startScrollX + delta);
+      // Pass the manual offset to manager.render
+      manager.render(inputHandler.heldNotes, newOffset);
+   };
+
+   const endDrag = () => {
+      isDragging = false;
+      canvas.style.cursor = 'grab';
+   };
+
+   // Mouse
+   canvas.addEventListener('mousedown', (e) => startDrag(e.clientX));
+   window.addEventListener('mousemove', (e) => moveDrag(e.clientX));
+   window.addEventListener('mouseup', endDrag);
+
+   // Touch
+   canvas.addEventListener('touchstart', (e) => startDrag(e.touches[0].clientX), {passive: false});
+   window.addEventListener('touchmove', (e) => moveDrag(e.touches[0].clientX), {passive: false});
+   window.addEventListener('touchend', endDrag);
 
    let resizeTimeout;
    window.addEventListener("resize", () => {
