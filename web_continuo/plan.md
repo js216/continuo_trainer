@@ -106,25 +106,6 @@ practice.
 
 ### TODO
 
-- We want to communicate all the notes pressed in each lesson for each user, and
-  the time at which the notes were pressed (offset from the first note pressed
-  in the lesson), for analysis and generating new user-specific lessons. Suggest
-  some ways of implementing that, both the communication of the notes pressed
-  and their backend data storage, and prioritize simplest-to-implement things
-  with fewest "frameworks", ideally just standard plain vanilla JS and simple
-  SQLite (even better, plain text files) and Python etc.
-- How to login and authenticate with a minimum of fuss? None of this is
-  particularly security critical, it's just a simple music game. It should be
-  possible to play without any login, but to store/remember data, and generate
-  new custom lessons, the login would be needed.
-
-- In one browser, the music is displayed correctly. But in another, the clefs
-  are on the wrong lines, and the note stems are detached from note heads.
-  This suggests that different fonts can be used for the notehead/clef
-  symbols which affect the spacing. Can I automatically detect the size of
-  each symbol, regardless of the font used, and correct spacing accordingly?
-  If not, use manual drawing primitives (you may have do define small helper
-  functions to keep the code clean) for all the music rendering: clefs and
-  notes.
-- Add support for anacrusis.
+- I have abcjs-basic-min.js in the same folder as continuo.js. Change the
+  rendering code to draw using ABCJS instead of the custom renderer.
 

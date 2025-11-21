@@ -1,5 +1,9 @@
 /*
  * continuo.js
+ *
+ * This file contains the complete frontend logic, including the core game engine,
+ * the Canvas renderer, MIDI and keyboard input handling, and the new
+ * SessionManager for logging user performance data to the Python backend.
  */
 
 const CONFIG = {
@@ -12,9 +16,9 @@ const CONFIG = {
 
 // Updated Duration Map including Dotted Whole
 const DURATION_MAP = {
-   0: 8,   // Breve
+   0: 8,   // Breve (Double Whole)
    1: 4,   // Whole
-   1.5: 6, // Dotted Whole
+   1.5: 6, // Dotted Whole (4 + 2 beats) - NOTE: This isn't strictly correct duration but works for notation.
    2: 2,   // Half
    4: 1,   // Quarter
    8: 0.5  // Eighth
@@ -41,13 +45,14 @@ const KEY_SCALES = {
 const LESSONS = [
    {
       id: "l1",
-      name: "Lesson 1: Root Position Triads",
-      description: "Play the 3rd and 5th above the bass.",
+      name: "Lesson 1: Root Position Triads (Anacrusis)",
+      description: "Play the 3rd and 5th above the bass. (2-beat pickup)",
       defaultKey: 0,
       timeSignature: [4, 4],
+      anacrusisBeats: 0,
       sequence: [
-         { bass: "C3", figure: "", duration: 2 },
-         { bass: "G3", figure: "", duration: 2 },
+         { bass: "C3", figure: "", duration: 2 }, // Step 1 (2 beats) completes the anacrusis
+         { bass: "G3", figure: "", duration: 2 }, // Start of Measure 2
          { bass: "E3", figure: "", duration: 2 },
          { bass: "A3", figure: "", duration: 2 },
          { bass: "F3", figure: "", duration: 2 },
@@ -58,16 +63,16 @@ const LESSONS = [
          { bass: "A3", figure: "", duration: 2 },
          { bass: "F3", figure: "", duration: 2 },
          { bass: "G3", figure: "", duration: 2 },
-         { bass: "C3", figure: "", duration: 1 } // Whole note
+         { bass: "C3", figure: "", duration: 1 }
       ]
    },
-
    {
       id: "l2",
-      name: "Lesson 2: Root Position Triads",
+      name: "Lesson 2: Full Measure Triads",
       description: "Play the 3rd and 5th above the bass.",
-      defaultKey: 1, // G Major
+      defaultKey: 1,
       timeSignature: [4, 4],
+      anacrusisBeats: 0,
       sequence: [
          { bass: "G2", figure: "", duration: 4 },
          { bass: "G3", figure: "", duration: 4 },
@@ -95,13 +100,13 @@ const LESSONS = [
          { bass: "G2", figure: "", duration: 1 }
       ]
    },
-
    {
       id: "l3",
-      name: "Lesson 3: Root Position Triads",
+      name: "Lesson 3: Eighth Notes",
       description: "Play the 3rd and 5th above the bass.",
-      defaultKey: -1, // F major
+      defaultKey: -1,
       timeSignature: [4, 4],
+      anacrusisBeats: 0,
       sequence: [
          { bass: "F3", figure: "", duration: 8 },
          { bass: "G3", figure: "", duration: 8 },
@@ -145,20 +150,22 @@ const LESSONS = [
          { bass: "F2", figure: "", duration: 2 }
       ]
    },
-
    {
       id: "l4",
-      name: "Lesson 4: Triple time, Minor key, raised 7th",
+      name: "Lesson 4: Half notes",
       description: "The figure '#' raises the 7th note.",
-      defaultKey: -1, // D minor
+      defaultKey: -1,
       timeSignature: [4, 4],
+      anacrusisBeats: 0,
       sequence: [
          { bass: "C3", figure: "", duration: 2 },
          { bass: "G2", figure: "7", duration: 2 },
+         { bass: "C3", figure: "", duration: 1.5 },
          { bass: "C3", figure: "", duration: 1 }
       ]
    }
 ];
+
 
 // --- AUTH & LOGGING ---
 
@@ -200,6 +207,7 @@ class SessionManager {
    }
 
    registerUser(uid) {
+      // Assuming same origin, this should work when served by Python
       fetch('/api/login', {
          method: 'POST',
          headers: {'Content-Type': 'application/json'},
@@ -318,6 +326,7 @@ class CanvasRenderer {
    }
 
    getNoteY(note, clef) {
+      // Treble Ref: B4 (Center Line) | Bass Ref: D3 (Center Line)
       const trebleRefRank = this.getDiatonicRank("B4");
       const bassRefRank = this.getDiatonicRank("D3");
       const currentRank = this.getDiatonicRank(note);
@@ -342,16 +351,19 @@ class CanvasRenderer {
       ctx.fillStyle = "#000";
       const width = this.canvas.width;
 
+      // Treble Staff
       for (let i = 0; i < this.numLines; i++) {
          const y = this.staffTop + i * this.lineSpacing;
          ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(width, y); ctx.stroke();
       }
+      // Bass Staff
       const bassTop = this.staffTop + this.staffGap;
       for (let i = 0; i < this.numLines; i++) {
          const y = bassTop + i * this.lineSpacing;
          ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(width, y); ctx.stroke();
       }
 
+      // Clef Alignment
       ctx.font = `${this.lineSpacing * 4}px serif`;
       ctx.fillText("𝄞", 10, this.staffTop + 3 * this.lineSpacing + (this.lineSpacing/2));
 
@@ -410,22 +422,30 @@ class CanvasRenderer {
          ctx.fillText(num, x, bassMidY - offset);
          ctx.fillText(den, x, bassMidY + offset);
       }
-   }
-
-   getHeaderWidth(keySigCount) {
-      return 60 + (Math.abs(keySigCount) * 14) + 25 + 40;
+      return x + 40;
    }
 
    drawEndBarline(x) {
       const ctx = this.ctx;
       if (x < 0 || x > this.canvas.width) return;
+
       const topY = this.staffTop;
       const botY = this.staffTop + this.staffGap + (this.numLines - 1) * this.lineSpacing;
 
+      // Thin line
       ctx.lineWidth = 1;
-      ctx.beginPath(); ctx.moveTo(x - 6, topY); ctx.lineTo(x - 6, botY); ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(x - 6, topY);
+      ctx.lineTo(x - 6, botY);
+      ctx.stroke();
+
+      // Thick line
       ctx.lineWidth = 4;
-      ctx.beginPath(); ctx.moveTo(x, topY); ctx.lineTo(x, botY); ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(x, topY);
+      ctx.lineTo(x, botY);
+      ctx.stroke();
+
       ctx.lineWidth = 1;
    }
 
@@ -439,9 +459,10 @@ class CanvasRenderer {
       ctx.stroke();
    }
 
-   drawNote(note, x, clef, color = "black", durationCode = 4, alpha = 1.0, isBeamed = false) {
+   drawNote(note, x, clef, color = "black", durationCode = 4, alpha = 1.0) {
       const drawX = x - this.viewportOffsetX;
-      if (drawX < -100 || drawX > this.canvas.width + 100) return null;
+      // Cull if offscreen
+      if (drawX < -50 || drawX > this.canvas.width + 50) return;
 
       const y = this.getNoteY(note, clef);
       const ctx = this.ctx;
@@ -453,7 +474,8 @@ class CanvasRenderer {
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
 
-      let glyph = "𝅘";
+      // Map durationCode to Unicode Noteheads
+      let glyph = "𝅘"; // Default Filled (Quarter, Eighth)
       let hasStem = true;
       let showDot = false;
       let isHollow = false;
@@ -461,31 +483,36 @@ class CanvasRenderer {
       if (durationCode === 1.5) {
          glyph = "𝅝"; hasStem = false; showDot = true; isHollow = true;
       }
-      else if (durationCode === 1) { glyph = "𝅝"; hasStem = false; isHollow = true; }
-      else if (durationCode === 0) { glyph = "𝅜"; hasStem = false; isHollow = true; }
-      else if (durationCode === 2) { glyph = "𝅗"; hasStem = true; isHollow = true; }
-      else if (durationCode === 4) { glyph = "𝅘"; hasStem = true; }
-      else if (durationCode === 8) { glyph = "𝅘"; hasStem = true; }
+      else if (durationCode === 2) { glyph = "𝅗"; hasStem = true; isHollow = true; } // Half
+      else if (durationCode === 1) { glyph = "𝅝"; hasStem = false; isHollow = true; } // Whole
+      else if (durationCode === 0) { glyph = "𝅜"; hasStem = false; isHollow = true; } // Breve
+      // durationCode 4 (quarter) and 8 (eighth) use the default filled glyph
 
+      // Visual Adjustment:
       const visualY = y - (this.lineSpacing * 0.6);
+
+      // Draw Notehead
       ctx.fillText(glyph, drawX, visualY);
 
+      // Draw Dot
       if (showDot) {
          ctx.beginPath();
          ctx.arc(drawX + 22, visualY, 3, 0, Math.PI * 2);
          ctx.fill();
       }
 
-      const middleLineY = (clef === "treble")
-            ? (this.staffTop + 2 * this.lineSpacing)
-            : (this.staffTop + this.staffGap + 2 * this.lineSpacing);
-      const isUp = y > middleLineY;
-      let stemTipY = visualY;
-
+      // Draw Stem and Flag
       if (hasStem) {
          ctx.lineWidth = 1.5;
          ctx.beginPath();
+
+         const middleLineY = (clef === "treble")
+            ? (this.staffTop + 2 * this.lineSpacing)
+            : (this.staffTop + this.staffGap + 2 * this.lineSpacing);
+
+         const isUp = y > middleLineY;
          const stemLen = CONFIG.STEM_HEIGHT;
+
          const xOffset = isUp ? 3.2 : -3.2;
          const stemBaseY = visualY + (isHollow ? 0 : 4);
 
@@ -497,13 +524,22 @@ class CanvasRenderer {
          ctx.lineTo(drawX + xOffset, endY);
          ctx.stroke();
 
-         stemTipY = endY;
-
-         if (durationCode === 8 && !isBeamed) {
+         if (durationCode === 8) {
+             // Eighth note flag (basic implementation)
              this.drawFlag(drawX + xOffset, endY, isUp);
          }
       }
 
+      // Accidentals
+      const accidental = this.getAccidentalSymbol(note, this.currentKeySig);
+      if (accidental) {
+         ctx.font = `${this.lineSpacing * 2.5}px serif`;
+         ctx.textAlign = "center";
+         ctx.textBaseline = "middle";
+         ctx.fillText(accidental, drawX - 22, visualY);
+      }
+
+      // Ledger Lines
       const topLineY = clef === "treble" ? this.staffTop : this.staffTop + this.staffGap;
       const bottomLineY = topLineY + (this.numLines - 1) * this.lineSpacing;
       const ledgerWidth = 24;
@@ -520,52 +556,21 @@ class CanvasRenderer {
          }
       }
       ctx.globalAlpha = 1.0;
-
-      return { x: drawX + (isUp?3.2:-3.2), y: stemTipY, isUp: isUp };
    }
 
    drawFlag(x, y, isUp) {
       const ctx = this.ctx;
       ctx.beginPath();
+      // Simple flag for eighth notes (duration 8)
       if (isUp) {
          ctx.moveTo(x, y);
-         ctx.quadraticCurveTo(x + 10, y + 10, x + 6, y + 35);
+         ctx.quadraticCurveTo(x + 10, y + 10, x + 6, y + 30);
          ctx.stroke();
       } else {
          ctx.moveTo(x, y);
-         ctx.quadraticCurveTo(x + 10, y - 10, x + 6, y - 35);
+         ctx.quadraticCurveTo(x + 10, y - 10, x + 6, y - 30);
          ctx.stroke();
       }
-   }
-
-   drawBeams(beamGroups) {
-      if (!beamGroups || beamGroups.length === 0) return;
-      const ctx = this.ctx;
-      ctx.lineWidth = 5;
-
-      beamGroups.forEach(group => {
-         const validNotes = group.notes.filter(n => n !== null);
-         if (validNotes.length < 2) return;
-
-         const first = validNotes[0];
-         const last = validNotes[validNotes.length - 1];
-         const beamY = first.y;
-
-         ctx.beginPath();
-         ctx.moveTo(first.x, beamY);
-         ctx.lineTo(last.x, beamY);
-         ctx.stroke();
-
-         ctx.lineWidth = 1.5;
-         validNotes.forEach(note => {
-            if (Math.abs(note.y - beamY) > 1) {
-               ctx.beginPath();
-               ctx.moveTo(note.x, note.y);
-               ctx.lineTo(note.x, beamY);
-               ctx.stroke();
-            }
-         });
-      });
    }
 
    getAccidentalSymbol(note, keySig) {
@@ -584,7 +589,7 @@ class CanvasRenderer {
 
    drawFigure(figure, x, note, clef) {
       const drawX = x - this.viewportOffsetX;
-      if (drawX < -100 || drawX > this.canvas.width + 100) return;
+      if (drawX < -50 || drawX > this.canvas.width + 50) return;
       const y = this.getNoteY(note, clef) + 45;
       this.ctx.font = `bold ${this.lineSpacing * 1.4}px serif`;
       this.ctx.textAlign = "center";
@@ -592,21 +597,28 @@ class CanvasRenderer {
       this.ctx.fillText(figure, drawX, y);
    }
 
-   renderLessonState(lesson, currentStepIndex, userHistory, currentHeldNotes, correctionNotes, manualScrollX = null) {
+   renderLessonState(lesson, currentStepIndex, userHistory, currentHeldNotes, correctionNotes) {
       this.currentKeySig = lesson.defaultKey;
       this.clear();
+      this.drawStaves();
+      this.drawKeySignature(lesson.defaultKey);
 
-      const contentStartX = this.getHeaderWidth(lesson.defaultKey);
+      const contentStartX = this.drawTimeSignature(lesson.timeSignature, lesson.defaultKey);
+
       let cursorX = contentStartX;
       let currentMeasureBeats = 0;
-      const beatsPerMeasure = lesson.timeSignature[0];
+
+      const fullMeasureBeats = lesson.timeSignature[0];
+      // Get anacrusis beats. If not defined or 0, default to a full measure.
+      const anacrusisBeats = lesson.anacrusisBeats || fullMeasureBeats;
+
+      let measureTarget = anacrusisBeats; // Start with the anacrusis target
       let activeNoteX = 0;
 
+      // First pass: positioning
       const stepsWithPos = lesson.sequence.map((step, index) => {
-         let beats = 1;
-         if (DURATION_MAP[step.duration]) beats = DURATION_MAP[step.duration];
-         else beats = 4;
-
+         // Duration in beats (e.g., half note (2) in 4/4 is 2 beats)
+         const beats = DURATION_MAP[step.duration];
          const width = beats * CONFIG.BEAT_SPACING_PX;
          const pos = cursorX + (width / 2);
 
@@ -617,61 +629,29 @@ class CanvasRenderer {
          currentMeasureBeats += beats;
 
          let barlineX = null;
-         if (Math.abs(currentMeasureBeats - beatsPerMeasure) < 0.01 || currentMeasureBeats > beatsPerMeasure) {
+         // Check if the current measure is complete
+         // Use a small epsilon (0.01) for float comparisons
+         if (Math.abs(currentMeasureBeats - measureTarget) < 0.01 || currentMeasureBeats > measureTarget) {
             barlineX = cursorX;
             currentMeasureBeats = 0;
+            // After the first measure (anacrusis), switch to the full measure target for all subsequent measures.
+            measureTarget = fullMeasureBeats;
          }
 
          return { step: stepData, barlineX: barlineX, index: index };
       });
 
-      if (manualScrollX !== null) {
-         this.viewportOffsetX = manualScrollX;
-      } else {
-         const targetScreenX = this.canvas.width / 3;
-         const desiredOffset = activeNoteX - targetScreenX;
-         this.viewportOffsetX = Math.max(0, desiredOffset);
-      }
+      // Continuous Smooth Scrolling
+      const targetScreenX = this.canvas.width / 3;
+      const desiredOffset = activeNoteX - targetScreenX;
+      this.viewportOffsetX = Math.max(0, desiredOffset);
 
-      this.ctx.save();
-      this.ctx.beginPath();
-      this.ctx.rect(0, 0, contentStartX, this.canvas.height);
-      this.ctx.clip();
-      this.drawStaves();
-      this.drawKeySignature(lesson.defaultKey);
-      this.drawTimeSignature(lesson.timeSignature, lesson.defaultKey);
-      this.ctx.restore();
 
-      this.ctx.save();
-      this.ctx.beginPath();
-      this.ctx.rect(contentStartX, 0, this.canvas.width - contentStartX, this.canvas.height);
-      this.ctx.clip();
-
-      this.drawStaves();
-
-      const beamGroupsToDraw = [];
-      const beamedIndices = new Set();
-
-      if (lesson.timeSignature[0] === 4 && lesson.timeSignature[1] === 4) {
-         let buffer = [];
-         for (let i = 0; i < stepsWithPos.length; i++) {
-            const s = stepsWithPos[i];
-            if (s.step.duration === 8) {
-               buffer.push(s);
-               if (buffer.length === 4) {
-                  beamGroupsToDraw.push({ steps: [...buffer], notes: [] });
-                  buffer.forEach(b => beamedIndices.add(b.index));
-                  buffer = [];
-               }
-            } else {
-               buffer = [];
-            }
-         }
-      }
-
+      // Second pass: Draw
       stepsWithPos.forEach((item) => {
          const { step, barlineX, index } = item;
 
+         // Highlight active step
          if (index === currentStepIndex) {
             const drawX = step.x - (step.width/2) - this.viewportOffsetX;
             if (drawX > -100 && drawX < this.canvas.width) {
@@ -680,16 +660,10 @@ class CanvasRenderer {
             }
          }
 
-         const isBeamed = beamedIndices.has(index);
-         const noteGeom = this.drawNote(step.bass, step.x, "bass", "black", step.duration, 1.0, isBeamed);
-
-         if (isBeamed && noteGeom) {
-            const group = beamGroupsToDraw.find(g => g.steps.includes(item));
-            if (group) group.notes.push(noteGeom);
-         }
-
+         this.drawNote(step.bass, step.x, "bass", "black", step.duration);
          this.drawFigure(step.figure, step.x, step.bass, "bass");
 
+         // History (user notes)
          if (userHistory[index]) {
             userHistory[index].forEach(attempt => {
                const octave = parseInt(attempt.note.match(/-?\d+/)[0]);
@@ -698,6 +672,7 @@ class CanvasRenderer {
                this.drawNote(attempt.note, step.x, clef, color, step.duration);
             });
 
+            // Correction (suggestion)
             if (correctionNotes && correctionNotes[index]) {
                correctionNotes[index].forEach(note => {
                   const octave = parseInt(note.match(/-?\d+/)[0]);
@@ -707,6 +682,7 @@ class CanvasRenderer {
             }
          }
 
+         // Held (real-time input)
          if (index === currentStepIndex && currentHeldNotes.size > 0) {
             currentHeldNotes.forEach(note => {
                const octave = parseInt(note.match(/-?\d+/)[0]);
@@ -715,6 +691,7 @@ class CanvasRenderer {
             });
          }
 
+         // Draw Barline
          if (barlineX) {
             if (index === stepsWithPos.length - 1) {
                this.drawEndBarline(barlineX - this.viewportOffsetX);
@@ -723,10 +700,6 @@ class CanvasRenderer {
             }
          }
       });
-
-      this.drawBeams(beamGroupsToDraw);
-
-      this.ctx.restore();
    }
 }
 
@@ -842,6 +815,7 @@ class LessonManager {
       if (!this.currentLesson || this.currentStepIndex >= this.currentLesson.sequence.length) return;
 
       const step = this.currentLesson.sequence[this.currentStepIndex];
+      // Note: 0.5 is an arbitrary constant for sound duration relative to beats.
       const durBeats = DURATION_MAP[step.duration] || 1;
       this.audio.playNote(step.bass, durBeats * 0.5, 'triangle');
    }
@@ -850,8 +824,11 @@ class LessonManager {
       const { bass, figure } = step;
       const scale = KEY_SCALES[this.currentLesson.defaultKey.toString()];
       const bassLetter = bass.replace(/[\d-]+/, '');
-      let scaleIndex = scale.indexOf(bassLetter);
-      if (scaleIndex === -1) scaleIndex = 0;
+      let scaleIndex = scale.indexOf(bassLetter.charAt(0).toUpperCase() + bassLetter.slice(1));
+      if (scaleIndex === -1) {
+         const map = { 'C': 0, 'D': 1, 'E': 2, 'F': 3, 'G': 4, 'A': 5, 'B': 6 };
+         scaleIndex = map[bassLetter.charAt(0).toUpperCase()];
+      }
 
       let intervals = [0, 2, 4];
       if (figure === "6") intervals = [0, 2, 5];
@@ -877,6 +854,8 @@ class LessonManager {
             usedClasses.add(nc);
          }
       });
+      // Sort correction notes by pitch for cleaner display
+      correction.sort((a,b) => this.noteToMidiNum(a) - this.noteToMidiNum(b));
       return correction.slice(0, classes.length);
    }
 
@@ -884,7 +863,16 @@ class LessonManager {
       const map = { 'C': 0, 'D': 2, 'E': 4, 'F': 5, 'G': 7, 'A': 9, 'B': 11 };
       const letter = noteName.replace(/[\d#b-]+/, '');
       const acc = noteName.includes('#') ? 1 : (noteName.includes('b') ? -1 : 0);
-      return (map[letter] + acc + 12) % 12;
+      return (map[letter.charAt(0).toUpperCase()] + acc + 12) % 12;
+   }
+
+   noteToMidiNum(noteName) {
+      const notes = ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
+      const letter = noteName.replace(/[\d#b-]+/, '');
+      const acc = noteName.includes('#') ? 1 : (noteName.includes('b') ? -1 : 0);
+      const octave = parseInt(noteName.match(/-?\d+/)[0]);
+      const noteIndex = notes.indexOf(letter.charAt(0).toUpperCase());
+      return (octave + 1) * 12 + noteIndex + acc;
    }
 
    submitChord(notesPlayed) {
@@ -964,15 +952,14 @@ class LessonManager {
          `Score: ${this.score} | Time: ${timeStr} <span style="color:#2563eb; margin-left:15px;">${icon} ${msg}</span>`;
    }
 
-   render(currentHeldNotes = new Set(), manualScrollX = null) {
+   render(currentHeldNotes = new Set()) {
       if (!this.currentLesson) return;
       this.renderer.renderLessonState(
          this.currentLesson,
          this.currentStepIndex,
          this.history,
          currentHeldNotes,
-         this.corrections,
-         manualScrollX
+         this.corrections
       );
    }
 }
@@ -985,11 +972,11 @@ class InputHandler {
       this.chordBuffer = new Set();
    }
 
-   handleNoteOn(note) {
+   handleNoteOn(note, velocity = 80) {
       this.manager.notifyActivity();
 
       // Log RAW event
-      this.manager.session.logEvent(this.manager.getSessionTime(), "noteOn", { note: note });
+      this.manager.session.logEvent(this.manager.getSessionTime(), "noteOn", { note: note, velocity: velocity });
 
       if (document.getElementById("chkSoundUser").checked) {
          this.audio.playNote(note, 0.3, 'sine');
@@ -1037,7 +1024,7 @@ class InputHandler {
       const velocity = (data2 > 127) ? 127 : data2;
       const noteName = this.midiNumToNote(noteNum);
 
-      if (command === 9 && velocity > 0) this.handleNoteOn(noteName);
+      if (command === 9 && velocity > 0) this.handleNoteOn(noteName, velocity);
       else if (command === 8 || (command === 9 && velocity === 0)) this.handleNoteOff(noteName);
    }
 
@@ -1053,26 +1040,28 @@ class Keyboard {
       const container = document.getElementById(containerId);
       const canvas = document.getElementById("sheet");
 
+      // Use the actual canvas width for the keyboard container width
       const width = canvas.width;
       container.style.width = `${width}px`;
       container.innerHTML = "";
 
       const kWidth = CONFIG.KEY_WIDTH;
-      const numKeysToDraw = Math.ceil(width / kWidth) + 2;
+      const numKeysToDraw = Math.ceil(width / kWidth) + 5; // Draw slightly more keys than fit
 
-      const centerX = width / 2;
-      const whiteNotes = [];
+      // Center C4 on the screen's center point
+      const middleNoteOffset = 2; // C4 is the center index (0), C5 is +7, C3 is -7
       const centerIndexOffset = Math.floor(numKeysToDraw / 2);
 
       const getWhiteNote = (offset) => {
          const map = ['C','D','E','F','G','A','B'];
-         let index = offset;
+         let index = offset + middleNoteOffset;
          let octave = 4 + Math.floor(index / 7);
          let noteIdx = index % 7;
          if (noteIdx < 0) noteIdx += 7;
          return map[noteIdx] + octave;
       };
 
+      const whiteNotes = [];
       for (let i = -centerIndexOffset; i <= centerIndexOffset; i++) {
          whiteNotes.push({ note: getWhiteNote(i), offset: i });
       }
@@ -1084,18 +1073,21 @@ class Keyboard {
       const attachEvents = (el, note) => {
          el.dataset.note = note;
          el.addEventListener("pointerdown", (e) => {
-            e.preventDefault(); el.setPointerCapture(e.pointerId); inputHandler.handleNoteOn(note);
+            e.preventDefault();
+            el.setPointerCapture(e.pointerId);
+            inputHandler.handleNoteOn(note);
          });
          el.addEventListener("pointerup", (e) => {
-            e.preventDefault(); inputHandler.handleNoteOff(note);
+            e.preventDefault();
+            inputHandler.handleNoteOff(note);
          });
          el.addEventListener("pointercancel", (e) => inputHandler.handleNoteOff(note));
       };
 
-      const c4Left = centerX - (kWidth / 2);
+      const c4Left = width / 2; // Approximate center
 
       whiteNotes.forEach(item => {
-         const left = c4Left + (item.offset * kWidth);
+         const left = c4Left + (item.offset * kWidth) - (kWidth / 2); // Center of C4 should be at c4Left
          if (left > width || left + kWidth < 0) return;
 
          const key = document.createElement("div");
@@ -1110,10 +1102,12 @@ class Keyboard {
          container.appendChild(key);
 
          const letter = item.note.charAt(0);
+         // Check if a black key exists (no black key between E-F and B-C)
          if (['C','D','F','G','A'].includes(letter)) {
             const blackNote = letter + '#' + item.note.slice(-1);
             const bKey = document.createElement("div");
             bKey.className = "black-key";
+            // Position black key 1/3 across the white key
             bKey.style.left = `${left + kWidth - (blackKeyWidth / 2)}px`;
             bKey.style.width = `${blackKeyWidth}px`;
             bKey.style.height = `${blackKeyHeight}px`;
@@ -1132,9 +1126,11 @@ window.addEventListener("DOMContentLoaded", () => {
    const manager = new LessonManager(renderer, audio, session);
    const inputHandler = new InputHandler(manager, audio);
 
+   // Initial setup
    renderer.resize();
    Keyboard.create("keyboard", inputHandler);
 
+   // --- CANVAS DRAG/SCROLL LOGIC ---
    let isDragging = false;
    let startDragX = 0;
    let startScrollX = 0;
@@ -1150,6 +1146,7 @@ window.addEventListener("DOMContentLoaded", () => {
       if (!isDragging) return;
       const delta = startDragX - x;
       const newOffset = Math.max(0, startScrollX + delta);
+      // The manager takes care of rendering and sets the viewportOffsetX
       manager.render(inputHandler.heldNotes, newOffset);
    };
 
@@ -1165,7 +1162,9 @@ window.addEventListener("DOMContentLoaded", () => {
    canvas.addEventListener('touchstart', (e) => startDrag(e.touches[0].clientX), {passive: false});
    window.addEventListener('touchmove', (e) => moveDrag(e.touches[0].clientX), {passive: false});
    window.addEventListener('touchend', endDrag);
+   // --- END CANVAS DRAG/SCROLL LOGIC ---
 
+   // Resize Handler
    let resizeTimeout;
    window.addEventListener("resize", () => {
       clearTimeout(resizeTimeout);
@@ -1176,6 +1175,7 @@ window.addEventListener("DOMContentLoaded", () => {
       }, 100);
    });
 
+   // Lesson Selection and Controls
    const lessonSelect = document.getElementById("lessonSelect");
    LESSONS.forEach(l => {
       const opt = document.createElement("option");
@@ -1187,6 +1187,7 @@ window.addEventListener("DOMContentLoaded", () => {
    lessonSelect.addEventListener("change", (e) => manager.loadLesson(e.target.value));
    document.getElementById("resetBtn").addEventListener("click", () => manager.reset());
 
+   // MIDI Setup
    document.getElementById("midiBtn").addEventListener("click", () => {
       audio.init();
       if (navigator.requestMIDIAccess) {
@@ -1206,5 +1207,6 @@ window.addEventListener("DOMContentLoaded", () => {
       } else alert("Web MIDI API not supported.");
    });
 
+   // Initial Lesson Load
    manager.loadLesson(LESSONS[0].id);
 });
