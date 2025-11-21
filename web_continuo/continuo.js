@@ -7,291 +7,291 @@
  */
 
 const CONFIG = {
-    BEAT_SPACING_PX: 60, // Slightly wider to accommodate beams
-    NOTE_HEAD_WIDTH: 14,
-    NOTE_HEAD_HEIGHT: 9,
-    STEM_HEIGHT: 35,
-    LINE_SPACING: 10,
-    KEY_WIDTH: 40
- };
- 
- // Updated Duration Map
- const DURATION_MAP = {
-    0: 8,   // Breve (Double Whole)
-    1: 4,   // Whole
-    1.5: 6, // Dotted Whole
-    2: 2,   // Half
-    4: 1,   // Quarter
-    8: 0.5  // Eighth
- };
- 
- const KEY_SCALES = {
-    "-7": ['Cb', 'Db', 'Eb', 'Fb', 'Gb', 'Ab', 'Bb'],
-    "-6": ['Gb', 'Ab', 'Bb', 'Cb', 'Db', 'Eb', 'F'],
-    "-5": ['Db', 'Eb', 'F', 'Gb', 'Ab', 'Bb', 'C'],
-    "-4": ['Ab', 'Bb', 'C', 'Db', 'Eb', 'F', 'G'],
-    "-3": ['Eb', 'F', 'G', 'Ab', 'Bb', 'C', 'D'],
-    "-2": ['Bb', 'C', 'D', 'Eb', 'F', 'G', 'A'],
-    "-1": ['F', 'G', 'A', 'Bb', 'C', 'D', 'E'],
-    "0":  ['C', 'D', 'E', 'F', 'G', 'A', 'B'],
-    "1":  ['G', 'A', 'B', 'C', 'D', 'E', 'F#'],
-    "2":  ['D', 'E', 'F#', 'G', 'A', 'B', 'C#'],
-    "3":  ['A', 'B', 'C#', 'D', 'E', 'F#', 'G#'],
-    "4":  ['E', 'F#', 'G#', 'A', 'B', 'C#', 'D#'],
-    "5":  ['B', 'C#', 'D#', 'E', 'F#', 'G#', 'A#'],
-    "6":  ['F#', 'G#', 'A#', 'B', 'C#', 'D#', 'E#'],
-    "7":  ['C#', 'D#', 'E#', 'F#', 'G#', 'A#', 'B#']
- };
- 
- const LESSONS = [
-    {
-       id: "l1",
-       name: "Lesson 1: Root Position Triads (Anacrusis)",
-       description: "Play the 3rd and 5th above the bass. (2-beat pickup)",
-       defaultKey: 0,
-       timeSignature: [4, 4],
-       anacrusisBeats: 0,
-       sequence: [
-          { bass: "C3", figure: "", duration: 2 },
-          { bass: "G3", figure: "", duration: 2 },
-          { bass: "E3", figure: "", duration: 2 },
-          { bass: "A3", figure: "", duration: 2 },
-          { bass: "F3", figure: "", duration: 2 },
-          { bass: "C4", figure: "", duration: 2 },
-          { bass: "A3", figure: "", duration: 2 },
-          { bass: "F3", figure: "", duration: 2 },
-          { bass: "G3", figure: "", duration: 2 },
-          { bass: "A3", figure: "", duration: 2 },
-          { bass: "F3", figure: "", duration: 2 },
-          { bass: "G3", figure: "", duration: 2 },
-          { bass: "C3", figure: "", duration: 1 }
-       ]
-    },
-    {
-       id: "l2",
-       name: "Lesson 2: Full Measure Triads",
-       description: "Play the 3rd and 5th above the bass.",
-       defaultKey: 1,
-       timeSignature: [4, 4],
-       anacrusisBeats: 0,
-       sequence: [
-          { bass: "G2", figure: "", duration: 4 },
-          { bass: "G3", figure: "", duration: 4 },
-          { bass: "E3", figure: "", duration: 4 },
-          { bass: "C3", figure: "", duration: 4 },
-          { bass: "D3", figure: "", duration: 4 },
-          { bass: "B2", figure: "", duration: 4 },
-          { bass: "E3", figure: "", duration: 4 },
-          { bass: "A2", figure: "", duration: 4 },
-          { bass: "D3", figure: "", duration: 4 },
-          { bass: "G2", figure: "", duration: 4 },
-          { bass: "C3", figure: "", duration: 4 },
-          { bass: "A2", figure: "", duration: 4 },
-          { bass: "E3", figure: "", duration: 4 },
-          { bass: "C3", figure: "", duration: 4 },
-          { bass: "G3", figure: "", duration: 4 },
-          { bass: "E3", figure: "", duration: 4 },
-          { bass: "B3", figure: "", duration: 4 },
-          { bass: "G3", figure: "", duration: 4 },
-          { bass: "D4", figure: "", duration: 4 },
-          { bass: "D3", figure: "", duration: 4 },
-          { bass: "E3", figure: "", duration: 4 },
-          { bass: "C3", figure: "", duration: 4 },
-          { bass: "D3", figure: "", duration: 2 },
-          { bass: "G2", figure: "", duration: 1 }
-       ]
-    },
-    {
-       id: "l3",
-       name: "Lesson 3: Eighth Notes",
-       description: "Play the 3rd and 5th above the bass. (Note the beams)",
-       defaultKey: -1,
-       timeSignature: [4, 4],
-       anacrusisBeats: 0,
-       sequence: [
-          { bass: "F3", figure: "", duration: 8 },
-          { bass: "G3", figure: "", duration: 8 },
-          { bass: "F3", figure: "", duration: 8 },
-          { bass: "E3", figure: "", duration: 8 },
-          { bass: "D3", figure: "", duration: 8 },
-          { bass: "A3", figure: "", duration: 8 },
-          { bass: "D4", figure: "", duration: 8 },
-          { bass: "C4", figure: "", duration: 8 },
-          { bass: "Bb3", figure: "", duration: 8 },
-          { bass: "C4", figure: "", duration: 8 },
-          { bass: "Bb3", figure: "", duration: 8 },
-          { bass: "A3", figure: "", duration: 8 },
-          { bass: "G3", figure: "", duration: 8 },
-          { bass: "F3", figure: "", duration: 8 },
-          { bass: "G3", figure: "", duration: 8 },
-          { bass: "G2", figure: "", duration: 8 },
-          { bass: "C3", figure: "", duration: 8 },
-          { bass: "D3", figure: "", duration: 8 },
-          { bass: "C3", figure: "", duration: 8 },
-          { bass: "Bb2", figure: "", duration: 8 },
-          { bass: "A2", figure: "", duration: 8 },
-          { bass: "G2", figure: "", duration: 8 },
-          { bass: "F2", figure: "", duration: 8 },
-          { bass: "A2", figure: "", duration: 8 },
-          { bass: "Bb2", figure: "", duration: 8 },
-          { bass: "A2", figure: "", duration: 8 },
-          { bass: "G2", figure: "", duration: 8 },
-          { bass: "Bb2", figure: "", duration: 8 },
-          { bass: "C3", figure: "", duration: 8 },
-          { bass: "Bb2", figure: "", duration: 8 },
-          { bass: "A2", figure: "", duration: 8 },
-          { bass: "C3", figure: "", duration: 8 },
-          { bass: "D3", figure: "", duration: 8 },
-          { bass: "C3", figure: "", duration: 8 },
-          { bass: "D3", figure: "", duration: 8 },
-          { bass: "E3", figure: "", duration: 8 },
-          { bass: "F3", figure: "", duration: 4 },
-          { bass: "Bb2", figure: "", duration: 4 },
-          { bass: "C3", figure: "", duration: 2 },
-          { bass: "F2", figure: "", duration: 2 }
-       ]
-    },
-    {
-       id: "l4",
-       name: "Lesson 4: Half notes",
-       description: "The figure '#' raises the 7th note.",
-       defaultKey: -1,
-       timeSignature: [4, 4],
-       anacrusisBeats: 0,
-       sequence: [
-          { bass: "C3", figure: "", duration: 2 },
-          { bass: "G2", figure: "7", duration: 2 },
-          { bass: "C3", figure: "", duration: 1.5 },
-          { bass: "C3", figure: "", duration: 1 }
-       ]
-    }
- ];
- 
- 
- // --- AUTH & LOGGING ---
- 
- class SessionManager {
-    constructor() {
-       this.userId = localStorage.getItem('continuo_user_id');
-       this.eventLog = [];
-       this.currentLessonId = null;
- 
-       this.initAuth();
-    }
- 
-    initAuth() {
-       if (!this.userId) {
-          this.userId = 'user-' + Math.random().toString(36).substr(2, 6);
-          localStorage.setItem('continuo_user_id', this.userId);
-          this.registerUser(this.userId); // Fire and forget
-       }
-       this.updateDisplay();
- 
-       // UI Handler
-       document.getElementById('loginBtn').addEventListener('click', () => {
-          const input = prompt("Enter User ID (or leave empty for new):");
-          if (input !== null) {
-             if (input.trim() === "") {
-                this.userId = 'user-' + Math.random().toString(36).substr(2, 6);
-             } else {
-                this.userId = input.trim();
-             }
-             localStorage.setItem('continuo_user_id', this.userId);
-             this.registerUser(this.userId);
-             this.updateDisplay();
-          }
-       });
-    }
- 
-    updateDisplay() {
-       document.getElementById('userDisplay').textContent = this.userId;
-    }
- 
-    registerUser(uid) {
-       fetch('/api/login', {
-          method: 'POST',
-          headers: {'Content-Type': 'application/json'},
-          body: JSON.stringify({ userId: uid })
-       }).catch(e => console.error("Login sync failed", e));
-    }
- 
-    startLesson(lessonId) {
-       this.currentLessonId = lessonId;
-       this.eventLog = [];
-    }
- 
-    logEvent(timestamp, type, data) {
-       this.eventLog.push({ t: Math.floor(timestamp), type, ...data });
-    }
- 
-    flushLog(totalDuration, score) {
-       if (this.eventLog.length === 0) return;
- 
-       const payload = {
-          userId: this.userId,
-          lessonId: this.currentLessonId,
-          totalDuration: Math.floor(totalDuration),
-          score: score,
-          events: this.eventLog
-       };
- 
-       console.log("Saving log...", payload);
- 
-       fetch('/api/log', {
-          method: 'POST',
-          headers: {'Content-Type': 'application/json'},
-          body: JSON.stringify(payload)
-       }).then(res => res.json())
+   BEAT_SPACING_PX: 60, // Slightly wider to accommodate beams
+   NOTE_HEAD_WIDTH: 14,
+   NOTE_HEAD_HEIGHT: 9,
+   STEM_HEIGHT: 35,
+   LINE_SPACING: 10,
+   KEY_WIDTH: 40
+};
+
+// Updated Duration Map
+const DURATION_MAP = {
+   0: 8,   // Breve (Double Whole)
+   1: 4,   // Whole
+   1.5: 6, // Dotted Whole
+   2: 2,   // Half
+   4: 1,   // Quarter
+   8: 0.5  // Eighth
+};
+
+const KEY_SCALES = {
+   "-7": ['Cb', 'Db', 'Eb', 'Fb', 'Gb', 'Ab', 'Bb'],
+   "-6": ['Gb', 'Ab', 'Bb', 'Cb', 'Db', 'Eb', 'F'],
+   "-5": ['Db', 'Eb', 'F', 'Gb', 'Ab', 'Bb', 'C'],
+   "-4": ['Ab', 'Bb', 'C', 'Db', 'Eb', 'F', 'G'],
+   "-3": ['Eb', 'F', 'G', 'Ab', 'Bb', 'C', 'D'],
+   "-2": ['Bb', 'C', 'D', 'Eb', 'F', 'G', 'A'],
+   "-1": ['F', 'G', 'A', 'Bb', 'C', 'D', 'E'],
+   "0":  ['C', 'D', 'E', 'F', 'G', 'A', 'B'],
+   "1":  ['G', 'A', 'B', 'C', 'D', 'E', 'F#'],
+   "2":  ['D', 'E', 'F#', 'G', 'A', 'B', 'C#'],
+   "3":  ['A', 'B', 'C#', 'D', 'E', 'F#', 'G#'],
+   "4":  ['E', 'F#', 'G#', 'A', 'B', 'C#', 'D#'],
+   "5":  ['B', 'C#', 'D#', 'E', 'F#', 'G#', 'A#'],
+   "6":  ['F#', 'G#', 'A#', 'B', 'C#', 'D#', 'E#'],
+   "7":  ['C#', 'D#', 'E#', 'F#', 'G#', 'A#', 'B#']
+};
+
+const LESSONS = [
+   {
+      id: "l1",
+      name: "Lesson 1: Root Position Triads (Anacrusis)",
+      description: "Play the 3rd and 5th above the bass. (2-beat pickup)",
+      defaultKey: 0,
+      timeSignature: [4, 4],
+      anacrusisBeats: 0,
+      sequence: [
+         { bass: "C3", figure: "", duration: 2 },
+         { bass: "G3", figure: "", duration: 2 },
+         { bass: "E3", figure: "", duration: 2 },
+         { bass: "A3", figure: "", duration: 2 },
+         { bass: "F3", figure: "", duration: 2 },
+         { bass: "C4", figure: "", duration: 2 },
+         { bass: "A3", figure: "", duration: 2 },
+         { bass: "F3", figure: "", duration: 2 },
+         { bass: "G3", figure: "", duration: 2 },
+         { bass: "A3", figure: "", duration: 2 },
+         { bass: "F3", figure: "", duration: 2 },
+         { bass: "G3", figure: "", duration: 2 },
+         { bass: "C3", figure: "", duration: 1 }
+      ]
+   },
+   {
+      id: "l2",
+      name: "Lesson 2: Full Measure Triads",
+      description: "Play the 3rd and 5th above the bass.",
+      defaultKey: 1,
+      timeSignature: [4, 4],
+      anacrusisBeats: 0,
+      sequence: [
+         { bass: "G2", figure: "", duration: 4 },
+         { bass: "G3", figure: "", duration: 4 },
+         { bass: "E3", figure: "", duration: 4 },
+         { bass: "C3", figure: "", duration: 4 },
+         { bass: "D3", figure: "", duration: 4 },
+         { bass: "B2", figure: "", duration: 4 },
+         { bass: "E3", figure: "", duration: 4 },
+         { bass: "A2", figure: "", duration: 4 },
+         { bass: "D3", figure: "", duration: 4 },
+         { bass: "G2", figure: "", duration: 4 },
+         { bass: "C3", figure: "", duration: 4 },
+         { bass: "A2", figure: "", duration: 4 },
+         { bass: "E3", figure: "", duration: 4 },
+         { bass: "C3", figure: "", duration: 4 },
+         { bass: "G3", figure: "", duration: 4 },
+         { bass: "E3", figure: "", duration: 4 },
+         { bass: "B3", figure: "", duration: 4 },
+         { bass: "G3", figure: "", duration: 4 },
+         { bass: "D4", figure: "", duration: 4 },
+         { bass: "D3", figure: "", duration: 4 },
+         { bass: "E3", figure: "", duration: 4 },
+         { bass: "C3", figure: "", duration: 4 },
+         { bass: "D3", figure: "", duration: 2 },
+         { bass: "G2", figure: "", duration: 1 }
+      ]
+   },
+   {
+      id: "l3",
+      name: "Lesson 3: Eighth Notes",
+      description: "Play the 3rd and 5th above the bass. (Note the beams)",
+      defaultKey: -1,
+      timeSignature: [4, 4],
+      anacrusisBeats: 0,
+      sequence: [
+         { bass: "F3", figure: "", duration: 8 },
+         { bass: "G3", figure: "", duration: 8 },
+         { bass: "F3", figure: "", duration: 8 },
+         { bass: "E3", figure: "", duration: 8 },
+         { bass: "D3", figure: "", duration: 8 },
+         { bass: "A3", figure: "", duration: 8 },
+         { bass: "D4", figure: "", duration: 8 },
+         { bass: "C4", figure: "", duration: 8 },
+         { bass: "Bb3", figure: "", duration: 8 },
+         { bass: "C4", figure: "", duration: 8 },
+         { bass: "Bb3", figure: "", duration: 8 },
+         { bass: "A3", figure: "", duration: 8 },
+         { bass: "G3", figure: "", duration: 8 },
+         { bass: "F3", figure: "", duration: 8 },
+         { bass: "G3", figure: "", duration: 8 },
+         { bass: "G2", figure: "", duration: 8 },
+         { bass: "C3", figure: "", duration: 8 },
+         { bass: "D3", figure: "", duration: 8 },
+         { bass: "C3", figure: "", duration: 8 },
+         { bass: "Bb2", figure: "", duration: 8 },
+         { bass: "A2", figure: "", duration: 8 },
+         { bass: "G2", figure: "", duration: 8 },
+         { bass: "F2", figure: "", duration: 8 },
+         { bass: "A2", figure: "", duration: 8 },
+         { bass: "Bb2", figure: "", duration: 8 },
+         { bass: "A2", figure: "", duration: 8 },
+         { bass: "G2", figure: "", duration: 8 },
+         { bass: "Bb2", figure: "", duration: 8 },
+         { bass: "C3", figure: "", duration: 8 },
+         { bass: "Bb2", figure: "", duration: 8 },
+         { bass: "A2", figure: "", duration: 8 },
+         { bass: "C3", figure: "", duration: 8 },
+         { bass: "D3", figure: "", duration: 8 },
+         { bass: "C3", figure: "", duration: 8 },
+         { bass: "D3", figure: "", duration: 8 },
+         { bass: "E3", figure: "", duration: 8 },
+         { bass: "F3", figure: "", duration: 4 },
+         { bass: "Bb2", figure: "", duration: 4 },
+         { bass: "C3", figure: "", duration: 2 },
+         { bass: "F2", figure: "", duration: 2 }
+      ]
+   },
+   {
+      id: "l4",
+      name: "Lesson 4: Half notes",
+      description: "The figure '#' raises the 7th note.",
+      defaultKey: -1,
+      timeSignature: [4, 4],
+      anacrusisBeats: 0,
+      sequence: [
+         { bass: "C3", figure: "", duration: 2 },
+         { bass: "G2", figure: "7", duration: 2 },
+         { bass: "C3", figure: "", duration: 1.5 },
+         { bass: "C3", figure: "", duration: 1 }
+      ]
+   }
+];
+
+
+// --- AUTH & LOGGING ---
+
+class SessionManager {
+   constructor() {
+      this.userId = localStorage.getItem('continuo_user_id');
+      this.eventLog = [];
+      this.currentLessonId = null;
+
+      this.initAuth();
+   }
+
+   initAuth() {
+      if (!this.userId) {
+         this.userId = 'user-' + Math.random().toString(36).substr(2, 6);
+         localStorage.setItem('continuo_user_id', this.userId);
+         this.registerUser(this.userId); // Fire and forget
+      }
+      this.updateDisplay();
+
+      // UI Handler
+      document.getElementById('loginBtn').addEventListener('click', () => {
+         const input = prompt("Enter User ID (or leave empty for new):");
+         if (input !== null) {
+            if (input.trim() === "") {
+               this.userId = 'user-' + Math.random().toString(36).substr(2, 6);
+            } else {
+               this.userId = input.trim();
+            }
+            localStorage.setItem('continuo_user_id', this.userId);
+            this.registerUser(this.userId);
+            this.updateDisplay();
+         }
+      });
+   }
+
+   updateDisplay() {
+      document.getElementById('userDisplay').textContent = this.userId;
+   }
+
+   registerUser(uid) {
+      fetch('/api/login', {
+         method: 'POST',
+         headers: {'Content-Type': 'application/json'},
+         body: JSON.stringify({ userId: uid })
+      }).catch(e => console.error("Login sync failed", e));
+   }
+
+   startLesson(lessonId) {
+      this.currentLessonId = lessonId;
+      this.eventLog = [];
+   }
+
+   logEvent(timestamp, type, data) {
+      this.eventLog.push({ t: Math.floor(timestamp), type, ...data });
+   }
+
+   flushLog(totalDuration, score) {
+      if (this.eventLog.length === 0) return;
+
+      const payload = {
+         userId: this.userId,
+         lessonId: this.currentLessonId,
+         totalDuration: Math.floor(totalDuration),
+         score: score,
+         events: this.eventLog
+      };
+
+      console.log("Saving log...", payload);
+
+      fetch('/api/log', {
+         method: 'POST',
+         headers: {'Content-Type': 'application/json'},
+         body: JSON.stringify(payload)
+      }).then(res => res.json())
          .then(d => console.log("Log saved:", d))
          .catch(e => console.error("Logging failed", e));
-    }
- }
- 
- // --- ENGINE ---
- 
- class AudioEngine {
-    constructor() {
-       this.ctx = null;
-       this.masterGain = null;
-    }
- 
-    init() {
-       if (!this.ctx) {
-          this.ctx = new (window.AudioContext || window.webkitAudioContext)();
-          this.masterGain = this.ctx.createGain();
-          this.masterGain.gain.value = 0.3;
-          this.masterGain.connect(this.ctx.destination);
-       }
-       if (this.ctx.state === 'suspended') {
-          this.ctx.resume();
-       }
-    }
- 
-    playNote(note, durationSec = 0.5, type = 'triangle') {
-       if (!this.ctx) this.init();
-       const osc = this.ctx.createOscillator();
-       const gain = this.ctx.createGain();
-       osc.type = type;
-       osc.frequency.value = this.noteToFreq(note);
-       gain.gain.setValueAtTime(0, this.ctx.currentTime);
-       gain.gain.linearRampToValueAtTime(1, this.ctx.currentTime + 0.02);
-       gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + durationSec);
-       osc.connect(gain);
-       gain.connect(this.masterGain);
-       osc.start();
-       osc.stop(this.ctx.currentTime + durationSec);
-    }
- 
-    noteToFreq(note) {
-       const noteMap = { 'C': -9, 'D': -7, 'E': -5, 'F': -4, 'G': -2, 'A': 0, 'B': 2 };
-       const letter = note.replace(/[\d#b-]+/, '');
-       const acc = note.includes('#') ? 1 : (note.includes('b') ? -1 : 0);
-       const octave = parseInt(note.match(/-?\d+/)[0]);
-       const semitones = (octave - 4) * 12 + noteMap[letter] + acc;
-       return 440 * Math.pow(2, semitones / 12);
-    }
- }
- 
+   }
+}
+
+// --- ENGINE ---
+
+class AudioEngine {
+   constructor() {
+      this.ctx = null;
+      this.masterGain = null;
+   }
+
+   init() {
+      if (!this.ctx) {
+         this.ctx = new (window.AudioContext || window.webkitAudioContext)();
+         this.masterGain = this.ctx.createGain();
+         this.masterGain.gain.value = 0.3;
+         this.masterGain.connect(this.ctx.destination);
+      }
+      if (this.ctx.state === 'suspended') {
+         this.ctx.resume();
+      }
+   }
+
+   playNote(note, durationSec = 0.5, type = 'triangle') {
+      if (!this.ctx) this.init();
+      const osc = this.ctx.createOscillator();
+      const gain = this.ctx.createGain();
+      osc.type = type;
+      osc.frequency.value = this.noteToFreq(note);
+      gain.gain.setValueAtTime(0, this.ctx.currentTime);
+      gain.gain.linearRampToValueAtTime(1, this.ctx.currentTime + 0.02);
+      gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + durationSec);
+      osc.connect(gain);
+      gain.connect(this.masterGain);
+      osc.start();
+      osc.stop(this.ctx.currentTime + durationSec);
+   }
+
+   noteToFreq(note) {
+      const noteMap = { 'C': -9, 'D': -7, 'E': -5, 'F': -4, 'G': -2, 'A': 0, 'B': 2 };
+      const letter = note.replace(/[\d#b-]+/, '');
+      const acc = note.includes('#') ? 1 : (note.includes('b') ? -1 : 0);
+      const octave = parseInt(note.match(/-?\d+/)[0]);
+      const semitones = (octave - 4) * 12 + noteMap[letter] + acc;
+      return 440 * Math.pow(2, semitones / 12);
+   }
+}
+
 class CanvasRenderer {
    constructor(canvas) {
       this.canvas = canvas;
@@ -353,7 +353,7 @@ class CanvasRenderer {
          const y = this.staffTop + i * this.lineSpacing;
          ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(width, y); ctx.stroke();
       }
-      
+
       // Bass Staff
       const bassTop = this.staffTop + this.staffGap;
       for (let i = 0; i < this.numLines; i++) {
@@ -374,80 +374,91 @@ class CanvasRenderer {
    }
 
    drawTrebleClef(x, staffTopY) {
-       const ctx = this.ctx;
-       const S = this.lineSpacing; // Unit Scale
+      const ctx = this.ctx;
+      const S = this.lineSpacing;
 
-       // The Treble Clef spirals around the G-line (2nd line from bottom, index 3)
-       const anchorY = staffTopY + (3 * S); 
+      const anchorY = staffTopY + (3 * S);   // G-line
 
-       ctx.save();
-       ctx.translate(x, anchorY);
-       
-       const drawScale = S * 0.75; 
-       ctx.scale(drawScale, drawScale);
+      ctx.save();
+      ctx.translate(x, anchorY);
 
-       ctx.lineWidth = 2.5 / drawScale; 
-       ctx.lineCap = "round";
-       ctx.lineJoin = "round";
+      const k = S * 0.72;      // slightly smaller than your 0.75 for proportions
+      ctx.scale(k, k);
 
-       ctx.beginPath();
-       // Spiral
-       ctx.moveTo(-0.3, 0.3); 
-       ctx.bezierCurveTo(1.5, 0.5, 1.5, -1.5, 0, -1.5); 
-       ctx.bezierCurveTo(-2, -1.5, -2, 2, 0.5, 2.5);   
-       ctx.bezierCurveTo(3.5, 2.5, 3.5, -3, 0.5, -5);  
-       
-       // Top Loop
-       ctx.bezierCurveTo(-1.5, -6, -1.5, -4, 0, -3);
-       
-       // Vertical Line
-       ctx.lineTo(-0.2, 4); 
-       
-       // Bottom Hook
-       ctx.bezierCurveTo(-0.2, 5, -1.5, 5, -1.5, 4.5);
-       ctx.stroke();
-       
-       // Dot at bottom
-       ctx.beginPath();
-       ctx.arc(-1.5, 4.5, 0.4, 0, Math.PI*2);
-       ctx.fill();
+      ctx.lineWidth = 2.4 / k;
+      ctx.lineCap = "round";
+      ctx.lineJoin = "round";
 
-       ctx.restore();
+      ctx.beginPath();
+
+      // SPIRAL (inner coil)
+      ctx.moveTo(0.00, 0.00);
+      ctx.bezierCurveTo( 1.2,  0.2,  1.6, -1.1,  0.3, -1.6);
+      ctx.bezierCurveTo(-1.4, -2.2, -2.2,  0.4, -0.4,  1.4);
+      ctx.bezierCurveTo( 1.8,  2.5,  3.3, -1.8,  0.6, -3.6);
+
+      // TOP LOOP
+      ctx.bezierCurveTo(-2.0, -5.4, -1.0, -6.9,  0.4, -6.2);
+      ctx.bezierCurveTo( 1.4, -5.7,  1.6, -4.4,  0.2, -3.6);
+
+      // STEM DOWNWARD
+      ctx.lineTo( -0.3, 3.5 );
+
+      // BOTTOM HOOK
+      ctx.bezierCurveTo(
+         -0.4,  4.6,
+         -1.7,  4.8,
+         -2.0,  3.9
+      );
+      ctx.bezierCurveTo(
+         -2.3,  2.8,
+         -1.2,  2.5,
+         -0.4,  3.1
+      );
+
+      ctx.stroke();
+
+      // Small dot near hook
+      ctx.beginPath();
+      ctx.arc(-1.6, 3.8, 0.35, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.restore();
    }
 
    drawBassClef(x, staffTopY) {
-       const ctx = this.ctx;
-       const S = this.lineSpacing;
+      const ctx = this.ctx;
+      const S = this.lineSpacing;
 
-       // The Bass Clef dot is on the F-line (2nd line from top, index 1)
-       const anchorY = staffTopY + (1 * S);
+      // The Bass Clef dot is on the F-line (2nd line from top, index 1)
+      const anchorY = staffTopY + (1 * S);
 
-       ctx.save();
-       ctx.translate(x, anchorY);
-       
-       const drawScale = S * 0.75;
-       ctx.scale(drawScale, drawScale);
+      ctx.save();
+      ctx.translate(x, anchorY);
 
-       // Main Dot
-       ctx.beginPath();
-       ctx.arc(0, 0, 0.6, 0, Math.PI * 2); 
-       ctx.fill();
+      const drawScale = S * 0.75;
+      ctx.scale(drawScale, drawScale);
 
-       // Curve
-       ctx.beginPath();
-       ctx.moveTo(0, 0);
-       ctx.bezierCurveTo(1.5, -2.5, 3.5, -1.0, 3.0, 1.5); 
-       ctx.bezierCurveTo(2.8, 3.0, 1.0, 3.5, 0.5, 3.0);
-       ctx.lineWidth = 2.5 / drawScale;
-       ctx.stroke();
+      // Main Dot
+      ctx.beginPath();
+      ctx.arc(0, 0, 0.6, 0, Math.PI * 2); 
+      ctx.fill();
 
-       // Two Dots
-       ctx.beginPath();
-       ctx.arc(4.5, -0.7, 0.3, 0, Math.PI * 2);
-       ctx.arc(4.5, 0.7, 0.3, 0, Math.PI * 2);
-       ctx.fill();
+      // Curve
+      ctx.beginPath();
+      ctx.moveTo(0, 0);
+      ctx.bezierCurveTo(1.5, -2.5, 3.5, -1.0, 3.0, 1.5); 
+      ctx.bezierCurveTo(2.8, 3.0, 1.0, 3.5, 0.5, 3.0);
+      ctx.lineWidth = 2.5 / drawScale;
+      ctx.stroke();
 
-       ctx.restore();
+      // Two Dots
+      ctx.beginPath();
+      ctx.arc(4.5, -0.7, 0.3, 0, Math.PI * 2);
+      ctx.arc(4.5, 0.7, 0.3, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.restore();
    }
 
    drawAccidental(type, x, y) {
@@ -455,7 +466,7 @@ class CanvasRenderer {
       const size = 6;
       ctx.beginPath();
       ctx.lineWidth = 1.5;
-      
+
       if (type === '#' || type === '♯') {
          ctx.moveTo(x - 2, y - size); ctx.lineTo(x - 2, y + size);
          ctx.moveTo(x + 2, y - size); ctx.lineTo(x + 2, y + size);
@@ -467,10 +478,10 @@ class CanvasRenderer {
          ctx.bezierCurveTo(x, y + 6, x + 5, y + 2, x - 3, y - 2); 
       }
       else if (type === 'n' || type === '♮') {
-          ctx.moveTo(x - 2, y - 8); ctx.lineTo(x - 2, y + 4);
-          ctx.moveTo(x + 2, y - 4); ctx.lineTo(x + 2, y + 8);
-          ctx.moveTo(x - 2, y); ctx.lineTo(x + 2, y - 2);
-          ctx.moveTo(x - 2, y + 4); ctx.lineTo(x + 2, y + 2);
+         ctx.moveTo(x - 2, y - 8); ctx.lineTo(x - 2, y + 4);
+         ctx.moveTo(x + 2, y - 4); ctx.lineTo(x + 2, y + 8);
+         ctx.moveTo(x - 2, y); ctx.lineTo(x + 2, y - 2);
+         ctx.moveTo(x - 2, y + 4); ctx.lineTo(x + 2, y + 2);
       }
       ctx.stroke();
    }
@@ -516,7 +527,7 @@ class CanvasRenderer {
       ctx.fillText(den, x, trebleMidY + offset);
       ctx.fillText(num, x, bassMidY - offset);
       ctx.fillText(den, x, bassMidY + offset);
-      
+
       return x + 40; // Start of content area
    }
 
@@ -542,19 +553,19 @@ class CanvasRenderer {
    }
 
    drawNoteHead(x, y, isHollow) {
-       const ctx = this.ctx;
-       ctx.save();
-       ctx.translate(x, y);
-       ctx.rotate(-20 * Math.PI / 180);
-       ctx.beginPath();
-       ctx.ellipse(0, 0, CONFIG.NOTE_HEAD_WIDTH/2, CONFIG.NOTE_HEAD_HEIGHT/2, 0, 0, 2 * Math.PI);
-       if (isHollow) {
-           ctx.lineWidth = 2;
-           ctx.stroke();
-       } else {
-           ctx.fill();
-       }
-       ctx.restore();
+      const ctx = this.ctx;
+      ctx.save();
+      ctx.translate(x, y);
+      ctx.rotate(-20 * Math.PI / 180);
+      ctx.beginPath();
+      ctx.ellipse(0, 0, CONFIG.NOTE_HEAD_WIDTH/2, CONFIG.NOTE_HEAD_HEIGHT/2, 0, 0, 2 * Math.PI);
+      if (isHollow) {
+         ctx.lineWidth = 2;
+         ctx.stroke();
+      } else {
+         ctx.fill();
+      }
+      ctx.restore();
    }
 
    drawSingleFlag(x, stemTopY, stemBotY, isUp) {
@@ -628,24 +639,24 @@ class CanvasRenderer {
    }
 
    drawLedgerLines(x, y, clef) {
-       const ctx = this.ctx;
-       const topLineY = clef === "treble" ? this.staffTop : this.staffTop + this.staffGap;
-       const bottomLineY = topLineY + (this.numLines - 1) * this.lineSpacing;
-       const ledgerWidth = 24;
- 
-       ctx.lineWidth = 1;
-       ctx.strokeStyle = "black"; 
-       
-       if (y <= topLineY - this.lineSpacing) {
-          for (let ly = topLineY - this.lineSpacing; ly >= y - 2; ly -= this.lineSpacing) {
-             ctx.beginPath(); ctx.moveTo(x - ledgerWidth/2, ly); ctx.lineTo(x + ledgerWidth/2, ly); ctx.stroke();
-          }
-       }
-       if (y >= bottomLineY + this.lineSpacing) {
-          for (let ly = bottomLineY + this.lineSpacing; ly <= y + 2; ly += this.lineSpacing) {
-             ctx.beginPath(); ctx.moveTo(x - ledgerWidth/2, ly); ctx.lineTo(x + ledgerWidth/2, ly); ctx.stroke();
-          }
-       }
+      const ctx = this.ctx;
+      const topLineY = clef === "treble" ? this.staffTop : this.staffTop + this.staffGap;
+      const bottomLineY = topLineY + (this.numLines - 1) * this.lineSpacing;
+      const ledgerWidth = 24;
+
+      ctx.lineWidth = 1;
+      ctx.strokeStyle = "black"; 
+
+      if (y <= topLineY - this.lineSpacing) {
+         for (let ly = topLineY - this.lineSpacing; ly >= y - 2; ly -= this.lineSpacing) {
+            ctx.beginPath(); ctx.moveTo(x - ledgerWidth/2, ly); ctx.lineTo(x + ledgerWidth/2, ly); ctx.stroke();
+         }
+      }
+      if (y >= bottomLineY + this.lineSpacing) {
+         for (let ly = bottomLineY + this.lineSpacing; ly <= y + 2; ly += this.lineSpacing) {
+            ctx.beginPath(); ctx.moveTo(x - ledgerWidth/2, ly); ctx.lineTo(x + ledgerWidth/2, ly); ctx.stroke();
+         }
+      }
    }
 
    getAccidentalSymbol(note, keySig) {
@@ -677,7 +688,7 @@ class CanvasRenderer {
    renderLessonState(lesson, currentStepIndex, userHistory, currentHeldNotes, correctionNotes) {
       this.currentKeySig = lesson.defaultKey;
       this.clear();
-      
+
       // 1. Draw Fixed Header Elements (Left side)
       this.drawStaves(); 
       this.drawKeySignature(lesson.defaultKey);
@@ -700,13 +711,13 @@ class CanvasRenderer {
          const beats = DURATION_MAP[step.duration];
          const width = beats * CONFIG.BEAT_SPACING_PX;
          const pos = cursorX + (width / 2);
-         
+
          if (index === currentStepIndex) activeNoteX = pos;
          cursorX += width;
-         
+
          currentMeasureBeats += beats;
          let isBarline = false;
-         
+
          if (Math.abs(currentMeasureBeats - measureTarget) < 0.01 || currentMeasureBeats > measureTarget) {
             isBarline = true;
             currentMeasureBeats = 0;
@@ -732,36 +743,36 @@ class CanvasRenderer {
       // --- BEAMING LOGIC ---
       const beams = [];
       let currentGroup = [];
-      
+
       const flushGroup = () => {
-          if (currentGroup.length > 1) {
-              beams.push([...currentGroup]);
-          }
-          currentGroup = [];
+         if (currentGroup.length > 1) {
+            beams.push([...currentGroup]);
+         }
+         currentGroup = [];
       };
 
       noteObjects.forEach((note) => {
-          if (note.duration === 8) { 
-              currentGroup.push(note);
-              if (currentGroup.length === 4 || note.barlineX) {
-                  flushGroup();
-              }
-          } else {
-              flushGroup();
-          }
+         if (note.duration === 8) { 
+            currentGroup.push(note);
+            if (currentGroup.length === 4 || note.barlineX) {
+               flushGroup();
+            }
+         } else {
+            flushGroup();
+         }
       });
       flushGroup();
 
       // --- RENDER PASS ---
-      
+
       // Highlight
       if (currentStepIndex < noteObjects.length) {
-          const step = noteObjects[currentStepIndex];
-          const drawX = step.x - (step.width/2) - this.viewportOffsetX;
-          if (drawX + step.width > 0 && drawX < this.canvas.width) {
-             this.ctx.fillStyle = "rgba(255, 255, 0, 0.2)";
-             this.ctx.fillRect(drawX, 0, step.width, this.canvas.height);
-          }
+         const step = noteObjects[currentStepIndex];
+         const drawX = step.x - (step.width/2) - this.viewportOffsetX;
+         if (drawX + step.width > 0 && drawX < this.canvas.width) {
+            this.ctx.fillStyle = "rgba(255, 255, 0, 0.2)";
+            this.ctx.fillRect(drawX, 0, step.width, this.canvas.height);
+         }
       }
 
       const ctx = this.ctx;
@@ -769,102 +780,102 @@ class CanvasRenderer {
 
       // Unbeamed Notes
       noteObjects.forEach(note => {
-          if (!beamedIndices.has(note.index)) {
-              this.drawNoteAt(note.bass, note.x, "bass", "black", note.duration);
-          }
-          this.drawFigure(note.figure, note.x, note.bass, "bass");
-          
-          if (note.barlineX) {
-              if (note.index === noteObjects.length - 1) {
-                  this.drawEndBarline(note.barlineX - this.viewportOffsetX);
-              } else {
-                  this.drawBarLine(note.barlineX - this.viewportOffsetX);
-              }
-          }
+         if (!beamedIndices.has(note.index)) {
+            this.drawNoteAt(note.bass, note.x, "bass", "black", note.duration);
+         }
+         this.drawFigure(note.figure, note.x, note.bass, "bass");
+
+         if (note.barlineX) {
+            if (note.index === noteObjects.length - 1) {
+               this.drawEndBarline(note.barlineX - this.viewportOffsetX);
+            } else {
+               this.drawBarLine(note.barlineX - this.viewportOffsetX);
+            }
+         }
       });
 
       // Beams
       beams.forEach(group => {
-          const upCount = group.filter(n => n.stemDir === 'up').length;
-          const isUp = upCount >= group.length / 2; 
-          
-          const noteContexts = group.map(note => {
-             const drawX = note.x - this.viewportOffsetX;
-             const stemOffsetX = isUp ? (CONFIG.NOTE_HEAD_WIDTH/2 - 1) : -(CONFIG.NOTE_HEAD_WIDTH/2 - 1);
-             return {
-                note: note,
-                drawX: drawX,
-                stemX: drawX + stemOffsetX,
-                y: note.y
-             };
-          });
+         const upCount = group.filter(n => n.stemDir === 'up').length;
+         const isUp = upCount >= group.length / 2; 
 
-          const startCtx = noteContexts[0];
-          const endCtx = noteContexts[noteContexts.length - 1];
-          
-          if (startCtx.drawX > this.canvas.width) return;
+         const noteContexts = group.map(note => {
+            const drawX = note.x - this.viewportOffsetX;
+            const stemOffsetX = isUp ? (CONFIG.NOTE_HEAD_WIDTH/2 - 1) : -(CONFIG.NOTE_HEAD_WIDTH/2 - 1);
+            return {
+               note: note,
+               drawX: drawX,
+               stemX: drawX + stemOffsetX,
+               y: note.y
+            };
+         });
 
-          const stemLen = CONFIG.STEM_HEIGHT;
-          let startBeamY, endBeamY;
-          
-          if (isUp) {
-             startBeamY = startCtx.y - stemLen;
-             endBeamY = endCtx.y - stemLen;
-          } else {
-             startBeamY = startCtx.y + stemLen;
-             endBeamY = endCtx.y + stemLen;
-          }
-          
-          // Draw Beam
-          ctx.beginPath();
-          ctx.lineWidth = 5; 
-          ctx.strokeStyle = "black";
-          ctx.lineCap = "butt"; 
-          ctx.moveTo(startCtx.stemX, startBeamY);
-          ctx.lineTo(endCtx.stemX, endBeamY);
-          ctx.stroke();
+         const startCtx = noteContexts[0];
+         const endCtx = noteContexts[noteContexts.length - 1];
 
-          // Draw Heads and Connectors
-          noteContexts.forEach(nCtx => {
-              // Head
-              this.drawNoteAt(nCtx.note.bass, nCtx.note.x, "bass", "black", nCtx.note.duration, 1.0, true);
+         if (startCtx.drawX > this.canvas.width) return;
 
-              // Connector Stem
-              const totalDist = endCtx.stemX - startCtx.stemX;
-              const currentDist = nCtx.stemX - startCtx.stemX;
-              const t = totalDist === 0 ? 0 : currentDist / totalDist;
-              
-              const beamYAtStem = startBeamY + (endBeamY - startBeamY) * t;
-              const stemStart = nCtx.y + (isUp ? -2 : 2);
-              
-              ctx.beginPath();
-              ctx.lineWidth = 1.5;
-              ctx.moveTo(nCtx.stemX, stemStart);
-              ctx.lineTo(nCtx.stemX, beamYAtStem);
-              ctx.stroke();
-          });
+         const stemLen = CONFIG.STEM_HEIGHT;
+         let startBeamY, endBeamY;
+
+         if (isUp) {
+            startBeamY = startCtx.y - stemLen;
+            endBeamY = endCtx.y - stemLen;
+         } else {
+            startBeamY = startCtx.y + stemLen;
+            endBeamY = endCtx.y + stemLen;
+         }
+
+         // Draw Beam
+         ctx.beginPath();
+         ctx.lineWidth = 5; 
+         ctx.strokeStyle = "black";
+         ctx.lineCap = "butt"; 
+         ctx.moveTo(startCtx.stemX, startBeamY);
+         ctx.lineTo(endCtx.stemX, endBeamY);
+         ctx.stroke();
+
+         // Draw Heads and Connectors
+         noteContexts.forEach(nCtx => {
+            // Head
+            this.drawNoteAt(nCtx.note.bass, nCtx.note.x, "bass", "black", nCtx.note.duration, 1.0, true);
+
+            // Connector Stem
+            const totalDist = endCtx.stemX - startCtx.stemX;
+            const currentDist = nCtx.stemX - startCtx.stemX;
+            const t = totalDist === 0 ? 0 : currentDist / totalDist;
+
+            const beamYAtStem = startBeamY + (endBeamY - startBeamY) * t;
+            const stemStart = nCtx.y + (isUp ? -2 : 2);
+
+            ctx.beginPath();
+            ctx.lineWidth = 1.5;
+            ctx.moveTo(nCtx.stemX, stemStart);
+            ctx.lineTo(nCtx.stemX, beamYAtStem);
+            ctx.stroke();
+         });
       });
 
       // User History
       userHistory.forEach((attemptGroup, idx) => {
-          if (!attemptGroup) return;
-          const stepX = noteObjects[idx].x;
-          attemptGroup.forEach(attempt => {
-             const octave = parseInt(attempt.note.match(/-?\d+/)[0]);
-             const clef = octave >= 4 ? 'treble' : 'bass';
-             const color = attempt.correct ? '#22c55e' : '#ef4444';
-             this.drawNoteAt(attempt.note, stepX, clef, color, noteObjects[idx].duration);
-          });
+         if (!attemptGroup) return;
+         const stepX = noteObjects[idx].x;
+         attemptGroup.forEach(attempt => {
+            const octave = parseInt(attempt.note.match(/-?\d+/)[0]);
+            const clef = octave >= 4 ? 'treble' : 'bass';
+            const color = attempt.correct ? '#22c55e' : '#ef4444';
+            this.drawNoteAt(attempt.note, stepX, clef, color, noteObjects[idx].duration);
+         });
       });
-      
+
       // Corrections
       Object.keys(correctionNotes).forEach(idx => {
-          const stepX = noteObjects[idx].x;
-          correctionNotes[idx].forEach(note => {
-             const octave = parseInt(note.match(/-?\d+/)[0]);
-             const clef = octave >= 4 ? 'treble' : 'bass';
-             this.drawNoteAt(note, stepX + 15, clef, '#eab308', noteObjects[idx].duration);
-          });
+         const stepX = noteObjects[idx].x;
+         correctionNotes[idx].forEach(note => {
+            const octave = parseInt(note.match(/-?\d+/)[0]);
+            const clef = octave >= 4 ? 'treble' : 'bass';
+            this.drawNoteAt(note, stepX + 15, clef, '#eab308', noteObjects[idx].duration);
+         });
       });
 
       // Held Notes
@@ -881,528 +892,528 @@ class CanvasRenderer {
       return activeNoteX;
    }
 }
- 
- class LessonManager {
-    constructor(renderer, audio, session) {
-       this.renderer = renderer;
-       this.audio = audio;
-       this.session = session;
-       this.currentLesson = null;
-       this.currentStepIndex = 0;
-       this.history = [];
-       this.corrections = {};
-       this.score = 0;
-       this.timerInterval = null;
-       this.startTime = 0;
-       this.accumulatedTime = 0;
-       this.lastActivityTime = 0;
-       this.isPlaying = false;
-       this.isFinished = false;
-    }
- 
-    loadLesson(lessonId) {
-       const data = LESSONS.find(l => l.id === lessonId) || LESSONS[0];
-       this.currentLesson = JSON.parse(JSON.stringify(data));
-       this.reset();
-    }
- 
-    reset() {
-       if(!this.currentLesson) return;
-       this.currentStepIndex = 0;
-       this.history = new Array(this.currentLesson.sequence.length).fill(null).map(() => []);
-       this.corrections = {};
-       this.score = 0;
-       this.renderer.viewportOffsetX = 0;
- 
-       this.stopTimer();
-       this.accumulatedTime = 0;
-       this.startTime = 0;
-       this.lastActivityTime = 0;
-       this.isPlaying = false;
-       this.isFinished = false;
- 
-       this.session.startLesson(this.currentLesson.id);
- 
-       document.getElementById("lessonDescription").textContent = this.currentLesson.description;
-       this.updateScoreboard();
- 
-       this.render();
-       this.playBassForCurrentStep();
-    }
- 
-    notifyActivity() {
-       if (this.isFinished) return;
-       const now = Date.now();
-       this.lastActivityTime = now;
-       if (!this.isPlaying) {
-          this.isPlaying = true;
-          this.startTime = now;
-          this.startTimerLoop();
-       }
-    }
- 
-    startTimerLoop() {
-       if (this.timerInterval) clearInterval(this.timerInterval);
-       this.timerInterval = setInterval(() => this._tick(), 100);
-    }
- 
-    stopTimer() {
-       if (this.timerInterval) clearInterval(this.timerInterval);
-       this.timerInterval = null;
-    }
- 
-    _tick() {
-       if (!this.isPlaying || this.isFinished) return;
-       const now = Date.now();
-       if (now - this.lastActivityTime > 5000) {
-          this.isPlaying = false;
-          this.accumulatedTime += (this.lastActivityTime - this.startTime);
-          this.updateScoreboard(true);
-          return;
-       }
-       this.updateScoreboard();
-    }
- 
-    getTotalTimeMS() {
-       if (!this.isPlaying) return this.accumulatedTime;
-       return this.accumulatedTime + (Date.now() - this.startTime);
-    }
- 
-    getSessionTime() {
-       if (!this.isPlaying && this.accumulatedTime === 0) return 0;
-       if (!this.isPlaying) return this.accumulatedTime;
-       return this.accumulatedTime + (Date.now() - this.startTime);
-    }
-    
-    calculateAutoScrollOffset(activeNoteX) {
-       const targetScreenX = this.renderer.canvas.width / 3;
-       const desiredOffset = activeNoteX - targetScreenX;
-       return Math.max(0, desiredOffset);
-    }
- 
-    formatTime(ms) {
-       const totalSeconds = Math.floor(ms / 1000);
-       const m = Math.floor(totalSeconds / 60);
-       const s = totalSeconds % 60;
-       return `${m}:${s.toString().padStart(2, '0')}`;
-    }
- 
-    updateScoreboard(isPaused = false) {
-       const timeStr = this.formatTime(this.getTotalTimeMS());
-       const pausedText = (isPaused || (!this.isPlaying && this.accumulatedTime > 0 && !this.isFinished)) ? " (Paused)" : "";
-       document.getElementById("scoreboard").textContent = `Score: ${this.score} | Time: ${timeStr}${pausedText}`;
-    }
- 
-    playBassForCurrentStep() {
-       if (!document.getElementById("chkSoundBass").checked) return;
-       if (!this.currentLesson || this.currentStepIndex >= this.currentLesson.sequence.length) return;
- 
-       const step = this.currentLesson.sequence[this.currentStepIndex];
-       const durBeats = DURATION_MAP[step.duration] || 1;
-       this.audio.playNote(step.bass, durBeats * 0.5, 'triangle');
-    }
- 
-    getCorrectPitchClasses(step) {
-       const { bass, figure } = step;
-       const scale = KEY_SCALES[this.currentLesson.defaultKey.toString()];
-       const bassLetter = bass.replace(/[\d-]+/, '');
-       let scaleIndex = scale.indexOf(bassLetter.charAt(0).toUpperCase() + bassLetter.slice(1));
-       if (scaleIndex === -1) {
-          const map = { 'C': 0, 'D': 1, 'E': 2, 'F': 3, 'G': 4, 'A': 5, 'B': 6 };
-          scaleIndex = map[bassLetter.charAt(0).toUpperCase()];
-       }
- 
-       let intervals = [0, 2, 4];
-       if (figure === "6") intervals = [0, 2, 5];
-       if (figure === "6/4") intervals = [0, 3, 5];
-       if (figure === "7") intervals = [0, 2, 4, 6];
- 
-       return intervals.map(iv => {
-          const targetIndex = (scaleIndex + iv) % 7;
-          return this.noteToMidiClass(scale[targetIndex]);
-       });
-    }
- 
-    generateCorrection(step) {
-       const classes = this.getCorrectPitchClasses(step);
-       const correction = [];
-       const range = ['C4','C#4','D4','D#4','E4','F4','F#4','G4','G#4','A4','A#4','B4',
-          'C5','C#5','D5','D#5','E5','F5','F#5','G5'];
-       const usedClasses = new Set();
-       range.forEach(note => {
-          const nc = this.noteToMidiClass(note);
-          if (classes.includes(nc) && !usedClasses.has(nc)) {
-             correction.push(note);
-             usedClasses.add(nc);
-          }
-       });
-       correction.sort((a,b) => this.noteToMidiNum(a) - this.noteToMidiNum(b));
-       return correction.slice(0, classes.length);
-    }
- 
-    noteToMidiClass(noteName) {
-       const map = { 'C': 0, 'D': 2, 'E': 4, 'F': 5, 'G': 7, 'A': 9, 'B': 11 };
-       const letter = noteName.replace(/[\d#b-]+/, '');
-       const acc = noteName.includes('#') ? 1 : (noteName.includes('b') ? -1 : 0);
-       return (map[letter.charAt(0).toUpperCase()] + acc + 12) % 12;
-    }
- 
-    noteToMidiNum(noteName) {
-       const notes = ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
-       const letter = noteName.replace(/[\d#b-]+/, '');
-       const acc = noteName.includes('#') ? 1 : (noteName.includes('b') ? -1 : 0);
-       const octave = parseInt(noteName.match(/-?\d+/)[0]);
-       const noteIndex = notes.indexOf(letter.charAt(0).toUpperCase());
-       return (octave + 1) * 12 + noteIndex + acc;
-    }
- 
-    submitChord(notesPlayed) {
-       if (!this.currentLesson) return;
-       if (this.currentStepIndex >= this.currentLesson.sequence.length) return;
- 
-       const currentStep = this.currentLesson.sequence[this.currentStepIndex];
-       const correctClasses = this.getCorrectPitchClasses(currentStep);
- 
-       let allCorrect = true;
-       const stepResult = [];
- 
-       notesPlayed.forEach(note => {
-          const noteClass = this.noteToMidiClass(note);
-          const isCorrect = correctClasses.includes(noteClass);
-          if (!isCorrect) allCorrect = false;
-          stepResult.push({ note: note, correct: isCorrect });
-       });
- 
-       this.history[this.currentStepIndex] = stepResult;
- 
-       const isSuccess = (allCorrect && notesPlayed.length > 0);
-       if (isSuccess) {
-          this.score += 10;
-       } else {
-          this.corrections[this.currentStepIndex] = this.generateCorrection(currentStep);
-       }
- 
-       this.session.logEvent(this.getSessionTime(), "submit", {
-          stepIndex: this.currentStepIndex,
-          notes: notesPlayed,
-          correct: isSuccess
-       });
- 
-       let activeNoteX = 0;
-       const oldActiveNoteX = this.renderer.renderLessonState(
-          this.currentLesson,
-          this.currentStepIndex,
-          this.history,
-          new Set(notesPlayed), // Flash logic
-          this.corrections
-       );
-       
-       if (this.currentStepIndex < this.currentLesson.sequence.length - 1) {
-          this.currentStepIndex++;
-          this.updateScoreboard();
- 
-          activeNoteX = this.renderer.renderLessonState(
-             this.currentLesson,
-             this.currentStepIndex,
-             this.history,
-             new Set(), 
-             this.corrections
-          );
-          this.renderer.viewportOffsetX = this.calculateAutoScrollOffset(activeNoteX);
- 
-          setTimeout(() => this.playBassForCurrentStep(), 500);
-       } else {
-          this.isFinished = true;
-          this.accumulatedTime = this.getTotalTimeMS();
-          this.isPlaying = false;
-          this.stopTimer();
-          this.session.flushLog(this.accumulatedTime, this.score);
-          this.showFinalJudgment();
-       }
-       this.render();
-    }
- 
-    showFinalJudgment() {
-       const totalSteps = this.currentLesson.sequence.length;
-       const maxScore = totalSteps * 10;
-       const accuracy = this.score / maxScore;
-       const totalSeconds = this.accumulatedTime / 1000;
-       const secondsPerStep = totalSeconds / totalSteps;
- 
-       let msg = "";
-       let icon = "";
- 
-       if (accuracy >= 0.9) {
-          if (secondsPerStep < 3) {
-             icon = "🏆"; msg = "Masterful! Fast and accurate.";
-          } else {
-             icon = "✅"; msg = "Excellent accuracy! Try to play faster next time.";
-          }
-       } else if (accuracy >= 0.7) {
-          icon = "🙂"; msg = "Good job. Keep practicing to improve accuracy.";
-       } else {
-          icon = "⚠️"; msg = "Try again. Focus on hitting the right notes.";
-       }
- 
-       const timeStr = this.formatTime(this.accumulatedTime);
-       document.getElementById("scoreboard").innerHTML =
-          `Score: ${this.score} | Time: ${timeStr} <span style="color:#2563eb; margin-left:15px;">${icon} ${msg}</span>`;
-    }
- 
-    render(currentHeldNotes = new Set()) {
-       if (!this.currentLesson) return;
-       this.renderer.renderLessonState(
-          this.currentLesson,
-          this.currentStepIndex,
-          this.history,
-          currentHeldNotes,
-          this.corrections
-       );
-    }
- }
- 
- class InputHandler {
-    constructor(manager, audio) {
-       this.manager = manager;
-       this.audio = audio;
-       this.heldNotes = new Set();
-       this.chordBuffer = new Set();
-    }
- 
-    handleNoteOn(note, velocity = 80) {
-       this.manager.notifyActivity();
-       this.manager.session.logEvent(this.manager.getSessionTime(), "noteOn", { note: note, velocity: velocity });
- 
-       if (document.getElementById("chkSoundUser").checked) {
-          this.audio.playNote(note, 0.3, 'sine');
-       }
-       this.heldNotes.add(note);
-       this.chordBuffer.add(note);
- 
-       this.manager.render(this.heldNotes);
-       this.updateKeyboardUI();
-    }
- 
-    handleNoteOff(note) {
-       this.manager.session.logEvent(this.manager.getSessionTime(), "noteOff", { note: note });
- 
-       this.heldNotes.delete(note);
-       this.manager.render(this.heldNotes);
-       this.updateKeyboardUI();
- 
-       if (this.heldNotes.size === 0 && this.chordBuffer.size > 0) {
-          this.submit();
-       }
-    }
- 
-    updateKeyboardUI() {
-       document.querySelectorAll('.white-key, .black-key').forEach(el => {
-          if (this.heldNotes.has(el.dataset.note)) {
-             el.classList.add('active');
-          } else {
-             el.classList.remove('active');
-          }
-       });
-    }
- 
-    submit() {
-       const notes = Array.from(this.chordBuffer);
-       this.manager.submitChord(notes);
-       this.chordBuffer.clear();
-    }
- 
-    onMidiMessage(msg) {
-       const [status, data1, data2] = msg.data;
-       const command = status >> 4;
-       const noteNum = data1;
-       const velocity = (data2 > 127) ? 127 : data2;
-       const noteName = this.midiNumToNote(noteNum);
- 
-       if (command === 9 && velocity > 0) this.handleNoteOn(noteName, velocity);
-       else if (command === 8 || (command === 9 && velocity === 0)) this.handleNoteOff(noteName);
-    }
- 
-    midiNumToNote(num) {
-       const notes = ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
-       const octave = Math.floor(num / 12) - 1;
-       return notes[num % 12] + octave;
-    }
- }
- 
- class Keyboard {
-    static create(containerId, inputHandler) {
-       const container = document.getElementById(containerId);
-       const canvas = document.getElementById("sheet");
-       const width = canvas.width;
-       container.style.width = `${width}px`;
-       container.innerHTML = "";
- 
-       const kWidth = CONFIG.KEY_WIDTH;
-       const numKeysToDraw = Math.ceil(width / kWidth) + 5; 
-       const middleNoteOffset = 2; 
-       const centerIndexOffset = Math.floor(numKeysToDraw / 2);
- 
-       const getWhiteNote = (offset) => {
-          const map = ['C','D','E','F','G','A','B'];
-          let index = offset + middleNoteOffset;
-          let octave = 4 + Math.floor(index / 7);
-          let noteIdx = index % 7;
-          if (noteIdx < 0) noteIdx += 7;
-          return map[noteIdx] + octave;
-       };
- 
-       const whiteNotes = [];
-       for (let i = -centerIndexOffset; i <= centerIndexOffset; i++) {
-          whiteNotes.push({ note: getWhiteNote(i), offset: i });
-       }
- 
-       const whiteKeyHeight = 120;
-       const blackKeyWidth = kWidth * 0.65;
-       const blackKeyHeight = 80;
- 
-       const attachEvents = (el, note) => {
-          el.dataset.note = note;
-          el.addEventListener("pointerdown", (e) => {
-             e.preventDefault();
-             el.setPointerCapture(e.pointerId);
-             inputHandler.handleNoteOn(note);
-          });
-          el.addEventListener("pointerup", (e) => {
-             e.preventDefault();
-             inputHandler.handleNoteOff(note);
-          });
-          el.addEventListener("pointercancel", (e) => inputHandler.handleNoteOff(note));
-       };
- 
-       const c4Left = width / 2; 
- 
-       whiteNotes.forEach(item => {
-          const left = c4Left + (item.offset * kWidth) - (kWidth / 2); 
-          if (left > width || left + kWidth < 0) return;
- 
-          const key = document.createElement("div");
-          key.className = "white-key";
-          key.style.left = `${left}px`;
-          key.style.width = `${kWidth}px`;
-          key.style.height = `${whiteKeyHeight}px`;
-          key.textContent = item.note.includes('C') ? item.note : '';
-          key.style.display = "flex"; key.style.alignItems="flex-end"; key.style.justifyContent="center";
-          key.style.fontSize="10px"; key.style.paddingBottom="5px"; key.style.fontWeight="bold";
-          attachEvents(key, item.note);
-          container.appendChild(key);
- 
-          const letter = item.note.charAt(0);
-          if (['C','D','F','G','A'].includes(letter)) {
-             const blackNote = letter + '#' + item.note.slice(-1);
-             const bKey = document.createElement("div");
-             bKey.className = "black-key";
-             bKey.style.left = `${left + kWidth - (blackKeyWidth / 2)}px`;
-             bKey.style.width = `${blackKeyWidth}px`;
-             bKey.style.height = `${blackKeyHeight}px`;
-             attachEvents(bKey, blackNote);
-             container.appendChild(bKey);
-          }
-       });
-    }
- }
- 
- window.addEventListener("DOMContentLoaded", () => {
-    const session = new SessionManager();
-    const audio = new AudioEngine();
-    const canvas = document.getElementById("sheet");
-    const renderer = new CanvasRenderer(canvas);
-    const manager = new LessonManager(renderer, audio, session);
-    const inputHandler = new InputHandler(manager, audio);
- 
-    renderer.resize();
-    Keyboard.create("keyboard", inputHandler);
- 
-    // --- DRAG/SCROLL LOGIC ---
-    let isDragging = false;
-    let startDragX = 0;
-    let startScrollX = 0;
- 
-    const startDrag = (x) => {
-        isDragging = true;
-        startDragX = x;
-        startScrollX = renderer.viewportOffsetX;
-        canvas.style.cursor = 'grabbing';
-    };
- 
-    const moveDrag = (x) => {
-        if (!isDragging) return;
-        const delta = startDragX - x;
-        const newOffset = Math.max(0, startScrollX + delta);
-        renderer.viewportOffsetX = newOffset;
-        manager.render(inputHandler.heldNotes);
-    };
- 
-    const endDrag = () => {
-        isDragging = false;
-        canvas.style.cursor = 'grab';
-    };
- 
-    canvas.addEventListener('mousedown', (e) => startDrag(e.clientX));
-    window.addEventListener('mousemove', (e) => moveDrag(e.clientX));
-    window.addEventListener('mouseup', endDrag);
- 
-    canvas.addEventListener('touchstart', (e) => {
-        if (e.target === canvas) {
-            startDrag(e.touches[0].clientX);
-        }
-    }, {passive: false});
- 
-    canvas.addEventListener('touchmove', (e) => {
-        if (e.target === canvas && isDragging) {
-            moveDrag(e.touches[0].clientX);
-            e.preventDefault(); 
-        }
-    }, {passive: false});
- 
-    window.addEventListener('touchend', endDrag);
- 
-    // Resize Handler
-    let resizeTimeout;
-    window.addEventListener("resize", () => {
-       clearTimeout(resizeTimeout);
-       resizeTimeout = setTimeout(() => {
-          renderer.resize();
-          Keyboard.create("keyboard", inputHandler);
-          manager.render();
-       }, 100);
-    });
- 
-    // Lesson Selection
-    const lessonSelect = document.getElementById("lessonSelect");
-    LESSONS.forEach(l => {
-       const opt = document.createElement("option");
-       opt.value = l.id;
-       opt.textContent = l.name;
-       lessonSelect.appendChild(opt);
-    });
- 
-    lessonSelect.addEventListener("change", (e) => manager.loadLesson(e.target.value));
-    document.getElementById("resetBtn").addEventListener("click", () => manager.reset());
- 
-    // MIDI Setup
-    document.getElementById("midiBtn").addEventListener("click", () => {
-       audio.init();
-       if (navigator.requestMIDIAccess) {
-          navigator.requestMIDIAccess().then(access => {
-             document.getElementById("midiBtn").classList.add("active");
-             document.getElementById("midiBtn").textContent = "MIDI Connected";
-             const inputs = access.inputs.values();
-             for (let input of inputs) {
-                input.onmidimessage = (msg) => inputHandler.onMidiMessage(msg);
-             }
-             access.onstatechange = (e) => {
-                if(e.port.type === 'input' && e.port.state === 'connected') {
-                   e.port.onmidimessage = (msg) => inputHandler.onMidiMessage(msg);
-                }
-             };
-          }, () => alert("MIDI Access Failed"));
-       } else alert("Web MIDI API not supported.");
-    });
- 
-    manager.loadLesson(LESSONS[0].id);
- });
+
+class LessonManager {
+   constructor(renderer, audio, session) {
+      this.renderer = renderer;
+      this.audio = audio;
+      this.session = session;
+      this.currentLesson = null;
+      this.currentStepIndex = 0;
+      this.history = [];
+      this.corrections = {};
+      this.score = 0;
+      this.timerInterval = null;
+      this.startTime = 0;
+      this.accumulatedTime = 0;
+      this.lastActivityTime = 0;
+      this.isPlaying = false;
+      this.isFinished = false;
+   }
+
+   loadLesson(lessonId) {
+      const data = LESSONS.find(l => l.id === lessonId) || LESSONS[0];
+      this.currentLesson = JSON.parse(JSON.stringify(data));
+      this.reset();
+   }
+
+   reset() {
+      if(!this.currentLesson) return;
+      this.currentStepIndex = 0;
+      this.history = new Array(this.currentLesson.sequence.length).fill(null).map(() => []);
+      this.corrections = {};
+      this.score = 0;
+      this.renderer.viewportOffsetX = 0;
+
+      this.stopTimer();
+      this.accumulatedTime = 0;
+      this.startTime = 0;
+      this.lastActivityTime = 0;
+      this.isPlaying = false;
+      this.isFinished = false;
+
+      this.session.startLesson(this.currentLesson.id);
+
+      document.getElementById("lessonDescription").textContent = this.currentLesson.description;
+      this.updateScoreboard();
+
+      this.render();
+      this.playBassForCurrentStep();
+   }
+
+   notifyActivity() {
+      if (this.isFinished) return;
+      const now = Date.now();
+      this.lastActivityTime = now;
+      if (!this.isPlaying) {
+         this.isPlaying = true;
+         this.startTime = now;
+         this.startTimerLoop();
+      }
+   }
+
+   startTimerLoop() {
+      if (this.timerInterval) clearInterval(this.timerInterval);
+      this.timerInterval = setInterval(() => this._tick(), 100);
+   }
+
+   stopTimer() {
+      if (this.timerInterval) clearInterval(this.timerInterval);
+      this.timerInterval = null;
+   }
+
+   _tick() {
+      if (!this.isPlaying || this.isFinished) return;
+      const now = Date.now();
+      if (now - this.lastActivityTime > 5000) {
+         this.isPlaying = false;
+         this.accumulatedTime += (this.lastActivityTime - this.startTime);
+         this.updateScoreboard(true);
+         return;
+      }
+      this.updateScoreboard();
+   }
+
+   getTotalTimeMS() {
+      if (!this.isPlaying) return this.accumulatedTime;
+      return this.accumulatedTime + (Date.now() - this.startTime);
+   }
+
+   getSessionTime() {
+      if (!this.isPlaying && this.accumulatedTime === 0) return 0;
+      if (!this.isPlaying) return this.accumulatedTime;
+      return this.accumulatedTime + (Date.now() - this.startTime);
+   }
+
+   calculateAutoScrollOffset(activeNoteX) {
+      const targetScreenX = this.renderer.canvas.width / 3;
+      const desiredOffset = activeNoteX - targetScreenX;
+      return Math.max(0, desiredOffset);
+   }
+
+   formatTime(ms) {
+      const totalSeconds = Math.floor(ms / 1000);
+      const m = Math.floor(totalSeconds / 60);
+      const s = totalSeconds % 60;
+      return `${m}:${s.toString().padStart(2, '0')}`;
+   }
+
+   updateScoreboard(isPaused = false) {
+      const timeStr = this.formatTime(this.getTotalTimeMS());
+      const pausedText = (isPaused || (!this.isPlaying && this.accumulatedTime > 0 && !this.isFinished)) ? " (Paused)" : "";
+      document.getElementById("scoreboard").textContent = `Score: ${this.score} | Time: ${timeStr}${pausedText}`;
+   }
+
+   playBassForCurrentStep() {
+      if (!document.getElementById("chkSoundBass").checked) return;
+      if (!this.currentLesson || this.currentStepIndex >= this.currentLesson.sequence.length) return;
+
+      const step = this.currentLesson.sequence[this.currentStepIndex];
+      const durBeats = DURATION_MAP[step.duration] || 1;
+      this.audio.playNote(step.bass, durBeats * 0.5, 'triangle');
+   }
+
+   getCorrectPitchClasses(step) {
+      const { bass, figure } = step;
+      const scale = KEY_SCALES[this.currentLesson.defaultKey.toString()];
+      const bassLetter = bass.replace(/[\d-]+/, '');
+      let scaleIndex = scale.indexOf(bassLetter.charAt(0).toUpperCase() + bassLetter.slice(1));
+      if (scaleIndex === -1) {
+         const map = { 'C': 0, 'D': 1, 'E': 2, 'F': 3, 'G': 4, 'A': 5, 'B': 6 };
+         scaleIndex = map[bassLetter.charAt(0).toUpperCase()];
+      }
+
+      let intervals = [0, 2, 4];
+      if (figure === "6") intervals = [0, 2, 5];
+      if (figure === "6/4") intervals = [0, 3, 5];
+      if (figure === "7") intervals = [0, 2, 4, 6];
+
+      return intervals.map(iv => {
+         const targetIndex = (scaleIndex + iv) % 7;
+         return this.noteToMidiClass(scale[targetIndex]);
+      });
+   }
+
+   generateCorrection(step) {
+      const classes = this.getCorrectPitchClasses(step);
+      const correction = [];
+      const range = ['C4','C#4','D4','D#4','E4','F4','F#4','G4','G#4','A4','A#4','B4',
+         'C5','C#5','D5','D#5','E5','F5','F#5','G5'];
+      const usedClasses = new Set();
+      range.forEach(note => {
+         const nc = this.noteToMidiClass(note);
+         if (classes.includes(nc) && !usedClasses.has(nc)) {
+            correction.push(note);
+            usedClasses.add(nc);
+         }
+      });
+      correction.sort((a,b) => this.noteToMidiNum(a) - this.noteToMidiNum(b));
+      return correction.slice(0, classes.length);
+   }
+
+   noteToMidiClass(noteName) {
+      const map = { 'C': 0, 'D': 2, 'E': 4, 'F': 5, 'G': 7, 'A': 9, 'B': 11 };
+      const letter = noteName.replace(/[\d#b-]+/, '');
+      const acc = noteName.includes('#') ? 1 : (noteName.includes('b') ? -1 : 0);
+      return (map[letter.charAt(0).toUpperCase()] + acc + 12) % 12;
+   }
+
+   noteToMidiNum(noteName) {
+      const notes = ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
+      const letter = noteName.replace(/[\d#b-]+/, '');
+      const acc = noteName.includes('#') ? 1 : (noteName.includes('b') ? -1 : 0);
+      const octave = parseInt(noteName.match(/-?\d+/)[0]);
+      const noteIndex = notes.indexOf(letter.charAt(0).toUpperCase());
+      return (octave + 1) * 12 + noteIndex + acc;
+   }
+
+   submitChord(notesPlayed) {
+      if (!this.currentLesson) return;
+      if (this.currentStepIndex >= this.currentLesson.sequence.length) return;
+
+      const currentStep = this.currentLesson.sequence[this.currentStepIndex];
+      const correctClasses = this.getCorrectPitchClasses(currentStep);
+
+      let allCorrect = true;
+      const stepResult = [];
+
+      notesPlayed.forEach(note => {
+         const noteClass = this.noteToMidiClass(note);
+         const isCorrect = correctClasses.includes(noteClass);
+         if (!isCorrect) allCorrect = false;
+         stepResult.push({ note: note, correct: isCorrect });
+      });
+
+      this.history[this.currentStepIndex] = stepResult;
+
+      const isSuccess = (allCorrect && notesPlayed.length > 0);
+      if (isSuccess) {
+         this.score += 10;
+      } else {
+         this.corrections[this.currentStepIndex] = this.generateCorrection(currentStep);
+      }
+
+      this.session.logEvent(this.getSessionTime(), "submit", {
+         stepIndex: this.currentStepIndex,
+         notes: notesPlayed,
+         correct: isSuccess
+      });
+
+      let activeNoteX = 0;
+      const oldActiveNoteX = this.renderer.renderLessonState(
+         this.currentLesson,
+         this.currentStepIndex,
+         this.history,
+         new Set(notesPlayed), // Flash logic
+         this.corrections
+      );
+
+      if (this.currentStepIndex < this.currentLesson.sequence.length - 1) {
+         this.currentStepIndex++;
+         this.updateScoreboard();
+
+         activeNoteX = this.renderer.renderLessonState(
+            this.currentLesson,
+            this.currentStepIndex,
+            this.history,
+            new Set(), 
+            this.corrections
+         );
+         this.renderer.viewportOffsetX = this.calculateAutoScrollOffset(activeNoteX);
+
+         setTimeout(() => this.playBassForCurrentStep(), 500);
+      } else {
+         this.isFinished = true;
+         this.accumulatedTime = this.getTotalTimeMS();
+         this.isPlaying = false;
+         this.stopTimer();
+         this.session.flushLog(this.accumulatedTime, this.score);
+         this.showFinalJudgment();
+      }
+      this.render();
+   }
+
+   showFinalJudgment() {
+      const totalSteps = this.currentLesson.sequence.length;
+      const maxScore = totalSteps * 10;
+      const accuracy = this.score / maxScore;
+      const totalSeconds = this.accumulatedTime / 1000;
+      const secondsPerStep = totalSeconds / totalSteps;
+
+      let msg = "";
+      let icon = "";
+
+      if (accuracy >= 0.9) {
+         if (secondsPerStep < 3) {
+            icon = "🏆"; msg = "Masterful! Fast and accurate.";
+         } else {
+            icon = "✅"; msg = "Excellent accuracy! Try to play faster next time.";
+         }
+      } else if (accuracy >= 0.7) {
+         icon = "🙂"; msg = "Good job. Keep practicing to improve accuracy.";
+      } else {
+         icon = "⚠️"; msg = "Try again. Focus on hitting the right notes.";
+      }
+
+      const timeStr = this.formatTime(this.accumulatedTime);
+      document.getElementById("scoreboard").innerHTML =
+         `Score: ${this.score} | Time: ${timeStr} <span style="color:#2563eb; margin-left:15px;">${icon} ${msg}</span>`;
+   }
+
+   render(currentHeldNotes = new Set()) {
+      if (!this.currentLesson) return;
+      this.renderer.renderLessonState(
+         this.currentLesson,
+         this.currentStepIndex,
+         this.history,
+         currentHeldNotes,
+         this.corrections
+      );
+   }
+}
+
+class InputHandler {
+   constructor(manager, audio) {
+      this.manager = manager;
+      this.audio = audio;
+      this.heldNotes = new Set();
+      this.chordBuffer = new Set();
+   }
+
+   handleNoteOn(note, velocity = 80) {
+      this.manager.notifyActivity();
+      this.manager.session.logEvent(this.manager.getSessionTime(), "noteOn", { note: note, velocity: velocity });
+
+      if (document.getElementById("chkSoundUser").checked) {
+         this.audio.playNote(note, 0.3, 'sine');
+      }
+      this.heldNotes.add(note);
+      this.chordBuffer.add(note);
+
+      this.manager.render(this.heldNotes);
+      this.updateKeyboardUI();
+   }
+
+   handleNoteOff(note) {
+      this.manager.session.logEvent(this.manager.getSessionTime(), "noteOff", { note: note });
+
+      this.heldNotes.delete(note);
+      this.manager.render(this.heldNotes);
+      this.updateKeyboardUI();
+
+      if (this.heldNotes.size === 0 && this.chordBuffer.size > 0) {
+         this.submit();
+      }
+   }
+
+   updateKeyboardUI() {
+      document.querySelectorAll('.white-key, .black-key').forEach(el => {
+         if (this.heldNotes.has(el.dataset.note)) {
+            el.classList.add('active');
+         } else {
+            el.classList.remove('active');
+         }
+      });
+   }
+
+   submit() {
+      const notes = Array.from(this.chordBuffer);
+      this.manager.submitChord(notes);
+      this.chordBuffer.clear();
+   }
+
+   onMidiMessage(msg) {
+      const [status, data1, data2] = msg.data;
+      const command = status >> 4;
+      const noteNum = data1;
+      const velocity = (data2 > 127) ? 127 : data2;
+      const noteName = this.midiNumToNote(noteNum);
+
+      if (command === 9 && velocity > 0) this.handleNoteOn(noteName, velocity);
+      else if (command === 8 || (command === 9 && velocity === 0)) this.handleNoteOff(noteName);
+   }
+
+   midiNumToNote(num) {
+      const notes = ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
+      const octave = Math.floor(num / 12) - 1;
+      return notes[num % 12] + octave;
+   }
+}
+
+class Keyboard {
+   static create(containerId, inputHandler) {
+      const container = document.getElementById(containerId);
+      const canvas = document.getElementById("sheet");
+      const width = canvas.width;
+      container.style.width = `${width}px`;
+      container.innerHTML = "";
+
+      const kWidth = CONFIG.KEY_WIDTH;
+      const numKeysToDraw = Math.ceil(width / kWidth) + 5; 
+      const middleNoteOffset = 2; 
+      const centerIndexOffset = Math.floor(numKeysToDraw / 2);
+
+      const getWhiteNote = (offset) => {
+         const map = ['C','D','E','F','G','A','B'];
+         let index = offset + middleNoteOffset;
+         let octave = 4 + Math.floor(index / 7);
+         let noteIdx = index % 7;
+         if (noteIdx < 0) noteIdx += 7;
+         return map[noteIdx] + octave;
+      };
+
+      const whiteNotes = [];
+      for (let i = -centerIndexOffset; i <= centerIndexOffset; i++) {
+         whiteNotes.push({ note: getWhiteNote(i), offset: i });
+      }
+
+      const whiteKeyHeight = 120;
+      const blackKeyWidth = kWidth * 0.65;
+      const blackKeyHeight = 80;
+
+      const attachEvents = (el, note) => {
+         el.dataset.note = note;
+         el.addEventListener("pointerdown", (e) => {
+            e.preventDefault();
+            el.setPointerCapture(e.pointerId);
+            inputHandler.handleNoteOn(note);
+         });
+         el.addEventListener("pointerup", (e) => {
+            e.preventDefault();
+            inputHandler.handleNoteOff(note);
+         });
+         el.addEventListener("pointercancel", (e) => inputHandler.handleNoteOff(note));
+      };
+
+      const c4Left = width / 2; 
+
+      whiteNotes.forEach(item => {
+         const left = c4Left + (item.offset * kWidth) - (kWidth / 2); 
+         if (left > width || left + kWidth < 0) return;
+
+         const key = document.createElement("div");
+         key.className = "white-key";
+         key.style.left = `${left}px`;
+         key.style.width = `${kWidth}px`;
+         key.style.height = `${whiteKeyHeight}px`;
+         key.textContent = item.note.includes('C') ? item.note : '';
+         key.style.display = "flex"; key.style.alignItems="flex-end"; key.style.justifyContent="center";
+         key.style.fontSize="10px"; key.style.paddingBottom="5px"; key.style.fontWeight="bold";
+         attachEvents(key, item.note);
+         container.appendChild(key);
+
+         const letter = item.note.charAt(0);
+         if (['C','D','F','G','A'].includes(letter)) {
+            const blackNote = letter + '#' + item.note.slice(-1);
+            const bKey = document.createElement("div");
+            bKey.className = "black-key";
+            bKey.style.left = `${left + kWidth - (blackKeyWidth / 2)}px`;
+            bKey.style.width = `${blackKeyWidth}px`;
+            bKey.style.height = `${blackKeyHeight}px`;
+            attachEvents(bKey, blackNote);
+            container.appendChild(bKey);
+         }
+      });
+   }
+}
+
+window.addEventListener("DOMContentLoaded", () => {
+   const session = new SessionManager();
+   const audio = new AudioEngine();
+   const canvas = document.getElementById("sheet");
+   const renderer = new CanvasRenderer(canvas);
+   const manager = new LessonManager(renderer, audio, session);
+   const inputHandler = new InputHandler(manager, audio);
+
+   renderer.resize();
+   Keyboard.create("keyboard", inputHandler);
+
+   // --- DRAG/SCROLL LOGIC ---
+   let isDragging = false;
+   let startDragX = 0;
+   let startScrollX = 0;
+
+   const startDrag = (x) => {
+      isDragging = true;
+      startDragX = x;
+      startScrollX = renderer.viewportOffsetX;
+      canvas.style.cursor = 'grabbing';
+   };
+
+   const moveDrag = (x) => {
+      if (!isDragging) return;
+      const delta = startDragX - x;
+      const newOffset = Math.max(0, startScrollX + delta);
+      renderer.viewportOffsetX = newOffset;
+      manager.render(inputHandler.heldNotes);
+   };
+
+   const endDrag = () => {
+      isDragging = false;
+      canvas.style.cursor = 'grab';
+   };
+
+   canvas.addEventListener('mousedown', (e) => startDrag(e.clientX));
+   window.addEventListener('mousemove', (e) => moveDrag(e.clientX));
+   window.addEventListener('mouseup', endDrag);
+
+   canvas.addEventListener('touchstart', (e) => {
+      if (e.target === canvas) {
+         startDrag(e.touches[0].clientX);
+      }
+   }, {passive: false});
+
+   canvas.addEventListener('touchmove', (e) => {
+      if (e.target === canvas && isDragging) {
+         moveDrag(e.touches[0].clientX);
+         e.preventDefault(); 
+      }
+   }, {passive: false});
+
+   window.addEventListener('touchend', endDrag);
+
+   // Resize Handler
+   let resizeTimeout;
+   window.addEventListener("resize", () => {
+      clearTimeout(resizeTimeout);
+      resizeTimeout = setTimeout(() => {
+         renderer.resize();
+         Keyboard.create("keyboard", inputHandler);
+         manager.render();
+      }, 100);
+   });
+
+   // Lesson Selection
+   const lessonSelect = document.getElementById("lessonSelect");
+   LESSONS.forEach(l => {
+      const opt = document.createElement("option");
+      opt.value = l.id;
+      opt.textContent = l.name;
+      lessonSelect.appendChild(opt);
+   });
+
+   lessonSelect.addEventListener("change", (e) => manager.loadLesson(e.target.value));
+   document.getElementById("resetBtn").addEventListener("click", () => manager.reset());
+
+   // MIDI Setup
+   document.getElementById("midiBtn").addEventListener("click", () => {
+      audio.init();
+      if (navigator.requestMIDIAccess) {
+         navigator.requestMIDIAccess().then(access => {
+            document.getElementById("midiBtn").classList.add("active");
+            document.getElementById("midiBtn").textContent = "MIDI Connected";
+            const inputs = access.inputs.values();
+            for (let input of inputs) {
+               input.onmidimessage = (msg) => inputHandler.onMidiMessage(msg);
+            }
+            access.onstatechange = (e) => {
+               if(e.port.type === 'input' && e.port.state === 'connected') {
+                  e.port.onmidimessage = (msg) => inputHandler.onMidiMessage(msg);
+               }
+            };
+         }, () => alert("MIDI Access Failed"));
+      } else alert("Web MIDI API not supported.");
+   });
+
+   manager.loadLesson(LESSONS[0].id);
+});
