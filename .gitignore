@@ -4,6 +4,7 @@
 *.pdf
 *.dot
 *.log
+*.db
 
 imgui_continuo/continuo_trainer
 imgui_continuo/compile_commands.json

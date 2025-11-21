@@ -106,6 +106,8 @@ practice.
 
 ### TODO
 
-- I have abcjs-basic-min.js in the same folder as continuo.js. Change the
-  rendering code to draw using ABCJS instead of the custom renderer.
+I have abcjs-basic-min.js in the same folder as continuo.js. Change the
+rendering code to draw using ABCJS instead of the custom renderer. Do not worry
+about backwards compatibility, update the way lessons are encoded or events
+stored in the backend if necessary. Aim for clean, correct, maintenable code.
 
