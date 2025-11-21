@@ -114,23 +114,7 @@ practice.
   If not, use manual drawing primitives (you may have do define small helper
   functions to keep the code clean) for all the music rendering: clefs and
   notes.
-- Right now quarter and eighth notes appear the same, but eighth notes should
-  get a flag.
-- Add support for dotted notes. For example, duration=1.5 means a dotted
-  whole note.
 - Add support for anacrusis.
-- In 4/4 time, group 4 eighth notes together with a shared flag
-- Left align the title ("Continuo Trainer") and the lesson selector pulldown
-  menu. The settings bar (MIDI, Sound) should be positioned at the very upper
-  right side of the website (right aligned perfectly with the right edge of
-  the staff box and keyboard, and in the same line as the title), as is
-  common on simple websites. Later we'll add the user profile and maybe a
-  settings button (gear icon) in the same place. So: first row is title on
-  the left and settings on the right, second row is the lesson selector and
-  reset button, then there's the music staff box, and below the keyboard.
-- The lesson description should be displayed in the upper left corner of the
-  music staff box, while the score/duration should be in the upper right
-  corner, also inside the staff box.
 - Let's implement a very simple form of data storage: for each lesson,
   remember the top score and shortest duration till completion. When
   switching between lessons, load the appropriate top score for each of them.

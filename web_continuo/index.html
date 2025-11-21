@@ -6,35 +6,37 @@
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
-  <h1>Continuo Trainer</h1>
 
-  <div class="controls">
-    <div class="control-group">
-      <label for="lessonSelect">Lesson: </label>
-      <select id="lessonSelect"></select>
-      <button id="resetBtn">Reset</button>
-    </div>
-    
-    <div id="lessonDescription" class="description-box"></div>
-
-    <div class="control-row">
-      <button id="midiBtn">Connect MIDI</button>
+  <div class="main-layout">
+    <header class="header-row">
+      <h1>Continuo Trainer</h1>
       
-      <div class="sound-controls">
-        <span>Sound:</span>
-        <label><input type="checkbox" id="chkSoundBass"> Bass</label>
-        <label><input type="checkbox" id="chkSoundUser" checked> User</label>
+      <div class="settings-group">
+        <button id="midiBtn">Connect MIDI</button>
+        <div class="sound-controls">
+          <span>Sound:</span>
+          <label><input type="checkbox" id="chkSoundBass"> Bass</label>
+          <label><input type="checkbox" id="chkSoundUser" checked> User</label>
+        </div>
+      </div>
+    </header>
+
+    <div class="controls-row">
+      <div class="control-group">
+        <label for="lessonSelect">Lesson: </label>
+        <select id="lessonSelect"></select>
+        <button id="resetBtn">Reset</button>
       </div>
     </div>
+
+    <div class="canvas-container">
+      <div id="lessonDescription" class="overlay-text left"></div>
+      <div id="scoreboard" class="overlay-text right">Score: 0</div>
+      <canvas id="sheet"></canvas>
+    </div>
+
+    <div id="keyboard"></div>
   </div>
-
-  <div id="scoreboard">Score: 0</div>
-
-  <div class="canvas-container">
-    <canvas id="sheet"></canvas>
-  </div>
-
-  <div id="keyboard"></div>
 
   <script src="continuo.js"></script>
 </body>
