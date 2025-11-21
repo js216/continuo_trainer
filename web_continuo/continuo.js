@@ -641,10 +641,10 @@ class CanvasRenderer {
          return { step: stepData, barlineX: barlineX, index: index };
       });
 
-      // Continuous Smooth Scrolling
-      const targetScreenX = this.canvas.width / 3;
-      const desiredOffset = activeNoteX - targetScreenX;
-      this.viewportOffsetX = Math.max(0, desiredOffset);
+      // *** FIX START: REMOVED CONFLICTING AUTO-SCROLL LOGIC ***
+      // The previous code block here (which calculated viewportOffsetX)
+      // has been removed to allow manual drag updates to persist.
+      // *** FIX END ***
 
 
       // Second pass: Draw
@@ -700,6 +700,8 @@ class CanvasRenderer {
             }
          }
       });
+      // Return the calculated activeNoteX position for the LessonManager to use
+      return activeNoteX;
    }
 }
 
@@ -796,6 +798,14 @@ class LessonManager {
       if (!this.isPlaying) return this.accumulatedTime;
       return this.accumulatedTime + (Date.now() - this.startTime);
    }
+   
+   // FIX: New helper function to calculate the required scroll offset
+   calculateAutoScrollOffset(activeNoteX) {
+      const targetScreenX = this.renderer.canvas.width / 3;
+      const desiredOffset = activeNoteX - targetScreenX;
+      return Math.max(0, desiredOffset);
+   }
+   // END FIX
 
    formatTime(ms) {
       const totalSeconds = Math.floor(ms / 1000);
@@ -875,6 +885,7 @@ class LessonManager {
       return (octave + 1) * 12 + noteIndex + acc;
    }
 
+   // FIX: Updated submitChord logic to manage step advancement and scrolling.
    submitChord(notesPlayed) {
       if (!this.currentLesson) return;
       if (this.currentStepIndex >= this.currentLesson.sequence.length) return;
@@ -908,9 +919,33 @@ class LessonManager {
          correct: isSuccess
       });
 
+      // --- FIX START: Auto-Scroll Logic moved here ---
+      let activeNoteX = 0;
+      // Render once to get the current active note position (for the last flash)
+      // This call to renderLessonState also uses the current viewportOffsetX, allowing the visual confirmation of the drag.
+      const oldActiveNoteX = this.renderer.renderLessonState(
+         this.currentLesson,
+         this.currentStepIndex,
+         this.history,
+         notesPlayed, // Pass notesPlayed as currentHeldNotes for one last flash
+         this.corrections
+      );
+      // After render, check if we need to advance
       if (this.currentStepIndex < this.currentLesson.sequence.length - 1) {
          this.currentStepIndex++;
          this.updateScoreboard();
+
+         // Calculate the new scroll offset
+         // We render again with the new index to get the new activeNoteX position
+         activeNoteX = this.renderer.renderLessonState(
+            this.currentLesson,
+            this.currentStepIndex,
+            this.history,
+            new Set(), // No held notes after submission
+            this.corrections
+         );
+         this.renderer.viewportOffsetX = this.calculateAutoScrollOffset(activeNoteX);
+
          setTimeout(() => this.playBassForCurrentStep(), 500);
       } else {
          this.isFinished = true;
@@ -921,9 +956,12 @@ class LessonManager {
          this.session.flushLog(this.accumulatedTime, this.score);
          this.showFinalJudgment();
       }
+      // --- FIX END ---
 
+      // Final render to ensure score is drawn at the correct, new offset
       this.render();
    }
+   // END FIX
 
    showFinalJudgment() {
       const totalSteps = this.currentLesson.sequence.length;
@@ -1131,38 +1169,54 @@ window.addEventListener("DOMContentLoaded", () => {
    Keyboard.create("keyboard", inputHandler);
 
    // --- CANVAS DRAG/SCROLL LOGIC ---
-   let isDragging = false;
-   let startDragX = 0;
-   let startScrollX = 0;
+let isDragging = false;
+let startDragX = 0;
+let startScrollX = 0;
 
-   const startDrag = (x) => {
-      isDragging = true;
-      startDragX = x;
-      startScrollX = renderer.viewportOffsetX;
-      canvas.style.cursor = 'grabbing';
-   };
+const startDrag = (x) => {
+    isDragging = true;
+    startDragX = x;
+    startScrollX = renderer.viewportOffsetX;
+    canvas.style.cursor = 'grabbing';
+};
 
-   const moveDrag = (x) => {
-      if (!isDragging) return;
-      const delta = startDragX - x;
-      const newOffset = Math.max(0, startScrollX + delta);
-      // The manager takes care of rendering and sets the viewportOffsetX
-      manager.render(inputHandler.heldNotes, newOffset);
-   };
+const moveDrag = (x) => {
+    if (!isDragging) return;
+    const delta = startDragX - x;
+    const newOffset = Math.max(0, startScrollX + delta);
+    // FIX: Set the renderer's offset directly and call manager.render()
+    renderer.viewportOffsetX = newOffset;
+    manager.render(inputHandler.heldNotes);
+};
 
-   const endDrag = () => {
-      isDragging = false;
-      canvas.style.cursor = 'grab';
-   };
+const endDrag = () => {
+    isDragging = false;
+    canvas.style.cursor = 'grab';
+};
 
-   canvas.addEventListener('mousedown', (e) => startDrag(e.clientX));
-   window.addEventListener('mousemove', (e) => moveDrag(e.clientX));
-   window.addEventListener('mouseup', endDrag);
+canvas.addEventListener('mousedown', (e) => startDrag(e.clientX));
+window.addEventListener('mousemove', (e) => moveDrag(e.clientX));
+window.addEventListener('mouseup', endDrag);
 
-   canvas.addEventListener('touchstart', (e) => startDrag(e.touches[0].clientX), {passive: false});
-   window.addEventListener('touchmove', (e) => moveDrag(e.touches[0].clientX), {passive: false});
-   window.addEventListener('touchend', endDrag);
-   // --- END CANVAS DRAG/SCROLL LOGIC ---
+canvas.addEventListener('touchstart', (e) => {
+    // Check if the event is on the canvas (touch target)
+    if (e.target === canvas) {
+        startDrag(e.touches[0].clientX);
+    }
+}, {passive: false});
+
+// Changed window.addEventListener to canvas.addEventListener for touchmove
+// to prevent excessive scrolling/zooming on the whole page,
+// though the issue in the original code was on 'window'.
+canvas.addEventListener('touchmove', (e) => {
+    if (e.target === canvas && isDragging) {
+        moveDrag(e.touches[0].clientX);
+        e.preventDefault(); // Prevent default scrolling
+    }
+}, {passive: false});
+
+window.addEventListener('touchend', endDrag);
+// --- END CANVAS DRAG/SCROLL LOGIC ---
 
    // Resize Handler
    let resizeTimeout;
