@@ -217,17 +217,49 @@ class AudioEngine {
 
    playNote(note, durationSec = 0.5, type = 'triangle') {
       if (!this.ctx) this.init();
-      const osc = this.ctx.createOscillator();
-      const gain = this.ctx.createGain();
-      osc.type = type;
-      osc.frequency.value = this.noteToFreq(note);
-      gain.gain.setValueAtTime(0, this.ctx.currentTime);
-      gain.gain.linearRampToValueAtTime(1, this.ctx.currentTime + 0.02);
-      gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + durationSec);
-      osc.connect(gain);
-      gain.connect(this.masterGain);
-      osc.start();
-      osc.stop(this.ctx.currentTime + durationSec);
+      const freq = this.noteToFreq(note);
+
+      // Helper to create and trigger an oscillator
+      const triggerOsc = (waveType, gainLevel) => {
+          const osc = this.ctx.createOscillator();
+          const gain = this.ctx.createGain();
+          osc.type = waveType;
+          osc.frequency.value = freq;
+
+          const now = this.ctx.currentTime;
+          gain.gain.setValueAtTime(0, now);
+          gain.gain.linearRampToValueAtTime(gainLevel, now + 0.02); // Attack
+          gain.gain.exponentialRampToValueAtTime(0.001, now + durationSec); // Decay
+
+          osc.connect(gain);
+          gain.connect(this.masterGain);
+          osc.start();
+          osc.stop(now + durationSec);
+      };
+
+      // 1. Main Tone (Triangle)
+      triggerOsc(type, 1.0);
+
+      // 2. Smooth Harmonic Reinforcement for Bass
+      // Instead of a hard cutoff, we fade the sawtooth layer in.
+
+      const highCutoff = 1000;
+      const lowCutoff = 100;
+      const maxSawGain = 0.15;
+
+      if (freq < highCutoff) {
+         let blend = 1.0;
+
+         if (freq > lowCutoff) {
+             // Linear interpolation: 0.0 at highCutoff, 1.0 at lowCutoff
+             blend = (highCutoff - freq) / (highCutoff - lowCutoff);
+         }
+
+         const sawGain = maxSawGain * blend;
+         if (sawGain > 0.01) {
+             triggerOsc('sawtooth', sawGain);
+         }
+      }
    }
 
    noteToFreq(note) {
