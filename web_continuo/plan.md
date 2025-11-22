@@ -18,6 +18,10 @@ practice.
 
 ### Stage 2 — Variable Rewards & Early Feedback
 
+- All scoring should be done by the backend. Remove the running score and leave
+  only the Time display. After the lesson is complete, then display the score,
+  which is calculated by the Python file.
+
 - Check for contrary motion, and specially flag parallel 5ths
 - Implement variable-ratio reward system (small/none/medium/jackpot)
 - Audio flourishes of varying lengths for rewards

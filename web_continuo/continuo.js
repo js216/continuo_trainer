@@ -371,7 +371,7 @@ class CanvasRenderer {
       ctx.fillStyle = this.inkColor;
       ctx.textAlign = "left";
       const bpm = Math.round(tempo);
-      ctx.fillText(`♩ = ${bpm}`, 20, this.staffTop - 15);
+      ctx.fillText(`♩ = ${bpm}`, 20, this.staffTop - 30);
    }
 
    drawEndBarline(x) {
