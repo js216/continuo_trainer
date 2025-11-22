@@ -19,7 +19,6 @@ practice.
 ### Stage 2 — Variable Rewards & Early Feedback
 
 - Targeted practice
-- Dark mode / light mode
 - Very low bass notes are inaudible, use a different timbre for them
 - Check for contrary motion, and specially flag parallel 5ths
 - Implement variable-ratio reward system (small/none/medium/jackpot)
