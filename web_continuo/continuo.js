@@ -6,22 +6,17 @@ const CONFIG = {
    LINE_SPACING: 10,
    KEY_WIDTH: 40,
    MUSIC_VERT_OFFS: 110,
-   SCORE_WEIGHTS: { // NEW: Scoring criteria weights
+   SCORE_WEIGHTS: {
       CORRECT_NOTE: 10,
-      INCORRECT_NOTE: -10, // Can go negative
-      TIMING_PERFECT: 5,   // Bonus for hitting the beat (within TIMING_WINDOW_MS)
-      TIMING_OFF: -5,      // Penalty for missing the window
-      TIMING_WINDOW_MS: 150 // Acceptable time variance for perfect timing
+      INCORRECT_NOTE: -10,
+      TIMING_PERFECT: 5,
+      TIMING_OFF: -5,
+      TIMING_WINDOW_MS: 150
    }
 };
 
 const DURATION_MAP = {
-   0: 8,   // Breve (Double Whole)
-   1: 4,   // Whole
-   1.5: 6, // Dotted Whole
-   2: 2,   // Half
-   4: 1,   // Quarter
-   8: 0.5  // Eighth
+   0: 8, 1: 4, 1.5: 6, 2: 2, 4: 1, 8: 0.5
 };
 
 const KEY_SCALES = {
@@ -42,80 +37,6 @@ const KEY_SCALES = {
    "7":  ['C#', 'D#', 'E#', 'F#', 'G#', 'A#', 'B#']
 };
 
-const LESSONS = [
-   {
-      name: "Lesson 1: Root Position Triads",
-      description: "Play the 3rd and 5th above the bass.",
-      defaultKey: 0,
-      timeSignature: [4, 4],
-      anacrusisBeats: 0,
-      tempo: 160, // BPM
-      sequence: [
-         { bass: "C3", figure: "6/3", duration: 2, correctAnswer: ["E4", "G4"] },
-         { bass: "G3", figure: "", duration: 2, correctAnswer: [] },
-         { bass: "E3", figure: "", duration: 2, correctAnswer: [] },
-         { bass: "A3", figure: "", duration: 2, correctAnswer: [] },
-         { bass: "F3", figure: "", duration: 2, correctAnswer: [] },
-         { bass: "C4", figure: "", duration: 2, correctAnswer: [] },
-         { bass: "A3", figure: "", duration: 2, correctAnswer: [] },
-         { bass: "F3", figure: "", duration: 2, correctAnswer: [] },
-         { bass: "G3", figure: "6/3", duration: 2, correctAnswer: ["B4", "D5"] },
-         { bass: "A3", figure: "", duration: 2, correctAnswer: [] },
-         { bass: "F3", figure: "", duration: 2, correctAnswer: [] },
-         { bass: "G3", figure: "", duration: 2, correctAnswer: [] },
-         { bass: "C3", figure: "", duration: 1, correctAnswer: [] }
-      ]
-   },
-   {
-      name: "Lesson 2: Full Measure Triads",
-      description: "Play the 3rd and 5th above the bass.",
-      defaultKey: 1,
-      timeSignature: [4, 4],
-      anacrusisBeats: 0,
-      tempo: 72, // BPM
-      sequence: [
-         { bass: "G2", figure: "", duration: 4, correctAnswer: ["B3", "D4"] },
-         { bass: "G3", figure: "", duration: 4, correctAnswer: ["B3", "D4"] },
-         { bass: "E3", figure: "", duration: 4, correctAnswer: ["G3", "B3"] },
-         { bass: "C3", figure: "", duration: 4, correctAnswer: ["E3", "G3"] },
-         { bass: "D3", figure: "", duration: 4, correctAnswer: ["F#3", "A3"] }
-      ]
-   },
-   {
-      name: "Lesson 3: Eighth Notes",
-      description: "Play the 3rd and 5th above the bass. (Note the beams)",
-      defaultKey: -1,
-      timeSignature: [4, 4],
-      anacrusisBeats: 0,
-      tempo: 90, // BPM
-      sequence: [
-         { bass: "F3", figure: "", duration: 8, correctAnswer: [] },
-         { bass: "G3", figure: "", duration: 8, correctAnswer: [] },
-         { bass: "F3", figure: "", duration: 8, correctAnswer: [] },
-         { bass: "E3", figure: "", duration: 8, correctAnswer: [] },
-         { bass: "D3", figure: "", duration: 8, correctAnswer: [] },
-         { bass: "A3", figure: "", duration: 8, correctAnswer: [] },
-         { bass: "D4", figure: "", duration: 8, correctAnswer: [] },
-         { bass: "C4", figure: "", duration: 8, correctAnswer: ["E4", "G4"] }
-      ]
-   },
-   {
-      name: "Lesson 4: Half notes",
-      description: "The figure '#' raises the 7th note.",
-      defaultKey: -1,
-      timeSignature: [4, 4],
-      anacrusisBeats: 0,
-      tempo: 60, // BPM
-      sequence: [
-         { bass: "C3", figure: "", duration: 2, correctAnswer: ["E3", "G3"] },
-         { bass: "G2", figure: "7", duration: 2, correctAnswer: ["B2", "D3", "F3"] },
-         { bass: "C3", figure: "", duration: 1.5, correctAnswer: ["E3", "G3"] },
-         { bass: "C3", figure: "", duration: 1, correctAnswer: [] }
-      ]
-   }
-];
-
-
 // --- AUTH & LOGGING ---
 
 class SessionManager {
@@ -123,7 +44,6 @@ class SessionManager {
       this.userId = localStorage.getItem('continuo_user_id');
       this.eventLog = [];
       this.currentLessonId = null;
-
       this.initAuth();
    }
 
@@ -171,7 +91,6 @@ class SessionManager {
       this.eventLog.push({ t: Math.floor(timestamp), type, ...data });
    }
 
-   // Modified to return a Promise
    flushLog(totalDuration, score, tempo) {
       if (this.eventLog.length === 0) return Promise.resolve();
 
@@ -180,7 +99,7 @@ class SessionManager {
          lessonId: this.currentLessonId,
          totalDuration: Math.floor(totalDuration),
          score: score,
-         tempo: tempo, // NEW: Send tempo to backend
+         tempo: tempo,
          events: this.eventLog
       };
 
@@ -218,43 +137,30 @@ class AudioEngine {
    playNote(note, durationSec = 0.5, type = 'triangle') {
       if (!this.ctx) this.init();
       const freq = this.noteToFreq(note);
-
-      // Helper to create and trigger an oscillator
       const triggerOsc = (waveType, gainLevel) => {
           const osc = this.ctx.createOscillator();
           const gain = this.ctx.createGain();
           osc.type = waveType;
           osc.frequency.value = freq;
-
           const now = this.ctx.currentTime;
           gain.gain.setValueAtTime(0, now);
-          gain.gain.linearRampToValueAtTime(gainLevel, now + 0.02); // Attack
-          gain.gain.exponentialRampToValueAtTime(0.001, now + durationSec); // Decay
-
+          gain.gain.linearRampToValueAtTime(gainLevel, now + 0.02);
+          gain.gain.exponentialRampToValueAtTime(0.001, now + durationSec);
           osc.connect(gain);
           gain.connect(this.masterGain);
           osc.start();
           osc.stop(now + durationSec);
       };
 
-      // 1. Main Tone (Triangle)
       triggerOsc(type, 1.0);
-
-      // 2. Smooth Harmonic Reinforcement for Bass
-      // Instead of a hard cutoff, we fade the sawtooth layer in.
-
       const highCutoff = 1000;
       const lowCutoff = 100;
       const maxSawGain = 0.15;
-
       if (freq < highCutoff) {
          let blend = 1.0;
-
          if (freq > lowCutoff) {
-             // Linear interpolation: 0.0 at highCutoff, 1.0 at lowCutoff
              blend = (highCutoff - freq) / (highCutoff - lowCutoff);
          }
-
          const sawGain = maxSawGain * blend;
          if (sawGain > 0.01) {
              triggerOsc('sawtooth', sawGain);
@@ -282,20 +188,13 @@ class CanvasRenderer {
       this.staffGap = 90;
       this.currentKeySig = 0;
       this.viewportOffsetX = 0;
-
-      // Cache the computed style object
-      this.computedStyle = getComputedStyle(document.body);
    }
 
-   // Helper to grab CSS variables
    getColor(varName) {
-       // Refresh computed style if needed (e.g., theme switch), or just call getComputedStyle directly
        return getComputedStyle(document.body).getPropertyValue(varName).trim();
    }
 
-   get inkColor() {
-       return this.getColor('--ink-color');
-   }
+   get inkColor() { return this.getColor('--ink-color'); }
 
    resize() {
       if (!this.canvas.parentElement) return;
@@ -319,10 +218,8 @@ class CanvasRenderer {
       const trebleRefRank = this.getDiatonicRank("B4");
       const bassRefRank = this.getDiatonicRank("D3");
       const currentRank = this.getDiatonicRank(note);
-
       let baseLineY;
       let rankDiff;
-
       if (clef === "treble") {
          baseLineY = this.staffTop + 2 * this.lineSpacing;
          rankDiff = currentRank - trebleRefRank;
@@ -339,24 +236,20 @@ class CanvasRenderer {
       ctx.lineWidth = 1;
       const width = this.canvas.width;
       const lineHorizOffset = 10;
-
       for (let i = 0; i < this.numLines; i++) {
          const y = this.staffTop + i * this.lineSpacing;
          ctx.beginPath(); ctx.moveTo(lineHorizOffset, y); ctx.lineTo(width, y); ctx.stroke();
       }
-
       const bassTop = this.staffTop + this.staffGap;
       for (let i = 0; i < this.numLines; i++) {
          const y = bassTop + i * this.lineSpacing;
          ctx.beginPath(); ctx.moveTo(lineHorizOffset, y); ctx.lineTo(width, y); ctx.stroke();
       }
-
       ctx.beginPath();
       ctx.moveTo(lineHorizOffset, this.staffTop);
       ctx.lineTo(lineHorizOffset, bassTop + (this.numLines - 1) * this.lineSpacing);
       ctx.lineWidth = 1;
       ctx.stroke();
-
       this.drawTrebleClef(lineHorizOffset + 30, this.staffTop);
       this.drawBassClef(lineHorizOffset + 30, bassTop);
    }
@@ -365,7 +258,6 @@ class CanvasRenderer {
       const ctx = this.ctx;
       ctx.strokeStyle = this.inkColor;
       ctx.fillStyle = this.inkColor;
-
       const S = this.lineSpacing;
       const anchorY = staffTopY + (3 * S);
       ctx.save();
@@ -394,7 +286,6 @@ class CanvasRenderer {
       const ctx = this.ctx;
       ctx.strokeStyle = this.inkColor;
       ctx.fillStyle = this.inkColor;
-
       const S = this.lineSpacing;
       const anchorY = staffTopY + (1 * S);
       ctx.save();
@@ -413,11 +304,10 @@ class CanvasRenderer {
 
    drawAccidental(type, x, y) {
       const ctx = this.ctx;
-      ctx.strokeStyle = this.inkColor; // Ensure accidental uses ink color
+      ctx.strokeStyle = this.inkColor;
       const size = 6;
       ctx.beginPath();
       ctx.lineWidth = 1.5;
-
       if (type === '#' || type === '♯') {
          ctx.moveTo(x - 2, y - size); ctx.lineTo(x - 2, y + size);
          ctx.moveTo(x + 2, y - size); ctx.lineTo(x + 2, y + size);
@@ -438,7 +328,6 @@ class CanvasRenderer {
    }
 
    drawKeySignature(num) {
-      // Accidentals set their own color, so loop is fine
       const ctx = this.ctx;
       const isSharp = num > 0;
       const count = Math.abs(num);
@@ -450,7 +339,6 @@ class CanvasRenderer {
       const flatNotesB = ['B2','E3','A2','D3','G2','C3','F2'];
       const targetT = isSharp ? sharpNotesT : flatNotesT;
       const targetB = isSharp ? sharpNotesB : flatNotesB;
-
       for(let i=0; i<count; i++) {
          const x = xStart + (i * 12);
          this.drawAccidental(symbol, x, this.getNoteY(targetT[i], 'treble'));
@@ -463,21 +351,17 @@ class CanvasRenderer {
       const [num, den] = timeSig;
       const x = 80 + (Math.abs(keySigCount) * 12) + 25;
       const ctx = this.ctx;
-
       ctx.font = `bold ${this.lineSpacing * 2}px serif`;
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
       ctx.fillStyle = this.inkColor;
-
       const trebleMidY = this.staffTop + (2 * this.lineSpacing);
       const bassMidY = this.staffTop + this.staffGap + (2 * this.lineSpacing);
       const offset = this.lineSpacing;
-
       ctx.fillText(num, x, trebleMidY - offset);
       ctx.fillText(den, x, trebleMidY + offset);
       ctx.fillText(num, x, bassMidY - offset);
       ctx.fillText(den, x, bassMidY + offset);
-
       return x + 50;
    }
 
@@ -532,24 +416,17 @@ class CanvasRenderer {
    drawNoteAt(note, x, clef, color = "black", durationCode = 4, alpha = 1.0, noStem = false) {
       const drawX = x - this.viewportOffsetX;
       if (drawX > this.canvas.width + 50) return;
-
       const y = this.getNoteY(note, clef);
       const ctx = this.ctx;
       ctx.globalAlpha = alpha;
-
-      // Dynamic color mapping: If "black", use theme ink. If colored, keep as is.
       const effectiveColor = (color === "black" || color === "#000") ? this.inkColor : color;
-
       ctx.fillStyle = effectiveColor;
       ctx.strokeStyle = effectiveColor;
-
       const isHollow = (durationCode <= 2);
       this.drawNoteHead(drawX, y, isHollow);
-
       if (durationCode === 1.5) {
          ctx.beginPath(); ctx.arc(drawX + 12, y, 2, 0, Math.PI*2); ctx.fill();
       }
-
       if (durationCode >= 1.5 && durationCode !== 1 && !noStem) {
          const middleLineY = (clef === "treble") ? (this.staffTop + 2 * this.lineSpacing) : (this.staffTop + this.staffGap + 2 * this.lineSpacing);
          const isUp = y >= middleLineY;
@@ -560,12 +437,10 @@ class CanvasRenderer {
          ctx.lineWidth = 1.5; ctx.beginPath(); ctx.moveTo(stemX, stemStart); ctx.lineTo(stemX, stemEnd); ctx.stroke();
          if (durationCode === 8) { this.drawSingleFlag(stemX, stemEnd, stemEnd, isUp); }
       }
-
       const accidental = this.getAccidentalSymbol(note, this.currentKeySig);
       if (accidental) {
          this.drawAccidental(accidental, drawX - 18, y);
       }
-
       this.drawLedgerLines(drawX, y, clef);
       ctx.globalAlpha = 1.0;
       return { x: drawX, y: y };
@@ -594,13 +469,11 @@ class CanvasRenderer {
       const letter = note.replace(/[\d#b]+/, '');
       const acc = note.includes('#') ? '#' : (note.includes('b') ? 'b' : '');
       const scale = KEY_SCALES[keySig.toString()];
-
       let keyAcc = '';
       const keyNote = scale.find(n => n.startsWith(letter));
       if (keyNote) {
           keyAcc = keyNote.includes('#') ? '#' : (keyNote.includes('b') ? 'b' : '');
       }
-
       if (acc === keyAcc) return null;
       if (acc === '#' && keyAcc !== '#') return '#';
       if (acc === 'b' && keyAcc !== 'b') return 'b';
@@ -621,63 +494,43 @@ class CanvasRenderer {
    renderLessonState(lesson, currentStepIndex, userHistory, currentHeldNotes, correctionNotes) {
       this.currentKeySig = lesson.defaultKey;
       this.clear();
-
       this.drawStaves();
       this.drawKeySignature(lesson.defaultKey);
       this.drawTempoMark(lesson.tempo);
       const contentStartX = this.drawTimeSignature(lesson.timeSignature, lesson.defaultKey);
-
       this.ctx.save();
       this.ctx.beginPath();
       this.ctx.rect(contentStartX - 20, 0, this.canvas.width - contentStartX + 20, this.canvas.height);
       this.ctx.clip();
-
       let cursorX = contentStartX;
       let currentMeasureBeats = 0;
       const fullMeasureBeats = lesson.timeSignature[0];
       let measureTarget = lesson.anacrusisBeats || fullMeasureBeats;
       let activeNoteX = 0;
-
       const noteObjects = lesson.sequence.map((step, index) => {
          const beats = DURATION_MAP[step.duration];
          const width = beats * CONFIG.BEAT_SPACING_PX;
          const pos = cursorX + (width / 2);
-
          if (index === currentStepIndex) activeNoteX = pos;
          cursorX += width;
-
          currentMeasureBeats += beats;
          let isBarline = false;
-
          if (Math.abs(currentMeasureBeats - measureTarget) < 0.01 || currentMeasureBeats > measureTarget) {
             isBarline = true;
             currentMeasureBeats = 0;
             measureTarget = fullMeasureBeats;
          }
-
          const y = this.getNoteY(step.bass, 'bass');
          const midLine = this.staffTop + this.staffGap + 2 * this.lineSpacing;
          const preferredStemDir = y >= midLine ? 'up' : 'down';
-
-         return {
-            ...step,
-            x: pos,
-            width: width,
-            y: y,
-            index: index,
-            barlineX: isBarline ? cursorX : null,
-            stemDir: preferredStemDir,
-            beats: beats
-         };
+         return { ...step, x: pos, width: width, y: y, index: index, barlineX: isBarline ? cursorX : null, stemDir: preferredStemDir, beats: beats };
       });
-
       const beams = [];
       let currentGroup = [];
       const flushGroup = () => {
          if (currentGroup.length > 1) beams.push([...currentGroup]);
          currentGroup = [];
       };
-
       noteObjects.forEach((note) => {
          if (note.duration === 8) {
             currentGroup.push(note);
@@ -685,7 +538,6 @@ class CanvasRenderer {
          } else { flushGroup(); }
       });
       flushGroup();
-
       if (currentStepIndex < noteObjects.length) {
          const step = noteObjects[currentStepIndex];
          const drawX = step.x - (step.width/2) - this.viewportOffsetX;
@@ -694,16 +546,13 @@ class CanvasRenderer {
             this.ctx.fillRect(drawX, 0, step.width, this.canvas.height);
          }
       }
-
       const ctx = this.ctx;
       const beamedIndices = new Set(beams.flat().map(n => n.index));
-
       noteObjects.forEach(note => {
          if (!beamedIndices.has(note.index)) {
             this.drawNoteAt(note.bass, note.x, "bass", "black", note.duration);
          }
          this.drawFigure(note.figure, note.x, note.bass, "bass");
-
          if (note.barlineX) {
             if (note.index === noteObjects.length - 1) {
                this.drawEndBarline(note.barlineX - this.viewportOffsetX);
@@ -712,30 +561,23 @@ class CanvasRenderer {
             }
          }
       });
-
       beams.forEach(group => {
          const upCount = group.filter(n => n.stemDir === 'up').length;
          const isUp = upCount >= group.length / 2;
-
          const noteContexts = group.map(note => {
             const drawX = note.x - this.viewportOffsetX;
             const stemOffsetX = isUp ? (CONFIG.NOTE_HEAD_WIDTH/2 - 1) : -(CONFIG.NOTE_HEAD_WIDTH/2 - 1);
             return { note: note, drawX: drawX, stemX: drawX + stemOffsetX, y: note.y };
          });
-
          const startCtx = noteContexts[0];
          const endCtx = noteContexts[noteContexts.length - 1];
          if (startCtx.drawX > this.canvas.width) return;
-
          const stemLen = CONFIG.STEM_HEIGHT;
          let startBeamY, endBeamY;
-
          if (isUp) { startBeamY = startCtx.y - stemLen; endBeamY = endCtx.y - stemLen; }
          else { startBeamY = startCtx.y + stemLen; endBeamY = endCtx.y + stemLen; }
-
          ctx.beginPath(); ctx.lineWidth = 5; ctx.strokeStyle = this.inkColor; ctx.lineCap = "butt";
          ctx.moveTo(startCtx.stemX, startBeamY); ctx.lineTo(endCtx.stemX, endBeamY); ctx.stroke();
-
          noteContexts.forEach(nCtx => {
             this.drawNoteAt(nCtx.note.bass, nCtx.note.x, "bass", "black", nCtx.note.duration, 1.0, true);
             const totalDist = endCtx.stemX - startCtx.stemX;
@@ -746,7 +588,6 @@ class CanvasRenderer {
             ctx.beginPath(); ctx.lineWidth = 1.5; ctx.moveTo(nCtx.stemX, stemStart); ctx.lineTo(nCtx.stemX, beamYAtStem); ctx.stroke();
          });
       });
-
       userHistory.forEach((attemptGroup, idx) => {
          if (!attemptGroup) return;
          const stepX = noteObjects[idx].x;
@@ -757,7 +598,6 @@ class CanvasRenderer {
             this.drawNoteAt(attempt.note, stepX, clef, color, noteObjects[idx].duration);
          });
       });
-
       Object.keys(correctionNotes).forEach(idx => {
          const stepX = noteObjects[idx].x;
          correctionNotes[idx].forEach(note => {
@@ -766,7 +606,6 @@ class CanvasRenderer {
             this.drawNoteAt(note, stepX + 15, clef, this.getColor('--note-correction'), noteObjects[idx].duration);
          });
       });
-
       if (currentHeldNotes.size > 0 && currentStepIndex < noteObjects.length) {
          const stepX = noteObjects[currentStepIndex].x;
          currentHeldNotes.forEach(note => {
@@ -775,21 +614,9 @@ class CanvasRenderer {
             this.drawNoteAt(note, stepX, clef, this.getColor('--note-held'), noteObjects[currentStepIndex].duration, 0.7);
          });
       }
-
       this.ctx.restore();
       return activeNoteX;
    }
-}
-
-function generateLessonId(lesson) {
-   const content = lesson.name + lesson.description + JSON.stringify(lesson.sequence);
-   let hash = 0;
-   for (let i = 0; i < content.length; i++) {
-       const char = content.charCodeAt(i);
-       hash = ((hash << 5) - hash) + char;
-       hash |= 0; // Convert to 32bit integer
-   }
-   return `l${Math.abs(hash).toString(36)}`;
 }
 
 class LessonManager {
@@ -797,32 +624,44 @@ class LessonManager {
       this.renderer = renderer;
       this.audio = audio;
       this.session = session;
+      this.availableLessons = [];
 
       this.currentLesson = null;
       this.currentStepIndex = 0;
       this.history = [];
       this.corrections = {};
       this.score = 0;
-
       this.startTime = 0;
       this.accumulatedTime = 0;
       this.lastActivityTime = 0;
       this.isPlaying = false;
       this.isFinished = false;
-
       this.lastBeatTime = 0;
       this.nextStepTime = 0;
       this.loopTimeout = null;
-      this.currentTempo = 60; // Default BPM
+      this.currentTempo = 60;
+   }
+
+   fetchLessons() {
+      return fetch('/api/lessons')
+          .then(res => res.json())
+          .then(data => {
+              this.availableLessons = data;
+              return data;
+          })
+          .catch(e => console.error("Could not fetch lessons", e));
    }
 
    loadLesson(lessonIdOrData) {
       let data;
+      // It can be a String ID (from dropdown) or a full object (from Practice generator)
       if (typeof lessonIdOrData === 'string') {
-          data = LESSONS.find(l => generateLessonId(l) === lessonIdOrData) || LESSONS[0];
+          data = this.availableLessons.find(l => l.id === lessonIdOrData);
       } else {
           data = lessonIdOrData;
       }
+
+      if (!data) return; // Error handling needed
 
       this.currentLesson = JSON.parse(JSON.stringify(data));
       this.currentTempo = this.currentLesson.tempo;
@@ -838,25 +677,21 @@ class LessonManager {
       this.corrections = {};
       this.score = 0;
       this.renderer.viewportOffsetX = 0;
-
       this.isPlaying = false;
       this.isFinished = false;
       this.accumulatedTime = 0;
       this.startTime = 0;
-
       if (this.loopTimeout) clearTimeout(this.loopTimeout);
-
-      // Hide overlay and un-fade description
       document.getElementById("lessonCompleteOverlay").classList.remove('visible');
       document.getElementById("lessonDescription").classList.remove('fade-hidden');
 
-      const id = generateLessonId(this.currentLesson);
+      // Use the Server ID, or generate one if missing
+      const id = this.currentLesson.id || ("local-" + Date.now());
       this.session.startLesson(id);
 
       document.getElementById("lessonDescription").textContent = this.currentLesson.description;
       this.updateScoreboard();
       this.render();
-
       this.startLessonLoop();
    }
 
@@ -869,41 +704,31 @@ class LessonManager {
 
    playSequenceStep() {
        if (this.isFinished) return;
-
        if (this.currentStepIndex >= this.currentLesson.sequence.length) {
            this.finishLesson();
            return;
        }
-
        const step = this.currentLesson.sequence[this.currentStepIndex];
        const beats = DURATION_MAP[step.duration] || 1;
-       // Tempo is BPM, divide by 60 to get BPS
        const durationSec = beats / (this.currentTempo / 60);
        const durationMs = durationSec * 1000;
-
        this.lastBeatTime = Date.now();
        this.nextStepTime = this.lastBeatTime + durationMs;
-
        const activeNoteX = this.renderer.renderLessonState(this.currentLesson, this.currentStepIndex, this.history, new Set(), this.corrections);
        this.renderer.viewportOffsetX = this.calculateAutoScrollOffset(activeNoteX);
-
        if (this.currentStepIndex > 5) {
            document.getElementById("lessonDescription").classList.add('fade-hidden');
        }
-
        if (document.getElementById("chkSoundBass").checked) {
           this.audio.playNote(step.bass, durationSec * 0.9, 'triangle');
        }
-
        const requiresInput = (step.correctAnswer && step.correctAnswer.length > 0);
-
        if (!requiresInput) {
            this.loopTimeout = setTimeout(() => {
                this.currentStepIndex++;
                this.playSequenceStep();
            }, durationMs);
        }
-
        this.updateScoreboard();
    }
 
@@ -933,18 +758,13 @@ class LessonManager {
 
    submitChord(notesPlayed, firstNoteTime) {
       if (this.isFinished || !this.isPlaying) return;
-
       const currentStep = this.currentLesson.sequence[this.currentStepIndex];
       if (!currentStep.correctAnswer || currentStep.correctAnswer.length === 0) return;
-
       const correctNotes = currentStep.correctAnswer;
       const correctClasses = correctNotes.map(n => this.noteToMidiClass(n));
-
       let correctCount = 0;
       let incorrectCount = 0;
-
       const stepResult = [];
-
       notesPlayed.forEach(note => {
          const noteClass = this.noteToMidiClass(note);
          if (correctClasses.includes(noteClass)) {
@@ -955,39 +775,29 @@ class LessonManager {
              stepResult.push({ note, correct: false });
          }
       });
-
       this.history[this.currentStepIndex] = stepResult;
-
       this.score += (correctCount * CONFIG.SCORE_WEIGHTS.CORRECT_NOTE);
       this.score += (incorrectCount * CONFIG.SCORE_WEIGHTS.INCORRECT_NOTE);
-
       const timeDiff = firstNoteTime - this.lastBeatTime;
-
       if (Math.abs(timeDiff) <= CONFIG.SCORE_WEIGHTS.TIMING_WINDOW_MS) {
           this.score += CONFIG.SCORE_WEIGHTS.TIMING_PERFECT;
       } else {
           this.score += CONFIG.SCORE_WEIGHTS.TIMING_OFF;
       }
-
       const isSuccess = (correctCount > 0 && incorrectCount === 0 && correctCount === correctNotes.length);
-
       if (!isSuccess) {
          this.corrections[this.currentStepIndex] = correctNotes;
       }
-
       this.session.logEvent(Date.now() - this.startTime, "submit", {
          stepIndex: this.currentStepIndex,
          notes: notesPlayed,
          scoreDelta: this.score,
          timing: timeDiff
       });
-
       this.currentStepIndex++;
       this.updateScoreboard();
-
       const now = Date.now();
       const timeRemaining = this.nextStepTime - now;
-
       if (timeRemaining > 0) {
           this.loopTimeout = setTimeout(() => {
              this.playSequenceStep();
@@ -1001,27 +811,20 @@ class LessonManager {
        this.isFinished = true;
        this.isPlaying = false;
        const totalTime = Date.now() - this.startTime;
-
-       // Immediate UI Feedback: Show Loading State
        const overlay = document.getElementById("lessonCompleteOverlay");
        const buttonsContainer = overlay.querySelector('.overlay-buttons');
        const title = overlay.querySelector('h2');
-
        if (buttonsContainer) buttonsContainer.style.display = 'none';
        if (title) title.textContent = "Saving progress...";
        overlay.classList.add("visible");
-
-       // Wait for BOTH the API save and the 1s delay
        const savePromise = this.session.flushLog(totalTime, this.score, this.currentTempo);
        const delayPromise = new Promise(resolve => setTimeout(resolve, 1000));
-
        Promise.all([savePromise, delayPromise])
          .then(() => {
              this.showEndOverlay();
          })
          .catch((err) => {
              console.error("Error saving log:", err);
-             // Show buttons anyway if save fails
              this.showEndOverlay();
          });
    }
@@ -1030,52 +833,52 @@ class LessonManager {
        const overlay = document.getElementById("lessonCompleteOverlay");
        const title = overlay.querySelector('h2');
        const buttonsContainer = overlay.querySelector('.overlay-buttons');
-
-       // Restore UI state (Buttons visible, Title "Lesson Complete")
        if (title) title.textContent = "Lesson Complete!";
        if (buttonsContainer) buttonsContainer.style.display = 'flex';
-
        const btnRepeat = document.getElementById("btnRepeat");
        const btnNext = document.getElementById("btnNextLesson");
 
+       // Handle Practice Mode logic in repeat
+       const isPractice = this.currentLesson.name === "Targeted Practice";
+
        let speedText = "Same Tempo";
        let newTempo = this.currentTempo;
-
        if (this.score > (this.currentLesson.sequence.length * 8)) {
            speedText = "Faster!";
-           newTempo += 5; // Increase by 5 BPM
+           newTempo += 5;
        } else if (this.score < 0) {
            speedText = "Slower";
            newTempo = Math.max(40, newTempo - 5);
        }
-
        document.getElementById("repeatSubtext").textContent = speedText;
-
-       // Re-create buttons to strip old listeners
        const newBtnRepeat = btnRepeat.cloneNode(true);
        btnRepeat.parentNode.replaceChild(newBtnRepeat, btnRepeat);
-
        const newBtnNext = btnNext.cloneNode(true);
        btnNext.parentNode.replaceChild(newBtnNext, btnNext);
-
        newBtnRepeat.addEventListener("click", () => {
            this.reset(newTempo);
        });
 
-       newBtnNext.addEventListener("click", () => {
-           const currentId = generateLessonId(this.currentLesson);
-           let idx = LESSONS.findIndex(l => generateLessonId(l) === currentId);
-           if (idx < LESSONS.length - 1) {
-               const nextLesson = LESSONS[idx + 1];
-               this.loadLesson(nextLesson);
-               // Update UI Pulldown
-               const select = document.getElementById("lessonSelect");
-               select.value = generateLessonId(nextLesson);
-           } else {
-               alert("No more lessons!");
-               this.reset();
-           }
-       });
+       if (isPractice) {
+           // If we just finished a practice lesson, "Next" should probably go back to standard list or generate new?
+           // For now, let's just alert or go to first lesson
+           newBtnNext.style.display = 'none';
+       } else {
+           newBtnNext.style.display = 'flex';
+           newBtnNext.addEventListener("click", () => {
+               const currentId = this.currentLesson.id;
+               let idx = this.availableLessons.findIndex(l => l.id === currentId);
+               if (idx >= 0 && idx < this.availableLessons.length - 1) {
+                   const nextLesson = this.availableLessons[idx + 1];
+                   this.loadLesson(nextLesson);
+                   const select = document.getElementById("lessonSelect");
+                   select.value = nextLesson.id;
+               } else {
+                   alert("No more lessons!");
+                   this.reset();
+               }
+           });
+       }
    }
 
    noteToMidiClass(noteName) {
@@ -1098,44 +901,32 @@ class InputHandler {
       this.audio = audio;
       this.heldNotes = new Set();
       this.chordBuffer = new Set();
-
       this.firstNoteTime = 0;
    }
-
    handleNoteOn(note, velocity = 80) {
-      // Stop accepting input if finished
       if (this.manager.isFinished) return;
-
       this.manager.notifyActivity();
-
       if (this.heldNotes.size === 0) {
           this.firstNoteTime = Date.now();
       }
-
       this.manager.session.logEvent(Date.now(), "noteOn", { note: note, velocity: velocity });
-
       if (document.getElementById("chkSoundUser").checked) {
          this.audio.playNote(note, 0.3, 'sine');
       }
       this.heldNotes.add(note);
       this.chordBuffer.add(note);
-
       this.manager.render(this.heldNotes);
       this.updateKeyboardUI();
    }
-
    handleNoteOff(note) {
       this.manager.session.logEvent(Date.now(), "noteOff", { note: note });
-
       this.heldNotes.delete(note);
       this.manager.render(this.heldNotes);
       this.updateKeyboardUI();
-
       if (this.heldNotes.size === 0 && this.chordBuffer.size > 0) {
          this.submit();
       }
    }
-
    updateKeyboardUI() {
       document.querySelectorAll('.white-key, .black-key').forEach(el => {
          if (this.heldNotes.has(el.dataset.note)) {
@@ -1145,20 +936,17 @@ class InputHandler {
          }
       });
    }
-
    submit() {
       const notes = Array.from(this.chordBuffer);
       this.manager.submitChord(notes, this.firstNoteTime);
       this.chordBuffer.clear();
       this.firstNoteTime = 0;
    }
-
    onMidiMessage(msg) {
       const [status, data1, data2] = msg.data;
       const command = status >> 4;
       const noteNum = data1;
       const velocity = (data2 > 127) ? 127 : data2;
-
       if (command === 9 && velocity > 0) {
           const noteName = this.midiNumToNote(noteNum, this.manager.currentLesson ? this.manager.currentLesson.defaultKey : 0);
           this.handleNoteOn(noteName, velocity);
@@ -1168,19 +956,13 @@ class InputHandler {
           this.handleNoteOff(noteName);
       }
    }
-
    midiNumToNote(num, keySig) {
       const octave = Math.floor(num / 12) - 1;
       const noteIndex = num % 12;
-
       const sharps = ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
       const flats = ['C','Db','D','Eb','E','F','Gb','G','Ab','A','Bb','B'];
-
-      // Use flats if key is negative, or randomly for C major (0) to handle accidentals neutrally
       const useFlats = (keySig < 0) || (keySig === 0 && Math.random() > 1);
-
       if (keySig < 0) return flats[noteIndex] + octave;
-
       return sharps[noteIndex] + octave;
    }
 }
@@ -1192,12 +974,10 @@ class Keyboard {
       const width = canvas.width;
       container.style.width = `${width}px`;
       container.innerHTML = "";
-
       const kWidth = CONFIG.KEY_WIDTH;
-      const numKeysToDraw = Math.ceil(width / kWidth) + 5; 
-      const middleNoteOffset = 2; 
+      const numKeysToDraw = Math.ceil(width / kWidth) + 5;
+      const middleNoteOffset = 2;
       const centerIndexOffset = Math.floor(numKeysToDraw / 2);
-
       const getWhiteNote = (offset) => {
          const map = ['C','D','E','F','G','A','B'];
          let index = offset + middleNoteOffset;
@@ -1206,16 +986,13 @@ class Keyboard {
          if (noteIdx < 0) noteIdx += 7;
          return map[noteIdx] + octave;
       };
-
       const whiteNotes = [];
       for (let i = -centerIndexOffset; i <= centerIndexOffset; i++) {
          whiteNotes.push({ note: getWhiteNote(i), offset: i });
       }
-
       const whiteKeyHeight = 120;
       const blackKeyWidth = kWidth * 0.65;
       const blackKeyHeight = 80;
-
       const attachEvents = (el, note) => {
          el.dataset.note = note;
          el.addEventListener("pointerdown", (e) => {
@@ -1229,13 +1006,10 @@ class Keyboard {
          });
          el.addEventListener("pointercancel", (e) => inputHandler.handleNoteOff(note));
       };
-
-      const c4Left = width / 2; 
-
+      const c4Left = width / 2;
       whiteNotes.forEach(item => {
-         const left = c4Left + (item.offset * kWidth) - (kWidth / 2); 
+         const left = c4Left + (item.offset * kWidth) - (kWidth / 2);
          if (left > width || left + kWidth < 0) return;
-
          const key = document.createElement("div");
          key.className = "white-key";
          key.style.left = `${left}px`;
@@ -1246,7 +1020,6 @@ class Keyboard {
          key.style.fontSize="10px"; key.style.paddingBottom="5px"; key.style.fontWeight="bold";
          attachEvents(key, item.note);
          container.appendChild(key);
-
          const letter = item.note.charAt(0);
          if (['C','D','F','G','A'].includes(letter)) {
             const blackNote = letter + '#' + item.note.slice(-1);
@@ -1255,9 +1028,6 @@ class Keyboard {
             bKey.style.left = `${left + kWidth - (blackKeyWidth / 2)}px`;
             bKey.style.width = `${blackKeyWidth}px`;
             bKey.style.height = `${blackKeyHeight}px`;
-            
-            // Enharmonic hack for keyboard keys (displaying correct ID)
-            // We bind the specific sharp note here, but visual could be improved later
             attachEvents(bKey, blackNote);
             container.appendChild(bKey);
          }
@@ -1273,14 +1043,12 @@ window.addEventListener("DOMContentLoaded", () => {
    const manager = new LessonManager(renderer, audio, session);
    const inputHandler = new InputHandler(manager, audio);
 
-   // --- THEME HANDLING ---
    const themeBtn = document.getElementById("themeBtn");
    const currentTheme = localStorage.getItem("continuo_theme") || "light";
    if (currentTheme === "dark") {
        document.body.setAttribute("data-theme", "dark");
        themeBtn.textContent = "☀️";
    }
-
    themeBtn.addEventListener("click", () => {
        const isDark = document.body.getAttribute("data-theme") === "dark";
        if (isDark) {
@@ -1294,8 +1062,6 @@ window.addEventListener("DOMContentLoaded", () => {
        }
        manager.render(inputHandler.heldNotes);
    });
-
-   // --- OVERLAY HANDLING ---
    document.getElementById("btnCloseOverlay").addEventListener("click", () => {
        document.getElementById("lessonCompleteOverlay").classList.remove("visible");
    });
@@ -1303,18 +1069,15 @@ window.addEventListener("DOMContentLoaded", () => {
    renderer.resize();
    Keyboard.create("keyboard", inputHandler);
 
-   // --- DRAG/SCROLL LOGIC ---
    let isDragging = false;
    let startDragX = 0;
    let startScrollX = 0;
-
    const startDrag = (x) => {
       isDragging = true;
       startDragX = x;
       startScrollX = renderer.viewportOffsetX;
       canvas.style.cursor = 'grabbing';
    };
-
    const moveDrag = (x) => {
       if (!isDragging) return;
       const delta = startDragX - x;
@@ -1322,32 +1085,26 @@ window.addEventListener("DOMContentLoaded", () => {
       renderer.viewportOffsetX = newOffset;
       manager.render(inputHandler.heldNotes);
    };
-
    const endDrag = () => {
       isDragging = false;
       canvas.style.cursor = 'grab';
    };
-
    canvas.addEventListener('mousedown', (e) => startDrag(e.clientX));
    window.addEventListener('mousemove', (e) => moveDrag(e.clientX));
    window.addEventListener('mouseup', endDrag);
-
    canvas.addEventListener('touchstart', (e) => {
       if (e.target === canvas) {
          startDrag(e.touches[0].clientX);
       }
    }, {passive: false});
-
    canvas.addEventListener('touchmove', (e) => {
       if (e.target === canvas && isDragging) {
          moveDrag(e.touches[0].clientX);
          e.preventDefault();
       }
    }, {passive: false});
-
    window.addEventListener('touchend', endDrag);
 
-   // Resize Handler
    let resizeTimeout;
    window.addEventListener("resize", () => {
       clearTimeout(resizeTimeout);
@@ -1358,19 +1115,54 @@ window.addEventListener("DOMContentLoaded", () => {
       }, 100);
    });
 
-   // Lesson Selection
+   // Init Lessons
    const lessonSelect = document.getElementById("lessonSelect");
-   LESSONS.forEach(l => {
-      const opt = document.createElement("option");
-      opt.value = generateLessonId(l);
-      opt.textContent = l.name;
-      lessonSelect.appendChild(opt);
+
+   // 1. Fetch the list
+   manager.fetchLessons().then(lessons => {
+       lessons.forEach(l => {
+          const opt = document.createElement("option");
+          opt.value = l.id;
+          opt.textContent = l.name;
+          lessonSelect.appendChild(opt);
+       });
+       if(lessons.length > 0) manager.loadLesson(lessons[0]);
    });
 
    lessonSelect.addEventListener("change", (e) => manager.loadLesson(e.target.value));
    document.getElementById("resetBtn").addEventListener("click", () => manager.reset());
 
-   // MIDI Setup
+   // Practice Button
+   document.getElementById("btnPractice").addEventListener("click", () => {
+        // Close overlay if open
+        document.getElementById("lessonCompleteOverlay").classList.remove("visible");
+
+        // Show loading state potentially?
+        const btn = document.getElementById("btnPractice");
+        const oldText = btn.innerHTML;
+        btn.textContent = "Generating...";
+
+        fetch('/api/practice', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ userId: session.userId })
+        })
+        .then(res => res.json())
+        .then(newLesson => {
+            btn.innerHTML = oldText;
+            manager.loadLesson(newLesson);
+            // Optionally update select if you want it to appear there,
+            // but usually practice is ephemeral or added to list.
+            // For now, it just loads directly.
+            document.getElementById("lessonSelect").value = ""; // Deselect
+        })
+        .catch(err => {
+            console.error(err);
+            btn.innerHTML = oldText;
+            alert("Failed to generate practice session.");
+        });
+   });
+
    document.getElementById("midiBtn").addEventListener("click", () => {
       audio.init();
       if (navigator.requestMIDIAccess) {
@@ -1389,6 +1181,4 @@ window.addEventListener("DOMContentLoaded", () => {
          }, () => alert("MIDI Access Failed"));
       } else alert("Web MIDI API not supported.");
    });
-
-   manager.loadLesson(LESSONS[0]);
 });
