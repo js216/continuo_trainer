@@ -1,0 +1,76 @@
+[
+   {
+      "id": "std-1",
+      "name": "Lesson 1: Root Position Triads",
+      "description": "Play the 3rd and 5th above the bass.",
+      "defaultKey": 0,
+      "timeSignature": [4, 4],
+      "anacrusisBeats": 0,
+      "tempo": 160,
+      "sequence": [
+         { "bass": "C3", "figure": "6/3", "duration": 2, "correctAnswer": ["E4", "G4"] },
+         { "bass": "G3", "figure": "", "duration": 2, "correctAnswer": [] },
+         { "bass": "E3", "figure": "", "duration": 2, "correctAnswer": [] },
+         { "bass": "A3", "figure": "", "duration": 2, "correctAnswer": [] },
+         { "bass": "F3", "figure": "", "duration": 2, "correctAnswer": [] },
+         { "bass": "C4", "figure": "", "duration": 2, "correctAnswer": [] },
+         { "bass": "A3", "figure": "", "duration": 2, "correctAnswer": [] },
+         { "bass": "F3", "figure": "", "duration": 2, "correctAnswer": [] },
+         { "bass": "G3", "figure": "6/3", "duration": 2, "correctAnswer": ["B4", "D5"] },
+         { "bass": "A3", "figure": "", "duration": 2, "correctAnswer": [] },
+         { "bass": "F3", "figure": "", "duration": 2, "correctAnswer": [] },
+         { "bass": "G3", "figure": "", "duration": 2, "correctAnswer": [] },
+         { "bass": "C3", "figure": "", "duration": 1, "correctAnswer": [] }
+      ]
+   },
+   {
+      "id": "std-2",
+      "name": "Lesson 2: Full Measure Triads",
+      "description": "Play the 3rd and 5th above the bass.",
+      "defaultKey": 1,
+      "timeSignature": [4, 4],
+      "anacrusisBeats": 0,
+      "tempo": 72,
+      "sequence": [
+         { "bass": "G2", "figure": "", "duration": 4, "correctAnswer": ["B3", "D4"] },
+         { "bass": "G3", "figure": "", "duration": 4, "correctAnswer": ["B3", "D4"] },
+         { "bass": "E3", "figure": "", "duration": 4, "correctAnswer": ["G3", "B3"] },
+         { "bass": "C3", "figure": "", "duration": 4, "correctAnswer": ["E3", "G3"] },
+         { "bass": "D3", "figure": "", "duration": 4, "correctAnswer": ["F#3", "A3"] }
+      ]
+   },
+   {
+      "id": "std-3",
+      "name": "Lesson 3: Eighth Notes",
+      "description": "Play the 3rd and 5th above the bass. (Note the beams)",
+      "defaultKey": -1,
+      "timeSignature": [4, 4],
+      "anacrusisBeats": 0,
+      "tempo": 90,
+      "sequence": [
+         { "bass": "F3", "figure": "", "duration": 8, "correctAnswer": [] },
+         { "bass": "G3", "figure": "", "duration": 8, "correctAnswer": [] },
+         { "bass": "F3", "figure": "", "duration": 8, "correctAnswer": [] },
+         { "bass": "E3", "figure": "", "duration": 8, "correctAnswer": [] },
+         { "bass": "D3", "figure": "", "duration": 8, "correctAnswer": [] },
+         { "bass": "A3", "figure": "", "duration": 8, "correctAnswer": [] },
+         { "bass": "D4", "figure": "", "duration": 8, "correctAnswer": [] },
+         { "bass": "C4", "figure": "", "duration": 8, "correctAnswer": ["E4", "G4"] }
+      ]
+   },
+   {
+      "id": "std-4",
+      "name": "Lesson 4: Half notes",
+      "description": "The figure '#' raises the 7th note.",
+      "defaultKey": -1,
+      "timeSignature": [4, 4],
+      "anacrusisBeats": 0,
+      "tempo": 60,
+      "sequence": [
+         { "bass": "C3", "figure": "", "duration": 2, "correctAnswer": ["E3", "G3"] },
+         { "bass": "G2", "figure": "7", "duration": 2, "correctAnswer": ["B2", "D3", "F3"] },
+         { "bass": "C3", "figure": "", "duration": 1.5, "correctAnswer": ["E3", "G3"] },
+         { "bass": "C3", "figure": "", "duration": 1, "correctAnswer": [] }
+      ]
+   }
+]
