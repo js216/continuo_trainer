@@ -18,6 +18,9 @@ practice.
 
 ### Stage 2 — Variable Rewards & Early Feedback
 
+- Currently held note should be blue, and can all colors be defined directly in
+  the CSS instead of hardcoded in js?
+
 - Targeted practice
 - Check for contrary motion, and specially flag parallel 5ths
 - Implement variable-ratio reward system (small/none/medium/jackpot)

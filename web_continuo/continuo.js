@@ -766,7 +766,7 @@ class CanvasRenderer {
          currentHeldNotes.forEach(note => {
             const octave = parseInt(note.match(/-?\d+/)[0]);
             const clef = octave >= 4 ? 'treble' : 'bass';
-            this.drawNoteAt(note, stepX, clef, '3b82f6', noteObjects[currentStepIndex].duration, 0.7);
+            this.drawNoteAt(note, stepX, clef, '3b82ff', noteObjects[currentStepIndex].duration, 0.7);
          });
       }
 
@@ -1286,8 +1286,12 @@ window.addEventListener("DOMContentLoaded", () => {
            themeBtn.textContent = "☀️";
            localStorage.setItem("continuo_theme", "dark");
        }
-       // Force re-render to update canvas colors
        manager.render(inputHandler.heldNotes);
+   });
+
+   // --- OVERLAY HANDLING ---
+   document.getElementById("btnCloseOverlay").addEventListener("click", () => {
+       document.getElementById("lessonCompleteOverlay").classList.remove("visible");
    });
 
    renderer.resize();
