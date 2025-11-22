@@ -39,6 +39,25 @@
     <div class="canvas-container">
       <div id="lessonDescription" class="overlay-text left"></div>
       <div id="scoreboard" class="overlay-text right">Score: 0</div>
+      
+      <div id="lessonCompleteOverlay">
+         <h2>Lesson Complete!</h2>
+         <div class="overlay-buttons">
+            <button class="big-btn" id="btnPractice">
+               Targeted Practice
+               <span>(Coming Soon)</span>
+            </button>
+            <button class="big-btn" id="btnRepeat">
+               Repeat
+               <span id="repeatSubtext">Same Tempo</span>
+            </button>
+            <button class="big-btn" id="btnNextLesson">
+               Next Lesson
+               <span>&rarr;</span>
+            </button>
+         </div>
+      </div>
+
       <canvas id="sheet"></canvas>
     </div>
 
