@@ -282,10 +282,19 @@ class CanvasRenderer {
       this.staffGap = 90;
       this.currentKeySig = 0;
       this.viewportOffsetX = 0;
+
+      // Cache the computed style object
+      this.computedStyle = getComputedStyle(document.body);
    }
-   
+
+   // Helper to grab CSS variables
+   getColor(varName) {
+       // Refresh computed style if needed (e.g., theme switch), or just call getComputedStyle directly
+       return getComputedStyle(document.body).getPropertyValue(varName).trim();
+   }
+
    get inkColor() {
-       return document.body.getAttribute('data-theme') === 'dark' ? '#f3f4f6' : '#000000';
+       return this.getColor('--ink-color');
    }
 
    resize() {
@@ -356,7 +365,7 @@ class CanvasRenderer {
       const ctx = this.ctx;
       ctx.strokeStyle = this.inkColor;
       ctx.fillStyle = this.inkColor;
-      
+
       const S = this.lineSpacing;
       const anchorY = staffTopY + (3 * S);
       ctx.save();
@@ -385,7 +394,7 @@ class CanvasRenderer {
       const ctx = this.ctx;
       ctx.strokeStyle = this.inkColor;
       ctx.fillStyle = this.inkColor;
-      
+
       const S = this.lineSpacing;
       const anchorY = staffTopY + (1 * S);
       ctx.save();
@@ -394,7 +403,7 @@ class CanvasRenderer {
       ctx.scale(drawScale, drawScale);
       ctx.beginPath(); ctx.arc(0, 0, 0.6, 0, Math.PI * 2); ctx.fill();
       ctx.beginPath(); ctx.moveTo(0, 0);
-      ctx.bezierCurveTo(1.5, -2.5, 3.5, -1.0, 3.0, 1.5); 
+      ctx.bezierCurveTo(1.5, -2.5, 3.5, -1.0, 3.0, 1.5);
       ctx.bezierCurveTo(2.8, 3.0, 1.0, 3.5, 0.5, 3.0);
       ctx.lineWidth = 2.5 / drawScale;
       ctx.stroke();
@@ -414,10 +423,10 @@ class CanvasRenderer {
          ctx.moveTo(x + 2, y - size); ctx.lineTo(x + 2, y + size);
          ctx.moveTo(x - 5, y + 2); ctx.lineTo(x + 5, y - 1);
          ctx.moveTo(x - 5, y - 1); ctx.lineTo(x + 5, y - 4);
-      } 
+      }
       else if (type === 'b' || type === '♭') {
-         ctx.moveTo(x - 3, y - 10); ctx.lineTo(x - 3, y + 4); 
-         ctx.bezierCurveTo(x, y + 6, x + 5, y + 2, x - 3, y - 2); 
+         ctx.moveTo(x - 3, y - 10); ctx.lineTo(x - 3, y + 4);
+         ctx.bezierCurveTo(x, y + 6, x + 5, y + 2, x - 3, y - 2);
       }
       else if (type === 'n' || type === '♮') {
          ctx.moveTo(x - 2, y - 8); ctx.lineTo(x - 2, y + 4);
@@ -469,7 +478,7 @@ class CanvasRenderer {
       ctx.fillText(num, x, bassMidY - offset);
       ctx.fillText(den, x, bassMidY + offset);
 
-      return x + 50; 
+      return x + 50;
    }
 
    drawTempoMark(tempo) {
@@ -477,7 +486,7 @@ class CanvasRenderer {
       ctx.font = "bold 14px sans-serif";
       ctx.fillStyle = this.inkColor;
       ctx.textAlign = "left";
-      const bpm = Math.round(tempo); 
+      const bpm = Math.round(tempo);
       ctx.fillText(`♩ = ${bpm}`, 20, this.staffTop - 15);
    }
 
@@ -515,26 +524,26 @@ class CanvasRenderer {
       const ctx = this.ctx;
       const endY = isUp ? stemTopY : stemBotY;
       ctx.beginPath(); ctx.moveTo(x, endY);
-      if (isUp) { ctx.bezierCurveTo(x + 8, endY + 10, x + 8, endY + 25, x, endY + 40); } 
+      if (isUp) { ctx.bezierCurveTo(x + 8, endY + 10, x + 8, endY + 25, x, endY + 40); }
       else { ctx.bezierCurveTo(x + 8, endY - 10, x + 8, endY - 25, x, endY - 40); }
       ctx.stroke();
    }
 
    drawNoteAt(note, x, clef, color = "black", durationCode = 4, alpha = 1.0, noStem = false) {
       const drawX = x - this.viewportOffsetX;
-      if (drawX > this.canvas.width + 50) return; 
+      if (drawX > this.canvas.width + 50) return;
 
       const y = this.getNoteY(note, clef);
       const ctx = this.ctx;
       ctx.globalAlpha = alpha;
-      
-      // Dynamic color mapping: If "black", use theme ink. If colored (red/green/blue), keep as is.
+
+      // Dynamic color mapping: If "black", use theme ink. If colored, keep as is.
       const effectiveColor = (color === "black" || color === "#000") ? this.inkColor : color;
-      
+
       ctx.fillStyle = effectiveColor;
       ctx.strokeStyle = effectiveColor;
 
-      const isHollow = (durationCode <= 2); 
+      const isHollow = (durationCode <= 2);
       this.drawNoteHead(drawX, y, isHollow);
 
       if (durationCode === 1.5) {
@@ -543,7 +552,7 @@ class CanvasRenderer {
 
       if (durationCode >= 1.5 && durationCode !== 1 && !noStem) {
          const middleLineY = (clef === "treble") ? (this.staffTop + 2 * this.lineSpacing) : (this.staffTop + this.staffGap + 2 * this.lineSpacing);
-         const isUp = y >= middleLineY; 
+         const isUp = y >= middleLineY;
          const stemLen = CONFIG.STEM_HEIGHT;
          const stemX = drawX + (isUp ? (CONFIG.NOTE_HEAD_WIDTH/2 - 1) : -(CONFIG.NOTE_HEAD_WIDTH/2 - 1));
          const stemStart = y + (isUp ? -2 : 2);
@@ -559,7 +568,7 @@ class CanvasRenderer {
 
       this.drawLedgerLines(drawX, y, clef);
       ctx.globalAlpha = 1.0;
-      return { x: drawX, y: y }; 
+      return { x: drawX, y: y };
    }
 
    drawLedgerLines(x, y, clef) {
@@ -568,7 +577,7 @@ class CanvasRenderer {
       const bottomLineY = topLineY + (this.numLines - 1) * this.lineSpacing;
       const ledgerWidth = 24;
       ctx.lineWidth = 1;
-      ctx.strokeStyle = this.inkColor; 
+      ctx.strokeStyle = this.inkColor;
       if (y <= topLineY - this.lineSpacing) {
          for (let ly = topLineY - this.lineSpacing; ly >= y - 2; ly -= this.lineSpacing) {
             ctx.beginPath(); ctx.moveTo(x - ledgerWidth/2, ly); ctx.lineTo(x + ledgerWidth/2, ly); ctx.stroke();
@@ -581,12 +590,11 @@ class CanvasRenderer {
       }
    }
 
-   // ... getAccidentalSymbol same as previous ...
    getAccidentalSymbol(note, keySig) {
       const letter = note.replace(/[\d#b]+/, '');
       const acc = note.includes('#') ? '#' : (note.includes('b') ? 'b' : '');
       const scale = KEY_SCALES[keySig.toString()];
-      
+
       let keyAcc = '';
       const keyNote = scale.find(n => n.startsWith(letter));
       if (keyNote) {
@@ -614,7 +622,7 @@ class CanvasRenderer {
       this.currentKeySig = lesson.defaultKey;
       this.clear();
 
-      this.drawStaves(); 
+      this.drawStaves();
       this.drawKeySignature(lesson.defaultKey);
       this.drawTempoMark(lesson.tempo);
       const contentStartX = this.drawTimeSignature(lesson.timeSignature, lesson.defaultKey);
@@ -649,7 +657,7 @@ class CanvasRenderer {
 
          const y = this.getNoteY(step.bass, 'bass');
          const midLine = this.staffTop + this.staffGap + 2 * this.lineSpacing;
-         const preferredStemDir = y >= midLine ? 'up' : 'down'; 
+         const preferredStemDir = y >= midLine ? 'up' : 'down';
 
          return {
             ...step,
@@ -671,7 +679,7 @@ class CanvasRenderer {
       };
 
       noteObjects.forEach((note) => {
-         if (note.duration === 8) { 
+         if (note.duration === 8) {
             currentGroup.push(note);
             if (currentGroup.length === 4 || note.barlineX) flushGroup();
          } else { flushGroup(); }
@@ -682,9 +690,7 @@ class CanvasRenderer {
          const step = noteObjects[currentStepIndex];
          const drawX = step.x - (step.width/2) - this.viewportOffsetX;
          if (drawX + step.width > 0 && drawX < this.canvas.width) {
-            this.ctx.fillStyle = document.body.getAttribute('data-theme') === 'dark' 
-               ? "rgba(255, 255, 0, 0.15)" 
-               : "rgba(255, 255, 0, 0.2)";
+            this.ctx.fillStyle = this.getColor('--highlight-bg');
             this.ctx.fillRect(drawX, 0, step.width, this.canvas.height);
          }
       }
@@ -709,7 +715,7 @@ class CanvasRenderer {
 
       beams.forEach(group => {
          const upCount = group.filter(n => n.stemDir === 'up').length;
-         const isUp = upCount >= group.length / 2; 
+         const isUp = upCount >= group.length / 2;
 
          const noteContexts = group.map(note => {
             const drawX = note.x - this.viewportOffsetX;
@@ -724,10 +730,10 @@ class CanvasRenderer {
          const stemLen = CONFIG.STEM_HEIGHT;
          let startBeamY, endBeamY;
 
-         if (isUp) { startBeamY = startCtx.y - stemLen; endBeamY = endCtx.y - stemLen; } 
+         if (isUp) { startBeamY = startCtx.y - stemLen; endBeamY = endCtx.y - stemLen; }
          else { startBeamY = startCtx.y + stemLen; endBeamY = endCtx.y + stemLen; }
 
-         ctx.beginPath(); ctx.lineWidth = 5; ctx.strokeStyle = this.inkColor; ctx.lineCap = "butt"; 
+         ctx.beginPath(); ctx.lineWidth = 5; ctx.strokeStyle = this.inkColor; ctx.lineCap = "butt";
          ctx.moveTo(startCtx.stemX, startBeamY); ctx.lineTo(endCtx.stemX, endBeamY); ctx.stroke();
 
          noteContexts.forEach(nCtx => {
@@ -747,7 +753,7 @@ class CanvasRenderer {
          attemptGroup.forEach(attempt => {
             const octave = parseInt(attempt.note.match(/-?\d+/)[0]);
             const clef = octave >= 4 ? 'treble' : 'bass';
-            const color = attempt.correct ? '#22c55e' : '#ef4444';
+            const color = attempt.correct ? this.getColor('--note-correct') : this.getColor('--note-incorrect');
             this.drawNoteAt(attempt.note, stepX, clef, color, noteObjects[idx].duration);
          });
       });
@@ -757,7 +763,7 @@ class CanvasRenderer {
          correctionNotes[idx].forEach(note => {
             const octave = parseInt(note.match(/-?\d+/)[0]);
             const clef = octave >= 4 ? 'treble' : 'bass';
-            this.drawNoteAt(note, stepX + 15, clef, '#eab308', noteObjects[idx].duration);
+            this.drawNoteAt(note, stepX + 15, clef, this.getColor('--note-correction'), noteObjects[idx].duration);
          });
       });
 
@@ -766,7 +772,7 @@ class CanvasRenderer {
          currentHeldNotes.forEach(note => {
             const octave = parseInt(note.match(/-?\d+/)[0]);
             const clef = octave >= 4 ? 'treble' : 'bass';
-            this.drawNoteAt(note, stepX, clef, '3b82ff', noteObjects[currentStepIndex].duration, 0.7);
+            this.drawNoteAt(note, stepX, clef, this.getColor('--note-held'), noteObjects[currentStepIndex].duration, 0.7);
          });
       }
 

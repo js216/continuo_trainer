@@ -10,6 +10,8 @@
   --btn-hover: #ddd;
   --overlay-bg: rgba(255, 255, 255, 0.8);
   --overlay-bg-strong: rgba(255, 255, 255, 0.95);
+
+  /* Highlight Background */
   --highlight-bg: rgba(255, 255, 0, 0.2);
 
   /* Key Colors */
@@ -17,6 +19,13 @@
   --key-white-shadow: #f2f2f2;
   --key-black: #000;
   --key-black-shadow: #333;
+
+  /* Music Notation Colors */
+  --ink-color: #000000;
+  --note-correct: #22c55e;
+  --note-incorrect: #ef4444;
+  --note-correction: #eab308;
+  --note-held: #3b82ff;
 }
 
 [data-theme="dark"] {
@@ -31,13 +40,22 @@
   --btn-hover: #4b5563;
   --overlay-bg: rgba(31, 41, 55, 0.8);
   --overlay-bg-strong: rgba(31, 41, 55, 0.95);
+
+  /* Highlight Background Dark */
   --highlight-bg: rgba(255, 255, 0, 0.15);
 
-  /* Key Colors (Inverted logic slightly for visibility) */
+  /* Key Colors */
   --key-white: #d1d5db;
   --key-white-shadow: #9ca3af;
   --key-black: #111;
   --key-black-shadow: #000;
+
+  /* Music Notation Colors Dark */
+  --ink-color: #f3f4f6;
+  --note-correct: #4ade80;
+  --note-incorrect: #f87171;
+  --note-correction: #facc15;
+  --note-held: #60a5fa;
 }
 
 /* General page */
