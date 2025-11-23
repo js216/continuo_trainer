@@ -1,73 +1,11 @@
-:root {
-  --bg-main: #f9fafb;
-  --bg-panel: #ffffff;
-  --text-main: #000000;
-  --text-muted: #555555;
-  --border-color: #000000;
-  --border-light: #cccccc;
-  --accent-color: #e5e7eb;
-  --btn-bg: #eee;
-  --btn-hover: #ddd;
-  --overlay-bg: rgba(255, 255, 255, 0.8);
-  --overlay-bg-strong: rgba(255, 255, 255, 0.95);
-
-  /* Highlight Background */
-  --highlight-bg: rgba(255, 255, 0, 0.2);
-
-  /* Key Colors */
-  --key-white: #fff;
-  --key-white-shadow: #f2f2f2;
-  --key-black: #000;
-  --key-black-shadow: #333;
-
-  /* Music Notation Colors */
-  --ink-color: #000000;
-  --note-correct: #22c55e;
-  --note-incorrect: #ef4444;
-  --note-correction: #eab308;
-  --note-held: #3b82ff;
-}
-
-[data-theme="dark"] {
-  --bg-main: #111827;
-  --bg-panel: #1f2937;
-  --text-main: #f3f4f6;
-  --text-muted: #9ca3af;
-  --border-color: #9ca3af;
-  --border-light: #374151;
-  --accent-color: #374151;
-  --btn-bg: #374151;
-  --btn-hover: #4b5563;
-  --overlay-bg: rgba(31, 41, 55, 0.8);
-  --overlay-bg-strong: rgba(31, 41, 55, 0.95);
-
-  /* Highlight Background Dark */
-  --highlight-bg: rgba(255, 255, 0, 0.15);
-
-  /* Key Colors */
-  --key-white: #d1d5db;
-  --key-white-shadow: #9ca3af;
-  --key-black: #111;
-  --key-black-shadow: #000;
-
-  /* Music Notation Colors Dark */
-  --ink-color: #f3f4f6;
-  --note-correct: #4ade80;
-  --note-incorrect: #f87171;
-  --note-correction: #facc15;
-  --note-held: #60a5fa;
-}
-
 /* General page */
 body {
   font-family: sans-serif;
   margin: 0;
   padding: 20px;
   user-select: none;
-  background-color: var(--bg-main);
-  color: var(--text-main);
+  background-color: #f9fafb;
   overflow-x: hidden;
-  transition: background-color 0.3s, color 0.3s;
 }
 
 .main-layout {
@@ -88,7 +26,7 @@ body {
 
 .header-right {
   display: flex;
-  gap: 15px;
+  gap: 20px;
   align-items: center;
 }
 
@@ -103,15 +41,15 @@ h1 {
   align-items: center;
   gap: 10px;
   font-size: 14px;
-  background: var(--accent-color);
+  background: #e5e7eb;
   padding: 5px 10px;
   border-radius: 4px;
-  border: 1px solid var(--border-light);
+  border: 1px solid #ccc;
 }
 
 #userDisplay {
   font-weight: bold;
-  color: var(--text-main);
+  color: #374151;
   font-family: monospace;
 }
 
@@ -120,13 +58,19 @@ h1 {
   font-size: 11px;
 }
 
+.settings-group {
+  display: flex;
+  gap: 15px;
+  align-items: center;
+}
+
 .sound-controls {
   display: flex;
   gap: 10px;
-  border: 1px solid var(--border-light);
+  border: 1px solid #ccc;
   padding: 5px 10px;
   border-radius: 4px;
-  background: var(--bg-panel);
+  background: white;
   align-items: center;
 }
 
@@ -144,30 +88,27 @@ h1 {
   gap: 10px;
 }
 
-select { padding: 5px; font-size: 16px; background: var(--bg-panel); color: var(--text-main); border: 1px solid var(--border-light); }
+select { padding: 5px; font-size: 16px; }
 
 button {
   padding: 6px 12px;
   font-size: 14px;
   cursor: pointer;
-  background-color: var(--btn-bg);
-  color: var(--text-main);
-  border: 1px solid var(--border-light);
+  background-color: #eee;
+  border: 1px solid #999;
   border-radius: 4px;
-  transition: background 0.2s;
 }
-button:hover { background-color: var(--btn-hover); }
-button.active { background-color: #bfdbfe; border-color: #3b82f6; color: #000; }
-button.icon-btn { font-size: 18px; padding: 4px 8px; line-height: 1; }
+button:hover { background-color: #ddd; }
+button.active { background-color: #bfdbfe; border-color: #3b82f6; }
 
 /* Canvas Container */
 .canvas-container {
   width: 100%;
-  height: 310px;
+  height: 280px;
   margin-bottom: 20px;
-  background-color: var(--bg-panel);
+  background-color: #fff;
   box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-  border: 1px solid var(--border-color);
+  border: 1px solid black;
   position: relative;
 }
 
@@ -184,18 +125,16 @@ canvas:active { cursor: grabbing; }
   position: absolute;
   top: 15px;
   font-weight: bold;
-  background: var(--overlay-bg);
-  color: var(--text-main);
+  background: rgba(255, 255, 255, 0.8);
   padding: 4px 8px;
   border-radius: 4px;
   pointer-events: none;
-  transition: opacity 2s ease-out;
 }
 
 .overlay-text.left {
   left: 15px;
   font-style: italic;
-  color: var(--text-muted);
+  color: #555;
   max-width: 60%;
   text-align: left;
 }
@@ -205,96 +144,6 @@ canvas:active { cursor: grabbing; }
   text-align: right;
 }
 
-.fade-hidden {
-  opacity: 0;
-}
-
-/* Lesson Complete Overlay */
-#lessonCompleteOverlay {
-  position: absolute;
-  top: 0; left: 0; right: 0; bottom: 0;
-  background: var(--overlay-bg-strong);
-  z-index: 10;
-  display: none;
-  flex-direction: column;
-  justify-content: center;
-  align-items: center;
-  gap: 20px;
-  color: var(--text-main);
-}
-
-#lessonCompleteOverlay.visible { display: flex; }
-
-/* NEW: Header container to align Title and Close Button */
-.overlay-header {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 15px;
-}
-
-.overlay-header h2 {
-  margin: 0;
-  line-height: 1; /* Ensure predictable height */
-}
-
-#btnCloseOverlay {
-  width: 32px;       /* Approximate height of H2 */
-  height: 32px;
-  padding: 0;
-  line-height: 1;
-  font-size: 24px;
-  font-weight: bold;
-  border-radius: 4px;
-  border: 1px solid var(--border-color);
-  background: var(--btn-bg);
-  color: var(--text-main);
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-#btnCloseOverlay:hover {
-  background: var(--btn-hover);
-}
-
-.overlay-buttons { display: flex; gap: 20px; }
-
-.big-btn {
-  width: 120px;
-  height: 120px;
-  border-radius: 12px;
-  border: 2px solid #3b82f6;
-  background: #eff6ff; /* Keep bright for call to action, or var it */
-  color: #000;
-  font-weight: bold;
-  font-size: 16px;
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  align-items: center;
-  text-align: center;
-  box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-  transition: transform 0.1s;
-}
-
-[data-theme="dark"] .big-btn {
-  background: #1e3a8a;
-  border-color: #60a5fa;
-  color: #fff;
-}
-
-.big-btn:hover { transform: scale(1.05); }
-
-.big-btn span {
-  font-size: 12px;
-  color: inherit;
-  opacity: 0.8;
-  font-weight: normal;
-  margin-top: 5px;
-}
-
 /* Keyboard Container */
 #keyboard {
   position: relative;
@@ -302,31 +151,31 @@ canvas:active { cursor: grabbing; }
   height: 120px;
   touch-action: none;
   overflow: hidden;
-  border-top: 1px solid var(--border-light);
+  border-top: 1px solid #ccc;
 }
 
 .white-key {
-  background: var(--key-white);
+  background: #fff;
   border: 1px solid #333;
   box-sizing: border-box;
   position: absolute;
   z-index: 1;
   border-bottom-left-radius: 4px;
   border-bottom-right-radius: 4px;
-  box-shadow: inset 0 -1px 0 var(--key-white-shadow);
-  color: #000; /* Note labels always black on white keys */
+  background: linear-gradient(to bottom, #fff 0%, #f2f2f2 100%);
+  box-shadow: inset 0 -1px 0 rgba(0,0,0,0.1);
 }
-.white-key:hover { filter: brightness(0.95); }
+.white-key:hover { background: #f0f0f0; }
 
 .black-key {
-  background: var(--key-black);
+  background: #000;
   border-radius: 0 0 4px 4px;
   position: absolute;
   z-index: 2;
-  box-shadow: 1px 1px 2px var(--key-black-shadow);
-  border: 1px solid #555;
+  background: linear-gradient(to bottom, #333 0%, #000 100%);
+  box-shadow: 1px 1px 2px rgba(0,0,0,0.3);
 }
-.black-key:hover { filter: brightness(1.2); }
+.black-key:hover { background: #222; }
 
-.white-key.active { background: #ccc; transform: translateY(2px); }
-.black-key.active { background: #555; transform: translateY(2px); }
+.white-key.active { background: #ddd; transform: translateY(2px); }
+.black-key.active { background: #444; transform: translateY(2px); }

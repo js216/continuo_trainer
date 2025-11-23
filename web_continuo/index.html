@@ -1,74 +1,50 @@
 <!DOCTYPE html>
 <html lang="en">
-   <head>
-      <meta charset="UTF-8">
-      <title>Continuo Trainer</title>
-      <link rel="stylesheet" href="style.css">
-   </head>
-   <body>
+<head>
+  <meta charset="UTF-8">
+  <title>Continuo Trainer</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
 
-      <div class="main-layout">
-         <header class="header-row">
-            <h1>Continuo Trainer</h1>
+  <div class="main-layout">
+    <header class="header-row">
+      <h1>Continuo Trainer</h1>
 
-            <div class="header-right">
-               <button id="midiBtn">Connect MIDI</button>
+      <div class="header-right">
+        <div class="user-control">
+          <span id="userDisplay">Guest</span>
+          <button id="loginBtn" class="small-btn">Switch User</button>
+        </div>
 
-               <div class="sound-controls">
-                  <span>Sound:</span>
-                  <label><input type="checkbox" id="chkSoundBass"> Bass</label>
-                  <label><input type="checkbox" id="chkSoundUser" checked> User</label>
-               </div>
-
-               <button id="themeBtn" class="icon-btn" title="Toggle Dark Mode">🌙</button>
-
-               <div class="user-control">
-                  <span id="userDisplay">Guest</span>
-                  <button id="loginBtn" class="small-btn">Switch</button>
-               </div>
-            </div>
-         </header>
-
-         <div class="controls-row">
-            <div class="control-group">
-               <label for="lessonSelect">Lesson: </label>
-               <select id="lessonSelect"></select>
-               <button id="resetBtn">Reset</button>
-            </div>
-         </div>
-
-
-         <div class="canvas-container">
-            <div id="lessonDescription" class="overlay-text left"></div>
-            <div id="scoreboard" class="overlay-text right">Score: 0</div>
-
-            <div id="lessonCompleteOverlay">
-               <div class="overlay-header">
-                  <h2>Lesson Complete!</h2>
-                  <button id="btnCloseOverlay" title="Close">×</button>
-               </div>
-               <div class="overlay-buttons">
-                  <button class="big-btn" id="btnPractice">
-                     Targeted Practice
-                     <span>Based on your data</span>
-                  </button>
-                  <button class="big-btn" id="btnRepeat">
-                     Repeat
-                     <span id="repeatSubtext">Same Tempo</span>
-                  </button>
-                  <button class="big-btn" id="btnNextLesson">
-                     Next Lesson
-                     <span>&rarr;</span>
-                  </button>
-               </div>
-            </div>
-
-            <canvas id="sheet"></canvas>
-         </div>
-
-         <div id="keyboard"></div>
+        <div class="settings-group">
+          <button id="midiBtn">Connect MIDI</button>
+          <div class="sound-controls">
+            <span>Sound:</span>
+            <label><input type="checkbox" id="chkSoundBass"> Bass</label>
+            <label><input type="checkbox" id="chkSoundUser" checked> User</label>
+          </div>
+        </div>
       </div>
+    </header>
 
-      <script src="continuo.js"></script>
-   </body>
+    <div class="controls-row">
+      <div class="control-group">
+        <label for="lessonSelect">Lesson: </label>
+        <select id="lessonSelect"></select>
+        <button id="resetBtn">Reset</button>
+      </div>
+    </div>
+
+    <div class="canvas-container">
+      <div id="lessonDescription" class="overlay-text left"></div>
+      <div id="scoreboard" class="overlay-text right">Score: 0</div>
+      <canvas id="sheet"></canvas>
+    </div>
+
+    <div id="keyboard"></div>
+  </div>
+
+  <script src="continuo.js"></script>
+</body>
 </html>
