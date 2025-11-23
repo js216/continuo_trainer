@@ -20,50 +20,9 @@ void logic_clear(struct state *state)
 {
    state->key = KEY_SIG_1_FLAT;
    state->pressed_notes.clear();
-   state->bassline.clear();
-   state->chords_ok.clear();
-   state->chords_bad.clear();
-   state->melody.clear();
-}
+   state->chords.clear();
 
-static enum midi_note get_note(void)
-{
-   static std::random_device rd;
-   static std::mt19937 engine(rd());
-   static std::uniform_int_distribution<int> dist(NOTES_E2, NOTES_NUM - 1);
-
-   return static_cast<midi_note>(dist(engine));
-}
-
-static std::vector<figure> get_figures(void)
-{
-   static std::random_device rd;
-   static std::mt19937 engine(rd());
-   static std::uniform_int_distribution<int> dist_num(1, 8);
-   static std::uniform_int_distribution<int> dist_acc(ACC_NONE, ACC_NUM - 1);
-   static std::uniform_int_distribution<int> dist_count(1, 3);
-
-   int n_figures = dist_count(engine);
-   std::vector<figure> figs;
-   figs.reserve(n_figures);
-
-   for (int i = 0; i < n_figures; ++i) {
-      figs.push_back(
-          figure{dist_num(engine), (enum accidental)dist_acc(engine)});
-   }
-
-   return figs;
-}
-
-void logic_populate(state *state)
-{
-   // notes
-   state->bassline.clear();
-   std::generate_n(std::back_inserter(state->bassline), MAX_CHORDS, get_note);
-
-   // figures
-   state->figures.clear();
-   std::generate_n(std::back_inserter(state->figures), MAX_CHORDS, get_figures);
+   read_bassline_from_file("lessons/l1.txt", state->chords);
 }
 
 void logic_inc(struct state *state)
@@ -109,54 +68,51 @@ static bool logic_adjudicate(enum midi_note bass_note,
 
 static void process_note(struct state *state, midi_note realization)
 {
-   if (state->chords_ok.size() != state->chords_bad.size())
-      ERROR("set size mismatch");
+    if (state->chords.empty())
+        state->chords.emplace_back(); // create first column if empty
 
-   if (state->chords_ok.empty()) {
-      state->chords_ok.emplace_back();
-      state->chords_bad.emplace_back();
-   }
+    column &col = state->chords.back();
 
-   size_t back_idx = state->chords_ok.size() - 1;
+    // skip if note already recorded
+    if (col.good.contains(realization) || col.bad.contains(realization))
+        return;
 
-   if (state->chords_ok[back_idx].contains(realization) ||
-       state->chords_bad[back_idx].contains(realization))
-      return;
+    if (!col.bass.empty()) {
+        // assume one bass note per column
+        midi_note bass_note = *col.bass.begin();
+        const std::vector<figure> &figs = col.figures;
 
-   if (back_idx < state->bassline.size()) {
-      enum midi_note bass_note        = state->bassline[back_idx];
-      const std::vector<figure> &figs = state->figures[back_idx];
-      if (logic_adjudicate(bass_note, figs, realization))
-         state->chords_ok.back().insert(realization);
-      else
-         state->chords_bad.back().insert(realization);
-   } else {
-      state->chords_bad.back().insert(realization);
-   }
+        if (logic_adjudicate(bass_note, figs, realization))
+            col.good.insert(realization);
+        else
+            col.bad.insert(realization);
+    } else {
+        // no bass yet, consider as bad
+        col.bad.insert(realization);
+    }
 }
 
 void logic_receive(struct state *state)
 {
-   if (!state->pressed_notes.empty()) {
-      // accumulate all pressed notes into the current back column
-      for (auto note_val : state->pressed_notes)
-         process_note(state, static_cast<midi_note>(note_val));
-   }
+    if (!state->pressed_notes.empty()) {
+        // accumulate pressed notes into the current back column
+        if (state->chords.empty())
+            state->chords.emplace_back();
 
-   else {
-      // all notes released → ensure there's an empty column for the next chord
-      if (!state->chords_ok.empty() && (!state->chords_ok.back().empty() ||
-                                        !state->chords_bad.back().empty())) {
-         state->chords_ok.emplace_back();
-         state->chords_bad.emplace_back();
-      }
+        for (auto note_val : state->pressed_notes)
+            process_note(state, static_cast<midi_note>(note_val));
 
-      // clear everything if MAX_CHORDS reached
-      if (state->chords_ok.size() >= MAX_CHORDS ||
-          state->chords_bad.size() >= MAX_CHORDS) {
-         state->chords_ok.clear();
-         state->chords_bad.clear();
-         state->bassline.clear();
-      }
-   }
+    } else {
+        // all notes released → start a new column if the last has data
+        if (!state->chords.empty()) {
+            column &col = state->chords.back();
+            if (!col.good.empty() || !col.bad.empty())
+                state->chords.emplace_back();
+        }
+
+        // clear everything if MAX_CHORDS reached
+        if (state->chords.size() >= MAX_CHORDS)
+            state->chords.clear();
+    }
 }
+

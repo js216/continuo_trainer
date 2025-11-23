@@ -15,16 +15,6 @@
 #include <stdint.h>
 
 void notes_staff(struct state *state);
-
-void notes_single(enum key_sig key, const std::vector<midi_note> &notes,
-                  uint32_t color);
-
-void notes_chords(enum key_sig key,
-                  const std::vector<std::unordered_set<midi_note>> &chords,
-                  uint32_t color);
-
-void notes_figures(const std::vector<midi_note> &notes,
-                   const std::vector<std::vector<figure>> &figures,
-                   uint32_t color);
+void notes_draw(const struct state *state);
 
 #endif /* NOTES_H */

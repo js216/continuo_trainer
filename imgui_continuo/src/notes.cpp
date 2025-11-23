@@ -304,7 +304,8 @@ static void notes_dot(enum key_sig key, midi_note n, int x_idx, uint32_t color)
    ImVec2 size             = ImGui::GetContentRegionAvail();
    const float note_radius = size.y / 45.0F;
 
-   float x = ((float)x_idx + 1) * size.x / (MAX_CHORDS + 1.0F);
+   const float x_offs = 100;
+   float x = x_offs + ((float)x_idx + 1) * size.x / (MAX_CHORDS + 1.0F);
    float y = calc_y(n);
    if (y == NOTES_OUT_OF_RANGE)
       return;
@@ -316,40 +317,6 @@ static void notes_dot(enum key_sig key, midi_note n, int x_idx, uint32_t color)
 
    draw_ledger_lines(draw_list, x, y, static_cast<int>(n), note_radius);
    draw_list->AddCircleFilled(ImVec2(x, y), note_radius, color);
-}
-
-void notes_single(enum key_sig key, const std::vector<midi_note> &notes,
-                  uint32_t color)
-{
-   if (!ImGui::BeginChild("Staff", ImVec2(0, 0), false)) {
-      ImGui::EndChild();
-      return;
-   }
-
-   for (size_t i = 0; i < notes.size(); ++i)
-      notes_dot(key, notes[i], static_cast<int>(i), color);
-
-   ImGui::EndChild();
-}
-
-void notes_chords(enum key_sig key,
-                  const std::vector<std::unordered_set<midi_note>> &chords,
-                  uint32_t color)
-{
-   if (!ImGui::BeginChild("Staff", ImVec2(0, 0), false)) {
-      ImGui::EndChild();
-      return;
-   }
-
-   int x_idx = 0;
-   for (const auto &chord : chords) {
-      for (auto n : chord) {
-         notes_dot(key, n, x_idx, color);
-      }
-      ++x_idx;
-   }
-
-   ImGui::EndChild();
 }
 
 static void draw_chord_figures(float font_size, float x, float y,
@@ -377,31 +344,50 @@ static void draw_chord_figures(float font_size, float x, float y,
    }
 }
 
-void notes_figures(const std::vector<midi_note> &notes,
-                   const std::vector<std::vector<figure>> &figures,
-                   uint32_t color)
+void notes_draw(const struct state *state)
 {
-   if (!ImGui::BeginChild("Staff", ImVec2(0, 0), false)) {
-      ImGui::EndChild();
-      return;
-   }
+    if (!ImGui::BeginChild("Staff", ImVec2(0, 0), false)) {
+        ImGui::EndChild();
+        return;
+    }
 
-   ImVec2 size     = ImGui::GetContentRegionAvail();
-   float font_size = size.y / 16.0F;
+    ImVec2 size     = ImGui::GetContentRegionAvail();
+    float font_size = size.y / 16.0F;
 
-   const size_t n = std::min(notes.size(), figures.size());
+    for (size_t i = 0; i < state->chords.size(); ++i) {
+        const auto &col = state->chords[i];
 
-   for (size_t i = 0; i < n; i++) {
-      const midi_note note = notes[i];
-      const auto &figs     = figures[i];
+        float x = ((float)i + 1) * size.x / (MAX_CHORDS + 1.0F);
 
-      float x = ((float)i + 1) * size.x / (MAX_CHORDS + 1.0F);
-      float y = calc_y(note);
-      if (y == NOTES_OUT_OF_RANGE)
-         continue;
+        // --- Bass notes ---
+        for (auto n : col.bass) {
+            notes_dot(state->key, n, static_cast<int>(i), STYLE_WHITE);
+        }
 
-      draw_chord_figures(font_size, x, y, figs, color);
-   }
+        // --- Melody ---
+        for (auto n : col.melody) {
+            notes_dot(state->key, n, static_cast<int>(i), STYLE_BLUE);
+        }
 
-   ImGui::EndChild();
+        // --- Good chords ---
+        for (auto n : col.good) {
+            notes_dot(state->key, n, static_cast<int>(i), STYLE_GREEN);
+        }
+
+        // --- Bad chords ---
+        for (auto n : col.bad) {
+            notes_dot(state->key, n, static_cast<int>(i), STYLE_RED);
+        }
+
+        // --- Figures (typically for bass) ---
+        if (!col.bass.empty()) {
+            float y = calc_y(*col.bass.begin()); // assumes one bass note per column
+            if (y != NOTES_OUT_OF_RANGE) {
+                draw_chord_figures(font_size, x, y, col.figures, STYLE_WHITE);
+            }
+        }
+    }
+
+    ImGui::EndChild();
 }
+

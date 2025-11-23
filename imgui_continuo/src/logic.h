@@ -14,8 +14,6 @@
 
 void logic_clear(struct state *state);
 
-void logic_populate(struct state *state);
-
 void logic_inc(struct state *state);
 
 void logic_dec(struct state *state);

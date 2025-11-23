@@ -36,7 +36,8 @@ void init_state(struct state *state)
 static void app_buttons(struct state *state)
 {
    const ImGuiIO &io = ImGui::GetIO();
-   const float bw    = (io.DisplaySize.x - 9 * STYLE_PAD_X) / 6.0F;
+   const int num_btns = 5;
+   const float bw    = (io.DisplaySize.x - 9 * STYLE_PAD_X) / num_btns;
    ImVec2 b(bw, STYLE_BTN_H);
 
    if (ImGui::Button("Inc", b)) {
@@ -46,12 +47,6 @@ static void app_buttons(struct state *state)
    ImGui::SameLine();
    if (ImGui::Button("Dec", b)) {
       logic_dec(state);
-   }
-
-   ImGui::SameLine();
-   if (ImGui::Button("Populate", b)) {
-      logic_populate(state);
-      state_status(state, "All populated");
    }
 
    ImGui::SameLine();
@@ -143,11 +138,7 @@ void render_ui(struct state *state)
    // Staff
    ImGui::BeginChild("Staff", ImVec2(0, staff_height), false);
    notes_staff(state);
-   notes_single(state->key, state->bassline, STYLE_WHITE);
-   notes_chords(state->key, state->chords_ok, STYLE_GREEN);
-   notes_chords(state->key, state->chords_bad, STYLE_RED);
-   notes_chords(state->key, state->melody, STYLE_BLUE);
-   notes_figures(state->bassline, state->figures, STYLE_WHITE);
+   notes_draw(state);
    ImGui::EndChild();
 
    // Status bar

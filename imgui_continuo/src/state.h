@@ -93,6 +93,14 @@ struct figure {
    enum accidental acc;
 };
 
+struct column {
+   std::unordered_set<midi_note> bass;
+   std::vector<struct figure> figures;
+   std::unordered_set<midi_note> melody;
+   std::unordered_set<midi_note> good;
+   std::unordered_set<midi_note> bad;
+};
+
 struct state {
    // program general
    std::string config_file;
@@ -101,11 +109,7 @@ struct state {
 
    // sheet music display
    enum key_sig key;
-   std::vector<enum midi_note> bassline;
-   std::vector<std::unordered_set<midi_note>> chords_ok;
-   std::vector<std::unordered_set<midi_note>> chords_bad;
-   std::vector<std::unordered_set<midi_note>> melody;
-   std::vector<std::vector<struct figure>> figures;
+   std::vector<struct column> chords;
 
    // MIDI devices and data
    std::vector<std::string> midi_devices;
@@ -124,5 +128,8 @@ template <typename... Args> void state_status(state *state, Args &&...args)
 void state_load(struct state *state);
 
 void state_save(const struct state *state);
+
+void read_bassline_from_file(const std::string &filename,
+                             std::vector<column> &chords);
 
 #endif /* STATE_H */

@@ -7,8 +7,11 @@
  */
 
 #include "state.h"
+#include "util.h"
 #include <fstream>
 #include <string>
+#include <vector>
+#include <sstream>
 
 void state_load(struct state *state)
 {
@@ -48,3 +51,37 @@ void state_save(const struct state *state)
 
    f << state->midi_devices[state->selected_device] << "\n";
 }
+
+void read_bassline_from_file(const std::string &filename,
+                             std::vector<column> &chords)
+{
+    std::ifstream file(filename);
+    if (!file.is_open())
+    {
+        ERROR("Cannot open file: " + filename);
+        return;
+    }
+
+    chords.clear();
+    std::string line;
+
+    while (std::getline(file, line))
+    {
+        if (line.empty())
+            continue;
+
+        std::istringstream iss(line);
+        int value = 0;
+        if (!(iss >> value))
+        {
+            ERROR("Skipping invalid line: " + line);
+            continue;
+        }
+
+        column col;
+        col.bass.insert(static_cast<midi_note>(value));
+        // leave figures, melody, good, bad empty for now
+        chords.push_back(std::move(col));
+    }
+}
+
