@@ -40,15 +40,6 @@ static void app_buttons(struct state *state)
    const float bw    = (io.DisplaySize.x - 9 * STYLE_PAD_X) / num_btns;
    ImVec2 b(bw, STYLE_BTN_H);
 
-   if (ImGui::Button("Inc", b)) {
-      logic_inc(state);
-   }
-
-   ImGui::SameLine();
-   if (ImGui::Button("Dec", b)) {
-      logic_dec(state);
-   }
-
    ImGui::SameLine();
    if (ImGui::Button("Clear", b)) {
       logic_clear(state);

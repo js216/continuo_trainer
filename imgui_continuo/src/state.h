@@ -21,7 +21,9 @@
 #define MAX_CHORDS      15
 
 enum midi_note {
-   NOTES_E2 = 40,
+   NOTES_D2 = 38,
+   NOTES_Ds2,
+   NOTES_E2,
    NOTES_F2,
    NOTES_Fs2,
    NOTES_G2,
@@ -96,7 +98,7 @@ struct figure {
 struct column {
    std::unordered_set<midi_note> bass;
    std::vector<struct figure> figures;
-   std::unordered_set<midi_note> melody;
+   std::unordered_set<midi_note> answer;
    std::unordered_set<midi_note> good;
    std::unordered_set<midi_note> bad;
 };
@@ -107,9 +109,12 @@ struct state {
    std::string status;
    ImFont *music_font;
 
-   // sheet music display
+   // lesson info
+   std::string lesson_title;
+   std::string lesson_description;
    enum key_sig key;
    std::vector<struct column> chords;
+   unsigned int active_col;
 
    // MIDI devices and data
    std::vector<std::string> midi_devices;
@@ -129,7 +134,6 @@ void state_load(struct state *state);
 
 void state_save(const struct state *state);
 
-void read_bassline_from_file(const std::string &filename,
-                             std::vector<column> &chords);
+void state_read_lesson(const std::string &filename, state *s);
 
 #endif /* STATE_H */

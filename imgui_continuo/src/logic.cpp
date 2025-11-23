@@ -15,104 +15,118 @@
 #include <iostream>
 #include <iterator>
 #include <random>
+#include <vector>
 
 void logic_clear(struct state *state)
 {
    state->key = KEY_SIG_1_FLAT;
    state->pressed_notes.clear();
    state->chords.clear();
+   state->active_col = 0;
 
-   read_bassline_from_file("lessons/l1.txt", state->chords);
+   state_read_lesson("lessons/l1.txt", state);
 }
 
-void logic_inc(struct state *state)
+static bool logic_adjudicate(const struct column &col,
+      enum midi_note realization)
 {
-   state->key = static_cast<enum key_sig>(static_cast<int>(state->key) + 1);
-}
+   // If no bass exists yet, automatically bad
+   if (col.bass.empty())
+      return false;
 
-void logic_dec(struct state *state)
-{
-   state->key = static_cast<enum key_sig>(static_cast<int>(state->key) - 1);
-}
+   int realized_pc = static_cast<int>(realization) % 12;
 
-static bool logic_adjudicate(enum midi_note bass_note,
-                             const std::vector<figure> &figures,
-                             enum midi_note realization)
-{
-   int realized_pc = (int)realization % 12;
-
-   for (const auto &fig : figures) {
-      int interval = 0;
-      switch (fig.num) {
-         case 3: interval = 4; break;
-         case 5: interval = 7; break;
-         case 6: interval = 9; break;
-         case 7: interval = 10; break;
-         case 8: interval = 12; break;
-         default: continue;
-      }
-
-      if (fig.acc == ACC_SHARP) {
-         interval += 1;
-      } else if (fig.acc == ACC_FLAT) {
-         interval -= 1;
-      }
-
-      int expected_pc = ((int)bass_note + interval + 12) % 12;
+   for (auto ans_note : col.answer)
+   {
+      int expected_pc = static_cast<int>(ans_note) % 12;
       if (realized_pc == expected_pc)
-         return true; // correct realization
+         return true;
    }
 
-   return false; // no match found
+   return false;
 }
 
 static void process_note(struct state *state, midi_note realization)
 {
-    if (state->chords.empty())
-        state->chords.emplace_back(); // create first column if empty
+   if (state->chords.empty())
+      state->chords.emplace_back();
 
-    column &col = state->chords.back();
+   if (state->active_col >= state->chords.size()) {
+      ERROR("active_col out of range!");
+      return;
+   }
 
-    // skip if note already recorded
-    if (col.good.contains(realization) || col.bad.contains(realization))
-        return;
+   column &col = state->chords[state->active_col];
 
-    if (!col.bass.empty()) {
-        // assume one bass note per column
-        midi_note bass_note = *col.bass.begin();
-        const std::vector<figure> &figs = col.figures;
+   if (col.good.contains(realization) || col.bad.contains(realization))
+      return;
 
-        if (logic_adjudicate(bass_note, figs, realization))
-            col.good.insert(realization);
-        else
-            col.bad.insert(realization);
-    } else {
-        // no bass yet, consider as bad
-        col.bad.insert(realization);
-    }
+   if (logic_adjudicate(col, realization))
+      col.good.insert(realization);
+   else
+      col.bad.insert(realization);
+}
+
+
+static std::string midi_to_name(int midi)
+{
+   static const char *names[] = { "C", "C#", "D", "D#", "E",
+      "F", "F#", "G", "G#", "A", "A#", "B" };
+   int octave = (midi / 12) - 1;      // MIDI 0 = C-1
+   int note   = midi % 12;
+   return std::string(names[note]) + std::to_string(octave);
+}
+
+static void print_chord(const std::unordered_set<midi_note> &good,
+      const std::unordered_set<midi_note> &bad)
+{
+   std::vector<midi_note> all_notes;
+   all_notes.insert(all_notes.end(), good.begin(), good.end());
+   all_notes.insert(all_notes.end(), bad.begin(), bad.end());
+
+   if (all_notes.empty())
+      return;
+
+   std::sort(all_notes.begin(), all_notes.end());
+   midi_note lowest = all_notes.front();
+
+   // print lowest note first
+   std::cout << midi_to_name(lowest) << " ";
+
+   // print remaining notes comma-separated
+   bool first = true;
+   for (auto n : all_notes) {
+      if (n == lowest) continue;
+      if (!first) std::cout << ",";
+      std::cout << midi_to_name(n);
+      first = false;
+   }
+   std::cout << "\n";
 }
 
 void logic_receive(struct state *state)
 {
-    if (!state->pressed_notes.empty()) {
-        // accumulate pressed notes into the current back column
-        if (state->chords.empty())
-            state->chords.emplace_back();
+   if (!state->pressed_notes.empty()) {
+      // accumulate pressed notes into the current back column
+      if (state->chords.empty())
+         state->chords.emplace_back();
 
-        for (auto note_val : state->pressed_notes)
-            process_note(state, static_cast<midi_note>(note_val));
+      for (auto note_val : state->pressed_notes)
+         process_note(state, static_cast<midi_note>(note_val));
 
-    } else {
-        // all notes released → start a new column if the last has data
-        if (!state->chords.empty()) {
-            column &col = state->chords.back();
-            if (!col.good.empty() || !col.bad.empty())
-                state->chords.emplace_back();
-        }
+   } else {
+      // all notes released → go to next column
+      if (!state->chords.empty()) {
+         column &col = state->chords[state->active_col];
+         if (!col.good.empty() || !col.bad.empty()) {
+            print_chord(col.good, col.bad);
+            state->active_col++;
+         }
+      }
 
-        // clear everything if MAX_CHORDS reached
-        if (state->chords.size() >= MAX_CHORDS)
-            state->chords.clear();
-    }
+      // clear everything if MAX_CHORDS reached
+      if (state->chords.size() >= MAX_CHORDS)
+         state->chords.clear();
+   }
 }
 

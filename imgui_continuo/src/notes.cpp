@@ -8,7 +8,6 @@
 
 #include "notes.h"
 #include "imgui.h"
-#include "logic.h"
 #include "state.h"
 #include "style.h"
 #include <array>
@@ -54,9 +53,11 @@ static enum accidental key_sig_accidental(enum key_sig key, midi_note n)
    return table[key][n % 12] ? ACC_NATURAL : ACC_NONE;
 }
 
-static float note_to_bass(const enum midi_note n)
+static int note_to_bass(const enum midi_note n)
 {
    switch (n) {
+      case NOTES_D2:
+      case NOTES_Ds2: return -3;
       case NOTES_E2: return -2;
       case NOTES_F2:
       case NOTES_Fs2: return -1;
@@ -256,32 +257,45 @@ void notes_staff(struct state *state)
    ImGui::EndChild();
 }
 
-static void draw_ledger_lines(ImDrawList *draw_list, float x, float y,
-                              int note_val, float note_radius)
+static void draw_ledger_lines(float x, enum midi_note n, float note_radius)
 {
    const float ledger_width = 4.0F * note_radius;
 
    // Convert note to staff position
-   float pos = note_to_bass((midi_note)note_val);
+   int pos = note_to_bass(n);
+   const float y = calc_y(n);
+   if (y == NOTES_OUT_OF_RANGE)
+      return;
 
    // Out of staff range? Staff is 0..8
    if (pos >= 0.0F && pos <= 8.0F)
       return;
 
+   // Special case: just below ledger line
+   if ((n == NOTES_D2) || (n == NOTES_Ds2)) {
+      draw_ledger_lines(x, NOTES_E2, note_radius);
+      return;
+   }
+
    // Ledger lines only occur on LINE positions (even pos)
-   if (((unsigned int)pos & 1U) != 0) // odd = space → no line
+   if (pos % 2 != 0) // odd = space → no line
       return;
 
    // Draw the ledger line through the note
+   ImDrawList *draw_list = ImGui::GetWindowDrawList();
    draw_list->AddLine(ImVec2(x - ledger_width / 2, y),
                       ImVec2(x + ledger_width / 2, y), STYLE_GRAY,
                       STYLE_LINE_THICKNESS);
 }
 
-static void draw_accidental(float x, float y, float note_radius, uint32_t color,
+static void draw_accidental(float x, enum midi_note n, float note_radius, uint32_t color,
                             enum accidental acc)
 {
    if (acc == ACC_NONE)
+      return;
+
+   const float y = calc_y(n);
+   if (y == NOTES_OUT_OF_RANGE)
       return;
 
    float staff_space = std::fabs(calc_y(NOTES_A3) - calc_y(NOTES_C4));
@@ -299,23 +313,22 @@ static void draw_accidental(float x, float y, float note_radius, uint32_t color,
    style_text(acc_sym(acc), offset_x, y, &cfg);
 }
 
-static void notes_dot(enum key_sig key, midi_note n, int x_idx, uint32_t color)
+static void notes_dot(enum key_sig key, enum midi_note n, int x_idx, uint32_t color)
 {
    ImVec2 size             = ImGui::GetContentRegionAvail();
    const float note_radius = size.y / 45.0F;
 
-   const float x_offs = 100;
+   const float x_offs = 120;
    float x = x_offs + ((float)x_idx + 1) * size.x / (MAX_CHORDS + 1.0F);
-   float y = calc_y(n);
+
+   draw_accidental(x, n, note_radius, color, key_sig_accidental(key, n));
+   draw_ledger_lines(x, n, note_radius);
+
+   const float y = calc_y(n);
    if (y == NOTES_OUT_OF_RANGE)
       return;
 
    ImDrawList *draw_list = ImGui::GetWindowDrawList();
-
-   enum accidental acc = key_sig_accidental(key, n);
-   draw_accidental(x, y, note_radius, color, acc);
-
-   draw_ledger_lines(draw_list, x, y, static_cast<int>(n), note_radius);
    draw_list->AddCircleFilled(ImVec2(x, y), note_radius, color);
 }
 
@@ -325,13 +338,14 @@ static void draw_chord_figures(float font_size, float x, float y,
    ImVec2 size               = ImGui::GetContentRegionAvail();
    const float figure_offset = size.y / 8.0F;
    float offset_step         = figure_offset * 0.5F;
+   const float x_offs = 120;
 
    font_config cfg = {
        .fontsize = font_size, .anch = ANCHOR_TOP_LEFT, .color = color};
 
    for (size_t i = 0; i < figs.size(); ++i) {
       // figure
-      float fx = x - 0.25F * font_size;
+      float fx = x_offs + x - 0.25F * font_size;
       float fy = y - (float)i * offset_step - figure_offset;
       style_text(std::to_string(figs[i].num).c_str(), fx, fy, &cfg);
 
@@ -362,11 +376,6 @@ void notes_draw(const struct state *state)
         // --- Bass notes ---
         for (auto n : col.bass) {
             notes_dot(state->key, n, static_cast<int>(i), STYLE_WHITE);
-        }
-
-        // --- Melody ---
-        for (auto n : col.melody) {
-            notes_dot(state->key, n, static_cast<int>(i), STYLE_BLUE);
         }
 
         // --- Good chords ---

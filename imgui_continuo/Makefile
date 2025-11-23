@@ -2,6 +2,13 @@ CC      = g++
 CFLAGS  = -Iimgui -Irtmidi -Isrc -Wall -Wextra -std=c++20 `pkg-config --cflags sdl2`
 LDFLAGS = `pkg-config --libs sdl2` -lGL -lasound -lpthread
 
+# Add dependency generation flags to CFLAGS
+CFLAGS += -MMD -MF $(@:.o=.d)
+
+# Include dependency files, but ignore missing ones
+-include $(OBJS:.o=.d)
+-include $(LIB_OBJS:.o=.d)
+
 CFLAGS  += -g -fsanitize=address -fno-omit-frame-pointer -g
 LDFLAGS += -fsanitize=address
 
