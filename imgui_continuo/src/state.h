@@ -44,8 +44,8 @@ struct state {
    unsigned int active_col;
 
    // stats
-   float score;
-   float duration_today;
+   double score;
+   double duration_today;
 
    // MIDI devices and data
    std::vector<std::string> midi_devices;

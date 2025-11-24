@@ -13,120 +13,118 @@
 #include <algorithm>
 #include <cstddef>
 #include <cstdlib>
+#include <filesystem>
 #include <fstream>
 #include <iomanip>
 #include <iostream>
 #include <iterator>
 #include <random>
-#include <vector>
-#include <string>
 #include <sstream>
-#include <filesystem>
-
-#define MAX_ATTEMPT_GAP 5.0f
+#include <string>
+#include <vector>
 
 struct attempt_info {
-    double time;
-    size_t good_count;
-    size_t bad_count;
+   double time;
+   size_t good_count;
+   size_t bad_count;
 };
 
-static bool parse_attempt_line(const std::string &line, struct attempt_info &out)
+static bool parse_attempt_line(const std::string &line,
+                               struct attempt_info &out)
 {
-    if (line.empty())
-        return false;
+   if (line.empty())
+      return false;
 
-    std::istringstream iss(line);
+   std::istringstream iss(line);
 
-    // 1) timestamp
-    double t = 0.0;
-    iss >> t;
-    if (iss.fail() || !time_is_today(t))
-        return false;
+   // timestamp
+   double t = 0.0;
+   iss >> t;
+   if (iss.fail() || !time_is_today(t))
+      return false;
 
-    // Ignore bass + figures + correct answer
-    std::string bass, figs, answer;
-    iss >> bass >> figs >> answer;
+   // skip the next three fields (bass, figures, answer)
+   std::string ignore;
+   for (int i = 0; i < 3 && iss; ++i)
+      iss >> ignore;
 
-    // good notes
-    std::string good_notes;
-    iss >> good_notes;
-    out.good_count = (good_notes == "-") ? 0 :
-        std::count(good_notes.begin(), good_notes.end(), ',') + 1;
+   // good notes
+   std::string good_notes;
+   iss >> good_notes;
+   out.good_count =
+       (good_notes == "-")
+           ? 0
+           : std::count(good_notes.begin(), good_notes.end(), ',') + 1;
 
-    // bad notes
-    std::string bad_notes;
-    iss >> bad_notes;
-    out.bad_count = (bad_notes == "-") ? 0 :
-        std::count(bad_notes.begin(), bad_notes.end(), ',') + 1;
+   // bad notes
+   std::string bad_notes;
+   iss >> bad_notes;
+   out.bad_count =
+       (bad_notes == "-")
+           ? 0
+           : std::count(bad_notes.begin(), bad_notes.end(), ',') + 1;
 
-    out.time = t;
-    return true;
+   out.time = t;
+   return true;
 }
 
 static void accumulate_duration_today(struct state *state, double dt)
 {
-    if (dt > 0.0)
-    {
-        if (dt > MAX_ATTEMPT_GAP)
-            dt = MAX_ATTEMPT_GAP;
-        state->duration_today += static_cast<float>(dt);
-    }
+   constexpr double max_attempt_gap = 5.0F;
+
+   if (dt > 0.0) {
+      if (dt > max_attempt_gap)
+         dt = max_attempt_gap;
+      state->duration_today += static_cast<double>(dt);
+   }
 }
 
-static float score_formula(float dt, size_t good_count, size_t bad_count)
+static double score_formula(double dt, size_t good_count, size_t bad_count)
 {
-    float good = static_cast<float>(good_count);
-    float bad  = static_cast<float>(bad_count);
+   auto good = static_cast<double>(good_count);
+   auto bad  = static_cast<double>(bad_count);
 
-    // base accuracy penalty
-    float score = good - 1.5f * bad;
+   // base accuracy penalty
+   double score = good - 1.5F * bad;
 
-    if (score > 0.0f)
-    {
-        // only reward speed if net accuracy positive
-        float speed_multiplier = 1.0f / (0.3f + dt);
-        speed_multiplier *= speed_multiplier;
+   if (score > 0.0F) {
+      // only reward speed if net accuracy positive
+      double speed_multiplier = 1.0F / (0.3F + dt);
+      speed_multiplier *= speed_multiplier;
 
-        score += score * speed_multiplier; // amplify only positive base
-    }
+      score += score * speed_multiplier; // amplify only positive base
+   }
 
-    return score;
+   return score;
 }
 
 static void logic_reload_stats(struct state *state)
 {
-    state->duration_today = 0.0f;
-    state->score = 0.0f;
+   state->duration_today = 0.0F;
+   state->score          = 0.0F;
 
-    std::ifstream f("attempts.log");
-    if (!f.is_open())
-        return;
+   std::ifstream f("attempts.log");
+   if (!f.is_open())
+      return;
 
-    std::string line;
-    struct attempt_info last{ -1.0, 0, 0 };
+   std::string line;
+   struct attempt_info last{-1.0, 0, 0};
 
-    while (std::getline(f, line))
-    {
-        struct attempt_info cur;
-        if (!parse_attempt_line(line, cur))
-            continue;
+   while (std::getline(f, line)) {
+      struct attempt_info cur = {};
+      if (!parse_attempt_line(line, cur))
+         continue;
 
-        if (last.time >= 0.0)
-        {
-            double dt = cur.time - last.time;
-            accumulate_duration_today(state, dt);
-            state->score += score_formula(
-                static_cast<float>(dt),
-                cur.good_count,
-                cur.bad_count
-            );
-        }
+      if (last.time >= 0.0) {
+         double dt = cur.time - last.time;
+         accumulate_duration_today(state, dt);
+         state->score += score_formula(static_cast<double>(dt), cur.good_count,
+                                       cur.bad_count);
+      }
 
-        last = cur;
-    }
+      last = cur;
+   }
 }
-
 
 void logic_clear(struct state *state)
 {
@@ -148,21 +146,18 @@ void logic_clear(struct state *state)
 }
 
 static bool logic_adjudicate(const struct column &col,
-      enum midi_note realization)
+                             enum midi_note realization)
 {
    if (col.bass.empty())
       return false;
 
    int realized_pc = static_cast<int>(realization) % 12;
 
-   for (auto ans_note : col.answer)
-   {
-      int expected_pc = static_cast<int>(ans_note) % 12;
-      if (realized_pc == expected_pc)
-         return true;
-   }
+   auto matches_pc = [realized_pc](auto n) {
+      return realized_pc == (int(n) % 12);
+   };
 
-   return false;
+   return std::ranges::any_of(col.answer, matches_pc);
 }
 
 static void process_note(struct state *state, midi_note realization)
@@ -185,7 +180,6 @@ static void process_note(struct state *state, midi_note realization)
    else
       col.bad.insert(realization);
 }
-
 
 static void print_chord(const struct column &col)
 {
@@ -211,21 +205,26 @@ static void print_chord(const struct column &col)
    auto print_notes = [&ofs](const auto &container) {
       bool first = true;
       for (auto n : container) {
-         if (!first) ofs << ",";
+         if (!first)
+            ofs << ",";
          ofs << midi_to_name(n);
          first = false;
       }
-      if (container.empty()) ofs << "-";
+      if (container.empty())
+         ofs << "-";
    };
 
    // figures (comma-delimited)
    bool first_fig = true;
-   for (auto &fig : col.figures) {
-      if (!first_fig) ofs << ",";
-      ofs << fig_to_string(fig);  // you need a function to convert figure to string
+   for (const auto &fig : col.figures) {
+      if (!first_fig)
+         ofs << ",";
+      ofs << fig_to_string(
+          fig); // you need a function to convert figure to string
       first_fig = false;
    }
-   if (col.figures.empty()) ofs << "-";
+   if (col.figures.empty())
+      ofs << "-";
 
    ofs << " ";
 
@@ -243,36 +242,31 @@ static void print_chord(const struct column &col)
    ofs << "\n";
 }
 
-static float last_chord_duration(struct state *state)
+static double last_chord_duration(struct state *state)
 {
    if (state->active_col >= state->chords.size())
       return 0.0F;
 
-   const int prev_idx = state->active_col - 1;
-   if (prev_idx >= 0) {
-      const struct column &col = state->chords[state->active_col];
+   if (state->active_col > 0) {
+      const unsigned int prev_idx   = state->active_col - 1;
+      const struct column &col      = state->chords[state->active_col];
       const struct column &prev_col = state->chords[prev_idx];
-      const float dt = col.time - prev_col.time;
-      return dt;
+      return col.time - prev_col.time;
    }
    return 0.0F;
 }
 
 static void score_chord(struct state *state)
 {
-    if (state->active_col >= state->chords.size())
-        return;
+   if (state->active_col >= state->chords.size())
+      return;
 
-    const struct column &col = state->chords[state->active_col];
+   const struct column &col = state->chords[state->active_col];
 
-    const float dt = last_chord_duration(state);
-    accumulate_duration_today(state, dt);
+   const double dt = last_chord_duration(state);
+   accumulate_duration_today(state, dt);
 
-    state->score += score_formula(
-        dt,
-        col.good.size(),
-        col.bad.size()
-    );
+   state->score += score_formula(dt, col.good.size(), col.bad.size());
 }
 
 static void logic_play(struct state *state)
@@ -307,20 +301,16 @@ static void logic_play(struct state *state)
 
       for (auto note_val : state->pressed_notes)
          process_note(state, static_cast<midi_note>(note_val));
-
    }
 }
 
 static void logic_record(struct state *state)
 {
    // If nothing pressed → finalize column if anything was recorded
-   if (state->pressed_notes.empty())
-   {
-      if (state->active_col < state->chords.size())
-      {
+   if (state->pressed_notes.empty()) {
+      if (state->active_col < state->chords.size()) {
          struct column &col = state->chords[state->active_col];
-         if (!col.bass.empty() || !col.answer.empty())
-         {
+         if (!col.bass.empty() || !col.answer.empty()) {
             // Finalize this column, move to the next
             state->active_col++;
          }
@@ -329,26 +319,19 @@ static void logic_record(struct state *state)
    }
 
    // Notes currently pressed → ensure there is a column to record into
-   if (state->chords.empty() ||
-         state->active_col >= state->chords.size())
-   {
+   if (state->chords.empty() || state->active_col >= state->chords.size()) {
       state->chords.emplace_back();
    }
 
    struct column &col = state->chords[state->active_col];
 
    // Determine lowest pressed note
-   unsigned char lowest = state->pressed_notes[0];
-   for (auto n : state->pressed_notes)
-   {
-      if (n < lowest)
-         lowest = n;
-   }
+   unsigned char lowest = *std::min_element(state->pressed_notes.begin(),
+                                            state->pressed_notes.end());
 
    // Insert into bass + answer sets
    col.bass.insert(static_cast<midi_note>(lowest));
-   for (auto n : state->pressed_notes)
-   {
+   for (auto n : state->pressed_notes) {
       if (n != lowest)
          col.answer.insert(static_cast<midi_note>(n));
    }

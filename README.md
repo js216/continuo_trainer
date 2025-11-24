@@ -55,8 +55,6 @@ market only to realize there is no market for continuo-training toys ...
 
 ### Todo
 
-- read lessons from text files
-- record times and all notes pressed to logs
 - free-timing vs fixed rhythm mode
 - melody playback via MIDI or audio
 - analyze lessons to generate new ones

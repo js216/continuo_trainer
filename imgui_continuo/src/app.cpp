@@ -7,13 +7,13 @@
  */
 
 #include "app.h"
-#include "time_utils.h"
 #include "imgui.h"
 #include "logic.h"
 #include "midi.h"
 #include "notes.h"
 #include "state.h"
 #include "style.h"
+#include "time_utils.h"
 #include "util.h"
 #include <algorithm>
 #include <cstdio>
@@ -39,9 +39,9 @@ void init_state(struct state *state)
 
 static void app_buttons(struct state *state)
 {
-   const ImGuiIO &io = ImGui::GetIO();
+   const ImGuiIO &io  = ImGui::GetIO();
    const int num_btns = 3;
-   const float bw    = (io.DisplaySize.x - 9 * STYLE_PAD_X) / num_btns;
+   const float bw     = (io.DisplaySize.x - 9 * STYLE_PAD_X) / num_btns;
 
    ImGui::PushItemWidth(bw);
 
@@ -79,8 +79,7 @@ static void app_midi(struct state *state, const float controls_height)
          bool selected = (state->selected_device == i);
          if (ImGui::Selectable(state->midi_devices[i].c_str(), selected)) {
             state->selected_device = i;
-            state->status = "Selected MIDI device: " +
-               state->midi_devices[i];
+            state->status = "Selected MIDI device: " + state->midi_devices[i];
          }
       }
       ImGui::EndListBox();
@@ -89,12 +88,12 @@ static void app_midi(struct state *state, const float controls_height)
 
 static void app_key_sig_selector(state *state)
 {
-   if (ImGui::BeginCombo("##keysig", key_sig_to_string(state->key).c_str()))
-   {
-      for (int i = 0; i < KEY_NUM; ++i)
-      {
+   if (ImGui::BeginCombo("##keysig", key_sig_to_string(state->key).c_str())) {
+      for (int i = 0; i < KEY_NUM; ++i) {
          bool is_selected = (state->key == i);
-         if (ImGui::Selectable(key_sig_to_string(static_cast<key_sig>(i)).c_str(), is_selected))
+         if (ImGui::Selectable(
+                 key_sig_to_string(static_cast<key_sig>(i)).c_str(),
+                 is_selected))
             state->key = static_cast<key_sig>(i);
          if (is_selected)
             ImGui::SetItemDefaultFocus();
@@ -106,8 +105,7 @@ static void app_key_sig_selector(state *state)
 static void app_lesson(struct state *state)
 {
    ImGui::PushItemWidth(150);
-   if (ImGui::InputInt("##lesson_id", &state->lesson_id))
-   {
+   if (ImGui::InputInt("##lesson_id", &state->lesson_id)) {
       state->lesson_id = std::clamp(state->lesson_id, 1, 99999);
       logic_clear(state);
    }
@@ -118,10 +116,10 @@ static void app_lesson(struct state *state)
    ImGui::InputText("##lesson_title", state->lesson_title, MAX_STRING);
    ImGui::PopItemWidth();
 
-      ImGui::SameLine();
-      ImGui::PushItemWidth(100);
-      app_key_sig_selector(state);
-      ImGui::PopItemWidth();
+   ImGui::SameLine();
+   ImGui::PushItemWidth(100);
+   app_key_sig_selector(state);
+   ImGui::PopItemWidth();
 
    if (state->edit_lesson) {
       ImGui::SameLine();
@@ -137,9 +135,8 @@ static void app_stats(struct state *state)
    ImGui::Text("Score: %.3f", state->score);
 
    // total practice duration today
-   static char buf[32];
-   time_format(state->duration_today, buf, sizeof(buf));
-   ImGui::Text("Duration: %s", buf); 
+   ImGui::TextUnformatted(
+       ("Duration: " + time_format(state->duration_today)).c_str());
 }
 
 void render_ui(struct state *state)
@@ -153,12 +150,12 @@ void render_ui(struct state *state)
 
    const float status_height = STYLE_BTN_H + STYLE_PAD_Y;
    const float avail_height  = io.DisplaySize.y - 3 * STYLE_PAD_Y -
-                        8 * STYLE_PAD_BORDER - status_height;
+                              8 * STYLE_PAD_BORDER - status_height;
    float controls_height = avail_height * 0.4F;
    if (state->midi_in)
       controls_height = 2 * STYLE_BTN_H + 2 * STYLE_PAD_Y;
    const float staff_height = 244.0F;
-   const float stats_h = avail_height - controls_height - staff_height;
+   const float stats_h      = avail_height - controls_height - staff_height;
 
    // Controls
    ImGui::BeginChild("Controls", ImVec2(0, controls_height), true);

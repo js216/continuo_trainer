@@ -6,7 +6,6 @@
  * @author Jakob Kastelic
  */
 
-
 #ifndef THEORY_H
 #define THEORY_H
 

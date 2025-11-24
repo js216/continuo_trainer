@@ -10,9 +10,10 @@
 #define TIME_UTILS_H
 
 #include <cstddef>
+#include <string>
 
 double time_now(void);
 bool time_is_today(double epoch_seconds);
-void time_format(float seconds, char *buf, size_t buf_size);
+std::string time_format(double seconds);
 
 #endif /* TIME_UTILS_H */

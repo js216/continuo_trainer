@@ -65,7 +65,7 @@ inclusions: $(INC_SRCS) scripts/inclusions.py
 clean:
 	rm -f $(LIB_OBJS) $(OBJS) $(TARGET) compile_commands.json
 	rm -f $(GRAPH_FILE) $(PDF_FILE)
-	rm -f $(OBJS:.o=.d) $(LIB_OBJS:.o=.d)
+	rm -f src/*.d
 
 -include $(OBJS:.o=.d)
 -include $(LIB_OBJS:.o=.d)

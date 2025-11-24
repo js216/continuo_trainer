@@ -7,7 +7,10 @@
  */
 
 #include "time_utils.h"
+#include <array>
 #include <chrono>
+#include <cstdio>
+#include <string>
 
 double time_now(void)
 {
@@ -18,32 +21,39 @@ double time_now(void)
 
 bool time_is_today(double epoch_seconds)
 {
-    using namespace std::chrono;
+   using namespace std::chrono;
 
-    // Current time
-    system_clock::time_point now_tp = system_clock::now();
+   // Current time
+   system_clock::time_point now_tp = system_clock::now();
 
-    // Break current time into days since epoch
-    auto now_sec = time_point_cast<seconds>(now_tp).time_since_epoch().count();
-    auto days_now = now_sec / (24 * 3600);
+   // Break current time into days since epoch
+   auto now_sec = time_point_cast<seconds>(now_tp).time_since_epoch().count();
+   constexpr int secs_per_day = 24 * 3600;
+   auto days_now              = now_sec / secs_per_day;
 
-    // Same for the given timestamp
-    auto days_ts = static_cast<int64_t>(epoch_seconds) / (24 * 3600);
+   // Same for the given timestamp
+   auto days_ts = static_cast<int64_t>(epoch_seconds) / secs_per_day;
 
-    return days_now == days_ts;
+   return days_now == days_ts;
 }
 
-void time_format(float seconds, char *buf, size_t buf_size)
+std::string time_format(double seconds)
 {
-    if (seconds < 60.0f)
-        snprintf(buf, buf_size, "%.0fs", seconds);
-    else if (seconds < 3600.0f)
-        snprintf(buf, buf_size, "%02d:%02d",
-                 int(seconds / 60.0f),
-                 int(seconds) % 60);
-    else
-        snprintf(buf, buf_size, "%d:%02d:%02d",
-                 int(seconds / 3600.0f),
-                 (int(seconds) % 3600) / 60,
-                 int(seconds) % 60);
+   std::array<char, 32> buf{};
+
+   if (seconds < 60.0) {
+      (void)std::snprintf(buf.data(), buf.size(), "%.0fs", seconds);
+   } else if (seconds < 3600.0) {
+      int mins = static_cast<int>(seconds / 60.0);
+      int secs = static_cast<int>(seconds) % 60;
+      (void)std::snprintf(buf.data(), buf.size(), "%02d:%02d", mins, secs);
+   } else {
+      int hours = static_cast<int>(seconds / 3600.0);
+      int mins  = (static_cast<int>(seconds) % 3600) / 60;
+      int secs  = static_cast<int>(seconds) % 60;
+      (void)std::snprintf(buf.data(), buf.size(), "%d:%02d:%02d", hours, mins,
+                          secs);
+   }
+
+   return {buf.data()};
 }
