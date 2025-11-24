@@ -1,24 +1,15 @@
-CC      = g++
-CFLAGS  = -Iimgui -Irtmidi -Isrc -Wall -Wextra -std=c++20 `pkg-config --cflags sdl2`
-LDFLAGS = `pkg-config --libs sdl2` -lGL -lasound -lpthread
+CFLAGS  = -Iimgui -Irtmidi -Isrc -Wall -Wextra -std=c++20 \
+	  `pkg-config --cflags sdl2` -MMD -MF $(@:.o=.d) \
+	  -g -fsanitize=address -fno-omit-frame-pointer -g
 
-# Add dependency generation flags to CFLAGS
-CFLAGS += -MMD -MF $(@:.o=.d)
+LDFLAGS = `pkg-config --libs sdl2` -lGL -lasound -lpthread -fsanitize=address
 
-# Include dependency files, but ignore missing ones
--include $(OBJS:.o=.d)
--include $(LIB_OBJS:.o=.d)
-
-CFLAGS  += -g -fsanitize=address -fno-omit-frame-pointer -g
-LDFLAGS += -fsanitize=address
+# Files
 
 TARGET  = continuo_trainer
 SRC = $(wildcard src/*.cpp)
 HDRS = $(wildcard src/*.h src/*.hpp)
 OBJS = $(SRC:.cpp=.o)
-
-GRAPH_FILE = inclusions.dot
-PDF_FILE = inclusions.pdf
 
 LIB_OBJS = \
 	rtmidi/RtMidi.o \
@@ -29,22 +20,23 @@ LIB_OBJS = \
 	imgui/backends/imgui_impl_sdl2.o \
 	imgui/backends/imgui_impl_opengl3.o
 
+# Building the program
+
 all: $(TARGET)
 
 $(TARGET): $(LIB_OBJS) $(OBJS)
-	$(CC) -o $@ $^ $(LDFLAGS)
-
-rtmidi/RtMidi.o: rtmidi/RtMidi.cpp
-	$(CC) -Wall -D__LINUX_ALSA__ -c $< -o $@
+	$(CXX) -o $@ $^ $(LDFLAGS)
 
 %.o: %.cpp
-	$(CC) $(CFLAGS) -c $< -o $@
+	$(CXX) $(CFLAGS) -c $< -o $@
 
-clean:
-	rm -f $(LIB_OBJS) $(OBJS) $(TARGET) compile_commands.json
-	rm -f $(GRAPH_FILE) $(PDF_FILE)
+rtmidi/RtMidi.o: rtmidi/RtMidi.cpp
+	$(CXX) -Wall -D__LINUX_ALSA__ -c $< -o $@
 
 # Testing and linting
+
+GRAPH_FILE = inclusions.dot
+PDF_FILE = inclusions.pdf
 
 check: format cppcheck tidy inclusions
 
@@ -66,5 +58,13 @@ inclusions: $(INC_SRCS) scripts/inclusions.py
 	dot -Tpdf $(GRAPH_FILE) -o $(PDF_FILE) ; \
 	exit $$PYTHON_EXIT
 
+# General
 
 .PHONY: all clean check format cppcheck tidy inclusions
+
+clean:
+	rm -f $(LIB_OBJS) $(OBJS) $(TARGET) compile_commands.json
+	rm -f $(GRAPH_FILE) $(PDF_FILE)
+
+-include $(OBJS:.o=.d)
+-include $(LIB_OBJS:.o=.d)

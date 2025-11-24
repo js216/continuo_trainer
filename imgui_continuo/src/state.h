@@ -17,8 +17,7 @@
 #include <unordered_set>
 #include <vector>
 
-#define NOTES_PER_CHORD 10
-#define MAX_CHORDS      15
+#define MAX_STRING 512
 
 enum midi_note {
    NOTES_D2 = 38,
@@ -110,8 +109,8 @@ struct state {
    ImFont *music_font;
 
    // lesson info
-   std::string lesson_title;
-   std::string lesson_description;
+   int lesson_id;
+   char lesson_title[MAX_STRING];
    enum key_sig key;
    std::vector<struct column> chords;
    unsigned int active_col;

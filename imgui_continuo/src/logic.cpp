@@ -19,21 +19,22 @@
 #include <iterator>
 #include <random>
 #include <vector>
+#include <string>
+#include <sstream>
 
 void logic_clear(struct state *state)
 {
-   state->key = KEY_SIG_1_FLAT;
-   state->pressed_notes.clear();
-   state->chords.clear();
-   state->active_col = 0;
+   if (state->lesson_id <= 0)
+      state->lesson_id = 1;
 
-   state_read_lesson("lessons/1.txt", state);
+   std::string fname = std::to_string(state->lesson_id);
+   state_read_lesson("lessons/" + fname + ".txt", state);
+   state_status(state, "Loaded lesson " + fname);
 }
 
 static bool logic_adjudicate(const struct column &col,
       enum midi_note realization)
 {
-   // If no bass exists yet, automatically bad
    if (col.bass.empty())
       return false;
 

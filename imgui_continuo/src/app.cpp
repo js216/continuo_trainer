@@ -14,6 +14,7 @@
 #include "state.h"
 #include "style.h"
 #include "util.h"
+#include <algorithm>
 #include <cstdio>
 #include <span>
 
@@ -36,30 +37,40 @@ void init_state(struct state *state)
 static void app_buttons(struct state *state)
 {
    const ImGuiIO &io = ImGui::GetIO();
-   const int num_btns = 5;
+   const int num_btns = 4;
    const float bw    = (io.DisplaySize.x - 9 * STYLE_PAD_X) / num_btns;
-   ImVec2 b(bw, STYLE_BTN_H);
 
-   ImGui::SameLine();
-   if (ImGui::Button("Clear", b)) {
+   ImGui::PushItemWidth(bw);
+
+   ImGui::InputInt("##lesson_id", &state->lesson_id);
+   state->lesson_id = std::clamp(state->lesson_id, 1, 99999);
+   static int old_id = state->lesson_id;
+   if (state->lesson_id != old_id) {
+      old_id = state->lesson_id;
       logic_clear(state);
-      state_status(state, "Cleared");
    }
 
    ImGui::SameLine();
-   if (ImGui::Button("MIDI Refresh", b)) {
+   if (ImGui::Button("Reload")) {
+      logic_clear(state);
+   }
+
+   ImGui::SameLine();
+   if (ImGui::Button("MIDI Refresh")) {
       refresh_midi_devices(state);
       state_status(state, "MIDI devices refreshed");
    }
 
    ImGui::SameLine();
    if (state->midi_in) {
-      if (ImGui::Button("Disconnect", b))
+      if (ImGui::Button("Disconnect"))
          deinit_midi(state);
    } else {
-      if (ImGui::Button("Connect", b))
+      if (ImGui::Button("Connect"))
          init_midi(state);
    }
+
+   ImGui::PopItemWidth();
 }
 
 static void app_midi(struct state *state, const float controls_height)
@@ -77,6 +88,11 @@ static void app_midi(struct state *state, const float controls_height)
       }
       ImGui::EndListBox();
    }
+}
+
+static void app_lesson_desc(state *state)
+{
+   ImGui::InputText("##lesson_title", state->lesson_title, MAX_STRING);
 }
 
 static void draw_status_bar(const struct state *state, float height)
@@ -116,7 +132,7 @@ void render_ui(struct state *state)
                         8 * STYLE_PAD_BORDER - status_height;
    float controls_height = avail_height * 0.4F;
    if (state->midi_in)
-      controls_height = STYLE_BTN_H + 2 * STYLE_PAD_Y;
+      controls_height = 2 * STYLE_BTN_H + 2 * STYLE_PAD_Y;
    float staff_height = avail_height - controls_height;
 
    // Controls
@@ -124,6 +140,7 @@ void render_ui(struct state *state)
    app_buttons(state);
    if (!state->midi_in)
       app_midi(state, controls_height);
+   app_lesson_desc(state);
    ImGui::EndChild();
 
    // Staff
