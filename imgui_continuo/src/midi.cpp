@@ -37,7 +37,7 @@ void init_midi(struct state *state)
 {
    if (state->selected_device < 0 ||
        state->selected_device >= (int)state->midi_devices.size()) {
-      state_status(state, "No MIDI device selected");
+      state->status = "No MIDI device selected";
       return;
    }
 
@@ -50,9 +50,9 @@ void init_midi(struct state *state)
       state->midi_in->openPort(state->selected_device);
       state->midi_in->ignoreTypes(false, false, false);
 
-      state_status(state, "MIDI input opened");
+      state->status = "MIDI input opened";
    } catch (RtMidiError &error) {
-      state_status(state, "RtMidi error: ", error.getMessage().c_str());
+      state->status = "RtMidi error: ", error.getMessage();
       state->midi_in.reset(); // ensure it's null
    }
 }
@@ -63,9 +63,9 @@ void deinit_midi(struct state *state)
       // Closing the port is automatic on RtMidiIn destructor
       state->midi_in.reset(); // releases the unique_ptr
 
-      state_status(state, "MIDI input disconnected");
+      state->status = "MIDI input disconnected";
    } else {
-      state_status(state, "No MIDI device connected");
+      state->status = "No MIDI device connected";
    }
 }
 
@@ -87,12 +87,12 @@ void remove_pressed_note(struct state *state, unsigned char note)
 void update_status(struct state *state)
 {
    if (state->pressed_notes.empty()) {
-      state_status(state, "All notes released");
+      state->status = "All notes released";
    } else {
       std::string s = "Pressed: ";
       for (auto n : state->pressed_notes)
          s += std::to_string(n) + " ";
-      state_status(state, s);
+      state->status = s;
    }
 }
 

@@ -1,7 +1,0 @@
-title: Second Inversions
-key: C
-
-G#3 7 B3,D4,E4,G4
-A3 6 A3,D4,F#4
-A#3 6,4,3 A3,B3,D4,F4
-B3 7 B3,D4,E4,G4

@@ -52,13 +52,6 @@ struct state {
 // global state for debug only
 extern float global_tune;
 
-template <typename... Args> void state_status(state *state, Args &&...args)
-{
-   std::ostringstream oss;
-   (oss << ... << args);
-   state->status = oss.str();
-}
-
 void state_load(struct state *state);
 
 void state_save(const struct state *state);

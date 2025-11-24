@@ -32,7 +32,7 @@ void logic_clear(struct state *state)
       // load lesson
       state->edit_lesson = false;
       state_read_lesson(state);
-      state_status(state, "Loaded lesson " + std::to_string(state->lesson_id));
+      state->status = "Loaded lesson " + std::to_string(state->lesson_id);
 
    } else {
       // enter edit mode

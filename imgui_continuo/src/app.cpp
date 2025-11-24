@@ -33,7 +33,7 @@ void init_state(struct state *state)
    set_font(state);
    dark_mode();
 
-   state_status(state, "Ready");
+   state->status = "Ready";
 }
 
 static void app_buttons(struct state *state)
@@ -51,7 +51,7 @@ static void app_buttons(struct state *state)
    ImGui::SameLine();
    if (ImGui::Button("MIDI Refresh")) {
       refresh_midi_devices(state);
-      state_status(state, "MIDI devices refreshed");
+      state->status = "MIDI devices refreshed";
    }
 
    ImGui::SameLine();
@@ -78,8 +78,8 @@ static void app_midi(struct state *state, const float controls_height)
          bool selected = (state->selected_device == i);
          if (ImGui::Selectable(state->midi_devices[i].c_str(), selected)) {
             state->selected_device = i;
-            state_status(state, "Selected MIDI device: ",
-                         state->midi_devices[i].c_str());
+            state->status = "Selected MIDI device: " +
+               state->midi_devices[i];
          }
       }
       ImGui::EndListBox();
