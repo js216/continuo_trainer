@@ -21,15 +21,24 @@
 #include <vector>
 #include <string>
 #include <sstream>
+#include <filesystem>
 
 void logic_clear(struct state *state)
 {
    if (state->lesson_id <= 0)
       state->lesson_id = 1;
 
-   std::string fname = std::to_string(state->lesson_id);
-   state_read_lesson("lessons/" + fname + ".txt", state);
-   state_status(state, "Loaded lesson " + fname);
+   if (std::filesystem::exists(state_lesson_fname(state->lesson_id))) {
+      // load lesson
+      state->edit_lesson = false;
+      state_read_lesson(state);
+      state_status(state, "Loaded lesson " + std::to_string(state->lesson_id));
+
+   } else {
+      // enter edit mode
+      state_clear_lesson(state);
+      state->edit_lesson = true;
+   }
 }
 
 static bool logic_adjudicate(const struct column &col,
@@ -72,93 +81,66 @@ static void process_note(struct state *state, midi_note realization)
 }
 
 
-static std::string midi_to_name(int midi)
-{
-   static const char *names[] = { "C", "C#", "D", "D#", "E",
-      "F", "F#", "G", "G#", "A", "A#", "B" };
-   int octave = (midi / 12) - 1;      // MIDI 0 = C-1
-   int note   = midi % 12;
-   return std::string(names[note]) + std::to_string(octave);
-}
-
-static std::string fig_to_string(const figure &f)
-{
-    std::stringstream ss;
-    // Example: print accidental and number (adjust to your figure fields)
-    switch (f.acc) {
-        case ACC_NONE: break;
-        case ACC_SHARP: ss << "#"; break;
-        case ACC_FLAT: ss << "b"; break;
-
-        case ACC_NATURAL:
-        case ACC_NUM:
-        ; // do nothing
-    }
-    if (f.num != 0)
-        ss << f.num;
-    return ss.str();
-}
-
 static void print_chord(const struct column &col)
 {
-    std::ofstream ofs("attempts.log", std::ios::app);
-    if (!ofs.is_open()) {
-        ERROR("Cannot open attempts.log");
-        return;
-    }
+   std::ofstream ofs("attempts.log", std::ios::app);
+   if (!ofs.is_open()) {
+      ERROR("Cannot open attempts.log");
+      return;
+   }
 
-    // timestamp in seconds with 2 decimal places
-    auto now = std::chrono::system_clock::now();
-    auto dur = now.time_since_epoch();
-    double ts = std::chrono::duration<double>(dur).count();
-    ofs << std::fixed << std::setprecision(2) << ts << " ";
+   // timestamp in seconds with 2 decimal places
+   auto now = std::chrono::system_clock::now();
+   auto dur = now.time_since_epoch();
+   double ts = std::chrono::duration<double>(dur).count();
+   ofs << std::fixed << std::setprecision(2) << ts << " ";
 
-    // bass note (print lowest if multiple)
-    if (!col.bass.empty()) {
-        std::vector<midi_note> bass_notes(col.bass.begin(), col.bass.end());
-        std::sort(bass_notes.begin(), bass_notes.end());
-        ofs << midi_to_name(bass_notes.front()) << " ";
-    } else {
-        ofs << "- ";
-    }
+   // bass note (print lowest if multiple)
+   if (!col.bass.empty()) {
+      std::vector<midi_note> bass_notes(col.bass.begin(), col.bass.end());
+      std::sort(bass_notes.begin(), bass_notes.end());
+      ofs << midi_to_name(bass_notes.front()) << " ";
+   } else {
+      ofs << "- ";
+   }
 
-    // helper lambda to print comma-separated notes/figures
-    auto print_notes = [&ofs](const auto &container) {
-        bool first = true;
-        for (auto n : container) {
-            if (!first) ofs << ",";
-            ofs << midi_to_name(n);
-            first = false;
-        }
-        if (container.empty()) ofs << "-";
-    };
+   // helper lambda to print comma-separated notes/figures
+   auto print_notes = [&ofs](const auto &container) {
+      bool first = true;
+      for (auto n : container) {
+         if (!first) ofs << ",";
+         ofs << midi_to_name(n);
+         first = false;
+      }
+      if (container.empty()) ofs << "-";
+   };
 
-    // figures (comma-delimited)
-    bool first_fig = true;
-    for (auto &fig : col.figures) {
-        if (!first_fig) ofs << ",";
-        ofs << fig_to_string(fig);  // you need a function to convert figure to string
-        first_fig = false;
-    }
-    if (col.figures.empty()) ofs << "-";
+   // figures (comma-delimited)
+   bool first_fig = true;
+   for (auto &fig : col.figures) {
+      if (!first_fig) ofs << ",";
+      ofs << fig_to_string(fig);  // you need a function to convert figure to string
+      first_fig = false;
+   }
+   if (col.figures.empty()) ofs << "-";
 
-    ofs << " ";
+   ofs << " ";
 
-    // answer
-    print_notes(col.answer);
-    ofs << " ";
+   // answer
+   print_notes(col.answer);
+   ofs << " ";
 
-    // good
-    print_notes(col.good);
-    ofs << " ";
+   // good
+   print_notes(col.good);
+   ofs << " ";
 
-    // bad
-    print_notes(col.bad);
+   // bad
+   print_notes(col.bad);
 
-    ofs << "\n";
+   ofs << "\n";
 }
 
-void logic_receive(struct state *state)
+static void logic_play(struct state *state)
 {
    if (state->active_col >= state->chords.size())
       // TODO: lesson finished
@@ -185,3 +167,53 @@ void logic_receive(struct state *state)
    }
 }
 
+static void logic_record(struct state *state)
+{
+   // If nothing pressed → finalize column if anything was recorded
+   if (state->pressed_notes.empty())
+   {
+      if (state->active_col < state->chords.size())
+      {
+         column &col = state->chords[state->active_col];
+         if (!col.bass.empty() || !col.answer.empty())
+         {
+            // Finalize this column, move to the next
+            state->active_col++;
+         }
+      }
+      return;
+   }
+
+   // Notes currently pressed → ensure there is a column to record into
+   if (state->chords.empty() ||
+         state->active_col >= state->chords.size())
+   {
+      state->chords.emplace_back();
+   }
+
+   column &col = state->chords[state->active_col];
+
+   // Determine lowest pressed note
+   unsigned char lowest = state->pressed_notes[0];
+   for (auto n : state->pressed_notes)
+   {
+      if (n < lowest)
+         lowest = n;
+   }
+
+   // Insert into bass + answer sets
+   col.bass.insert(static_cast<midi_note>(lowest));
+   for (auto n : state->pressed_notes)
+   {
+      if (n != lowest)
+         col.answer.insert(static_cast<midi_note>(n));
+   }
+}
+
+void logic_receive(struct state *state)
+{
+   if (state->edit_lesson)
+      logic_record(state);
+   else
+      logic_play(state);
+}

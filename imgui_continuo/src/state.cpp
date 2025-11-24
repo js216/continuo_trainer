@@ -8,6 +8,7 @@
 
 #include "state.h"
 #include "util.h"
+#include "theory.h"
 #include <fstream>
 #include <string>
 #include <vector>
@@ -15,6 +16,7 @@
 #include <unordered_set>
 #include <unordered_map>
 #include <algorithm>
+#include <iomanip>
 
 void state_load(struct state *state)
 {
@@ -171,19 +173,34 @@ static void parse_column_line(const std::string &line, column &col)
    }
 }
 
-void state_read_lesson(const std::string &filename, state *state)
+std::string state_lesson_fname(const int id)
 {
-   std::ifstream file(filename);
+   std::string fname = std::to_string(id);
+   return "lessons/" + fname + ".txt";
+}
+
+void state_clear_lesson(struct state *state)
+{
+   std::fill(std::begin(state->lesson_title),
+         std::end(state->lesson_title), '\0');
+   state->key = KEY_SIG_0;
+   state->chords.clear();
+   state->pressed_notes.clear();
+   state->active_col = 0;
+}
+
+void state_read_lesson(struct state *state)
+{
+   std::string fname = state_lesson_fname(state->lesson_id);
+   std::ifstream file(fname);
    if (!file.is_open())
    {
-      ERROR("Cannot open file: " + filename);
+      ERROR("Cannot open file: " + fname);
       return;
    }
 
    // Reset state
-   state->chords.clear();
-   state->pressed_notes.clear();
-   state->active_col = 0;
+   state_clear_lesson(state);
 
    // Parse metadata
    std::string line;
@@ -220,4 +237,53 @@ void state_read_lesson(const std::string &filename, state *state)
       parse_column_line(line, col);
       state->chords.push_back(std::move(col));
    }
+}
+
+void state_write_lesson(struct state *state)
+{
+    std::string fname = state_lesson_fname(state->lesson_id);
+    std::ofstream out(fname);
+    if (!out.is_open()) {
+        state->status = "Failed to open file for writing: " + fname;
+        return;
+    }
+
+    // Lesson title
+    out << "title: " << state->lesson_title << "\n";
+    // Key signature
+    out << "key: " << key_sig_to_string(state->key) << "\n\n";
+
+    for (const auto &col : state->chords) {
+        if (col.bass.empty() || col.answer.empty())
+            continue;
+
+        // Bass notes sorted low→high, take the lowest
+        std::vector<midi_note> bass_notes(col.bass.begin(), col.bass.end());
+        std::sort(bass_notes.begin(), bass_notes.end());
+        out << midi_to_name(bass_notes.front()) << " ";
+
+        // Figures (if any)
+        if (!col.figures.empty()) {
+            for (size_t i = 0; i < col.figures.size(); ++i) {
+                if (i > 0) out << ",";
+                out << fig_to_string(col.figures[i]);
+            }
+            out << " ";
+        } else {
+           out << "- ";
+        }
+
+        // Full chord tones sorted
+        std::vector<midi_note> notes(col.answer.begin(), col.answer.end());
+        std::sort(notes.begin(), notes.end());
+        for (size_t i = 0; i < notes.size(); ++i) {
+            if (i > 0) out << ",";
+            out << midi_to_name(notes[i]);
+        }
+
+        out << "\n";
+    }
+
+    out.close();
+    state->status = "Lesson saved to " + fname;
 }

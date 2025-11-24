@@ -11,6 +11,7 @@
 
 #include "RtMidi.h"
 #include "imgui.h"
+#include "theory.h"
 #include <memory>
 #include <sstream>
 #include <string>
@@ -18,81 +19,6 @@
 #include <vector>
 
 #define MAX_STRING 512
-
-enum midi_note {
-   NOTES_D2 = 38,
-   NOTES_Ds2,
-   NOTES_E2,
-   NOTES_F2,
-   NOTES_Fs2,
-   NOTES_G2,
-   NOTES_Gs2,
-   NOTES_A2,
-   NOTES_As2,
-   NOTES_B2,
-   NOTES_C3,
-   NOTES_Cs3,
-   NOTES_D3,
-   NOTES_Ds3,
-   NOTES_E3,
-   NOTES_F3,
-   NOTES_Fs3,
-   NOTES_G3,
-   NOTES_Gs3,
-   NOTES_A3,
-   NOTES_As3,
-   NOTES_B3,
-   NOTES_C4,
-   NOTES_Cs4,
-   NOTES_D4,
-   NOTES_Ds4,
-   NOTES_E4,
-   NOTES_F4,
-   NOTES_Fs4,
-   NOTES_G4,
-   NOTES_Gs4,
-   NOTES_A4,
-   NOTES_As4,
-   NOTES_B4,
-   NOTES_C5,
-   NOTES_Cs5,
-   NOTES_D5,
-   NOTES_Ds5,
-   NOTES_E5,
-   NOTES_F5,
-   NOTES_Fs5,
-   NOTES_G5,
-   NOTES_Gs5,
-   NOTES_A5,
-   NOTES_As5,
-   NOTES_NUM
-};
-
-enum key_sig {
-   KEY_SIG_0,
-   KEY_SIG_1_SHARP,
-   KEY_SIG_2_SHARP,
-   KEY_SIG_3_SHARP,
-   KEY_SIG_4_SHARP,
-   KEY_SIG_5_SHARP,
-   KEY_SIG_6_SHARP,
-   KEY_SIG_7_SHARP,
-   KEY_SIG_1_FLAT,
-   KEY_SIG_2_FLAT,
-   KEY_SIG_3_FLAT,
-   KEY_SIG_4_FLAT,
-   KEY_SIG_5_FLAT,
-   KEY_SIG_6_FLAT,
-   KEY_SIG_7_FLAT,
-   KEY_NUM
-};
-
-enum accidental { ACC_NONE, ACC_SHARP, ACC_FLAT, ACC_NATURAL, ACC_NUM };
-
-struct figure {
-   int num;
-   enum accidental acc;
-};
 
 struct column {
    std::unordered_set<midi_note> bass;
@@ -109,6 +35,7 @@ struct state {
    ImFont *music_font;
 
    // lesson info
+   bool edit_lesson;
    int lesson_id;
    char lesson_title[MAX_STRING];
    enum key_sig key;
@@ -120,6 +47,9 @@ struct state {
    int selected_device = -1;
    std::unique_ptr<RtMidiIn> midi_in;
    std::vector<unsigned char> pressed_notes;
+
+   // debug only
+   float tune;
 };
 
 template <typename... Args> void state_status(state *state, Args &&...args)
@@ -133,6 +63,12 @@ void state_load(struct state *state);
 
 void state_save(const struct state *state);
 
-void state_read_lesson(const std::string &filename, state *s);
+void state_clear_lesson(struct state *state);
+
+std::string state_lesson_fname(const int id);
+
+void state_read_lesson(struct state *state);
+
+void state_write_lesson(struct state *state);
 
 #endif /* STATE_H */

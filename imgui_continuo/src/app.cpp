@@ -37,20 +37,11 @@ void init_state(struct state *state)
 static void app_buttons(struct state *state)
 {
    const ImGuiIO &io = ImGui::GetIO();
-   const int num_btns = 4;
+   const int num_btns = 3;
    const float bw    = (io.DisplaySize.x - 9 * STYLE_PAD_X) / num_btns;
 
    ImGui::PushItemWidth(bw);
 
-   ImGui::InputInt("##lesson_id", &state->lesson_id);
-   state->lesson_id = std::clamp(state->lesson_id, 1, 99999);
-   static int old_id = state->lesson_id;
-   if (state->lesson_id != old_id) {
-      old_id = state->lesson_id;
-      logic_clear(state);
-   }
-
-   ImGui::SameLine();
    if (ImGui::Button("Reload")) {
       logic_clear(state);
    }
@@ -69,6 +60,9 @@ static void app_buttons(struct state *state)
       if (ImGui::Button("Connect"))
          init_midi(state);
    }
+
+   ImGui::SameLine();
+   ImGui::DragFloat("##tune", &state->tune, 0.01, 0.1, 3);
 
    ImGui::PopItemWidth();
 }
@@ -90,9 +84,49 @@ static void app_midi(struct state *state, const float controls_height)
    }
 }
 
-static void app_lesson_desc(state *state)
+static void app_key_sig_selector(state *state)
 {
+   if (ImGui::BeginCombo("##keysig", key_sig_to_string(state->key).c_str()))
+   {
+      for (int i = 0; i < KEY_NUM; ++i)
+      {
+         bool is_selected = (state->key == i);
+         if (ImGui::Selectable(key_sig_to_string(static_cast<key_sig>(i)).c_str(), is_selected))
+            state->key = static_cast<key_sig>(i);
+         if (is_selected)
+            ImGui::SetItemDefaultFocus();
+      }
+      ImGui::EndCombo();
+   }
+}
+
+static void app_lesson(state *state)
+{
+   ImGui::PushItemWidth(150);
+   if (ImGui::InputInt("##lesson_id", &state->lesson_id))
+   {
+      state->lesson_id = std::clamp(state->lesson_id, 1, 99999);
+      logic_clear(state);
+   }
+   ImGui::PopItemWidth();
+
+   ImGui::SameLine();
+   ImGui::PushItemWidth(250);
    ImGui::InputText("##lesson_title", state->lesson_title, MAX_STRING);
+   ImGui::PopItemWidth();
+
+   if (state->edit_lesson) {
+      ImGui::SameLine();
+      ImGui::PushItemWidth(100);
+      app_key_sig_selector(state);
+      ImGui::PopItemWidth();
+
+      ImGui::SameLine();
+      if (ImGui::Button("Save")) {
+         state_write_lesson(state);
+         state->edit_lesson = false;
+      }
+   }
 }
 
 static void draw_status_bar(const struct state *state, float height)
@@ -140,7 +174,7 @@ void render_ui(struct state *state)
    app_buttons(state);
    if (!state->midi_in)
       app_midi(state, controls_height);
-   app_lesson_desc(state);
+   app_lesson(state);
    ImGui::EndChild();
 
    // Staff

@@ -78,7 +78,7 @@ void set_style(void)
 
    // misc
    style.TabBarOverlineSize = 0.0F;
-   style.ScrollbarSize      = 0.0F;
+   style.ScrollbarSize      = 10.0F;
    style.GrabMinSize        = 0.0F;
    style.LogSliderDeadzone  = 0.0F;
    style.MouseCursorScale   = 0.0F;

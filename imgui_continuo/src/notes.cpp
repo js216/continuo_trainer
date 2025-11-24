@@ -29,30 +29,6 @@ static const char *acc_sym(enum accidental a)
    }
 }
 
-static enum accidental key_sig_accidental(enum key_sig key, midi_note n)
-{
-   static const std::array<std::array<int, 12>, KEY_NUM> table = {
-      {
-         {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
-         {0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0},
-         {0, 1, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0},
-         {0, 1, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0},
-         {0, 1, 0, 1, 0, 1, 0, 0, 1, 0, 0, 0},
-         {0, 1, 0, 1, 0, 1, 0, 0, 1, 0, 1, 0},
-         {0, 1, 0, 1, 1, 1, 0, 0, 1, 0, 1, 0},
-         {1, 1, 0, 1, 1, 1, 0, 0, 1, 0, 1, 1},
-         {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0},
-         {0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 1, 0},
-         {0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 1, 0},
-         {0, 1, 0, 1, 0, 0, 0, 1, 0, 0, 1, 0},
-         {0, 1, 0, 1, 0, 1, 1, 1, 0, 0, 1, 0},
-         {1, 1, 0, 1, 0, 1, 1, 1, 0, 0, 1, 0},
-         {1, 1, 0, 1, 0, 1, 1, 1, 0, 1, 1, 1},
-      }
-   };
-   return table[key][n % 12] ? ACC_NATURAL : ACC_NONE;
-}
-
 static int note_to_bass(const enum midi_note n)
 {
    switch (n) {
@@ -135,12 +111,9 @@ static int key_sig_acc_count(enum key_sig key)
 
 static float calc_y(const enum midi_note n)
 {
-   ImVec2 p    = ImGui::GetCursorScreenPos();
-   ImVec2 size = ImGui::GetContentRegionAvail();
-
-   const float top       = p.y + size.y * 0.35F;
-   const float bottom    = p.y + size.y * 0.8F;
-   const float spacing   = (bottom - top) / 8.0F;
+   const float spacing   = 15;
+   const float top       = 10 * spacing;
+   const float bottom    = 20 * spacing;
    const float staff_gap = spacing * 2.0F;
 
    float nb = 0;
@@ -340,17 +313,13 @@ static void notes_dot(enum key_sig key, enum midi_note n, int x_idx, uint32_t co
 static void draw_chord_figures(float font_size, float x, float y,
       const std::vector<figure> &figs, uint32_t color)
 {
-   ImVec2 size               = ImGui::GetContentRegionAvail();
-   const float figure_offset = size.y / 8.0F;
-   float offset_step         = figure_offset * 0.5F;
-
    font_config cfg = {
       .fontsize = font_size, .anch = ANCHOR_TOP_LEFT, .color = color};
 
    for (size_t i = 0; i < figs.size(); ++i) {
       // figure
       float fx = x - 0.25F * font_size;
-      float fy = y - (float)i * offset_step - figure_offset;
+      float fy = y - i * 0.9F * font_size - 1.5F * font_size;
       style_text(std::to_string(figs[i].num).c_str(), fx, fy, &cfg);
 
       // accidental
@@ -370,32 +339,30 @@ void notes_draw(const struct state *state)
    }
 
    ImVec2 size     = ImGui::GetContentRegionAvail();
-   float font_size = size.y / 16.0F;
+   float staff_space = fabsf(calc_y(NOTES_A3) - calc_y(NOTES_C4));
+   float fs          = 2.0F * staff_space;
 
    for (size_t i = 0; i < state->chords.size(); ++i) {
       const auto &col = state->chords[i];
 
-      // --- Bass notes ---
-      for (auto n : col.bass) {
+      for (auto n : col.bass)
          notes_dot(state->key, n, static_cast<int>(i), STYLE_WHITE);
-      }
 
-      // --- Good chords ---
-      for (auto n : col.good) {
+      for (auto n : col.good)
          notes_dot(state->key, n, static_cast<int>(i), STYLE_GREEN);
-      }
 
-      // --- Bad chords ---
-      for (auto n : col.bad) {
+      for (auto n : col.bad)
          notes_dot(state->key, n, static_cast<int>(i), STYLE_RED);
-      }
 
-      // --- Figures (typically for bass) ---
+      if (state->edit_lesson)
+         for (auto n : col.answer)
+            notes_dot(state->key, n, static_cast<int>(i), STYLE_YELLOW);
+
       if (!col.bass.empty()) {
          const float x = calc_x(i, size.x);
          const float y = calc_y(*col.bass.begin());
          if (y != NOTES_OUT_OF_RANGE) {
-            draw_chord_figures(font_size, x, y, col.figures, STYLE_WHITE);
+            draw_chord_figures(fs, x, y, col.figures, STYLE_WHITE);
          }
       }
    }
