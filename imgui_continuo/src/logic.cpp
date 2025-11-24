@@ -24,44 +24,108 @@
 
 #define MAX_ATTEMPT_GAP 5.0f
 
+struct attempt_info {
+    double time;
+    size_t good_count;
+    size_t bad_count;
+};
+
+static bool parse_attempt_line(const std::string &line, struct attempt_info &out)
+{
+    if (line.empty())
+        return false;
+
+    std::istringstream iss(line);
+
+    // 1) timestamp
+    double t = 0.0;
+    iss >> t;
+    if (iss.fail() || !state_is_today(t))
+        return false;
+
+    // Ignore bass + figures + correct answer
+    std::string bass, figs, answer;
+    iss >> bass >> figs >> answer;
+
+    // good notes
+    std::string good_notes;
+    iss >> good_notes;
+    out.good_count = (good_notes == "-") ? 0 :
+        std::count(good_notes.begin(), good_notes.end(), ',') + 1;
+
+    // bad notes
+    std::string bad_notes;
+    iss >> bad_notes;
+    out.bad_count = (bad_notes == "-") ? 0 :
+        std::count(bad_notes.begin(), bad_notes.end(), ',') + 1;
+
+    out.time = t;
+    return true;
+}
+
+static void accumulate_duration_today(struct state *state, double dt)
+{
+    if (dt > 0.0)
+    {
+        if (dt > MAX_ATTEMPT_GAP)
+            dt = MAX_ATTEMPT_GAP;
+        state->duration_today += static_cast<float>(dt);
+    }
+}
+
+static float score_formula(float dt, size_t good_count, size_t bad_count)
+{
+    float good = static_cast<float>(good_count);
+    float bad  = static_cast<float>(bad_count);
+
+    // base accuracy penalty
+    float score = good - 1.5f * bad;
+
+    if (score > 0.0f)
+    {
+        // only reward speed if net accuracy positive
+        float speed_multiplier = 1.0f / (0.3f + dt);
+        speed_multiplier *= speed_multiplier;
+
+        score += score * speed_multiplier; // amplify only positive base
+    }
+
+    return score;
+}
+
 static void logic_reload_stats(struct state *state)
 {
-    using namespace std::chrono;
-
     state->duration_today = 0.0f;
+    state->score = 0.0f;
 
     std::ifstream f("attempts.log");
     if (!f.is_open())
         return;
 
     std::string line;
-    double last_time = -1.0;
+    struct attempt_info last{ -1.0, 0, 0 };
 
     while (std::getline(f, line))
     {
-        if (line.empty())
+        struct attempt_info cur;
+        if (!parse_attempt_line(line, cur))
             continue;
 
-        std::istringstream iss(line);
-        double t = 0.0;
-        iss >> t;
-        if (iss.fail() || !state_is_today(t))
-            continue;
-
-        if (last_time >= 0.0)
+        if (last.time >= 0.0)
         {
-            double diff = t - last_time;
-            if (diff > 0.0)
-            {
-                if (diff > MAX_ATTEMPT_GAP)
-                    diff = MAX_ATTEMPT_GAP;
-                state->duration_today += static_cast<float>(diff);
-            }
+            double dt = cur.time - last.time;
+            accumulate_duration_today(state, dt);
+            state->score += score_formula(
+                static_cast<float>(dt),
+                cur.good_count,
+                cur.bad_count
+            );
         }
 
-        last_time = t;
+        last = cur;
     }
 }
+
 
 void logic_clear(struct state *state)
 {
@@ -195,24 +259,19 @@ static float last_chord_duration(struct state *state)
 
 static void score_chord(struct state *state)
 {
-   if (state->active_col >= state->chords.size())
-      return;
+    if (state->active_col >= state->chords.size())
+        return;
 
-   const struct column &col = state->chords[state->active_col];
+    const struct column &col = state->chords[state->active_col];
 
-   // note accuracy
-   state->score += col.good.size();
-   state->score -= col.bad.size();
+    const float dt = last_chord_duration(state);
+    accumulate_duration_today(state, dt);
 
-   // speed
-   const float dt = last_chord_duration(state);
-   state->duration_today += dt;
-   if (dt < 0)
-      ERROR("Negative time difference");
-   else if (dt < 1.0F)
-      state->score += 5 * col.good.size();
-   else if (dt < 3.0F)
-      state->score += 1 * col.good.size();
+    state->score += score_formula(
+        dt,
+        col.good.size(),
+        col.bad.size()
+    );
 }
 
 static void logic_play(struct state *state)
