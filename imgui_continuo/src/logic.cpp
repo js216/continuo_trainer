@@ -142,11 +142,32 @@ static void print_chord(const struct column &col)
 
 static void logic_play(struct state *state)
 {
-   if (state->active_col >= state->chords.size())
-      // TODO: lesson finished
+   // cannot play without chords
+   if (state->chords.empty())
       return;
 
-   if (!state->pressed_notes.empty()) {
+   // lesson finished
+   if (state->active_col >= state->chords.size()) {
+      if (state->pressed_notes.empty())
+         return;
+
+      // now reset and return
+      logic_clear(state);
+      return;
+   }
+
+
+   // all notes released : go to next column
+   if (state->pressed_notes.empty()) {
+      column &col = state->chords[state->active_col];
+
+      if (!col.good.empty() || !col.bad.empty()) {
+         print_chord(col);
+         state->active_col++;
+      }
+   }
+
+   else {
       // accumulate pressed notes into the current back column
       if (state->chords.empty())
          state->chords.emplace_back();
@@ -154,16 +175,6 @@ static void logic_play(struct state *state)
       for (auto note_val : state->pressed_notes)
          process_note(state, static_cast<midi_note>(note_val));
 
-   } else {
-      // all notes released → go to next column
-      if (!state->chords.empty()) {
-         column &col = state->chords[state->active_col];
-
-         if (!col.good.empty() || !col.bad.empty()) {
-            print_chord(col);
-            state->active_col++;
-         }
-      }
    }
 }
 
