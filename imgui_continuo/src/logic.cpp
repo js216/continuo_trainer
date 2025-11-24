@@ -8,6 +8,7 @@
 
 #include "logic.h"
 #include "state.h"
+#include "time_utils.h"
 #include "util.h"
 #include <algorithm>
 #include <cstddef>
@@ -40,7 +41,7 @@ static bool parse_attempt_line(const std::string &line, struct attempt_info &out
     // 1) timestamp
     double t = 0.0;
     iss >> t;
-    if (iss.fail() || !state_is_today(t))
+    if (iss.fail() || !time_is_today(t))
         return false;
 
     // Ignore bass + figures + correct answer
@@ -195,7 +196,7 @@ static void print_chord(const struct column &col)
    }
 
    // timestamp in seconds with 2 decimal places
-   ofs << std::fixed << std::setprecision(2) << state_time() << " ";
+   ofs << std::fixed << std::setprecision(2) << time_now() << " ";
 
    // bass note (print lowest if multiple)
    if (!col.bass.empty()) {
@@ -292,7 +293,7 @@ static void logic_play(struct state *state)
       struct column &col = state->chords[state->active_col];
 
       if (!col.good.empty() || !col.bad.empty()) {
-         col.time = state_time();
+         col.time = time_now();
          score_chord(state);
          print_chord(col);
          state->active_col++;

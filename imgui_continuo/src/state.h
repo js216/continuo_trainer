@@ -57,10 +57,6 @@ struct state {
 // global state for debug only
 extern float global_tune;
 
-double state_time(void);
-bool state_is_today(double epoch_seconds);
-void state_format_duration(float seconds, char *buf, size_t buf_size);
-
 void state_load(struct state *state);
 void state_save(const struct state *state);
 void state_clear_lesson(struct state *state);

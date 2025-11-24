@@ -7,6 +7,7 @@
  */
 
 #include "app.h"
+#include "time_utils.h"
 #include "imgui.h"
 #include "logic.h"
 #include "midi.h"
@@ -137,7 +138,7 @@ static void app_stats(struct state *state)
 
    // total practice duration today
    static char buf[32];
-   state_format_duration(state->duration_today, buf, sizeof(buf));
+   time_format(state->duration_today, buf, sizeof(buf));
    ImGui::Text("Duration: %s", buf); 
 }
 
