@@ -15,6 +15,7 @@
 #include "state.h"
 #include <SDL.h>
 #include <SDL_opengl.h>
+#include <filesystem>
 #include <span>
 
 static bool handle_events(struct state *state)
@@ -45,7 +46,10 @@ int main(int argc, const char **argv)
    IMGUI_CHECKVERSION();
    ImGui::CreateContext();
    ImGuiIO &io    = ImGui::GetIO();
-   io.IniFilename = nullptr;
+   io.IniFilename = "imgui.ini";
+   if (!std::filesystem::exists(io.IniFilename))
+      ImGui::LoadIniSettingsFromDisk("DefaultPanelLayout.ini");
+
    ImGui_ImplSDL2_InitForOpenGL(window, gl_context);
    ImGui_ImplOpenGL3_Init("#version 130");
 
@@ -54,6 +58,8 @@ int main(int argc, const char **argv)
    if (args.size() > 1)
       state.config_file = args[1];
    init_state(&state);
+
+   ImGui::GetIO().ConfigFlags |= ImGuiConfigFlags_DockingEnable;
 
    while (handle_events(&state)) {
       poll_midi(&state);

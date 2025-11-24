@@ -65,14 +65,14 @@ static void app_buttons(struct state *state)
    }
 
    ImGui::SameLine();
-   ImGui::DragFloat("##tune", &global_tune, 1, 200, 400);
+   ImGui::DragFloat("##tune", &global_tune, 0.1, 1, 20);
 
    ImGui::PopItemWidth();
 }
 
-static void app_midi(struct state *state, const float controls_height)
+static void app_midi(struct state *state)
 {
-   float listbox_height = controls_height - 3 * STYLE_PAD_Y - STYLE_BTN_H;
+   float listbox_height = -3 * STYLE_PAD_Y - STYLE_BTN_H;
 
    if (ImGui::BeginListBox("##midi_list", ImVec2(-FLT_MIN, listbox_height))) {
       for (int i = 0; i < (int)state->midi_devices.size(); i++) {
@@ -142,44 +142,35 @@ static void app_stats(struct state *state)
 void render_ui(struct state *state)
 {
    const ImGuiIO &io = ImGui::GetIO();
-
    ImGui::SetNextWindowPos(ImVec2(0, 0));
    ImGui::SetNextWindowSize(io.DisplaySize);
-   ImGui::Begin("Main", nullptr,
-                ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoResize);
+   ImGui::Begin("MainDockSpace", nullptr,
+                ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoResize |
+                    ImGuiWindowFlags_NoMove |
+                    ImGuiWindowFlags_NoBringToFrontOnFocus |
+                    ImGuiWindowFlags_NoNavFocus);
 
-   const float status_height = STYLE_BTN_H + STYLE_PAD_Y;
-   const float avail_height  = io.DisplaySize.y - 3 * STYLE_PAD_Y -
-                              8 * STYLE_PAD_BORDER - status_height;
-   float controls_height = avail_height * 0.4F;
-   if (state->midi_in)
-      controls_height = 2 * STYLE_BTN_H + 2 * STYLE_PAD_Y;
-   const float staff_height = 244.0F;
-   const float stats_h      = avail_height - controls_height - staff_height;
+   ImGuiID dockspace_id = ImGui::GetID("MainDockSpaceID");
+   ImGui::DockSpace(dockspace_id);
+   ImGui::End();
 
-   // Controls
-   ImGui::BeginChild("Controls", ImVec2(0, controls_height), true);
+   ImGui::Begin("Controls");
    app_buttons(state);
    if (!state->midi_in)
-      app_midi(state, controls_height);
+      app_midi(state);
    app_lesson(state);
-   ImGui::EndChild();
+   ImGui::End();
 
-   // Staff
-   ImGui::BeginChild("Staff", ImVec2(0, staff_height), false);
+   ImGui::Begin("Staff");
    notes_staff(state);
    notes_draw(state);
-   ImGui::EndChild();
+   ImGui::End();
 
-   // Stats
-   ImGui::BeginChild("Stats", ImVec2(0, stats_h), false);
+   ImGui::Begin("Stats");
    app_stats(state);
-   ImGui::EndChild();
+   ImGui::End();
 
-   // Status bar
-   ImGui::BeginChild("StatusBar", ImVec2(0, status_height), true);
+   ImGui::Begin("StatusBar");
    ImGui::TextUnformatted(state->status.c_str());
-   ImGui::EndChild();
-
    ImGui::End();
 }

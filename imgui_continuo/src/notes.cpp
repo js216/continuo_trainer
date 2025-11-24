@@ -29,15 +29,17 @@ static const char *acc_sym(enum accidental a)
 
 static float calc_x(const int x_idx, const int x_sz)
 {
+   ImVec2 p           = ImGui::GetCursorScreenPos();
    const float x_offs = 130;
-   return x_offs + ((float)x_idx + 1) * (float)x_sz / (10.0F);
+   return p.x + x_offs + ((float)x_idx + 1) * (float)x_sz / (10.0F);
 }
 
 static float calc_y(const enum midi_note n, enum key_sig key)
 {
-   const float spacing   = 15;
-   const float top       = 10 * spacing;
-   const float bottom    = 20 * spacing;
+   ImVec2 p              = ImGui::GetCursorScreenPos();
+   const float spacing   = 15.0F;
+   const float top       = 3.0F * spacing;
+   const float bottom    = 12.0F * spacing;
    const float staff_gap = spacing * 2.0F;
 
    // treble staff
@@ -47,7 +49,7 @@ static float calc_y(const enum midi_note n, enum key_sig key)
          return NOTES_OUT_OF_RANGE;
 
       const float treble_bottom = top + spacing * 4.0F;
-      return treble_bottom - spacing * ((float)nb / 2.0F) - staff_gap / 2;
+      return p.y + treble_bottom - spacing * ((float)nb / 2.0F) - staff_gap / 2;
    }
 
    // bass staff
@@ -56,7 +58,7 @@ static float calc_y(const enum midi_note n, enum key_sig key)
       if (nb == NOTES_OUT_OF_RANGE)
          return NOTES_OUT_OF_RANGE;
 
-      return bottom - spacing * ((float)nb / 2.0F) + staff_gap / 2;
+      return p.y + bottom - spacing * ((float)nb / 2.0F) + staff_gap / 2;
    }
 }
 

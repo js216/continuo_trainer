@@ -39,8 +39,8 @@ void set_style(void)
    ImGuiStyle &style = ImGui::GetStyle();
 
    // padding
-   style.WindowPadding          = ImVec2(STYLE_PAD_X, STYLE_PAD_Y);
-   style.FramePadding           = ImVec2(STYLE_PAD_X, STYLE_PAD_Y);
+   style.WindowPadding          = ImVec2(STYLE_PAD_X / 2, STYLE_PAD_Y);
+   style.FramePadding           = ImVec2(STYLE_PAD_X / 2, STYLE_PAD_Y);
    style.TouchExtraPadding      = ImVec2(0.0F, 0.0F);
    style.SeparatorTextPadding   = ImVec2(0.0F, 0.0F);
    style.CellPadding            = ImVec2(0.0F, 0.0F);
@@ -54,22 +54,22 @@ void set_style(void)
    style.ColumnsMinSpacing = 0.0F;
 
    // rounding
-   style.WindowRounding    = 5.0F;
-   style.ChildRounding     = 5.0F;
-   style.PopupRounding     = 5.0F;
-   style.FrameRounding     = 5.0F;
-   style.TabRounding       = 5.0F;
-   style.ScrollbarRounding = 5.0F;
-   style.GrabRounding      = 5.0F;
+   style.WindowRounding    = 0.0F;
+   style.ChildRounding     = 0.0F;
+   style.PopupRounding     = 0.0F;
+   style.FrameRounding     = 0.0F;
+   style.TabRounding       = 0.0F;
+   style.ScrollbarRounding = 0.0F;
+   style.GrabRounding      = 0.0F;
 
    // border size
-   style.WindowBorderSize        = STYLE_PAD_BORDER;
-   style.ChildBorderSize         = STYLE_PAD_BORDER;
-   style.PopupBorderSize         = STYLE_PAD_BORDER;
-   style.FrameBorderSize         = STYLE_PAD_BORDER;
-   style.TabBorderSize           = STYLE_PAD_BORDER;
-   style.TabBarBorderSize        = STYLE_PAD_BORDER;
-   style.SeparatorTextBorderSize = STYLE_PAD_BORDER;
+   style.WindowBorderSize        = STYLE_BORDER;
+   style.ChildBorderSize         = STYLE_BORDER;
+   style.PopupBorderSize         = STYLE_BORDER;
+   style.FrameBorderSize         = STYLE_BORDER;
+   style.TabBorderSize           = STYLE_BORDER;
+   style.TabBarBorderSize        = STYLE_BORDER;
+   style.SeparatorTextBorderSize = STYLE_BORDER;
 
    // window & child windows
    style.WindowMinSize            = ImVec2(2.0F, 32.0F);
