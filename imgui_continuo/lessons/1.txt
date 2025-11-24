@@ -1,5 +1,5 @@
-title: 
+title: Couperin bar 7, beat 3 to 4
 key: G
 
-A2 6,4 F#4,A4,D5
+A2 4,6 F#4,A4,D5
 A2 #3 A4,C#5,E5

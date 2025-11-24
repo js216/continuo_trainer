@@ -1,0 +1,6 @@
+title: Couperin bar 7, beat 2.5 to 4
+key: G
+
+G2 5,6 G4,B4,D5,E5
+A2 4,6 A4,D5,F#5
+A2 #3 A4,C#5,E5

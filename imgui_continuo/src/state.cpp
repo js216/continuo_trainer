@@ -17,9 +17,49 @@
 #include <unordered_map>
 #include <algorithm>
 #include <iomanip>
+#include <chrono>
 
 // global state for debug only
 float global_tune;
+
+double state_time(void)
+{
+   auto now = std::chrono::system_clock::now();
+   auto dur = now.time_since_epoch();
+   return std::chrono::duration<double>(dur).count();
+}
+
+bool state_is_today(double epoch_seconds)
+{
+    using namespace std::chrono;
+
+    // Current time
+    system_clock::time_point now_tp = system_clock::now();
+
+    // Break current time into days since epoch
+    auto now_sec = time_point_cast<seconds>(now_tp).time_since_epoch().count();
+    auto days_now = now_sec / (24 * 3600);
+
+    // Same for the given timestamp
+    auto days_ts = static_cast<int64_t>(epoch_seconds) / (24 * 3600);
+
+    return days_now == days_ts;
+}
+
+void state_format_duration(float seconds, char *buf, size_t buf_size)
+{
+    if (seconds < 60.0f)
+        snprintf(buf, buf_size, "%.0fs", seconds);
+    else if (seconds < 3600.0f)
+        snprintf(buf, buf_size, "%02d:%02d",
+                 int(seconds / 60.0f),
+                 int(seconds) % 60);
+    else
+        snprintf(buf, buf_size, "%d:%02d:%02d",
+                 int(seconds / 3600.0f),
+                 (int(seconds) % 3600) / 60,
+                 int(seconds) % 60);
+}
 
 void state_load(struct state *state)
 {
@@ -154,7 +194,7 @@ static midi_note parse_midi_note(const std::string &token)
    return NOTES_E2; // fallback
 }
 
-static void parse_column_line(const std::string &line, column &col)
+static void parse_column_line(const std::string &line, struct column &col)
 {
    std::istringstream iss(line);
    std::string bass_token, figures_token, answer_token;
@@ -236,7 +276,7 @@ void state_read_lesson(struct state *state)
       if (line.empty())
          continue;
 
-      column col;
+      struct column col;
       parse_column_line(line, col);
       state->chords.push_back(std::move(col));
    }

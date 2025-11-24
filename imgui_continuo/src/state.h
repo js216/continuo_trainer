@@ -26,6 +26,7 @@ struct column {
    std::unordered_set<midi_note> answer;
    std::unordered_set<midi_note> good;
    std::unordered_set<midi_note> bad;
+   double time;
 };
 
 struct state {
@@ -42,6 +43,10 @@ struct state {
    std::vector<struct column> chords;
    unsigned int active_col;
 
+   // stats
+   float score;
+   float duration_today;
+
    // MIDI devices and data
    std::vector<std::string> midi_devices;
    int selected_device = -1;
@@ -52,16 +57,15 @@ struct state {
 // global state for debug only
 extern float global_tune;
 
+double state_time(void);
+bool state_is_today(double epoch_seconds);
+void state_format_duration(float seconds, char *buf, size_t buf_size);
+
 void state_load(struct state *state);
-
 void state_save(const struct state *state);
-
 void state_clear_lesson(struct state *state);
-
 std::string state_lesson_fname(const int id);
-
 void state_read_lesson(struct state *state);
-
 void state_write_lesson(struct state *state);
 
 #endif /* STATE_H */

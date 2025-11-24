@@ -64,7 +64,7 @@ static void app_buttons(struct state *state)
    }
 
    ImGui::SameLine();
-   ImGui::DragFloat("##tune", &global_tune, 0.01, 1, 2);
+   ImGui::DragFloat("##tune", &global_tune, 1, 200, 400);
 
    ImGui::PopItemWidth();
 }
@@ -102,7 +102,7 @@ static void app_key_sig_selector(state *state)
    }
 }
 
-static void app_lesson(state *state)
+static void app_lesson(struct state *state)
 {
    ImGui::PushItemWidth(150);
    if (ImGui::InputInt("##lesson_id", &state->lesson_id))
@@ -131,27 +131,14 @@ static void app_lesson(state *state)
    }
 }
 
-static void draw_status_bar(const struct state *state, float height)
+static void app_stats(struct state *state)
 {
-   ImGui::BeginChild("StatusBar", ImVec2(0, height), true);
+   ImGui::Text("Score: %.3f", state->score);
 
-   // Left-aligned status text
-   ImGui::TextUnformatted(state->status.c_str());
-
-   // Right-aligned MIDI device name
-   if (state->midi_in && state->selected_device >= 0 &&
-       state->selected_device < (int)state->midi_devices.size()) {
-      const char *dev_name =
-          state->midi_devices[state->selected_device].c_str();
-      float avail_width = ImGui::GetContentRegionAvail().x;
-      float text_width  = ImGui::CalcTextSize(dev_name).x;
-
-      // Move cursor to right edge minus text width
-      ImGui::SameLine(avail_width - text_width);
-      ImGui::TextUnformatted(dev_name);
-   }
-
-   ImGui::EndChild();
+   // total practice duration today
+   static char buf[32];
+   state_format_duration(state->duration_today, buf, sizeof(buf));
+   ImGui::Text("Duration: %s", buf); 
 }
 
 void render_ui(struct state *state)
@@ -163,13 +150,14 @@ void render_ui(struct state *state)
    ImGui::Begin("Main", nullptr,
                 ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoResize);
 
-   float status_height = STYLE_BTN_H + STYLE_PAD_Y;
-   float avail_height  = io.DisplaySize.y - 3 * STYLE_PAD_Y -
+   const float status_height = STYLE_BTN_H + STYLE_PAD_Y;
+   const float avail_height  = io.DisplaySize.y - 3 * STYLE_PAD_Y -
                         8 * STYLE_PAD_BORDER - status_height;
    float controls_height = avail_height * 0.4F;
    if (state->midi_in)
       controls_height = 2 * STYLE_BTN_H + 2 * STYLE_PAD_Y;
-   float staff_height = avail_height - controls_height;
+   const float staff_height = 244.0F;
+   const float stats_h = avail_height - controls_height - staff_height;
 
    // Controls
    ImGui::BeginChild("Controls", ImVec2(0, controls_height), true);
@@ -185,8 +173,15 @@ void render_ui(struct state *state)
    notes_draw(state);
    ImGui::EndChild();
 
+   // Stats
+   ImGui::BeginChild("Stats", ImVec2(0, stats_h), false);
+   app_stats(state);
+   ImGui::EndChild();
+
    // Status bar
-   draw_status_bar(state, status_height);
+   ImGui::BeginChild("StatusBar", ImVec2(0, status_height), true);
+   ImGui::TextUnformatted(state->status.c_str());
+   ImGui::EndChild();
 
    ImGui::End();
 }
