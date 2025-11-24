@@ -59,8 +59,6 @@ int main(int argc, const char **argv)
       state.config_file = args[1];
    init_state(&state);
 
-   ImGui::GetIO().ConfigFlags |= ImGuiConfigFlags_DockingEnable;
-
    while (handle_events(&state)) {
       poll_midi(&state);
       logic_receive(&state);

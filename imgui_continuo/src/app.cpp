@@ -37,44 +37,46 @@ void init_state(struct state *state)
    state->status = "Ready";
 }
 
-static void app_buttons(struct state *state)
+bool midi_popup_shown = false;
+
+static void app_midi_popup(struct state *state)
 {
-   const ImGuiIO &io  = ImGui::GetIO();
-   const int num_btns = 3;
-   const float bw     = (io.DisplaySize.x - 9 * STYLE_PAD_X) / num_btns;
+   const float bw    = 100.0F;
+   const ImGuiIO &io = ImGui::GetIO();
 
-   ImGui::PushItemWidth(bw);
+   // Fullscreen child (fills the main window)
+   ImGui::BeginChild("MIDIFullScreen", io.DisplaySize, true);
 
-   if (ImGui::Button("Reload")) {
-      logic_clear(state);
-   }
-
-   ImGui::SameLine();
-   if (ImGui::Button("MIDI Refresh")) {
+   // MIDI Refresh
+   if (ImGui::Button("MIDI Refresh", ImVec2(bw, 0))) {
       refresh_midi_devices(state);
-      state->status = "MIDI devices refreshed";
+      state->status    = "MIDI devices refreshed";
+      midi_popup_shown = true; // open popup
    }
 
+   // Connect / Disconnect MIDI
+   const char *midi_btn_label = state->midi_in ? "Disconnect" : "Connect";
    ImGui::SameLine();
-   if (state->midi_in) {
-      if (ImGui::Button("Disconnect"))
+   if (ImGui::Button(midi_btn_label, ImVec2(bw, 0))) {
+      if (state->midi_in)
          deinit_midi(state);
-   } else {
-      if (ImGui::Button("Connect"))
+      else
          init_midi(state);
    }
 
+   // Back button at top-left
    ImGui::SameLine();
-   ImGui::DragFloat("##tune", &global_tune, 0.1, 1, 20);
+   if (ImGui::Button("Back", ImVec2(bw, 0))) {
+      midi_popup_shown = false;
+   }
 
-   ImGui::PopItemWidth();
-}
+   ImGui::Separator();
 
-static void app_midi(struct state *state)
-{
-   float listbox_height = -3 * STYLE_PAD_Y - STYLE_BTN_H;
+   // MIDI device list
+   float listbox_height = io.DisplaySize.y - STYLE_BTN_H;
+   ImVec2 size(ImGui::GetContentRegionAvail().x, listbox_height);
 
-   if (ImGui::BeginListBox("##midi_list", ImVec2(-FLT_MIN, listbox_height))) {
+   if (ImGui::BeginListBox("##midi_list", size)) {
       for (int i = 0; i < (int)state->midi_devices.size(); i++) {
          bool selected = (state->selected_device == i);
          if (ImGui::Selectable(state->midi_devices[i].c_str(), selected)) {
@@ -84,6 +86,8 @@ static void app_midi(struct state *state)
       }
       ImGui::EndListBox();
    }
+
+   ImGui::EndChild();
 }
 
 static void app_key_sig_selector(state *state)
@@ -102,9 +106,11 @@ static void app_key_sig_selector(state *state)
    }
 }
 
-static void app_lesson(struct state *state)
+static void app_buttons(struct state *state)
 {
-   ImGui::PushItemWidth(150);
+   float bw = ImGui::GetContentRegionAvail().x / 3;
+
+   ImGui::PushItemWidth(bw);
    if (ImGui::InputInt("##lesson_id", &state->lesson_id)) {
       state->lesson_id = std::clamp(state->lesson_id, 1, 99999);
       logic_clear(state);
@@ -112,22 +118,45 @@ static void app_lesson(struct state *state)
    ImGui::PopItemWidth();
 
    ImGui::SameLine();
-   ImGui::PushItemWidth(250);
+   ImGui::PushItemWidth(bw);
+   app_key_sig_selector(state);
+   ImGui::PopItemWidth();
+
+   ImGui::SameLine();
+   ImGui::PushItemWidth(bw);
+   ImGui::DragFloat("##tune", &global_tune, 0.05F, 1, 5);
+   ImGui::PopItemWidth();
+
+   ImGui::SameLine();
+   ImGui::PushItemWidth(bw);
+   if (ImGui::Button("MIDI ...")) {
+      midi_popup_shown = true;
+   }
+   ImGui::PopItemWidth();
+
+   // next line
+   bw = ImGui::GetContentRegionAvail().x / 4;
+
+   ImGui::PushItemWidth(2 * bw);
    ImGui::InputText("##lesson_title", state->lesson_title, MAX_STRING);
    ImGui::PopItemWidth();
 
    ImGui::SameLine();
-   ImGui::PushItemWidth(100);
-   app_key_sig_selector(state);
-   ImGui::PopItemWidth();
+   if (ImGui::Button("Reload", ImVec2(bw, 0))) {
+      logic_clear(state);
+   }
 
-   if (state->edit_lesson) {
-      ImGui::SameLine();
-      if (ImGui::Button("Save")) {
+   ImGui::SameLine();
+   const char *btn_label = state->edit_lesson ? "Save" : "Edit";
+   if (ImGui::Button(btn_label, ImVec2(bw, 0))) {
+      if (state->edit_lesson) {
          state_write_lesson(state);
          state->edit_lesson = false;
+      } else {
+         state->edit_lesson = true;
       }
    }
+
 }
 
 static void app_stats(struct state *state)
@@ -139,38 +168,41 @@ static void app_stats(struct state *state)
        ("Duration: " + time_format(state->duration_today)).c_str());
 }
 
+static void app_main_screen(struct state *state)
+{
+   ImGui::BeginChild("Controls", ImVec2(0, 2 * STYLE_BTN_H + 2 * STYLE_PAD_Y),
+                     true);
+   app_buttons(state);
+   ImGui::EndChild();
+
+   ImGui::BeginChild("Staff", ImVec2(0, 250.0F), true);
+   notes_staff(state);
+   notes_draw(state);
+   ImGui::EndChild();
+
+   ImGui::BeginChild("Stats", ImVec2(0, 150.0F), true);
+   app_stats(state);
+   ImGui::EndChild();
+
+   ImGui::BeginChild("StatusBar", ImVec2(0, STYLE_BTN_H), true);
+   ImGui::TextUnformatted(state->status.c_str());
+   ImGui::EndChild();
+}
+
 void render_ui(struct state *state)
 {
-   const ImGuiIO &io = ImGui::GetIO();
    ImGui::SetNextWindowPos(ImVec2(0, 0));
+   const ImGuiIO &io = ImGui::GetIO();
    ImGui::SetNextWindowSize(io.DisplaySize);
-   ImGui::Begin("MainDockSpace", nullptr,
-                ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoResize |
-                    ImGuiWindowFlags_NoMove |
+   ImGui::Begin("MainWindow", nullptr,
+                ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoMove |
                     ImGuiWindowFlags_NoBringToFrontOnFocus |
                     ImGuiWindowFlags_NoNavFocus);
 
-   ImGuiID dockspace_id = ImGui::GetID("MainDockSpaceID");
-   ImGui::DockSpace(dockspace_id);
-   ImGui::End();
+   if (midi_popup_shown)
+      app_midi_popup(state);
+   else
+      app_main_screen(state);
 
-   ImGui::Begin("Controls");
-   app_buttons(state);
-   if (!state->midi_in)
-      app_midi(state);
-   app_lesson(state);
-   ImGui::End();
-
-   ImGui::Begin("Staff");
-   notes_staff(state);
-   notes_draw(state);
-   ImGui::End();
-
-   ImGui::Begin("Stats");
-   app_stats(state);
-   ImGui::End();
-
-   ImGui::Begin("StatusBar");
-   ImGui::TextUnformatted(state->status.c_str());
-   ImGui::End();
+   ImGui::End(); // End MainWindow
 }
