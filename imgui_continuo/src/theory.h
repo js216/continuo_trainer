@@ -12,6 +12,8 @@
 
 #include <string>
 
+#define NOTES_OUT_OF_RANGE (-100)
+
 enum midi_note {
    NOTES_D2 = 38,
    NOTES_Ds2,
@@ -91,5 +93,8 @@ std::string key_sig_to_string(enum key_sig);
 std::string midi_to_name(enum midi_note n);
 std::string fig_to_string(const struct figure &f);
 enum accidental key_sig_accidental(enum key_sig key, midi_note n);
+int note_to_bass(const enum midi_note n, const enum key_sig k);
+int note_to_treble(const enum midi_note n, const enum key_sig k);
+int key_sig_acc_count(enum key_sig key);
 
 #endif /* THEORY_H */

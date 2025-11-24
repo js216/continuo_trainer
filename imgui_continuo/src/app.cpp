@@ -20,6 +20,8 @@
 
 void init_state(struct state *state)
 {
+   global_tune = 1;
+
    logic_clear(state);
 
    refresh_midi_devices(state);
@@ -62,7 +64,7 @@ static void app_buttons(struct state *state)
    }
 
    ImGui::SameLine();
-   ImGui::DragFloat("##tune", &state->tune, 0.01, 0.1, 3);
+   ImGui::DragFloat("##tune", &global_tune, 0.01, 1, 2);
 
    ImGui::PopItemWidth();
 }
@@ -115,12 +117,12 @@ static void app_lesson(state *state)
    ImGui::InputText("##lesson_title", state->lesson_title, MAX_STRING);
    ImGui::PopItemWidth();
 
-   if (state->edit_lesson) {
       ImGui::SameLine();
       ImGui::PushItemWidth(100);
       app_key_sig_selector(state);
       ImGui::PopItemWidth();
 
+   if (state->edit_lesson) {
       ImGui::SameLine();
       if (ImGui::Button("Save")) {
          state_write_lesson(state);

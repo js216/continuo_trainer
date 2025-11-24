@@ -18,6 +18,9 @@
 #include <algorithm>
 #include <iomanip>
 
+// global state for debug only
+float global_tune;
+
 void state_load(struct state *state)
 {
    if (state->config_file.empty())

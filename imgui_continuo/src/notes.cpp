@@ -17,8 +17,6 @@
 #include <ranges>
 #include <span>
 
-#define NOTES_OUT_OF_RANGE (-100)
-
 static const char *acc_sym(enum accidental a)
 {
    switch (a) {
@@ -29,87 +27,13 @@ static const char *acc_sym(enum accidental a)
    }
 }
 
-static int note_to_bass(const enum midi_note n)
+static float calc_x(const int x_idx, const int x_sz)
 {
-   switch (n) {
-      case NOTES_D2:
-      case NOTES_Ds2: return -3;
-      case NOTES_E2: return -2;
-      case NOTES_F2:
-      case NOTES_Fs2: return -1;
-      case NOTES_G2:
-      case NOTES_Gs2: return 0;
-      case NOTES_A2:
-      case NOTES_As2: return 1;
-      case NOTES_B2: return 2;
-      case NOTES_C3:
-      case NOTES_Cs3: return 3;
-      case NOTES_D3:
-      case NOTES_Ds3: return 4;
-      case NOTES_E3: return 5;
-      case NOTES_F3:
-      case NOTES_Fs3: return 6;
-      case NOTES_G3:
-      case NOTES_Gs3: return 7;
-      case NOTES_A3:
-      case NOTES_As3: return 8;
-      case NOTES_B3: return 9;
-      case NOTES_C4:
-      case NOTES_Cs4: return 10;
-      case NOTES_D4:
-      case NOTES_Ds4: return 11;
-      default: return NOTES_OUT_OF_RANGE;
-   }
+   const float x_offs = 130;
+   return x_offs + ((float)x_idx + 1) * x_sz / (10.0F);
 }
 
-static float note_to_treble(const enum midi_note n)
-{
-   switch (n) {
-      case NOTES_E4: return 0;
-      case NOTES_F4:
-      case NOTES_Fs4: return 1;
-      case NOTES_G4:
-      case NOTES_Gs4: return 2;
-      case NOTES_A4:
-      case NOTES_As4: return 3;
-      case NOTES_B4: return 4;
-      case NOTES_C5:
-      case NOTES_Cs5: return 5;
-      case NOTES_D5:
-      case NOTES_Ds5: return 6;
-      case NOTES_E5: return 7;
-      case NOTES_F5:
-      case NOTES_Fs5: return 8;
-      case NOTES_G5:
-      case NOTES_Gs5: return 9;
-      case NOTES_A5:
-      case NOTES_As5: return 10;
-      default: return NOTES_OUT_OF_RANGE;
-   }
-}
-
-static int key_sig_acc_count(enum key_sig key)
-{
-   switch (key) {
-      case KEY_SIG_1_SHARP: return 1;
-      case KEY_SIG_2_SHARP: return 2;
-      case KEY_SIG_3_SHARP: return 3;
-      case KEY_SIG_4_SHARP: return 4;
-      case KEY_SIG_5_SHARP: return 5;
-      case KEY_SIG_6_SHARP: return 6;
-      case KEY_SIG_7_SHARP: return 7;
-      case KEY_SIG_1_FLAT: return -1;
-      case KEY_SIG_2_FLAT: return -2;
-      case KEY_SIG_3_FLAT: return -3;
-      case KEY_SIG_4_FLAT: return -4;
-      case KEY_SIG_5_FLAT: return -5;
-      case KEY_SIG_6_FLAT: return -6;
-      case KEY_SIG_7_FLAT: return -7;
-      default: return 0;
-   }
-}
-
-static float calc_y(const enum midi_note n)
+static float calc_y(const enum midi_note n, enum key_sig key)
 {
    const float spacing   = 15;
    const float top       = 10 * spacing;
@@ -120,7 +44,7 @@ static float calc_y(const enum midi_note n)
    float y  = 0;
 
    if (n >= NOTES_E4) {
-      nb = note_to_treble(n);
+      nb = note_to_treble(n, key);
       if (nb == NOTES_OUT_OF_RANGE)
          return NOTES_OUT_OF_RANGE;
 
@@ -128,7 +52,7 @@ static float calc_y(const enum midi_note n)
       y = treble_bottom - spacing * (nb / 2.0F) - staff_gap / 2;
 
    } else {
-      nb = note_to_bass(n);
+      nb = note_to_bass(n, key);
       if (nb == NOTES_OUT_OF_RANGE)
          return NOTES_OUT_OF_RANGE;
 
@@ -138,17 +62,15 @@ static float calc_y(const enum midi_note n)
    return y;
 }
 
-static float calc_x(const int x_idx, const int x_sz)
+static float staff_space(void)
 {
-   const float x_offs = 130;
-   return x_offs + ((float)x_idx + 1) * x_sz / (10.0F);
+   return fabsf(calc_y(NOTES_A3, KEY_SIG_0) - calc_y(NOTES_C4, KEY_SIG_0));
 }
 
 static void draw_clefs(ImVec2 origin)
 {
-   float staff_space = fabsf(calc_y(NOTES_A3) - calc_y(NOTES_C4));
    float x           = origin.x + 8.0F;
-   float fs          = 2.6F * staff_space;
+   float fs          = 2.6F * staff_space();
 
    font_config cfg = {.fontsize     = fs,
       .anch         = ANCHOR_TOP_LEFT,
@@ -159,20 +81,19 @@ static void draw_clefs(ImVec2 origin)
       .anchor_color = 0};
 
    // --- TREBLE CLEF ---
-   float g_line   = calc_y(NOTES_G4);
+   float g_line   = calc_y(NOTES_G4, KEY_SIG_0);
    float y_treble = g_line - fs * 0.8F;
    style_text("\uE050", x, y_treble, &cfg);
 
    // --- BASS CLEF ---
-   float f_line = calc_y(NOTES_F3);
+   float f_line = calc_y(NOTES_F3, KEY_SIG_0);
    float y_bass = f_line - fs * 0.8F;
    style_text("\uE062", x, y_bass, &cfg);
 }
 
 static void draw_key_sig(struct state *state, ImVec2 origin, bool treble)
 {
-   float staff_space = std::fabs(calc_y(NOTES_A3) - calc_y(NOTES_C4));
-   float fs          = 1.5F * staff_space;
+   float fs          = 1.5F * staff_space();
    float x           = origin.x + fs * 2.4F;
 
    static const std::array<midi_note, 7> treble_sharps = {
@@ -194,13 +115,13 @@ static void draw_key_sig(struct state *state, ImVec2 origin, bool treble)
 
    if (acc_count > 0) { // sharps
       for (int i = 0; i < acc_count; ++i) {
-         float y = calc_y(treble ? treble_sharps.at(i) : bass_sharps.at(i)) - 0.3F * fs;
+         float y = calc_y(treble ? treble_sharps.at(i) : bass_sharps.at(i), KEY_SIG_0) - 0.3F * fs;
          style_text(acc_sym(ACC_SHARP), x + static_cast<float>(i) * fs * 0.3F,
                y, &cfg);
       }
    } else if (acc_count < 0) { // flats
       for (int i = 0; i < -acc_count; ++i) {
-         float y = calc_y(treble ? treble_flats.at(i) : bass_flats.at(i)) - 0.25F * fs;
+         float y = calc_y(treble ? treble_flats.at(i) : bass_flats.at(i), KEY_SIG_0) - 0.25F * fs;
          style_text(acc_sym(ACC_FLAT), x + static_cast<float>(i) * fs * 0.3F, y,
                &cfg);
       }
@@ -221,7 +142,7 @@ void notes_staff(struct state *state)
       NOTES_E4, NOTES_G4, NOTES_B4, NOTES_D5, NOTES_F5};
 
    for (const auto &line : staff_lines) {
-      float y = calc_y(line);
+      float y = calc_y(line, KEY_SIG_0);
       if (y == NOTES_OUT_OF_RANGE)
          continue;
 
@@ -236,13 +157,13 @@ void notes_staff(struct state *state)
    ImGui::EndChild();
 }
 
-static void draw_ledger_lines(float x, enum midi_note n, float note_radius)
+static void draw_ledger_lines(float x, enum midi_note n, float note_radius, enum key_sig key)
 {
    const float ledger_width = 4.0F * note_radius;
 
    // Convert note to staff position
-   int pos = note_to_bass(n);
-   const float y = calc_y(n);
+   int pos = note_to_bass(n, key);
+   const float y = calc_y(n, key);
    if (y == NOTES_OUT_OF_RANGE)
       return;
 
@@ -252,7 +173,7 @@ static void draw_ledger_lines(float x, enum midi_note n, float note_radius)
 
    // Special case: just below ledger line
    if ((n == NOTES_D2) || (n == NOTES_Ds2)) {
-      draw_ledger_lines(x, NOTES_E2, note_radius);
+      draw_ledger_lines(x, NOTES_E2, note_radius, key);
       return;
    }
 
@@ -268,41 +189,36 @@ static void draw_ledger_lines(float x, enum midi_note n, float note_radius)
 }
 
 static void draw_accidental(float x, enum midi_note n, float note_radius, uint32_t color,
-      enum accidental acc)
+      enum accidental acc, enum key_sig key)
 {
    if (acc == ACC_NONE)
       return;
 
-   const float y = calc_y(n);
-   if (y == NOTES_OUT_OF_RANGE)
-      return;
-
-   float staff_space = std::fabs(calc_y(NOTES_A3) - calc_y(NOTES_C4));
-   float fs          = 2.0F * staff_space;
+   float fs          = 2.0F * staff_space();
 
    font_config cfg = {.fontsize     = fs,
       .anch         = ANCHOR_CENTER_RIGHT,
-      .color        = color,
-      .border_size  = 1.0F, // optional debug
-      .border_color = STYLE_RED,
-      .anchor_size  = 5.0F,
-      .anchor_color = STYLE_RED};
+      .color        = color,};
 
-   float offset_x = x - 1.5F * note_radius;
+   const float offset_x = x - 0.6F * note_radius;
+   const float y = calc_y(n, key) - 0.76F * note_radius;
+   if (y == NOTES_OUT_OF_RANGE)
+      return;
+
    style_text(acc_sym(acc), offset_x, y, &cfg);
 }
 
 static void notes_dot(enum key_sig key, enum midi_note n, int x_idx, uint32_t color)
 {
    ImVec2 size             = ImGui::GetContentRegionAvail();
-   const float note_radius = size.y / 45.0F;
+   const float note_radius = 0.44F * staff_space();
 
    const float x = calc_x(x_idx, size.x);
 
-   draw_accidental(x, n, note_radius, color, key_sig_accidental(key, n));
-   draw_ledger_lines(x, n, note_radius);
+   draw_accidental(x, n, note_radius, color, key_sig_accidental(key, n), key);
+   draw_ledger_lines(x, n, note_radius, key);
 
-   const float y = calc_y(n);
+   const float y = calc_y(n, key);
    if (y == NOTES_OUT_OF_RANGE)
       return;
 
@@ -339,8 +255,6 @@ void notes_draw(const struct state *state)
    }
 
    ImVec2 size     = ImGui::GetContentRegionAvail();
-   float staff_space = fabsf(calc_y(NOTES_A3) - calc_y(NOTES_C4));
-   float fs          = 2.0F * staff_space;
 
    for (size_t i = 0; i < state->chords.size(); ++i) {
       const auto &col = state->chords[i];
@@ -360,8 +274,9 @@ void notes_draw(const struct state *state)
 
       if (!col.bass.empty()) {
          const float x = calc_x(i, size.x);
-         const float y = calc_y(*col.bass.begin());
+         const float y = calc_y(*col.bass.begin(), state->key);
          if (y != NOTES_OUT_OF_RANGE) {
+            float fs = 1.7F * staff_space();
             draw_chord_figures(fs, x, y, col.figures, STYLE_WHITE);
          }
       }

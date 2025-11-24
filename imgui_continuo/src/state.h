@@ -47,10 +47,10 @@ struct state {
    int selected_device = -1;
    std::unique_ptr<RtMidiIn> midi_in;
    std::vector<unsigned char> pressed_notes;
-
-   // debug only
-   float tune;
 };
+
+// global state for debug only
+extern float global_tune;
 
 template <typename... Args> void state_status(state *state, Args &&...args)
 {
