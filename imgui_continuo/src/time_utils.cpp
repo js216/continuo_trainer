@@ -21,21 +21,26 @@ double time_now(void)
 
 bool time_is_today(double epoch_seconds)
 {
-   using namespace std::chrono;
+    using namespace std::chrono;
 
-   // Current time
-   system_clock::time_point now_tp = system_clock::now();
+    // Current time
+    auto now_tp = system_clock::now();
+    auto now_sec = time_point_cast<seconds>(now_tp).time_since_epoch().count();
 
-   // Break current time into days since epoch
-   auto now_sec = time_point_cast<seconds>(now_tp).time_since_epoch().count();
-   constexpr int secs_per_day = 24 * 3600;
-   auto days_now              = now_sec / secs_per_day;
+    // Determine the current local timezone offset in seconds
+    std::time_t now_tt = static_cast<std::time_t>(now_sec);
+    std::tm* local_tm = std::localtime(&now_tt); // no macros, OK on all common systems
+    auto offset = (local_tm->tm_hour * 3600 + local_tm->tm_min * 60 + local_tm->tm_sec)
+                  - (now_sec % 86400);
 
-   // Same for the given timestamp
-   auto days_ts = static_cast<int64_t>(epoch_seconds) / secs_per_day;
+    // Apply the same offset to both timestamps
+    constexpr int secs_per_day = 24 * 3600;
+    auto days_now = (now_sec + offset) / secs_per_day;
+    auto days_ts  = (static_cast<int64_t>(epoch_seconds) + offset) / secs_per_day;
 
-   return days_now == days_ts;
+    return days_now == days_ts;
 }
+
 
 std::string time_format(double seconds)
 {

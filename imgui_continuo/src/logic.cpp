@@ -49,7 +49,7 @@ static bool parse_attempt_line(const std::string &line,
 
    // skip the next three fields (bass, figures, answer)
    std::string ignore;
-   for (int i = 0; i < 4 && iss; ++i)
+   for (int i = 0; i < 3 && iss; ++i)
       iss >> ignore;
 
    // good notes
