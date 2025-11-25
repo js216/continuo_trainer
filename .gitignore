@@ -5,9 +5,8 @@
 *.dot
 *.log
 *.db
+*.ini
 
 imgui_continuo/continuo_trainer
 imgui_continuo/compile_commands.json
 imgui_continuo/bin
-imgui_continuo/imgui.ini
-imgui_continuo/config.ini

@@ -54,8 +54,6 @@ int main(void)
    ImGui::CreateContext();
    ImGuiIO &io    = ImGui::GetIO();
    io.IniFilename = "imgui.ini";
-   if (!std::filesystem::exists(io.IniFilename))
-      ImGui::LoadIniSettingsFromDisk("DefaultPanelLayout.ini");
 
    ImGui_ImplSDL2_InitForOpenGL(window, gl_context);
    ImGui_ImplOpenGL3_Init("#version 130");
