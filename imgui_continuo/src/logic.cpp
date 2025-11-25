@@ -102,33 +102,83 @@ static double score_formula(double dt, size_t good_count, size_t bad_count)
    return score;
 }
 
+static int compute_lesson_streak(std::ifstream &f, int lesson_id,
+                                 int chords_per_lesson)
+{
+    f.clear();
+    f.seekg(0);
+
+    std::string line;
+    int streak = 0;            // number of consecutive full lessons
+    int chords_correct = 0;     // consecutive correct chords in current lesson
+    int chords_counted = 0;     // chords counted in current lesson
+
+    while (std::getline(f, line)) {
+        attempt_info cur{};
+        if (!parse_attempt_line(line, cur))
+            continue;
+
+        // Skip lines from other lessons
+        if (cur.lesson_id != lesson_id)
+            continue;
+
+        chords_counted++;
+        if (cur.bad_count == 0)
+            chords_correct++;
+        else
+            chords_correct = 0; // any error in lesson resets chord streak
+
+        // When a full lesson is complete
+        if (chords_counted == chords_per_lesson) {
+            if (chords_correct == chords_per_lesson)
+                streak++;    // perfect lesson → increment streak
+            else
+                streak = 0;  // mistakes → reset streak
+
+            // reset counters for next lesson
+            chords_counted = 0;
+            chords_correct = 0;
+        }
+    }
+
+    return streak;
+}
+
+
 static void logic_reload_stats(struct state *state)
 {
-   state->duration_today = 0.0F;
-   state->score          = 0.0F;
+    state->duration_today = 0.0;
+    state->score          = 0.0;
+    state->lesson_streak  = 0;
 
-   std::ifstream f("attempts.log");
-   if (!f.is_open())
-      return;
+    std::ifstream f("attempts.log");
+    if (!f.is_open())
+        return;
 
-   std::string line;
-   struct attempt_info last{-1.0, 0, 0, 0};
+    std::string line;
+    struct attempt_info last{-1.0, 0, 0, 0};
 
-   while (std::getline(f, line)) {
-      struct attempt_info cur = {};
-      if (!parse_attempt_line(line, cur))
-         continue;
+    while (std::getline(f, line)) {
+        struct attempt_info cur{};
+        if (!parse_attempt_line(line, cur))
+            continue;
 
-      if (last.time >= 0.0) {
-         double dt = cur.time - last.time;
-         accumulate_duration_today(state, dt);
-         state->score += score_formula(static_cast<double>(dt), cur.good_count,
-                                       cur.bad_count);
-      }
+        if (last.time >= 0.0) {
+            double dt = cur.time - last.time;
+            accumulate_duration_today(state, dt);
+            state->score += score_formula(static_cast<double>(dt),
+                                          cur.good_count, cur.bad_count);
+        }
 
-      last = cur;
-   }
+        last = cur;
+    }
+
+    // Compute most recent streak for the current lesson
+    int chords_per_lesson = state->chords.size();
+    state->lesson_streak = compute_lesson_streak(f, state->lesson_id,
+                                                 chords_per_lesson);
 }
+
 
 void logic_clear(struct state *state)
 {

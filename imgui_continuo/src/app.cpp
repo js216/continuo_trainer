@@ -178,13 +178,70 @@ static void app_buttons(struct state *state)
 
 }
 
+static void stats_this_lesson(struct state *state)
+{
+    ImGui::AlignTextToFramePadding();
+    ImGui::TextUnformatted("THIS LESSON");
+
+    // Lesson streak
+    ImGui::Text("Streak: %d", state->lesson_streak);
+}
+
+static void stats_today(struct state *state)
+{
+    ImGui::AlignTextToFramePadding();
+    ImGui::TextUnformatted("TODAY");
+
+    const float bar_h = 18.0F;
+
+    // Score progress bar
+    ImGui::TextUnformatted("Score");
+    double max_score = 1000.0F;
+    std::string score_str = std::to_string(int(state->score));
+    ImGui::ProgressBar(
+        std::clamp(state->score / max_score, 0.0, 1.0),
+        ImVec2(-1, bar_h),
+        score_str.c_str()  // numeric overlay
+    );
+
+    // Duration progress bar
+    ImGui::TextUnformatted("Duration");
+    std::string duration_str = time_format(state->duration_today);
+    double max_duration = 3600.0; // 1 hour for progress bar
+    ImGui::ProgressBar(
+        std::clamp(state->duration_today / max_duration, 0.0, 1.0),
+        ImVec2(-1, bar_h),
+        duration_str.c_str()  // overlay text
+    );
+}
+
+
+static void stats_overall(struct state *state)
+{
+    ImGui::AlignTextToFramePadding();
+    ImGui::TextUnformatted("OVERALL");
+
+    // Example placeholder for future streak stats
+    ImGui::Text("Streak: %d", state->practice_streak);
+}
+
 static void app_stats(struct state *state)
 {
-   ImGui::Text("Score: %.3f", state->score);
+    if (!ImGui::BeginTable("stats", 3, ImGuiTableFlags_SizingStretchSame))
+        return;
 
-   // total practice duration today
-   ImGui::TextUnformatted(
-       ("Duration: " + time_format(state->duration_today)).c_str());
+    // Row 1: Titles and first-row content
+    ImGui::TableNextRow();
+    ImGui::TableSetColumnIndex(0);
+    stats_this_lesson(state);
+
+    ImGui::TableSetColumnIndex(1);
+    stats_today(state);
+
+    ImGui::TableSetColumnIndex(2);
+    stats_overall(state);
+
+    ImGui::EndTable();
 }
 
 static void app_main_screen(struct state *state)
@@ -199,7 +256,7 @@ static void app_main_screen(struct state *state)
    notes_draw(state);
    ImGui::EndChild();
 
-   ImGui::BeginChild("Stats", ImVec2(0, 150.0F), true);
+   ImGui::BeginChild("Stats", ImVec2(0, 200.0F), true);
    app_stats(state);
    ImGui::EndChild();
 

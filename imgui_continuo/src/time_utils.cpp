@@ -29,7 +29,7 @@ bool time_is_today(double epoch_seconds)
 
     // Determine the current local timezone offset in seconds
     std::time_t now_tt = static_cast<std::time_t>(now_sec);
-    std::tm* local_tm = std::localtime(&now_tt); // no macros, OK on all common systems
+    std::tm* local_tm = std::localtime(&now_tt);
     auto offset = (local_tm->tm_hour * 3600 + local_tm->tm_min * 60 + local_tm->tm_sec)
                   - (now_sec % 86400);
 

@@ -12,9 +12,6 @@
 #include <cstddef>
 #include <string>
 
-// TODO: remove this
-#include <iostream>
-
 double time_now(void);
 bool time_is_today(double epoch_seconds);
 std::string time_format(double seconds);

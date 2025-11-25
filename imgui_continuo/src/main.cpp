@@ -39,7 +39,7 @@ int main(int argc, const char **argv)
    SDL_Init(SDL_INIT_VIDEO);
    SDL_Window *window =
        SDL_CreateWindow("ImGui Example", SDL_WINDOWPOS_CENTERED_DISPLAY(0U),
-                        SDL_WINDOWPOS_CENTERED_DISPLAY(0U), 800, 600,
+                        SDL_WINDOWPOS_CENTERED_DISPLAY(0U), 800, 650,
                         SDL_WINDOW_OPENGL | SDL_WINDOW_RESIZABLE);
    SDL_GLContext gl_context = SDL_GL_CreateContext(window);
 

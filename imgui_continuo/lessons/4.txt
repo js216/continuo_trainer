@@ -1,0 +1,7 @@
+title: Couperin bar 1
+key: G
+
+B2 6 G4,B4,D5
+D3 5,4 G4,A4,D5
+D2 3 A4,D5,F#5
+G2 - G2,B4,D5

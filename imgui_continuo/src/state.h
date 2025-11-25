@@ -43,10 +43,12 @@ struct state {
    std::vector<struct column> chords;
    unsigned int active_col;
    char figs_entry[MAX_STRING];
+   int lesson_streak;
 
    // stats
    double score;
    double duration_today;
+   int practice_streak;
 
    // MIDI devices and data
    std::vector<std::string> midi_devices;

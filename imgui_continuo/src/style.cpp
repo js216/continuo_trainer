@@ -129,6 +129,10 @@ void dark_mode(void)
    colors[ImGuiCol_Button]        = ImVec4(0.2F, 0.2F, 0.3F, 1.0F);
    colors[ImGuiCol_ButtonHovered] = ImVec4(0.3F, 0.8F, 0.4F, 1.0F);
    colors[ImGuiCol_ButtonActive]  = ImVec4(0.1F, 0.6F, 0.2F, 1.0F);
+
+   // plots
+   colors[ImGuiCol_PlotHistogram]        = ImVec4(0.0f, 0.5f, 0.7f, 1.0f);
+   colors[ImGuiCol_PlotHistogramHovered] = ImVec4(0.3f, 0.8f, 1.0f, 1.0f);
 }
 
 static ImVec2 anchor_offset(enum anchor anch, const ImVec2 &text_size)
