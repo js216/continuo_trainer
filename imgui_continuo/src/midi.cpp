@@ -9,10 +9,10 @@
 #include "RtMidi.h"
 #include "state.h"
 #include <algorithm>
+#include <chrono>
 #include <cstring>
 #include <string>
 #include <thread>
-#include <chrono>
 
 void refresh_midi_devices(struct state *state)
 {
@@ -31,45 +31,46 @@ void refresh_midi_devices(struct state *state)
    } catch (RtMidiError &error) {
       state->midi_devices.clear();
       state->midi_devices.push_back(std::string("RtMidi error: ") +
-            error.getMessage());
+                                    error.getMessage());
    }
 }
 
 void init_midi_in(struct state *state)
 {
-    if (state->in_dev >= 0 &&
-        state->in_dev < (int)state->midi_devices.size()) {
-        try {
-            state->midi_in.reset();
-            state->midi_in = std::make_unique<RtMidiIn>();
-            state->midi_in->openPort(state->in_dev);
-            state->midi_in->ignoreTypes(false, false, false);
-            state->status = "MIDI input opened";
-        } catch (RtMidiError &error) {
-            state->status = std::string("RtMidi input error: ") + error.getMessage();
-            state->midi_in.reset();
-        }
-    } else {
-        state->status = "No MIDI input device selected";
-    }
+   if (state->in_dev >= 0 && state->in_dev < (int)state->midi_devices.size()) {
+      try {
+         state->midi_in.reset();
+         state->midi_in = std::make_unique<RtMidiIn>();
+         state->midi_in->openPort(state->in_dev);
+         state->midi_in->ignoreTypes(false, false, false);
+         state->status = "MIDI input opened";
+      } catch (RtMidiError &error) {
+         state->status =
+             std::string("RtMidi input error: ") + error.getMessage();
+         state->midi_in.reset();
+      }
+   } else {
+      state->status = "No MIDI input device selected";
+   }
 }
 
 void init_midi_out(struct state *state)
 {
-    if (state->out_dev >= 0 &&
-        state->out_dev < (int)state->midi_devices.size()) {
-        try {
-            state->midi_out.reset();
-            state->midi_out = std::make_unique<RtMidiOut>();
-            state->midi_out->openPort(state->out_dev);
-            state->status = "MIDI output opened";
-        } catch (RtMidiError &error) {
-            state->status = std::string("RtMidi output error: ") + error.getMessage();
-            state->midi_out.reset();
-        }
-    } else {
-        state->status = "No MIDI output device selected";
-    }
+   if (state->out_dev >= 0 &&
+       state->out_dev < (int)state->midi_devices.size()) {
+      try {
+         state->midi_out.reset();
+         state->midi_out = std::make_unique<RtMidiOut>();
+         state->midi_out->openPort(state->out_dev);
+         state->status = "MIDI output opened";
+      } catch (RtMidiError &error) {
+         state->status =
+             std::string("RtMidi output error: ") + error.getMessage();
+         state->midi_out.reset();
+      }
+   } else {
+      state->status = "No MIDI output device selected";
+   }
 }
 
 void deinit_midi_in(struct state *state)
@@ -88,7 +89,7 @@ void deinit_midi_out(struct state *state)
    if (state->midi_out) {
       state->midi_out.reset();
       state->out_dev = -1;
-      state->status = "MIDI output disconnected";
+      state->status  = "MIDI output disconnected";
    } else {
       state->status = "No MIDI output connected";
    }
@@ -96,34 +97,36 @@ void deinit_midi_out(struct state *state)
 
 void test_midi_out(struct state *state)
 {
-    if (!state->midi_out)
-        return; // no output connected
+   if (!state->midi_out)
+      return; // no output connected
 
-    unsigned char note = NOTES_Cs4;
-    unsigned char velocity = 100;
+   unsigned char note     = NOTES_Cs4;
+   unsigned char velocity = 100;
 
-    // Note On message: 0x90 = channel 1
-    std::vector<unsigned char> msg_on = { 0x90, note, velocity };
-    try {
-        state->midi_out->sendMessage(&msg_on);
-    } catch (RtMidiError &error) {
-        state->status = std::string("MIDI test error (Note On): ") + error.getMessage();
-        return;
-    }
+   // Note On message: 0x90 = channel 1
+   std::vector<unsigned char> msg_on = {0x90, note, velocity};
+   try {
+      state->midi_out->sendMessage(&msg_on);
+   } catch (RtMidiError &error) {
+      state->status =
+          std::string("MIDI test error (Note On): ") + error.getMessage();
+      return;
+   }
 
-    // Wait a bit
-    std::this_thread::sleep_for(std::chrono::milliseconds(250));
+   // Wait a bit
+   std::this_thread::sleep_for(std::chrono::milliseconds(250));
 
-    // Note Off message: 0x80 = channel 1
-    std::vector<unsigned char> msg_off = { 0x80, note, 0 };
-    try {
-        state->midi_out->sendMessage(&msg_off);
-    } catch (RtMidiError &error) {
-        state->status = std::string("MIDI test error (Note Off): ") + error.getMessage();
-        return;
-    }
+   // Note Off message: 0x80 = channel 1
+   std::vector<unsigned char> msg_off = {0x80, note, 0};
+   try {
+      state->midi_out->sendMessage(&msg_off);
+   } catch (RtMidiError &error) {
+      state->status =
+          std::string("MIDI test error (Note Off): ") + error.getMessage();
+      return;
+   }
 
-    state->status = "MIDI test sent: C4";
+   state->status = "MIDI test sent: C4";
 }
 
 void add_pressed_note(struct state *state, unsigned char note)
@@ -155,42 +158,42 @@ void update_status(struct state *state)
 
 void poll_midi(struct state *state)
 {
-    if (!state->midi_in)
-        return;
+   if (!state->midi_in)
+      return;
 
-    std::vector<unsigned char> message;
-    bool changed = false;
+   std::vector<unsigned char> message;
+   bool changed = false;
 
-    while (state->midi_in->getMessage(&message) != 0.0) {
-        if (message.empty())
-            continue;
+   while (state->midi_in->getMessage(&message) != 0.0) {
+      if (message.empty())
+         continue;
 
-        unsigned char status   = message[0] & 0xF0U;
-        unsigned char note     = message[1];
-        unsigned char velocity = message[2];
+      unsigned char status   = message[0] & 0xF0U;
+      unsigned char note     = message[1];
+      unsigned char velocity = message[2];
 
-        // Track pressed/released notes
-        if (status == 0x90 && velocity > 0) {
-            add_pressed_note(state, note);
-            changed = true;
-        } else if (status == 0x80 || (status == 0x90 && velocity == 0)) {
-            remove_pressed_note(state, note);
-            changed = true;
-        }
+      // Track pressed/released notes
+      if (status == 0x90 && velocity > 0) {
+         add_pressed_note(state, note);
+         changed = true;
+      } else if (status == 0x80 || (status == 0x90 && velocity == 0)) {
+         remove_pressed_note(state, note);
+         changed = true;
+      }
 
-        // Forward message to output immediately if enabled
-        // (and if the input and out devices are not the same)
-        if (state->midi_forward && state->midi_out &&
-              (state->in_dev != state->out_dev)) {
-            try {
-                state->midi_out->sendMessage(&message);
-            } catch (RtMidiError &error) {
-                state->status = std::string("MIDI forward error: ") + error.getMessage();
-            }
-        }
-    }
+      // Forward message to output immediately if enabled
+      // (and if the input and out devices are not the same)
+      if (state->midi_forward && state->midi_out &&
+          (state->in_dev != state->out_dev)) {
+         try {
+            state->midi_out->sendMessage(&message);
+         } catch (RtMidiError &error) {
+            state->status =
+                std::string("MIDI forward error: ") + error.getMessage();
+         }
+      }
+   }
 
-    if (changed)
-        update_status(state);
+   if (changed)
+      update_status(state);
 }
-

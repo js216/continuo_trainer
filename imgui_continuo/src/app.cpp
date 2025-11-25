@@ -43,10 +43,9 @@ static void draw_midi_top_row(struct state *state, const float bw)
 {
    if (ImGui::Button("MIDI Refresh", ImVec2(bw, 0))) {
       refresh_midi_devices(state);
-      state->status = "MIDI devices refreshed";
+      state->status         = "MIDI devices refreshed";
       state->midi_menu_open = true;
    }
-
 
    ImGui::SameLine();
    ImGui::Checkbox("Forward In -> Out", &state->midi_forward);
@@ -71,7 +70,7 @@ static void draw_midi_in_row(struct state *state, const float bw)
 
    ImGui::SameLine();
 
-   std::string in_text = {};
+   std::string in_text;
    if (state->in_dev >= 0 && state->in_dev < (int)state->midi_devices.size())
       in_text = state->midi_devices[state->in_dev];
    else
@@ -81,7 +80,8 @@ static void draw_midi_in_row(struct state *state, const float bw)
 
 static void draw_midi_out_row(struct state *state, const float bw)
 {
-   const char *midi_out_label = state->midi_out ? "Disconnect Out" : "Connect Out";
+   const char *midi_out_label =
+       state->midi_out ? "Disconnect Out" : "Connect Out";
    if (ImGui::Button(midi_out_label, ImVec2(bw, 0))) {
       if (state->midi_out)
          deinit_midi_out(state);
@@ -104,7 +104,7 @@ static void draw_midi_out_row(struct state *state, const float bw)
 
 static void draw_midi_device_list(struct state *state)
 {
-   const ImGuiIO &io = ImGui::GetIO();
+   const ImGuiIO &io    = ImGui::GetIO();
    float listbox_height = io.DisplaySize.y - 6 * STYLE_BTN_H;
    ImVec2 size(ImGui::GetContentRegionAvail().x, listbox_height);
 
@@ -146,15 +146,14 @@ static void app_midi_menu(struct state *state)
    ImGui::EndChild();
 }
 
-
 static void app_key_sig_selector(state *state)
 {
    if (ImGui::BeginCombo("##keysig", key_sig_to_string(state->key).c_str())) {
       for (int i = 0; i < KEY_NUM; ++i) {
          bool is_selected = (state->key == i);
          if (ImGui::Selectable(
-                  key_sig_to_string(static_cast<key_sig>(i)).c_str(),
-                  is_selected))
+                 key_sig_to_string(static_cast<key_sig>(i)).c_str(),
+                 is_selected))
             state->key = static_cast<key_sig>(i);
          if (is_selected)
             ImGui::SetItemDefaultFocus();
@@ -166,7 +165,7 @@ static void app_key_sig_selector(state *state)
 static void app_figures_entry(state *state)
 {
    if (ImGui::InputText("##figs_entry", state->figs_entry, MAX_STRING)) {
-      if (state->chords.size() < 1)
+      if (state->chords.empty())
          return;
 
       if (state->active_col - 1 >= state->chords.size())
@@ -231,7 +230,6 @@ static void app_buttons(struct state *state)
          state->edit_lesson = true;
       }
    }
-
 }
 
 static void stats_this_lesson(struct state *state)
@@ -252,25 +250,23 @@ static void stats_today(struct state *state)
 
    // Score progress bar
    ImGui::TextUnformatted("Score");
-   double max_score = 1000.0F;
+   double max_score      = 1000.0F;
    std::string score_str = std::to_string(int(state->score));
-   ImGui::ProgressBar(
-         std::clamp(state->score / max_score, 0.0, 1.0),
-         ImVec2(-1, bar_h),
-         score_str.c_str()  // numeric overlay
-         );
+   ImGui::ProgressBar((float)std::clamp(state->score / max_score, 0.0, 1.0),
+                      ImVec2(-1, bar_h),
+                      score_str.c_str() // numeric overlay
+   );
 
    // Duration progress bar
    ImGui::TextUnformatted("Duration");
    std::string duration_str = time_format(state->duration_today);
-   double max_duration = 3600.0; // 1 hour for progress bar
+   double max_duration      = 3600.0; // 1 hour for progress bar
    ImGui::ProgressBar(
-         std::clamp(state->duration_today / max_duration, 0.0, 1.0),
-         ImVec2(-1, bar_h),
-         duration_str.c_str()  // overlay text
-         );
+       std::clamp((float)state->duration_today / max_duration, 0.0, 1.0),
+       ImVec2(-1, bar_h),
+       duration_str.c_str() // overlay text
+   );
 }
-
 
 static void stats_overall(struct state *state)
 {
@@ -303,7 +299,7 @@ static void app_stats(struct state *state)
 static void app_main_screen(struct state *state)
 {
    ImGui::BeginChild("Controls", ImVec2(0, 2 * STYLE_BTN_H + 2 * STYLE_PAD_Y),
-         true);
+                     true);
    app_buttons(state);
    ImGui::EndChild();
 
@@ -325,9 +321,9 @@ void render_ui(struct state *state)
    const ImGuiIO &io = ImGui::GetIO();
    ImGui::SetNextWindowSize(io.DisplaySize);
    ImGui::Begin("MainWindow", nullptr,
-         ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoMove |
-         ImGuiWindowFlags_NoBringToFrontOnFocus |
-         ImGuiWindowFlags_NoNavFocus);
+                ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoMove |
+                    ImGuiWindowFlags_NoBringToFrontOnFocus |
+                    ImGuiWindowFlags_NoNavFocus);
 
    if (state->midi_menu_open)
       app_midi_menu(state);

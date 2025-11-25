@@ -11,6 +11,7 @@
 #include "time_utils.h"
 #include "util.h"
 #include <algorithm>
+#include <chrono>
 #include <cstddef>
 #include <cstdlib>
 #include <filesystem>
@@ -18,12 +19,11 @@
 #include <iomanip>
 #include <iostream>
 #include <iterator>
+#include <map>
 #include <random>
 #include <sstream>
 #include <string>
 #include <vector>
-#include <chrono>
-#include <map>
 
 struct attempt_info {
    double time;
@@ -35,43 +35,43 @@ struct attempt_info {
 static bool parse_attempt_line(const std::string &line,
                                struct attempt_info &out)
 {
-    if (line.empty())
-        return false;
+   if (line.empty())
+      return false;
 
-    std::istringstream iss(line);
+   std::istringstream iss(line);
 
-    // timestamp
-    double t = 0.0;
-    iss >> t;
-    if (iss.fail())
-        return false;
-    out.time = t;
+   // timestamp
+   double t = 0.0;
+   iss >> t;
+   if (iss.fail())
+      return false;
+   out.time = t;
 
-    // lesson id
-    iss >> out.lesson_id;
+   // lesson id
+   iss >> out.lesson_id;
 
-    // skip bass, figures, answer
-    std::string ignore;
-    for (int i = 0; i < 3 && iss; ++i)
-        iss >> ignore;
+   // skip bass, figures, answer
+   std::string ignore;
+   for (int i = 0; i < 3 && iss; ++i)
+      iss >> ignore;
 
-    // good notes
-    std::string good_notes;
-    iss >> good_notes;
-    out.good_count =
-        (good_notes == "-")
-            ? 0
-            : std::count(good_notes.begin(), good_notes.end(), ',') + 1;
+   // good notes
+   std::string good_notes;
+   iss >> good_notes;
+   out.good_count =
+       (good_notes == "-")
+           ? 0
+           : std::count(good_notes.begin(), good_notes.end(), ',') + 1;
 
-    // bad notes
-    std::string bad_notes;
-    iss >> bad_notes;
-    out.bad_count =
-        (bad_notes == "-")
-            ? 0
-            : std::count(bad_notes.begin(), bad_notes.end(), ',') + 1;
+   // bad notes
+   std::string bad_notes;
+   iss >> bad_notes;
+   out.bad_count =
+       (bad_notes == "-")
+           ? 0
+           : std::count(bad_notes.begin(), bad_notes.end(), ',') + 1;
 
-    return true;
+   return true;
 }
 
 static void accumulate_duration_today(struct state *state, double dt)
@@ -107,142 +107,145 @@ static double score_formula(double dt, size_t good_count, size_t bad_count)
 static int compute_lesson_streak(std::ifstream &f, int lesson_id,
                                  int chords_per_lesson)
 {
-    f.clear();
-    f.seekg(0);
+   f.clear();
+   f.seekg(0);
 
-    std::string line;
-    int streak = 0;            // number of consecutive full lessons
-    int chords_correct = 0;     // consecutive correct chords in current lesson
-    int chords_counted = 0;     // chords counted in current lesson
+   std::string line;
+   int streak         = 0; // number of consecutive full lessons
+   int chords_correct = 0; // consecutive correct chords in current lesson
+   int chords_counted = 0; // chords counted in current lesson
 
-    while (std::getline(f, line)) {
-        attempt_info cur{};
-        if (!parse_attempt_line(line, cur))
-            continue;
-        if (!time_is_today(cur.time))
-           continue;
+   while (std::getline(f, line)) {
+      attempt_info cur{};
+      if (!parse_attempt_line(line, cur))
+         continue;
+      if (!time_is_today(cur.time))
+         continue;
 
-        // Skip lines from other lessons
-        if (cur.lesson_id != lesson_id)
-            continue;
+      // Skip lines from other lessons
+      if (cur.lesson_id != lesson_id)
+         continue;
 
-        chords_counted++;
-        if (cur.bad_count == 0)
-            chords_correct++;
-        else
-            chords_correct = 0; // any error in lesson resets chord streak
+      chords_counted++;
+      if (cur.bad_count == 0)
+         chords_correct++;
+      else
+         chords_correct = 0; // any error in lesson resets chord streak
 
-        // When a full lesson is complete
-        if (chords_counted == chords_per_lesson) {
-            if (chords_correct == chords_per_lesson)
-                streak++;    // perfect lesson → increment streak
-            else
-                streak = 0;  // mistakes → reset streak
+      // When a full lesson is complete
+      if (chords_counted == chords_per_lesson) {
+         if (chords_correct == chords_per_lesson)
+            streak++; // perfect lesson → increment streak
+         else
+            streak = 0; // mistakes → reset streak
 
-            // reset counters for next lesson
-            chords_counted = 0;
-            chords_correct = 0;
-        }
-    }
+         // reset counters for next lesson
+         chords_counted = 0;
+         chords_correct = 0;
+      }
+   }
 
-    return streak;
+   return streak;
 }
 
 static int compute_practice_streak()
 {
-    std::ifstream f("attempts.log");
-    if (!f.is_open())
-        return 0;
+   std::ifstream f("attempts.log");
+   if (!f.is_open())
+      return 0;
 
-    // map from day (YYYYMMDD) -> total duration
-    std::map<int, double> duration_by_day;
+   // map from day (YYYYMMDD) -> total duration
+   std::map<int, double> duration_by_day;
 
-    std::string line;
-    attempt_info last{-1.0,0,0,0};
+   std::string line;
+   attempt_info last{-1.0, 0, 0, 0};
 
-    while (std::getline(f, line)) {
-        attempt_info cur{};
-        if (!parse_attempt_line(line, cur))
-            continue;
+   while (std::getline(f, line)) {
+      attempt_info cur{};
+      if (!parse_attempt_line(line, cur))
+         continue;
 
-        // Convert cur.time (unix timestamp) to YYYYMMDD integer
-        std::time_t t = static_cast<std::time_t>(cur.time);
-        std::tm tm = *std::localtime(&t);
-        int yyyymmdd = (tm.tm_year+1900)*10000 + (tm.tm_mon+1)*100 + tm.tm_mday;
+      // Convert cur.time (unix timestamp) to YYYYMMDD integer
+      auto t = static_cast<std::time_t>(cur.time);
+      std::tm tm    = *std::localtime(&t);
+      int yyyymmdd =
+          (tm.tm_year + 1900) * 10000 + (tm.tm_mon + 1) * 100 + tm.tm_mday;
 
-        if (last.time >= 0.0 && static_cast<int>( (std::time_t)last.time ) != static_cast<int>( (std::time_t)cur.time )) {
-            double dt = cur.time - last.time;
-            if (dt > 5.0)
-                dt = 5.0;
-            duration_by_day[yyyymmdd] += dt;
-        }
+      if (last.time >= 0.0 && static_cast<int>((std::time_t)last.time) !=
+                                  static_cast<int>((std::time_t)cur.time)) {
+         double dt = cur.time - last.time;
+         if (dt > 5.0)
+            dt = 5.0;
+         duration_by_day[yyyymmdd] += dt;
+      }
 
-        last = cur;
-    }
+      last = cur;
+   }
 
-    // Count consecutive days from today backwards where duration > 600s
-    int streak = 0;
-    std::time_t now = std::time(nullptr);
-    std::tm tm_now = *std::localtime(&now);
-    int today_yyyymmdd = (tm_now.tm_year+1900)*10000 + (tm_now.tm_mon+1)*100 + tm_now.tm_mday;
+   // Count consecutive days from today backwards where duration > 600s
+   int streak         = 0;
+   std::time_t now    = std::time(nullptr);
+   std::tm tm_now     = *std::localtime(&now);
+   int today_yyyymmdd = (tm_now.tm_year + 1900) * 10000 +
+                        (tm_now.tm_mon + 1) * 100 + tm_now.tm_mday;
 
-    for (int day = today_yyyymmdd; ; --day) {
-        auto it = duration_by_day.find(day);
-        if (it == duration_by_day.end() || it->second < 600.0)
-            break;
-        streak++;
-        // decrement day manually
-        std::tm t = {};
-        t.tm_year = day/10000 - 1900;
-        t.tm_mon = (day/100)%100 - 1;
-        t.tm_mday = day%100;
-        std::time_t tt = std::mktime(&t) - 24*3600;  // go back 1 day
-        std::tm tm_prev = *std::localtime(&tt);
-        day = (tm_prev.tm_year+1900)*10000 + (tm_prev.tm_mon+1)*100 + tm_prev.tm_mday + 1; // +1 because loop will decrement
-    }
+   for (int day = today_yyyymmdd;; --day) {
+      auto it = duration_by_day.find(day);
+      if (it == duration_by_day.end() || it->second < 600.0)
+         break;
+      streak++;
+      // decrement day manually
+      std::tm t       = {};
+      t.tm_year       = day / 10000 - 1900;
+      t.tm_mon        = (day / 100) % 100 - 1;
+      t.tm_mday       = day % 100;
+      std::time_t tt  = std::mktime(&t) - 24UL * 3600UL; // go back 1 day
+      std::tm tm_prev = *std::localtime(&tt);
+      day = (tm_prev.tm_year + 1900) * 10000 + (tm_prev.tm_mon + 1) * 100 +
+            tm_prev.tm_mday + 1; // +1 because loop will decrement
+   }
 
-    return streak;
+   return streak;
 }
 
 static void logic_reload_stats(struct state *state)
 {
-    state->duration_today = 0.0;
-    state->score          = 0.0;
-    state->lesson_streak  = 0;
+   state->duration_today = 0.0;
+   state->score          = 0.0;
+   state->lesson_streak  = 0;
 
-    std::ifstream f("attempts.log");
-    if (!f.is_open())
-        return;
+   std::ifstream f("attempts.log");
+   if (!f.is_open())
+      return;
 
-    std::string line;
-    struct attempt_info last{-1.0, 0, 0, 0};
+   std::string line;
+   struct attempt_info last{-1.0, 0, 0, 0};
 
-    while (std::getline(f, line)) {
-        struct attempt_info cur{};
-        if (!parse_attempt_line(line, cur))
-            continue;
-        if (!time_is_today(cur.time))
-           continue;
+   while (std::getline(f, line)) {
+      struct attempt_info cur{};
+      if (!parse_attempt_line(line, cur))
+         continue;
+      if (!time_is_today(cur.time))
+         continue;
 
-        if (last.time >= 0.0) {
-            double dt = cur.time - last.time;
-            accumulate_duration_today(state, dt);
-            state->score += score_formula(static_cast<double>(dt),
-                                          cur.good_count, cur.bad_count);
-        }
+      if (last.time >= 0.0) {
+         double dt = cur.time - last.time;
+         accumulate_duration_today(state, dt);
+         state->score += score_formula(static_cast<double>(dt), cur.good_count,
+                                       cur.bad_count);
+      }
 
-        last = cur;
-    }
+      last = cur;
+   }
 
-    // Compute most recent streak for the current lesson
-    int chords_per_lesson = state->chords.size();
-    state->lesson_streak = compute_lesson_streak(f, state->lesson_id,
-                                                 chords_per_lesson);
+   // Compute most recent streak for the current lesson
+   int chords_per_lesson = (int)state->chords.size();
+   state->lesson_streak =
+       compute_lesson_streak(f, state->lesson_id, chords_per_lesson);
 
-    // Practice streak
-    state->practice_streak = compute_practice_streak();
+   // Practice streak
+   state->practice_streak = compute_practice_streak();
 }
-
 
 void logic_clear(struct state *state)
 {

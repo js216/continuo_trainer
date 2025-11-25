@@ -53,8 +53,8 @@ struct state {
 
    // MIDI devices and data
    std::vector<std::string> midi_devices;
-   int in_dev = -1;
-   int out_dev = -1;
+   int in_dev                = -1;
+   int out_dev               = -1;
    int selected_device_index = -1;
    std::unique_ptr<RtMidiIn> midi_in;
    std::unique_ptr<RtMidiOut> midi_out;
@@ -72,6 +72,6 @@ void state_read_lesson(struct state *state);
 void state_write_lesson(struct state *state);
 int state_load_last_lesson_id(const char *fname);
 void parse_figures_token(const std::string &token,
-                                std::vector<figure> &figures);
+                         std::vector<figure> &figures);
 
 #endif /* STATE_H */
