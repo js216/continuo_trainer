@@ -23,6 +23,7 @@ void init_state(struct state *state)
 {
    global_tune = 1;
 
+   state->lesson_id = state_load_last_lesson_id("attempts.log");
    logic_clear(state);
 
    refresh_midi_devices(state);
@@ -108,7 +109,7 @@ static void app_key_sig_selector(state *state)
 
 static void app_buttons(struct state *state)
 {
-   float bw = ImGui::GetContentRegionAvail().x / 3;
+   float bw = ImGui::GetContentRegionAvail().x / 4;
 
    ImGui::PushItemWidth(bw);
    if (ImGui::InputInt("##lesson_id", &state->lesson_id)) {
@@ -128,11 +129,9 @@ static void app_buttons(struct state *state)
    ImGui::PopItemWidth();
 
    ImGui::SameLine();
-   ImGui::PushItemWidth(bw);
-   if (ImGui::Button("MIDI ...")) {
+   if (ImGui::Button("MIDI ...", ImVec2(bw, 0))) {
       midi_popup_shown = true;
    }
-   ImGui::PopItemWidth();
 
    // next line
    bw = ImGui::GetContentRegionAvail().x / 4;

@@ -325,3 +325,23 @@ void state_write_lesson(struct state *state)
    out.close();
    state->status = "Lesson saved to " + fname;
 }
+
+int state_load_last_lesson_id(const char *fname)
+{
+    std::ifstream f(fname);
+    if (!f.is_open())
+        return 1; // default: first lesson
+
+    double ts;
+    int lesson_id;
+    std::string rest_of_line;
+    int last_lesson_id = 0;
+
+    while (f >> ts >> lesson_id) {
+        // throw away the rest of the line
+        std::getline(f, rest_of_line);
+        last_lesson_id = lesson_id;
+    }
+
+    return last_lesson_id;
+}

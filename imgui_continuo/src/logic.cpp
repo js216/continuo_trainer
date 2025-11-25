@@ -25,6 +25,7 @@
 
 struct attempt_info {
    double time;
+   int lesson_id;
    size_t good_count;
    size_t bad_count;
 };
@@ -43,9 +44,12 @@ static bool parse_attempt_line(const std::string &line,
    if (iss.fail() || !time_is_today(t))
       return false;
 
+   // lesson id
+   iss >> out.lesson_id;
+
    // skip the next three fields (bass, figures, answer)
    std::string ignore;
-   for (int i = 0; i < 3 && iss; ++i)
+   for (int i = 0; i < 4 && iss; ++i)
       iss >> ignore;
 
    // good notes
@@ -108,7 +112,7 @@ static void logic_reload_stats(struct state *state)
       return;
 
    std::string line;
-   struct attempt_info last{-1.0, 0, 0};
+   struct attempt_info last{-1.0, 0, 0, 0};
 
    while (std::getline(f, line)) {
       struct attempt_info cur = {};
@@ -181,7 +185,7 @@ static void process_note(struct state *state, midi_note realization)
       col.bad.insert(realization);
 }
 
-static void print_chord(const struct column &col)
+static void print_chord(const int lesson_id, const struct column &col)
 {
    std::ofstream ofs("attempts.log", std::ios::app);
    if (!ofs.is_open()) {
@@ -191,6 +195,9 @@ static void print_chord(const struct column &col)
 
    // timestamp in seconds with 2 decimal places
    ofs << std::fixed << std::setprecision(2) << time_now() << " ";
+
+   // lesson id
+   ofs << lesson_id << " ";
 
    // bass note (print lowest if multiple)
    if (!col.bass.empty()) {
@@ -289,7 +296,7 @@ static void logic_play(struct state *state)
       if (!col.good.empty() || !col.bad.empty()) {
          col.time = time_now();
          score_chord(state);
-         print_chord(col);
+         print_chord(state->lesson_id, col);
          state->active_col++;
       }
    }

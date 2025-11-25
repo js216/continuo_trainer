@@ -63,5 +63,6 @@ void state_clear_lesson(struct state *state);
 std::string state_lesson_fname(const int id);
 void state_read_lesson(struct state *state);
 void state_write_lesson(struct state *state);
+int state_load_last_lesson_id(const char *fname);
 
 #endif /* STATE_H */
