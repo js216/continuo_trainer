@@ -1,9 +1,10 @@
-CPPFLAGS = -Iimgui -Irtmidi -Isrc `pkg-config --cflags sdl2`
+CPPFLAGS = -Iimgui -Irtmidi -Isrc $(shell pkg-config --cflags sdl2)
 
 CXXFLAGS  = -Wall -Wextra -std=c++20 \
 	  -g -fsanitize=address -fno-omit-frame-pointer
 
-LDFLAGS = -lGL -lasound -lpthread -fsanitize=address `pkg-config --libs sdl2`
+LDFLAGS = -lGL -lasound -lpthread -fsanitize=address \
+	  $(shell pkg-config --libs sdl2)
 
 # Files
 
@@ -49,8 +50,8 @@ format:
 
 tidy:
 	make clean
-	bear -- make -j8 $(TARGET)
-	clang-tidy -p . $(SRC)
+	bear -- make -j$(shell nproc) $(TARGET)
+	run-clang-tidy -j$(shell nproc) -p . $(SRC)
 
 cppcheck:
 	cppcheck --enable=all --inconclusive --std=c++17 --force --quiet \

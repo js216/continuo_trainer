@@ -20,7 +20,6 @@
 #include "theory.h"
 #include <SDL.h>
 #include <SDL_opengl.h>
-#include <filesystem>
 #include <memory>
 #include <string>
 #include <vector>
