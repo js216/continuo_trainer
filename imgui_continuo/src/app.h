@@ -13,7 +13,7 @@
 #include "notes.h"
 #include <stddef.h>
 
-void init_state(struct state *state);
-void render_ui(struct state *state);
+void app_init(struct state *state);
+void app_render(struct state *state);
 
 #endif /* APP_H */

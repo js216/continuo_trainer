@@ -7,19 +7,12 @@
  */
 
 #include "state.h"
-#include "theory.h"
 #include "util.h"
 #include "time_utils.h"
 #include <algorithm>
-#include <chrono>
 #include <fstream>
 #include <iomanip>
-#include <sstream>
-#include <string>
-#include <unordered_map>
 #include <map>
-#include <unordered_set>
-#include <vector>
 
 struct attempt_info {
    double time;
@@ -65,59 +58,44 @@ static bool parse_key_val(const std::string &line, std::string &key,
 
 void db_load(struct state *state)
 {
-   std::ifstream f(config_file);
-   if (!f.is_open())
-      return;
+    std::ifstream f(config_file);
+    if (!f.is_open())
+        return;
 
-   std::string line;
-   while (std::getline(f, line)) {
-      if (line.empty() || line[0] == '#')
-         continue;
+    std::string line;
+    while (std::getline(f, line)) {
+        if (line.empty() || line[0] == '#')
+            continue;
 
-      std::string key;
-      std::string value;
-      if (!parse_key_val(line, key, value))
-         continue;
+        std::string key;
+        std::string value;
+        if (!parse_key_val(line, key, value))
+            continue;
 
-      if (key == "in_dev") {
-         for (int i = 0; i < (int)state->midi_devices.size(); i++) {
-            if (state->midi_devices[i] == value) {
-               state->in_dev = i;
-               break;
-            }
-         }
-      } else if (key == "out_dev") {
-         for (int i = 0; i < (int)state->midi_devices.size(); i++) {
-            if (state->midi_devices[i] == value) {
-               state->out_dev = i;
-               break;
-            }
-         }
-      } else if (key == "midi_forward") {
-         std::transform(value.begin(), value.end(), value.begin(), ::tolower);
-         state->midi_forward = (value == "1" || value == "true");
-      }
-   }
+        if (key == "in_dev") {
+            state->in_dev = value;
+        }
+        else if (key == "out_dev") {
+            state->out_dev = value;
+        }
+        else if (key == "midi_forward") {
+            std::transform(value.begin(), value.end(), value.begin(), ::tolower);
+            state->midi_forward = (value == "1" || value == "true");
+        }
+    }
 }
 
 void db_save(const struct state *state)
 {
-   std::ofstream f(config_file);
-   if (!f.is_open())
-      return;
+    std::ofstream f(config_file);
+    if (!f.is_open())
+        return;
 
-   write_key_val(
-       f, "in_dev",
-       (state->in_dev >= 0 && state->in_dev < (int)state->midi_devices.size())
-           ? state->midi_devices[state->in_dev]
-           : "");
-   write_key_val(
-       f, "out_dev",
-       (state->out_dev >= 0 && state->out_dev < (int)state->midi_devices.size())
-           ? state->midi_devices[state->out_dev]
-           : "");
-   write_key_val(f, "midi_forward", state->midi_forward ? "true" : "false");
+    write_key_val(f, "in_dev",  state->in_dev);
+    write_key_val(f, "out_dev", state->out_dev);
+    write_key_val(f, "midi_forward", state->midi_forward ? "true" : "false");
 }
+
 
 static key_sig parse_key(const std::string &token)
 {

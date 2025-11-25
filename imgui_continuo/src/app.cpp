@@ -20,7 +20,7 @@
 #include <cstdio>
 #include <span>
 
-void init_state(struct state *state)
+void app_init(struct state *state)
 {
    global_tune = 1;
 
@@ -59,66 +59,65 @@ static void draw_midi_top_row(struct state *state, const float bw)
 
 static void draw_midi_in_row(struct state *state, const float bw)
 {
-   const char *midi_in_label = state->midi_in ? "Disconnect In" : "Connect In";
-   if (ImGui::Button(midi_in_label, ImVec2(bw, 0))) {
-      if (state->midi_in)
-         deinit_midi_in(state);
-      else {
-         state->in_dev = state->selected_device_index;
-         init_midi_in(state);
-      }
-   }
+    const bool connected = (bool)state->midi_in;
+    const char *label = connected ? "Disconnect In" : "Connect In";
 
-   ImGui::SameLine();
+    if (ImGui::Button(label, ImVec2(bw, 0))) {
+        if (connected) {
+            deinit_midi_in(state);
+        } else {
+            state->in_dev = state->selected_device;
+            init_midi_in(state);
+        }
+    }
 
-   std::string in_text;
-   if (state->in_dev >= 0 && state->in_dev < (int)state->midi_devices.size())
-      in_text = state->midi_devices[state->in_dev];
-   else
-      in_text = "(No input device selected.)";
-   ImGui::TextUnformatted(in_text.c_str());
+    ImGui::SameLine();
+    ImGui::TextUnformatted(
+        state->in_dev.empty() ? "(No input device selected.)"
+                              : state->in_dev.c_str());
 }
 
 static void draw_midi_out_row(struct state *state, const float bw)
 {
-   const char *midi_out_label =
-       state->midi_out ? "Disconnect Out" : "Connect Out";
-   if (ImGui::Button(midi_out_label, ImVec2(bw, 0))) {
-      if (state->midi_out)
-         deinit_midi_out(state);
-      else {
-         state->out_dev = state->selected_device_index;
-         init_midi_out(state);
-         test_midi_out(state);
-      }
-   }
+    const bool connected = (bool)state->midi_out;
+    const char *label = connected ? "Disconnect Out" : "Connect Out";
 
-   ImGui::SameLine();
+    if (ImGui::Button(label, ImVec2(bw, 0))) {
+        if (connected) {
+            deinit_midi_out(state);
+        } else {
+            state->out_dev = state->selected_device;
+            init_midi_out(state);
+            test_midi_out(state);
+        }
+    }
 
-   std::string out_text = {};
-   if (state->out_dev >= 0 && state->out_dev < (int)state->midi_devices.size())
-      out_text += state->midi_devices[state->out_dev];
-   else
-      out_text += "(No output device selected.)";
-   ImGui::TextUnformatted(out_text.c_str());
+    ImGui::SameLine();
+    ImGui::TextUnformatted(
+        state->out_dev.empty() ? "(No output device selected.)"
+                               : state->out_dev.c_str());
 }
 
 static void draw_midi_device_list(struct state *state)
 {
-   const ImGuiIO &io    = ImGui::GetIO();
-   float listbox_height = io.DisplaySize.y - 6 * STYLE_BTN_H;
-   ImVec2 size(ImGui::GetContentRegionAvail().x, listbox_height);
+    const ImGuiIO &io = ImGui::GetIO();
+    float listbox_height = io.DisplaySize.y - 6 * STYLE_BTN_H;
 
-   if (ImGui::BeginListBox("##midi_list", size)) {
-      for (int i = 0; i < (int)state->midi_devices.size(); i++) {
-         bool selected = (state->selected_device_index == i);
-         if (ImGui::Selectable(state->midi_devices[i].c_str(), selected)) {
-            state->selected_device_index = i;
-            state->status = "Selected MIDI device: " + state->midi_devices[i];
-         }
-      }
-      ImGui::EndListBox();
-   }
+    if (ImGui::BeginListBox("##midi_list",
+                            ImVec2(ImGui::GetContentRegionAvail().x,
+                                   listbox_height))) {
+
+        for (auto &dev : state->midi_devices) {
+            bool selected = (dev == state->selected_device);
+
+            if (ImGui::Selectable(dev.c_str(), selected)) {
+                state->selected_device = dev;
+                state->status = "Selected MIDI device: " + dev;
+            }
+        }
+
+        ImGui::EndListBox();
+    }
 }
 
 static void app_status_bar(struct state *state)
@@ -316,7 +315,7 @@ static void app_main_screen(struct state *state)
    app_status_bar(state);
 }
 
-void render_ui(struct state *state)
+void app_render(struct state *state)
 {
    ImGui::SetNextWindowPos(ImVec2(0, 0));
    const ImGuiIO &io = ImGui::GetIO();

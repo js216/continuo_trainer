@@ -55,7 +55,7 @@ int main(void)
    ImGui_ImplOpenGL3_Init("#version 130");
 
    struct state state = {};
-   init_state(&state);
+   app_init(&state);
 
    while (handle_events(&state)) {
       poll_midi(&state);
@@ -65,7 +65,7 @@ int main(void)
       ImGui_ImplSDL2_NewFrame();
       ImGui::NewFrame();
 
-      render_ui(&state);
+      app_render(&state);
 
       ImGui::Render();
       glClear(GL_COLOR_BUFFER_BIT);

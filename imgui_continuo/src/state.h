@@ -53,9 +53,9 @@ struct state {
 
    // MIDI devices and data
    std::vector<std::string> midi_devices;
-   int in_dev                = -1;
-   int out_dev               = -1;
-   int selected_device_index = -1;
+   std::string in_dev;
+   std::string out_dev;
+   std::string selected_device;
    std::unique_ptr<RtMidiIn> midi_in;
    std::unique_ptr<RtMidiOut> midi_out;
    std::vector<unsigned char> pressed_notes;
