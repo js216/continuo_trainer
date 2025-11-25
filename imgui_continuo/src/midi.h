@@ -12,11 +12,11 @@
 #include "state.h"
 
 void refresh_midi_devices(struct state *state);
-
-void init_midi(struct state *state);
-
-void deinit_midi(struct state *state);
-
+void init_midi_in(struct state *state);
+void init_midi_out(struct state *state);
+void deinit_midi_in(struct state *state);
+void deinit_midi_out(struct state *state);
+void test_midi_out(struct state *state);
 void poll_midi(struct state *state);
 
 #endif // MIDI_H

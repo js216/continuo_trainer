@@ -31,9 +31,10 @@ struct column {
 
 struct state {
    // program general
-   std::string config_file;
    std::string status;
    ImFont *music_font;
+   bool midi_menu_open;
+   bool midi_forward;
 
    // lesson info
    bool edit_lesson;
@@ -52,8 +53,11 @@ struct state {
 
    // MIDI devices and data
    std::vector<std::string> midi_devices;
-   int selected_device = -1;
+   int in_dev = -1;
+   int out_dev = -1;
+   int selected_device_index = -1;
    std::unique_ptr<RtMidiIn> midi_in;
+   std::unique_ptr<RtMidiOut> midi_out;
    std::vector<unsigned char> pressed_notes;
 };
 
