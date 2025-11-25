@@ -64,14 +64,6 @@ struct state {
 // global state for debug only
 extern float global_tune;
 
-void state_load(struct state *state);
-void state_save(const struct state *state);
 void state_clear_lesson(struct state *state);
-std::string state_lesson_fname(const int id);
-void state_read_lesson(struct state *state);
-void state_write_lesson(struct state *state);
-int state_load_last_lesson_id(const char *fname);
-void parse_figures_token(const std::string &token,
-                         std::vector<figure> &figures);
 
 #endif /* STATE_H */

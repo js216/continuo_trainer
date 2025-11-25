@@ -7,6 +7,7 @@
  */
 
 #include "app.h"
+#include "db.h"
 #include "imgui.h"
 #include "logic.h"
 #include "midi.h"
@@ -23,11 +24,11 @@ void init_state(struct state *state)
 {
    global_tune = 1;
 
-   state->lesson_id = state_load_last_lesson_id("attempts.log");
+   state->lesson_id = db_load_last_lesson_id("attempts.log");
    logic_clear(state);
 
    refresh_midi_devices(state);
-   state_load(state);
+   db_load(state);
 
    init_midi_in(state);
    init_midi_out(state);
@@ -173,7 +174,7 @@ static void app_figures_entry(state *state)
 
       struct column &col = state->chords[state->active_col - 1];
       col.figures.clear();
-      parse_figures_token(state->figs_entry, col.figures);
+      db_parse_figures_token(state->figs_entry, col.figures);
    }
 }
 
@@ -224,7 +225,7 @@ static void app_buttons(struct state *state)
    const char *btn_label = state->edit_lesson ? "Save" : "Edit";
    if (ImGui::Button(btn_label, ImVec2(bw, 0))) {
       if (state->edit_lesson) {
-         state_write_lesson(state);
+         db_write_lesson(state);
          state->edit_lesson = false;
       } else {
          state->edit_lesson = true;

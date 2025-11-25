@@ -9,6 +9,7 @@
 #include "app.h"
 #include "backends/imgui_impl_opengl3.h"
 #include "backends/imgui_impl_sdl2.h"
+#include "db.h"
 #include "imgui.h"
 #include "midi.h"
 #include "notes.h"
@@ -25,7 +26,7 @@ static bool handle_events(struct state *state)
    while (SDL_PollEvent(&event)) {
       ImGui_ImplSDL2_ProcessEvent(&event);
       if (event.type == SDL_QUIT) {
-         state_save(state);
+         db_save(state);
          return false;
       }
    }
