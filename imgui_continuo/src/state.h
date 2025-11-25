@@ -10,15 +10,14 @@
 #define STATE_H
 
 #include "RtMidi.h"
-#include "imgui.h"
 #include "theory.h"
 #include <memory>
-#include <sstream>
 #include <string>
-#include <unordered_set>
 #include <vector>
 
 #define MAX_STRING 512
+
+struct ImFont;
 
 struct state {
    // program general

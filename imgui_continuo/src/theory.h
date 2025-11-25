@@ -9,8 +9,8 @@
 #ifndef THEORY_H
 #define THEORY_H
 
+#include <cstddef>
 #include <string>
-#include <unordered_map>
 #include <unordered_set>
 #include <vector>
 
@@ -89,6 +89,13 @@ enum accidental { ACC_NONE, ACC_SHARP, ACC_FLAT, ACC_NATURAL, ACC_NUM };
 struct figure {
    int num;
    enum accidental acc;
+};
+
+struct attempt_record {
+   double time;
+   size_t good_count;
+   size_t bad_count;
+   int lesson_id;
 };
 
 struct column {

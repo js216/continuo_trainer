@@ -10,15 +10,9 @@
 #include "calc.h"
 #include "db.h"
 #include "theory.h"
-#include "util.h"
 #include <algorithm>
-#include <chrono>
-#include <fstream>
-#include <iomanip>
-#include <sstream>
+#include <iterator>
 #include <string>
-#include <unordered_map>
-#include <unordered_set>
 #include <vector>
 
 // global state for debug only

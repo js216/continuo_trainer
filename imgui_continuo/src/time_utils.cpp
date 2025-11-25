@@ -9,8 +9,12 @@
 #include "time_utils.h"
 #include <array>
 #include <chrono>
+#include <cstdint>
 #include <cstdio>
+#include <ctime>
 #include <string>
+
+struct tm;
 
 double time_now(void)
 {

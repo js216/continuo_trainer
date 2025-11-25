@@ -11,12 +11,15 @@
 #include "time_utils.h"
 #include "util.h"
 #include <algorithm>
+#include <cctype>
+#include <cstddef>
 #include <filesystem>
 #include <fstream>
 #include <iomanip>
-#include <iostream>
-#include <map>
+#include <sstream>
 #include <string>
+#include <unordered_set>
+#include <utility>
 
 const char *config_file   = "settings.ini";
 const char *attempts_file = "attempts.log";
@@ -171,7 +174,7 @@ static void parse_column_line(const std::string &line, struct column &col)
    std::string answer_token;
 
    if (!(iss >> bass_token >> figures_token >> answer_token)) {
-      ERROR("Invalid column line: " + line);
+      error("Invalid column line: " + line);
       return;
    }
 
@@ -365,7 +368,7 @@ void db_store_attempt(const int lesson_id, const struct column &col)
 {
    std::ofstream ofs(attempts_file, std::ios::app);
    if (!ofs.is_open()) {
-      ERROR("Cannot open attempts file");
+      error("Cannot open attempts file");
       return;
    }
 

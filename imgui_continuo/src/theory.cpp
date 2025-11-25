@@ -8,10 +8,13 @@
 
 #include "theory.h"
 #include "util.h"
-#include <array>
+#include <cctype>
+#include <cstdint>
 #include <sstream>
 #include <string>
+#include <unordered_map>
 #include <unordered_set>
+#include <utility>
 
 std::string key_sig_to_string(const enum key_sig k)
 {
@@ -243,7 +246,7 @@ key_sig parse_key(const std::string &token)
    if (it != key_map.end())
       return it->second;
 
-   ERROR("Unknown key: " + token);
+   error("Unknown key: " + token);
    return KEY_SIG_0; // fallback
 }
 
@@ -286,7 +289,7 @@ std::vector<figure> db_parse_figures_from_str(const std::string &token)
       if (ok)
          fig.num = value;
       else
-         ERROR("Invalid figure number: " + part);
+         error("Invalid figure number: " + part);
 
       figures.push_back(fig);
    }
@@ -348,6 +351,6 @@ midi_note parse_midi_note(const std::string &token)
    if (it != note_map.end())
       return it->second;
 
-   ERROR("Unknown note: " + token);
+   error("Unknown note: " + token);
    return NOTES_E2; // fallback
 }

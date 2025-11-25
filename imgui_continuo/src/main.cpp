@@ -6,18 +6,24 @@
  * @author Jakob Kastelic
  */
 
+#include "RtMidi.h"
+#include "SDL_events.h"
+#include "SDL_timer.h"
+#include "SDL_video.h"
 #include "app.h"
 #include "backends/imgui_impl_opengl3.h"
 #include "backends/imgui_impl_sdl2.h"
-#include "db.h"
 #include "imgui.h"
+#include "logic.h"
 #include "midi.h"
-#include "notes.h"
 #include "state.h"
+#include "theory.h"
 #include <SDL.h>
 #include <SDL_opengl.h>
 #include <filesystem>
-#include <span>
+#include <memory>
+#include <string>
+#include <vector>
 
 static bool handle_events(struct state *state)
 {

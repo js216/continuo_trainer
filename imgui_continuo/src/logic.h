@@ -9,9 +9,6 @@
 #ifndef LOGIC_H
 #define LOGIC_H
 
-#include "state.h"
-#include <stddef.h>
-
 void logic_clear(struct state *state);
 
 void logic_receive(struct state *state);

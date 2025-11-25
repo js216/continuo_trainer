@@ -9,8 +9,10 @@
 #ifndef CALC_H
 #define CALC_H
 
-#include "db.h"
+#include <stddef.h>
 #include <vector>
+
+struct attempt_record;
 
 int calc_lesson_streak(const std::vector<attempt_record> &attempts,
                        int lesson_id, size_t chords_per_lesson);

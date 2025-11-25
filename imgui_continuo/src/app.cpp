@@ -14,11 +14,13 @@
 #include "notes.h"
 #include "state.h"
 #include "style.h"
+#include "theory.h"
 #include "time_utils.h"
-#include "util.h"
 #include <algorithm>
-#include <cstdio>
-#include <span>
+#include <cstring>
+#include <memory>
+#include <string>
+#include <vector>
 
 void app_init(struct state *state)
 {

@@ -9,10 +9,6 @@
 #ifndef APP_H
 #define APP_H
 
-#include "logic.h"
-#include "notes.h"
-#include <stddef.h>
-
 void app_init(struct state *state);
 void app_render(struct state *state);
 

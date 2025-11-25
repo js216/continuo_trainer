@@ -42,7 +42,7 @@ imgui/%.o: imgui/%.cpp
 
 # Testing and linting
 
-check: format cppcheck tidy inclusions
+check: format cppcheck tidy inclusions iwyu
 
 format:
 	clang-format --dry-run -Werror $(SRC)
@@ -62,9 +62,20 @@ inclusions: $(INC_SRCS) scripts/inclusions.py
 	dot -Tpdf $(GRAPH_FILE) -o $(PDF_FILE) ; \
 	exit $$PYTHON_EXIT
 
+iwyu:
+
+iwyu:
+	@set -e; \
+	for f in $(SRC); do \
+	include-what-you-use -Xiwyu --error=1 \
+	-Xiwyu --no_comments \
+	-Xiwyu --quoted_includes_first \
+	$$f $(CPPFLAGS); \
+	done
+
 # General
 
-.PHONY: all clean check format cppcheck tidy inclusions
+.PHONY: all clean check format cppcheck tidy inclusions iwyu
 
 clean:
 	rm -f $(LIB_OBJS) $(OBJS) $(TARGET) compile_commands.json

@@ -10,7 +10,6 @@
 #define STYLE_H
 
 #include <cstdint>
-#include <imgui.h>
 
 #define STYLE_LINE_THICKNESS 1.5F
 

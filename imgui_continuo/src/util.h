@@ -9,11 +9,8 @@
 #ifndef UTIL_H
 #define UTIL_H
 
-#include <iostream>
+#include <string>
 
-#define ERROR(msg)                                                             \
-   do {                                                                        \
-      std::cerr << "ERROR: " << msg << "\n";                                   \
-   } while (0)
+void error(const std::string &msg);
 
 #endif // UTIL_H

@@ -9,21 +9,12 @@
 #include "logic.h"
 #include "db.h"
 #include "state.h"
+#include "theory.h"
 #include "time_utils.h"
 #include "util.h"
 #include <algorithm>
-#include <chrono>
-#include <cstddef>
-#include <cstdlib>
-#include <filesystem>
-#include <fstream>
-#include <iomanip>
-#include <iostream>
-#include <iterator>
-#include <map>
-#include <random>
-#include <sstream>
 #include <string>
+#include <unordered_set>
 #include <vector>
 
 void logic_clear(struct state *state)
@@ -57,7 +48,12 @@ static bool logic_adjudicate(const struct column &col,
       return realized_pc == (int(n) % 12);
    };
 
-   return std::ranges::any_of(col.answer, matches_pc);
+   // replace std::ranges::any_of with manual loop
+   for (auto n : col.answer) {
+      if (matches_pc(n))
+         return true;
+   }
+   return false;
 }
 
 static void process_note(struct state *state, midi_note realization)
@@ -66,13 +62,15 @@ static void process_note(struct state *state, midi_note realization)
       state->chords.emplace_back();
 
    if (state->active_col >= state->chords.size()) {
-      ERROR("active_col out of range!");
+      error("active_col out of range!");
       return;
    }
 
    struct column &col = state->chords[state->active_col];
 
-   if (col.good.contains(realization) || col.bad.contains(realization))
+   // replace unordered_set::contains with find
+   if (col.good.find(realization) != col.good.end() ||
+       col.bad.find(realization) != col.bad.end())
       return;
 
    if (logic_adjudicate(col, realization))

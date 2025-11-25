@@ -7,3 +7,10 @@
  */
 
 #include "util.h"
+#include <iostream>
+#include <string>
+
+void error(const std::string &msg)
+{
+   std::cerr << "ERROR: " << msg << "\n";
+}

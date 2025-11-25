@@ -13,13 +13,6 @@
 #include <string>
 #include <vector>
 
-struct attempt_record {
-   double time;
-   size_t good_count;
-   size_t bad_count;
-   int lesson_id;
-};
-
 // settings key:value pairs
 void db_store_key_val(const std::string &key, const std::string &value);
 std::string db_load_key_val(const std::string &wanted_key);

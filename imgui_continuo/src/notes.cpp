@@ -10,12 +10,14 @@
 #include "imgui.h"
 #include "state.h"
 #include "style.h"
+#include "theory.h"
 #include <array>
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
-#include <ranges>
-#include <span>
+#include <string>
+#include <unordered_set>
+#include <vector>
 
 static const char *acc_sym(enum accidental a)
 {

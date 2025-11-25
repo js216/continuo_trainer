@@ -11,7 +11,8 @@
 #include "state.h"
 #include "util.h"
 #include <array>
-#include <span>
+#include <cfloat>
+#include <string>
 
 void set_font(struct state *state)
 {
@@ -31,7 +32,7 @@ void set_font(struct state *state)
                                                     &config, ranges.data());
 
    if (!state->music_font)
-      ERROR("Failed to load music font Bravura.otf\n");
+      error("Failed to load music font Bravura.otf\n");
 }
 
 void set_style(void)
@@ -88,7 +89,7 @@ void set_style(void)
 
 void dark_mode(void)
 {
-   std::span<ImVec4> colors(ImGui::GetStyle().Colors, ImGuiCol_COUNT);
+   ImVec4 *colors = ImGui::GetStyle().Colors;
 
    // background colors
    colors[ImGuiCol_WindowBg] = ImVec4(0.11F, 0.11F, 0.13F, 1.00F);

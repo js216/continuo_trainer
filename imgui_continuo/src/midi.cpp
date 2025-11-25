@@ -8,11 +8,13 @@
 
 #include "RtMidi.h"
 #include "state.h"
+#include "theory.h"
 #include <algorithm>
 #include <chrono>
-#include <cstring>
+#include <memory>
 #include <string>
 #include <thread>
+#include <vector>
 
 void refresh_midi_devices(struct state *state)
 {
