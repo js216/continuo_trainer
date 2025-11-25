@@ -20,15 +20,6 @@
 
 #define MAX_STRING 512
 
-struct column {
-   std::unordered_set<midi_note> bass;
-   std::vector<struct figure> figures;
-   std::unordered_set<midi_note> answer;
-   std::unordered_set<midi_note> good;
-   std::unordered_set<midi_note> bad;
-   double time;
-};
-
 struct state {
    // program general
    std::string status;
@@ -39,7 +30,7 @@ struct state {
    // lesson info
    bool edit_lesson;
    int lesson_id;
-   char lesson_title[MAX_STRING];
+   std::string lesson_title;
    enum key_sig key;
    std::vector<struct column> chords;
    unsigned int active_col;
@@ -64,6 +55,14 @@ struct state {
 // global state for debug only
 extern float global_tune;
 
+void state_save_settings(const struct state *state);
+void state_load_settings(struct state *state);
+
 void state_clear_lesson(struct state *state);
+void state_load_lesson(struct state *state);
+void state_store_lesson(struct state *state);
+
+// stats
+void state_reload_stats(struct state *state);
 
 #endif /* STATE_H */

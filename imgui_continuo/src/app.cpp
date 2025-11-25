@@ -24,11 +24,11 @@ void app_init(struct state *state)
 {
    global_tune = 1;
 
-   state->lesson_id = db_load_last_lesson_id("attempts.log");
+   state->lesson_id = db_load_last_lesson_id();
    logic_clear(state);
 
    refresh_midi_devices(state);
-   db_load(state);
+   state_load_settings(state);
 
    init_midi_in(state);
    init_midi_out(state);
@@ -59,65 +59,64 @@ static void draw_midi_top_row(struct state *state, const float bw)
 
 static void draw_midi_in_row(struct state *state, const float bw)
 {
-    const bool connected = (bool)state->midi_in;
-    const char *label = connected ? "Disconnect In" : "Connect In";
+   const bool connected = (bool)state->midi_in;
+   const char *label    = connected ? "Disconnect In" : "Connect In";
 
-    if (ImGui::Button(label, ImVec2(bw, 0))) {
-        if (connected) {
-            deinit_midi_in(state);
-        } else {
-            state->in_dev = state->selected_device;
-            init_midi_in(state);
-        }
-    }
+   if (ImGui::Button(label, ImVec2(bw, 0))) {
+      if (connected) {
+         deinit_midi_in(state);
+      } else {
+         state->in_dev = state->selected_device;
+         init_midi_in(state);
+      }
+   }
 
-    ImGui::SameLine();
-    ImGui::TextUnformatted(
-        state->in_dev.empty() ? "(No input device selected.)"
-                              : state->in_dev.c_str());
+   ImGui::SameLine();
+   ImGui::TextUnformatted(state->in_dev.empty() ? "(No input device selected.)"
+                                                : state->in_dev.c_str());
 }
 
 static void draw_midi_out_row(struct state *state, const float bw)
 {
-    const bool connected = (bool)state->midi_out;
-    const char *label = connected ? "Disconnect Out" : "Connect Out";
+   const bool connected = (bool)state->midi_out;
+   const char *label    = connected ? "Disconnect Out" : "Connect Out";
 
-    if (ImGui::Button(label, ImVec2(bw, 0))) {
-        if (connected) {
-            deinit_midi_out(state);
-        } else {
-            state->out_dev = state->selected_device;
-            init_midi_out(state);
-            test_midi_out(state);
-        }
-    }
+   if (ImGui::Button(label, ImVec2(bw, 0))) {
+      if (connected) {
+         deinit_midi_out(state);
+      } else {
+         state->out_dev = state->selected_device;
+         init_midi_out(state);
+         test_midi_out(state);
+      }
+   }
 
-    ImGui::SameLine();
-    ImGui::TextUnformatted(
-        state->out_dev.empty() ? "(No output device selected.)"
-                               : state->out_dev.c_str());
+   ImGui::SameLine();
+   ImGui::TextUnformatted(state->out_dev.empty()
+                              ? "(No output device selected.)"
+                              : state->out_dev.c_str());
 }
 
 static void draw_midi_device_list(struct state *state)
 {
-    const ImGuiIO &io = ImGui::GetIO();
-    float listbox_height = io.DisplaySize.y - 6 * STYLE_BTN_H;
+   const ImGuiIO &io    = ImGui::GetIO();
+   float listbox_height = io.DisplaySize.y - 6 * STYLE_BTN_H;
 
-    if (ImGui::BeginListBox("##midi_list",
-                            ImVec2(ImGui::GetContentRegionAvail().x,
-                                   listbox_height))) {
+   if (ImGui::BeginListBox(
+           "##midi_list",
+           ImVec2(ImGui::GetContentRegionAvail().x, listbox_height))) {
 
-        for (auto &dev : state->midi_devices) {
-            bool selected = (dev == state->selected_device);
+      for (auto &dev : state->midi_devices) {
+         bool selected = (dev == state->selected_device);
 
-            if (ImGui::Selectable(dev.c_str(), selected)) {
-                state->selected_device = dev;
-                state->status = "Selected MIDI device: " + dev;
-            }
-        }
+         if (ImGui::Selectable(dev.c_str(), selected)) {
+            state->selected_device = dev;
+            state->status          = "Selected MIDI device: " + dev;
+         }
+      }
 
-        ImGui::EndListBox();
-    }
+      ImGui::EndListBox();
+   }
 }
 
 static void app_status_bar(struct state *state)
@@ -173,7 +172,7 @@ static void app_figures_entry(state *state)
 
       struct column &col = state->chords[state->active_col - 1];
       col.figures.clear();
-      db_parse_figures_token(state->figs_entry, col.figures);
+      col.figures = db_parse_figures_from_str(state->figs_entry);
    }
 }
 
@@ -212,7 +211,12 @@ static void app_buttons(struct state *state)
    bw = ImGui::GetContentRegionAvail().x / 4;
 
    ImGui::PushItemWidth(2 * bw);
-   ImGui::InputText("##lesson_title", state->lesson_title, MAX_STRING);
+   state->lesson_title.resize(MAX_STRING); // ensure enough space
+   if (ImGui::InputText("##lesson_title", state->lesson_title.data(),
+                        MAX_STRING)) {
+      // optionally trim to actual string length
+      state->lesson_title.resize(strlen(state->lesson_title.c_str()));
+   }
    ImGui::PopItemWidth();
 
    ImGui::SameLine();
@@ -224,7 +228,7 @@ static void app_buttons(struct state *state)
    const char *btn_label = state->edit_lesson ? "Save" : "Edit";
    if (ImGui::Button(btn_label, ImVec2(bw, 0))) {
       if (state->edit_lesson) {
-         db_write_lesson(state);
+         state_store_lesson(state);
          state->edit_lesson = false;
       } else {
          state->edit_lesson = true;
@@ -262,7 +266,7 @@ static void stats_today(struct state *state)
    std::string duration_str = time_format(state->duration_today);
    double max_duration      = 3600.0; // 1 hour for progress bar
    ImGui::ProgressBar(
-       std::clamp((float)state->duration_today / max_duration, 0.0, 1.0),
+       (float)std::clamp(state->duration_today / max_duration, 0.0, 1.0),
        ImVec2(-1, bar_h),
        duration_str.c_str() // overlay text
    );

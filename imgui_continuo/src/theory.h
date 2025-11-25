@@ -10,6 +10,9 @@
 #define THEORY_H
 
 #include <string>
+#include <unordered_map>
+#include <unordered_set>
+#include <vector>
 
 #define NOTES_OUT_OF_RANGE (-100)
 
@@ -88,6 +91,15 @@ struct figure {
    enum accidental acc;
 };
 
+struct column {
+   std::unordered_set<midi_note> bass;
+   std::vector<struct figure> figures;
+   std::unordered_set<midi_note> answer;
+   std::unordered_set<midi_note> good;
+   std::unordered_set<midi_note> bad;
+   double time;
+};
+
 std::string key_sig_to_string(enum key_sig);
 std::string midi_to_name(enum midi_note n);
 std::string fig_to_string(const struct figure &f);
@@ -95,5 +107,10 @@ enum accidental key_sig_accidental(enum key_sig key, midi_note n);
 int note_to_bass(const enum midi_note n, const enum key_sig k);
 int note_to_treble(const enum midi_note n, const enum key_sig k);
 int key_sig_acc_count(enum key_sig key);
+
+// string parsing
+key_sig parse_key(const std::string &token);
+std::vector<figure> db_parse_figures_from_str(const std::string &token);
+midi_note parse_midi_note(const std::string &token);
 
 #endif /* THEORY_H */

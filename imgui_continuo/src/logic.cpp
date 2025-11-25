@@ -31,10 +31,10 @@ void logic_clear(struct state *state)
    if (state->lesson_id <= 0)
       state->lesson_id = 1;
 
-   if (std::filesystem::exists(db_lesson_fname(state->lesson_id))) {
+   if (db_lesson_exists(state->lesson_id)) {
       // load lesson
       state->edit_lesson = false;
-      db_read_lesson(state);
+      state_load_lesson(state);
       state->status = "Loaded lesson " + std::to_string(state->lesson_id);
    } else {
       // enter edit mode
@@ -42,7 +42,7 @@ void logic_clear(struct state *state)
       state->edit_lesson = true;
    }
 
-   db_reload_stats(state);
+   state_reload_stats(state);
 }
 
 static bool logic_adjudicate(const struct column &col,
