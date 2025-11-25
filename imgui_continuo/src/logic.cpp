@@ -22,6 +22,8 @@
 #include <sstream>
 #include <string>
 #include <vector>
+#include <chrono>
+#include <map>
 
 struct attempt_info {
    double time;
@@ -33,43 +35,43 @@ struct attempt_info {
 static bool parse_attempt_line(const std::string &line,
                                struct attempt_info &out)
 {
-   if (line.empty())
-      return false;
+    if (line.empty())
+        return false;
 
-   std::istringstream iss(line);
+    std::istringstream iss(line);
 
-   // timestamp
-   double t = 0.0;
-   iss >> t;
-   if (iss.fail() || !time_is_today(t))
-      return false;
+    // timestamp
+    double t = 0.0;
+    iss >> t;
+    if (iss.fail())
+        return false;
+    out.time = t;
 
-   // lesson id
-   iss >> out.lesson_id;
+    // lesson id
+    iss >> out.lesson_id;
 
-   // skip the next three fields (bass, figures, answer)
-   std::string ignore;
-   for (int i = 0; i < 3 && iss; ++i)
-      iss >> ignore;
+    // skip bass, figures, answer
+    std::string ignore;
+    for (int i = 0; i < 3 && iss; ++i)
+        iss >> ignore;
 
-   // good notes
-   std::string good_notes;
-   iss >> good_notes;
-   out.good_count =
-       (good_notes == "-")
-           ? 0
-           : std::count(good_notes.begin(), good_notes.end(), ',') + 1;
+    // good notes
+    std::string good_notes;
+    iss >> good_notes;
+    out.good_count =
+        (good_notes == "-")
+            ? 0
+            : std::count(good_notes.begin(), good_notes.end(), ',') + 1;
 
-   // bad notes
-   std::string bad_notes;
-   iss >> bad_notes;
-   out.bad_count =
-       (bad_notes == "-")
-           ? 0
-           : std::count(bad_notes.begin(), bad_notes.end(), ',') + 1;
+    // bad notes
+    std::string bad_notes;
+    iss >> bad_notes;
+    out.bad_count =
+        (bad_notes == "-")
+            ? 0
+            : std::count(bad_notes.begin(), bad_notes.end(), ',') + 1;
 
-   out.time = t;
-   return true;
+    return true;
 }
 
 static void accumulate_duration_today(struct state *state, double dt)
@@ -117,6 +119,8 @@ static int compute_lesson_streak(std::ifstream &f, int lesson_id,
         attempt_info cur{};
         if (!parse_attempt_line(line, cur))
             continue;
+        if (!time_is_today(cur.time))
+           continue;
 
         // Skip lines from other lessons
         if (cur.lesson_id != lesson_id)
@@ -144,6 +148,61 @@ static int compute_lesson_streak(std::ifstream &f, int lesson_id,
     return streak;
 }
 
+static int compute_practice_streak()
+{
+    std::ifstream f("attempts.log");
+    if (!f.is_open())
+        return 0;
+
+    // map from day (YYYYMMDD) -> total duration
+    std::map<int, double> duration_by_day;
+
+    std::string line;
+    attempt_info last{-1.0,0,0,0};
+
+    while (std::getline(f, line)) {
+        attempt_info cur{};
+        if (!parse_attempt_line(line, cur))
+            continue;
+
+        // Convert cur.time (unix timestamp) to YYYYMMDD integer
+        std::time_t t = static_cast<std::time_t>(cur.time);
+        std::tm tm = *std::localtime(&t);
+        int yyyymmdd = (tm.tm_year+1900)*10000 + (tm.tm_mon+1)*100 + tm.tm_mday;
+
+        if (last.time >= 0.0 && static_cast<int>( (std::time_t)last.time ) != static_cast<int>( (std::time_t)cur.time )) {
+            double dt = cur.time - last.time;
+            if (dt > 5.0)
+                dt = 5.0;
+            duration_by_day[yyyymmdd] += dt;
+        }
+
+        last = cur;
+    }
+
+    // Count consecutive days from today backwards where duration > 600s
+    int streak = 0;
+    std::time_t now = std::time(nullptr);
+    std::tm tm_now = *std::localtime(&now);
+    int today_yyyymmdd = (tm_now.tm_year+1900)*10000 + (tm_now.tm_mon+1)*100 + tm_now.tm_mday;
+
+    for (int day = today_yyyymmdd; ; --day) {
+        auto it = duration_by_day.find(day);
+        if (it == duration_by_day.end() || it->second < 600.0)
+            break;
+        streak++;
+        // decrement day manually
+        std::tm t = {};
+        t.tm_year = day/10000 - 1900;
+        t.tm_mon = (day/100)%100 - 1;
+        t.tm_mday = day%100;
+        std::time_t tt = std::mktime(&t) - 24*3600;  // go back 1 day
+        std::tm tm_prev = *std::localtime(&tt);
+        day = (tm_prev.tm_year+1900)*10000 + (tm_prev.tm_mon+1)*100 + tm_prev.tm_mday + 1; // +1 because loop will decrement
+    }
+
+    return streak;
+}
 
 static void logic_reload_stats(struct state *state)
 {
@@ -162,6 +221,8 @@ static void logic_reload_stats(struct state *state)
         struct attempt_info cur{};
         if (!parse_attempt_line(line, cur))
             continue;
+        if (!time_is_today(cur.time))
+           continue;
 
         if (last.time >= 0.0) {
             double dt = cur.time - last.time;
@@ -177,6 +238,9 @@ static void logic_reload_stats(struct state *state)
     int chords_per_lesson = state->chords.size();
     state->lesson_streak = compute_lesson_streak(f, state->lesson_id,
                                                  chords_per_lesson);
+
+    // Practice streak
+    state->practice_streak = compute_practice_streak();
 }
 
 

@@ -1,8 +1,9 @@
-CFLAGS  = -Iimgui -Irtmidi -Isrc -Wall -Wextra -std=c++20 \
-	  `pkg-config --cflags sdl2` -MMD -MF $(@:.o=.d) \
-	  -g -fsanitize=address -fno-omit-frame-pointer -g
+CPPFLAGS = -Iimgui -Irtmidi -Isrc `pkg-config --cflags sdl2`
 
-LDFLAGS = `pkg-config --libs sdl2` -lGL -lasound -lpthread -fsanitize=address
+CXXFLAGS  = -Wall -Wextra -std=c++20 \
+	  -g -fsanitize=address -fno-omit-frame-pointer
+
+LDFLAGS = -lGL -lasound -lpthread -fsanitize=address `pkg-config --libs sdl2`
 
 # Files
 
@@ -10,6 +11,9 @@ TARGET  = continuo_trainer
 SRC = $(wildcard src/*.cpp)
 HDRS = $(wildcard src/*.h src/*.hpp)
 OBJS = $(SRC:.cpp=.o)
+
+GRAPH_FILE = inclusions.dot
+PDF_FILE = inclusions.pdf
 
 LIB_OBJS = \
 	rtmidi/RtMidi.o \
@@ -27,16 +31,16 @@ all: $(TARGET)
 $(TARGET): $(LIB_OBJS) $(OBJS)
 	$(CXX) -o $@ $^ $(LDFLAGS)
 
-%.o: %.cpp
-	$(CXX) $(CFLAGS) -c $< -o $@
-
 rtmidi/RtMidi.o: rtmidi/RtMidi.cpp
-	$(CXX) -Wall -D__LINUX_ALSA__ -c $< -o $@
+	$(CXX) $(CXXFLAGS) -Wall -D__LINUX_ALSA__ -c $< -o $@
+
+imgui/%.o: imgui/%.cpp
+	$(CXX) $(CPPFLAGS) $(CXXFLAGS) -c $< -o $@
+
+%.o: %.cpp
+	$(CXX) $(CPPFLAGS) $(CXXFLAGS) -MMD -MF $(@:.o=.d) -c $< -o $@
 
 # Testing and linting
-
-GRAPH_FILE = inclusions.dot
-PDF_FILE = inclusions.pdf
 
 check: format cppcheck tidy inclusions
 
@@ -68,4 +72,3 @@ clean:
 	rm -f src/*.d
 
 -include $(OBJS:.o=.d)
--include $(LIB_OBJS:.o=.d)
