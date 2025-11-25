@@ -42,6 +42,7 @@ struct state {
    enum key_sig key;
    std::vector<struct column> chords;
    unsigned int active_col;
+   char figs_entry[MAX_STRING];
 
    // stats
    double score;
@@ -64,5 +65,7 @@ std::string state_lesson_fname(const int id);
 void state_read_lesson(struct state *state);
 void state_write_lesson(struct state *state);
 int state_load_last_lesson_id(const char *fname);
+void parse_figures_token(const std::string &token,
+                                std::vector<figure> &figures);
 
 #endif /* STATE_H */

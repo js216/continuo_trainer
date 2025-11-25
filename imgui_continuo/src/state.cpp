@@ -89,7 +89,7 @@ static key_sig parse_key(const std::string &token)
    return KEY_SIG_0; // fallback
 }
 
-static void parse_figures_token(const std::string &token,
+void parse_figures_token(const std::string &token,
                                 std::vector<figure> &figures)
 {
    if (token == "-")
@@ -286,6 +286,7 @@ void state_write_lesson(struct state *state)
 
    // Lesson title
    out << "title: " << state->lesson_title << "\n";
+
    // Key signature
    out << "key: " << key_sig_to_string(state->key) << "\n\n";
 

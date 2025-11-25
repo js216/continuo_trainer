@@ -107,9 +107,24 @@ static void app_key_sig_selector(state *state)
    }
 }
 
+static void app_figures_entry(state *state)
+{
+   if (ImGui::InputText("##figs_entry", state->figs_entry, MAX_STRING)) {
+      if (state->chords.size() < 1)
+         return;
+
+      if (state->active_col - 1 >= state->chords.size())
+         return;
+
+      struct column &col = state->chords[state->active_col - 1];
+      col.figures.clear();
+      parse_figures_token(state->figs_entry, col.figures);
+   }
+}
+
 static void app_buttons(struct state *state)
 {
-   float bw = ImGui::GetContentRegionAvail().x / 4;
+   float bw = ImGui::GetContentRegionAvail().x / 5;
 
    ImGui::PushItemWidth(bw);
    if (ImGui::InputInt("##lesson_id", &state->lesson_id)) {
@@ -121,6 +136,11 @@ static void app_buttons(struct state *state)
    ImGui::SameLine();
    ImGui::PushItemWidth(bw);
    app_key_sig_selector(state);
+   ImGui::PopItemWidth();
+
+   ImGui::SameLine();
+   ImGui::PushItemWidth(bw);
+   app_figures_entry(state);
    ImGui::PopItemWidth();
 
    ImGui::SameLine();
