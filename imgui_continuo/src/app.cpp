@@ -11,13 +11,13 @@
 #include "imgui.h"
 #include "logic.h"
 #include "midi.h"
+#include "misc/cpp/imgui_stdlib.h"
 #include "notes.h"
 #include "state.h"
 #include "style.h"
 #include "theory.h"
 #include "time_utils.h"
 #include <algorithm>
-#include <cstring>
 #include <memory>
 #include <string>
 #include <vector>
@@ -165,7 +165,7 @@ static void app_key_sig_selector(state *state)
 
 static void app_figures_entry(state *state)
 {
-   if (ImGui::InputText("##figs_entry", state->figs_entry, MAX_STRING)) {
+   if (ImGui::InputText("##figs_entry", &state->figs_entry)) {
       if (state->chords.empty())
          return;
 
@@ -173,14 +173,13 @@ static void app_figures_entry(state *state)
          return;
 
       struct column &col = state->chords[state->active_col - 1];
-      col.figures.clear();
-      col.figures = db_parse_figures_from_str(state->figs_entry);
+      col.figures        = db_parse_figures_from_str(state->figs_entry);
    }
 }
 
 static void app_buttons(struct state *state)
 {
-   float bw = ImGui::GetContentRegionAvail().x / 5;
+   float bw = ImGui::GetContentRegionAvail().x / 6;
 
    ImGui::PushItemWidth(bw);
    if (ImGui::InputInt("##lesson_id", &state->lesson_id)) {
@@ -200,6 +199,11 @@ static void app_buttons(struct state *state)
    ImGui::PopItemWidth();
 
    ImGui::SameLine();
+   if (ImGui::Button("x", ImVec2(bw, 0))) {
+      state_pop_lesson(state);
+   }
+
+   ImGui::SameLine();
    ImGui::PushItemWidth(bw);
    ImGui::DragFloat("##tune", &global_tune, 0.05F, 1, 10);
    ImGui::PopItemWidth();
@@ -213,16 +217,12 @@ static void app_buttons(struct state *state)
    bw = ImGui::GetContentRegionAvail().x / 4;
 
    ImGui::PushItemWidth(2 * bw);
-   state->lesson_title.resize(MAX_STRING); // ensure enough space
-   if (ImGui::InputText("##lesson_title", state->lesson_title.data(),
-                        MAX_STRING)) {
-      // optionally trim to actual string length
-      state->lesson_title.resize(strlen(state->lesson_title.c_str()));
-   }
+   ImGui::InputText("##lesson_title", &state->lesson_title);
    ImGui::PopItemWidth();
 
    ImGui::SameLine();
-   if (ImGui::Button("Reload", ImVec2(bw, 0))) {
+   const char *rel_label = state->edit_lesson ? "Discard" : "Reload";
+   if (ImGui::Button(rel_label, ImVec2(bw, 0))) {
       logic_clear(state);
    }
 

@@ -22,6 +22,7 @@ LIB_OBJS = \
 	imgui/imgui_draw.o \
 	imgui/imgui_tables.o \
 	imgui/imgui_widgets.o \
+	imgui/misc/cpp/imgui_stdlib.o \
 	imgui/backends/imgui_impl_sdl2.o \
 	imgui/backends/imgui_impl_opengl3.o
 

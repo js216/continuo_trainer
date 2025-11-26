@@ -42,6 +42,15 @@ void state_clear_lesson(struct state *state)
    state->active_col = 0;
 }
 
+void state_pop_lesson(struct state *state)
+{
+   if (state->chords.empty())
+      return;
+
+   state->chords.pop_back();
+   state->active_col--;
+}
+
 void state_load_lesson(struct state *state)
 {
    state_clear_lesson(state);

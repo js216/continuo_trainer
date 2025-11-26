@@ -15,8 +15,6 @@
 #include <string>
 #include <vector>
 
-#define MAX_STRING 512
-
 struct ImFont;
 
 struct state {
@@ -25,6 +23,7 @@ struct state {
    ImFont *music_font;
    bool midi_menu_open;
    bool midi_forward;
+   std::string figs_entry;
 
    // lesson info
    bool edit_lesson;
@@ -33,13 +32,12 @@ struct state {
    enum key_sig key;
    std::vector<struct column> chords;
    unsigned int active_col;
-   char figs_entry[MAX_STRING];
-   int lesson_streak;
 
    // stats
    double score;
    double duration_today;
    int practice_streak;
+   int lesson_streak;
 
    // MIDI devices and data
    std::vector<std::string> midi_devices;
@@ -58,6 +56,7 @@ void state_save_settings(const struct state *state);
 void state_load_settings(struct state *state);
 
 void state_clear_lesson(struct state *state);
+void state_pop_lesson(struct state *state);
 void state_load_lesson(struct state *state);
 void state_store_lesson(struct state *state);
 
