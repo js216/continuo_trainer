@@ -1,0 +1,6 @@
+title: Couperin bar 4
+key: G
+
+D3 - D4,F#4,A4
+B2 /5,8 D3,F3,B3
+C3 2,3,#5,7 D4,E4,G#4,B4,C5

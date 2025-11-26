@@ -1,0 +1,5 @@
+title: Couperin bar 6, beats 1-2
+key: G
+
+A2 #3 C#4,E4,A4
+A3 4,6 D4,F#4

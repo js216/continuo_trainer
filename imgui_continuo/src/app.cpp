@@ -205,7 +205,7 @@ static void app_buttons(struct state *state)
 
    ImGui::SameLine();
    ImGui::PushItemWidth(bw);
-   ImGui::DragFloat("##tune", &global_tune, 0.05F, 1, 10);
+   ImGui::DragFloat("##tune", &global_tune, 0.01F, -1, 1);
    ImGui::PopItemWidth();
 
    ImGui::SameLine();
@@ -256,17 +256,17 @@ static void stats_today(struct state *state)
 
    // Score progress bar
    ImGui::TextUnformatted("Score");
-   double max_score      = 1000.0F;
+   double max_score      = 2500.0F;
    std::string score_str = std::to_string(int(state->score));
    ImGui::ProgressBar((float)std::clamp(state->score / max_score, 0.0, 1.0),
                       ImVec2(-1, bar_h),
-                      score_str.c_str() // numeric overlay
+                      score_str.c_str()
    );
 
    // Duration progress bar
    ImGui::TextUnformatted("Duration");
    std::string duration_str = time_format(state->duration_today);
-   double max_duration      = 3600.0; // 1 hour for progress bar
+   double max_duration      = 1800.0;
    ImGui::ProgressBar(
        (float)std::clamp(state->duration_today / max_duration, 0.0, 1.0),
        ImVec2(-1, bar_h),

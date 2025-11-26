@@ -71,6 +71,7 @@ std::string fig_to_string(const struct figure &f)
       case ACC_NONE: break;
       case ACC_SHARP: ss << "#"; break;
       case ACC_FLAT: ss << "b"; break;
+      case ACC_SLASH: ss << "/"; break;
 
       case ACC_NATURAL:
       case ACC_NUM:; // do nothing
@@ -273,6 +274,9 @@ std::vector<figure> db_parse_figures_from_str(const std::string &token)
          pos     = 1;
       } else if (part[0] == 'b') {
          fig.acc = ACC_FLAT;
+         pos     = 1;
+      } else if (part[0] == '/') {
+         fig.acc = ACC_SLASH;
          pos     = 1;
       }
 

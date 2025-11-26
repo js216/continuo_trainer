@@ -1,0 +1,7 @@
+title: Couperin bar 5, beats 3-4
+key: G
+
+D3 6,5,b3 D4,F4,A4,B4
+E3 4,#6 A3,C#4,E4
+E2 #3,7 G#3,B3,D4,E4
+A2 #3 C#4,E4,A4

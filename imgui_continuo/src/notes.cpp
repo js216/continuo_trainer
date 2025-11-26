@@ -19,13 +19,20 @@
 #include <unordered_set>
 #include <vector>
 
-static const char *acc_sym(enum accidental a)
+struct acc {
+   const char* sym;
+   float dx;
+   float dy;
+};
+
+static struct acc acc_sym(enum accidental a)
 {
    switch (a) {
-      case ACC_SHARP: return "\uE262";   // SMuFL sharp
-      case ACC_FLAT: return "\uE260";    // SMuFL flat
-      case ACC_NATURAL: return "\uE261"; // SMuFL natural
-      default: return "";
+      case ACC_SHARP:   return {"\uE262", -0.7F, -0.3F};
+      case ACC_FLAT:    return {"\uE260", -0.7F, -0.3F};
+      case ACC_NATURAL: return {"\uE261", -0.7F, -0.3F};
+      case ACC_SLASH:   return {"/", 0.09F, 0.0F};
+      default: return {"", 0.0F, 0.0F};
    }
 }
 
@@ -120,7 +127,7 @@ static void draw_key_sig(struct state *state, ImVec2 origin, bool treble)
          float y = calc_y(treble ? treble_sharps.at(i) : bass_sharps.at(i),
                           KEY_SIG_0) -
                    0.3F * fs;
-         style_text(acc_sym(ACC_SHARP), x + static_cast<float>(i) * fs * 0.3F,
+         style_text(acc_sym(ACC_SHARP).sym, x + static_cast<float>(i) * fs * 0.3F,
                     y, &cfg);
       }
    } else if (acc_count < 0) { // flats
@@ -128,7 +135,7 @@ static void draw_key_sig(struct state *state, ImVec2 origin, bool treble)
          float y =
              calc_y(treble ? treble_flats.at(i) : bass_flats.at(i), KEY_SIG_0) -
              0.25F * fs;
-         style_text(acc_sym(ACC_FLAT), x + static_cast<float>(i) * fs * 0.3F, y,
+         style_text(acc_sym(ACC_FLAT).sym, x + static_cast<float>(i) * fs * 0.3F, y,
                     &cfg);
       }
    }
@@ -213,7 +220,7 @@ static void draw_accidental(float x, enum midi_note n, float note_radius,
    if (y == NOTES_OUT_OF_RANGE)
       return;
 
-   style_text(acc_sym(acc), offset_x, y, &cfg);
+   style_text(acc_sym(acc).sym, offset_x, y, &cfg);
 }
 
 static void notes_dot(enum key_sig key, enum midi_note n, int x_idx,
@@ -249,9 +256,10 @@ static void draw_chord_figures(float font_size, float x, float y,
 
       // accidental
       if (figs[i].acc != ACC_NONE) {
-         float nx = fx - 0.7F * font_size;
-         float ny = fy - 0.30F * font_size;
-         style_text(acc_sym(figs[i].acc), nx, ny, &cfg);
+         struct acc a = acc_sym(figs[i].acc);
+         float nx = fx + a.dx * font_size;
+         float ny = fy + a.dy * font_size;
+         style_text(a.sym, nx, ny, &cfg);
       }
    }
 }

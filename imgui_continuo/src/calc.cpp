@@ -47,6 +47,9 @@ static double calc_score(double dt, size_t good_count, size_t bad_count)
 int calc_lesson_streak(const std::vector<attempt_record> &attempts,
                        int lesson_id, size_t chords_per_lesson)
 {
+   if (chords_per_lesson == 0)
+      return 0;
+
    int streak = 0;
 
    // make a copy and reverse it
@@ -64,7 +67,7 @@ int calc_lesson_streak(const std::vector<attempt_record> &attempts,
       }
    }
 
-   return streak;
+   return streak / chords_per_lesson;
 }
 
 int calc_practice_streak(const std::vector<attempt_record> &attempts)
