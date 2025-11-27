@@ -71,10 +71,11 @@ std::string th_fig_to_string(const struct figure &f)
       case ACC_NONE: break;
       case ACC_SHARP: ss << "#"; break;
       case ACC_FLAT: ss << "b"; break;
+      case ACC_NATURAL: ss << "n"; break;
       case ACC_SLASH: ss << "/"; break;
 
-      case ACC_NATURAL:
-      case ACC_NUM:; // do nothing
+      case ACC_NUM:
+      default: ; // do nothing
    }
    if (f.num != 0)
       ss << f.num;
@@ -276,6 +277,9 @@ std::vector<figure> th_parse_figures_from_str(const std::string &token)
          pos     = 1;
       } else if (part[0] == 'b') {
          fig.acc = ACC_FLAT;
+         pos     = 1;
+      } else if (part[0] == 'n') {
+         fig.acc = ACC_NATURAL;
          pos     = 1;
       } else if (part[0] == '/') {
          fig.acc = ACC_SLASH;

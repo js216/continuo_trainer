@@ -1,0 +1,9 @@
+title: Handel No. 6
+key: C
+
+C3 3 C4,E4,G4
+C3 b C4,D#4,G4
+G3 3 B3,D4,G4
+G3 b A#3,D4,G4
+D3 # D4,F#4,A4
+D3 n D4,F4,A4
