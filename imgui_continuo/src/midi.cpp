@@ -18,21 +18,21 @@
 
 void refresh_midi_devices(struct state *state)
 {
-   state->midi_devices.clear();
+   state->midi.midi_devices.clear();
    try {
       RtMidiIn midi_in;
       unsigned int n_ports = midi_in.getPortCount();
 
       for (unsigned int i = 0; i < n_ports; ++i) {
-         state->midi_devices.push_back(midi_in.getPortName(i));
+         state->midi.midi_devices.push_back(midi_in.getPortName(i));
       }
 
-      if (state->midi_devices.empty()) {
-         state->midi_devices.emplace_back("(no MIDI devices)");
+      if (state->midi.midi_devices.empty()) {
+         state->midi.midi_devices.emplace_back("(no MIDI devices)");
       }
    } catch (RtMidiError &error) {
-      state->midi_devices.clear();
-      state->midi_devices.push_back(std::string("RtMidi error: ") +
+      state->midi.midi_devices.clear();
+      state->midi.midi_devices.push_back(std::string("RtMidi error: ") +
                                     error.getMessage());
    }
 }
@@ -52,70 +52,70 @@ static int midi_to_idx(const std::vector<std::string> &list,
 
 void init_midi_in(struct state *state)
 {
-   const int idx = midi_to_idx(state->midi_devices, state->in_dev);
+   const int idx = midi_to_idx(state->midi.midi_devices, state->settings.in_dev);
 
    if (idx >= 0) {
       try {
-         state->midi_in.reset();
-         state->midi_in = std::make_unique<RtMidiIn>();
-         state->midi_in->openPort(idx);
-         state->midi_in->ignoreTypes(false, false, false);
-         state->status = "MIDI input opened";
+         state->midi.midi_in.reset();
+         state->midi.midi_in = std::make_unique<RtMidiIn>();
+         state->midi.midi_in->openPort(idx);
+         state->midi.midi_in->ignoreTypes(false, false, false);
+         state->ui.status = "MIDI input opened";
       } catch (RtMidiError &error) {
-         state->status =
+         state->ui.status =
              std::string("RtMidi input error: ") + error.getMessage();
-         state->midi_in.reset();
+         state->midi.midi_in.reset();
       }
    } else {
-      state->status = "No MIDI input device selected";
+      state->ui.status = "No MIDI input device selected";
    }
 }
 
 void init_midi_out(struct state *state)
 {
-   const int idx = midi_to_idx(state->midi_devices, state->out_dev);
+   const int idx = midi_to_idx(state->midi.midi_devices, state->settings.out_dev);
 
    if (idx >= 0) {
       try {
-         state->midi_out.reset();
-         state->midi_out = std::make_unique<RtMidiOut>();
-         state->midi_out->openPort(idx);
-         state->status = "MIDI output opened";
+         state->midi.midi_out.reset();
+         state->midi.midi_out = std::make_unique<RtMidiOut>();
+         state->midi.midi_out->openPort(idx);
+         state->ui.status = "MIDI output opened";
       } catch (RtMidiError &error) {
-         state->status =
+         state->ui.status =
              std::string("RtMidi output error: ") + error.getMessage();
-         state->midi_out.reset();
+         state->midi.midi_out.reset();
       }
    } else {
-      state->status = "No MIDI output device selected";
+      state->ui.status = "No MIDI output device selected";
    }
 }
 
 void deinit_midi_in(struct state *state)
 {
-   if (state->midi_in) {
-      state->midi_in.reset();
-      state->in_dev.clear(); // instead of -1
-      state->status = "MIDI input disconnected";
+   if (state->midi.midi_in) {
+      state->midi.midi_in.reset();
+      state->settings.in_dev.clear(); // instead of -1
+      state->ui.status = "MIDI input disconnected";
    } else {
-      state->status = "No MIDI input connected";
+      state->ui.status = "No MIDI input connected";
    }
 }
 
 void deinit_midi_out(struct state *state)
 {
-   if (state->midi_out) {
-      state->midi_out.reset();
-      state->out_dev.clear(); // instead of -1
-      state->status = "MIDI output disconnected";
+   if (state->midi.midi_out) {
+      state->midi.midi_out.reset();
+      state->settings.out_dev.clear(); // instead of -1
+      state->ui.status = "MIDI output disconnected";
    } else {
-      state->status = "No MIDI output connected";
+      state->ui.status = "No MIDI output connected";
    }
 }
 
 void test_midi_out(struct state *state)
 {
-   if (!state->midi_out)
+   if (!state->midi.midi_out)
       return; // no output connected
 
    unsigned char note     = NOTES_Cs4;
@@ -124,9 +124,9 @@ void test_midi_out(struct state *state)
    // Note On message: 0x90 = channel 1
    std::vector<unsigned char> msg_on = {0x90, note, velocity};
    try {
-      state->midi_out->sendMessage(&msg_on);
+      state->midi.midi_out->sendMessage(&msg_on);
    } catch (RtMidiError &error) {
-      state->status =
+      state->ui.status =
           std::string("MIDI test error (Note On): ") + error.getMessage();
       return;
    }
@@ -137,26 +137,26 @@ void test_midi_out(struct state *state)
    // Note Off message: 0x80 = channel 1
    std::vector<unsigned char> msg_off = {0x80, note, 0};
    try {
-      state->midi_out->sendMessage(&msg_off);
+      state->midi.midi_out->sendMessage(&msg_off);
    } catch (RtMidiError &error) {
-      state->status =
+      state->ui.status =
           std::string("MIDI test error (Note Off): ") + error.getMessage();
       return;
    }
 
-   state->status = "MIDI test sent: C4";
+   state->ui.status = "MIDI test sent: C4";
 }
 
 void add_pressed_note(struct state *state, unsigned char note)
 {
-   auto &notes = state->pressed_notes;
+   auto &notes = state->midi.pressed_notes;
    if (std::find(notes.begin(), notes.end(), note) == notes.end())
       notes.push_back(note);
 }
 
 void remove_pressed_note(struct state *state, unsigned char note)
 {
-   auto &notes = state->pressed_notes;
+   auto &notes = state->midi.pressed_notes;
    auto it     = std::find(notes.begin(), notes.end(), note);
    if (it != notes.end())
       notes.erase(it);
@@ -164,25 +164,25 @@ void remove_pressed_note(struct state *state, unsigned char note)
 
 void update_status(struct state *state)
 {
-   if (state->pressed_notes.empty()) {
-      state->status = "All notes released";
+   if (state->midi.pressed_notes.empty()) {
+      state->ui.status = "All notes released";
    } else {
       std::string s = "Pressed: ";
-      for (auto n : state->pressed_notes)
+      for (auto n : state->midi.pressed_notes)
          s += std::to_string(n) + " ";
-      state->status = s;
+      state->ui.status = s;
    }
 }
 
 void poll_midi(struct state *state)
 {
-   if (!state->midi_in)
+   if (!state->midi.midi_in)
       return;
 
    std::vector<unsigned char> message;
    bool changed = false;
 
-   while (state->midi_in->getMessage(&message) != 0.0) {
+   while (state->midi.midi_in->getMessage(&message) != 0.0) {
       if (message.empty())
          continue;
 
@@ -200,13 +200,13 @@ void poll_midi(struct state *state)
       }
 
       // Forward message to output immediately if enabled
-      if (state->midi_forward && state->midi_out &&
-          state->in_dev != state->out_dev) // now string compare
+      if (state->settings.midi_forward && state->midi.midi_out &&
+          state->settings.in_dev != state->settings.out_dev) // now string compare
       {
          try {
-            state->midi_out->sendMessage(&message);
+            state->midi.midi_out->sendMessage(&message);
          } catch (RtMidiError &error) {
-            state->status =
+            state->ui.status =
                 std::string("MIDI forward error: ") + error.getMessage();
          }
       }

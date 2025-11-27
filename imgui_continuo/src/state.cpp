@@ -20,56 +20,56 @@ float global_tune;
 
 void state_save_settings(const struct state *state)
 {
-   db_store_key_val("in_dev", state->in_dev);
-   db_store_key_val("out_dev", state->out_dev);
-   db_store_bool("midi_forward", state->midi_forward);
+   db_store_key_val("in_dev", state->settings.in_dev);
+   db_store_key_val("out_dev", state->settings.out_dev);
+   db_store_bool("midi_forward", state->settings.midi_forward);
 }
 
 void state_load_settings(struct state *state)
 {
-   state->in_dev       = db_load_key_val("in_dev");
-   state->out_dev      = db_load_key_val("out_dev");
-   state->midi_forward = db_load_bool("midi_forward");
+   state->settings.in_dev       = db_load_key_val("in_dev");
+   state->settings.out_dev      = db_load_key_val("out_dev");
+   state->settings.midi_forward = db_load_bool("midi_forward");
 }
 
 void state_clear_lesson(struct state *state)
 {
-   std::fill(std::begin(state->lesson_title), std::end(state->lesson_title),
+   std::fill(std::begin(state->lesson.lesson_title), std::end(state->lesson.lesson_title),
              '\0');
-   state->key = KEY_SIG_0;
-   state->chords.clear();
-   state->pressed_notes.clear();
-   state->active_col = 0;
+   state->lesson.key = KEY_SIG_0;
+   state->lesson.chords.clear();
+   state->midi.pressed_notes.clear();
+   state->ui.active_col = 0;
 }
 
 void state_pop_lesson(struct state *state)
 {
-   if (state->chords.empty())
+   if (state->lesson.chords.empty())
       return;
 
-   state->chords.pop_back();
-   state->active_col--;
+   state->lesson.chords.pop_back();
+   state->ui.active_col--;
 }
 
 void state_load_lesson(struct state *state)
 {
    state_clear_lesson(state);
-   state->lesson_title = db_load_lesson_key_val(state->lesson_id, "title");
-   state->key    = parse_key(db_load_lesson_key_val(state->lesson_id, "key"));
-   state->chords = db_load_lesson_chords(state->lesson_id);
+   state->lesson.lesson_title = db_load_lesson_key_val(state->lesson.lesson_id, "title");
+   state->lesson.key    = parse_key(db_load_lesson_key_val(state->lesson.lesson_id, "key"));
+   state->lesson.chords = db_load_lesson_chords(state->lesson.lesson_id);
 
-   state->status = "Loaded lesson " + std::to_string(state->lesson_id);
+   state->ui.status = "Loaded lesson " + std::to_string(state->lesson.lesson_id);
 }
 
 void state_store_lesson(struct state *state)
 {
-   db_clear_lesson(state->lesson_id);
-   db_store_lesson_key_val(state->lesson_id, "title", state->lesson_title);
-   db_store_lesson_key_val(state->lesson_id, "key",
-                           key_sig_to_string(state->key));
-   db_store_lesson_chords(state->lesson_id, state->chords);
+   db_clear_lesson(state->lesson.lesson_id);
+   db_store_lesson_key_val(state->lesson.lesson_id, "title", state->lesson.lesson_title);
+   db_store_lesson_key_val(state->lesson.lesson_id, "key",
+                           key_sig_to_string(state->lesson.key));
+   db_store_lesson_chords(state->lesson.lesson_id, state->lesson.chords);
 
-   state->status = "Lesson saved to " + std::to_string(state->lesson_id);
+   state->ui.status = "Lesson saved to " + std::to_string(state->lesson.lesson_id);
 }
 
 void state_reload_stats(struct state *state)
@@ -80,17 +80,17 @@ void state_reload_stats(struct state *state)
    // Read all attempts from file
    std::vector<attempt_record> records = db_read_attempts();
    if (records.empty()) {
-      state->duration_today  = 0.0;
-      state->score           = 0.0;
-      state->lesson_streak   = 0;
-      state->practice_streak = 0;
+      state->stats.duration_today  = 0.0;
+      state->stats.score           = 0.0;
+      state->stats.lesson_streak   = 0;
+      state->stats.practice_streak = 0;
       return;
    }
 
    // Compute score and streaks
-   state->duration_today = calc_duration_today(records);
-   state->score          = calc_score_today(records);
-   state->lesson_streak =
-       calc_lesson_streak(records, state->lesson_id, state->chords.size());
-   state->practice_streak = calc_practice_streak(records);
+   state->stats.duration_today = calc_duration_today(records);
+   state->stats.score          = calc_score_today(records);
+   state->stats.lesson_streak =
+       calc_lesson_streak(records, state->lesson.lesson_id, state->lesson.chords.size());
+   state->stats.practice_streak = calc_practice_streak(records);
 }

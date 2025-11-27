@@ -116,7 +116,7 @@ static void draw_key_sig(struct state *state, ImVec2 origin, bool treble)
    static const std::array<midi_note, 7> bass_flats = {
        NOTES_B2, NOTES_E3, NOTES_A2, NOTES_D3, NOTES_G2, NOTES_C3, NOTES_F2};
 
-   int acc_count = key_sig_acc_count(state->key);
+   int acc_count = key_sig_acc_count(state->lesson.key);
 
    font_config cfg = {
        .fontsize = fs,
@@ -319,7 +319,7 @@ void notes_draw(const struct state *state)
         return;
     }
 
-    const int total = static_cast<int>(state->chords.size());
+    const int total = static_cast<int>(state->lesson.chords.size());
     if (total == 0) {
         ImGui::EndChild();
         return;
@@ -327,31 +327,31 @@ void notes_draw(const struct state *state)
 
     ImVec2 size = ImGui::GetContentRegionAvail();
     const int cps = chords_per_screen(size.x);
-    const int active = static_cast<int>(state->active_col);
+    const int active = static_cast<int>(state->ui.active_col);
 
     int start = 0, end = 0;
     compute_visible_range(total, active, cps, 0.3F * cps, start, end);
 
     for (int i = start; i < end; ++i) {
-        const auto &col = state->chords[i];
+        const auto &col = state->lesson.chords[i];
         const int idx = i - start;  // screen-space index
 
         for (auto n : col.bass)
-            notes_dot(state->key, n, idx, STYLE_WHITE);
+            notes_dot(state->lesson.key, n, idx, STYLE_WHITE);
 
         for (auto n : col.good)
-            notes_dot(state->key, n, idx, STYLE_GREEN);
+            notes_dot(state->lesson.key, n, idx, STYLE_GREEN);
 
         for (auto n : col.bad)
-            notes_dot(state->key, n, idx, STYLE_RED);
+            notes_dot(state->lesson.key, n, idx, STYLE_RED);
 
-        if (state->edit_lesson)
+        if (state->ui.edit_lesson)
             for (auto n : col.answer)
-                notes_dot(state->key, n, idx, STYLE_YELLOW);
+                notes_dot(state->lesson.key, n, idx, STYLE_YELLOW);
 
         if (!col.bass.empty()) {
             float x = calc_x(idx);
-            float y = calc_y(*col.bass.begin(), state->key);
+            float y = calc_y(*col.bass.begin(), state->lesson.key);
             if (y != NOTES_OUT_OF_RANGE) {
                 const float fs = 1.7F * staff_space();
                 draw_chord_figures(fs, x, y, col.figures, STYLE_WHITE);

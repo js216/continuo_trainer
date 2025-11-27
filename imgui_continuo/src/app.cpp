@@ -26,7 +26,7 @@ void app_init(struct state *state)
 {
    global_tune = 1;
 
-   state->lesson_id = db_load_last_lesson_id();
+   state->lesson.lesson_id = db_load_last_lesson_id();
    logic_clear(state);
 
    refresh_midi_devices(state);
@@ -39,63 +39,63 @@ void app_init(struct state *state)
    set_font(state);
    dark_mode();
 
-   state->status = "Ready";
+   state->ui.status = "Ready";
 }
 
 static void draw_midi_top_row(struct state *state, const float bw)
 {
    if (ImGui::Button("MIDI Refresh", ImVec2(bw, 0))) {
       refresh_midi_devices(state);
-      state->status         = "MIDI devices refreshed";
+      state->ui.status = "MIDI devices refreshed";
    }
 
    ImGui::SameLine();
-   ImGui::Checkbox("Forward In -> Out", &state->midi_forward);
+   ImGui::Checkbox("Forward In -> Out", &state->settings.midi_forward);
 
    ImGui::SameLine(ImGui::GetContentRegionAvail().x - bw);
    if (ImGui::Button("Back", ImVec2(bw, 0))) {
-      state->settings_open = false;
+      state->ui.settings_open = false;
    }
 }
 
 static void draw_midi_in_row(struct state *state, const float bw)
 {
-   const bool connected = (bool)state->midi_in;
+   const bool connected = (bool)state->midi.midi_in;
    const char *label    = connected ? "Disconnect In" : "Connect In";
 
    if (ImGui::Button(label, ImVec2(bw, 0))) {
       if (connected) {
          deinit_midi_in(state);
       } else {
-         state->in_dev = state->selected_device;
+         state->settings.in_dev = state->ui.selected_device;
          init_midi_in(state);
       }
    }
 
    ImGui::SameLine();
-   ImGui::TextUnformatted(state->in_dev.empty() ? "(No input device selected.)"
-                                                : state->in_dev.c_str());
+   ImGui::TextUnformatted(state->settings.in_dev.empty() ? "(No input device selected.)"
+                                                : state->settings.in_dev.c_str());
 }
 
 static void draw_midi_out_row(struct state *state, const float bw)
 {
-   const bool connected = (bool)state->midi_out;
+   const bool connected = (bool)state->midi.midi_out;
    const char *label    = connected ? "Disconnect Out" : "Connect Out";
 
    if (ImGui::Button(label, ImVec2(bw, 0))) {
       if (connected) {
          deinit_midi_out(state);
       } else {
-         state->out_dev = state->selected_device;
+         state->settings.out_dev = state->ui.selected_device;
          init_midi_out(state);
          test_midi_out(state);
       }
    }
 
    ImGui::SameLine();
-   ImGui::TextUnformatted(state->out_dev.empty()
+   ImGui::TextUnformatted(state->settings.out_dev.empty()
                               ? "(No output device selected.)"
-                              : state->out_dev.c_str());
+                              : state->settings.out_dev.c_str());
 }
 
 static void draw_midi_device_list(struct state *state)
@@ -107,12 +107,12 @@ static void draw_midi_device_list(struct state *state)
            "##midi_list",
            ImVec2(ImGui::GetContentRegionAvail().x, listbox_height))) {
 
-      for (auto &dev : state->midi_devices) {
-         bool selected = (dev == state->selected_device);
+      for (auto &dev : state->midi.midi_devices) {
+         bool selected = (dev == state->ui.selected_device);
 
          if (ImGui::Selectable(dev.c_str(), selected)) {
-            state->selected_device = dev;
-            state->status          = "Selected MIDI device: " + dev;
+            state->ui.selected_device = dev;
+            state->ui.status          = "Selected MIDI device: " + dev;
          }
       }
 
@@ -123,7 +123,7 @@ static void draw_midi_device_list(struct state *state)
 static void app_status_bar(struct state *state)
 {
    ImGui::BeginChild("StatusBar", ImVec2(0, STYLE_BTN_H), true);
-   ImGui::TextUnformatted(state->status.c_str());
+   ImGui::TextUnformatted(state->ui.status.c_str());
    ImGui::EndChild();
 }
 
@@ -155,7 +155,7 @@ static void app_close_settings(struct state *state)
    ImGui::SetCursorPosX(io.DisplaySize.x - bw - STYLE_PAD_X);
 
    if (ImGui::Button(label, ImVec2(bw, 0))) {
-      state->settings_open = false;  // close settings
+      state->ui.settings_open = false;  // close settings
    }
 }
 
@@ -184,13 +184,13 @@ static void app_settings(struct state *state)
 
 static void app_key_sig_selector(state *state)
 {
-   if (ImGui::BeginCombo("##keysig", key_sig_to_string(state->key).c_str())) {
+   if (ImGui::BeginCombo("##keysig", key_sig_to_string(state->lesson.key).c_str())) {
       for (int i = 0; i < KEY_NUM; ++i) {
-         bool is_selected = (state->key == i);
+         bool is_selected = (state->lesson.key == i);
          if (ImGui::Selectable(
                  key_sig_to_string(static_cast<key_sig>(i)).c_str(),
                  is_selected))
-            state->key = static_cast<key_sig>(i);
+            state->lesson.key = static_cast<key_sig>(i);
          if (is_selected)
             ImGui::SetItemDefaultFocus();
       }
@@ -200,15 +200,15 @@ static void app_key_sig_selector(state *state)
 
 static void app_figures_entry(state *state)
 {
-   if (ImGui::InputText("##figs_entry", &state->figs_entry)) {
-      if (state->chords.empty())
+   if (ImGui::InputText("##figs_entry", &state->ui.figs_entry)) {
+      if (state->lesson.chords.empty())
          return;
 
-      if (state->active_col - 1 >= state->chords.size())
+      if (state->ui.active_col - 1 >= state->lesson.chords.size())
          return;
 
-      struct column &col = state->chords[state->active_col - 1];
-      col.figures        = db_parse_figures_from_str(state->figs_entry);
+      struct column &col = state->lesson.chords[state->ui.active_col - 1];
+      col.figures        = db_parse_figures_from_str(state->ui.figs_entry);
    }
 }
 
@@ -217,8 +217,8 @@ static void app_buttons(struct state *state)
    float bw = ImGui::GetContentRegionAvail().x / 6;
 
    ImGui::PushItemWidth(bw);
-   if (ImGui::InputInt("##lesson_id", &state->lesson_id)) {
-      state->lesson_id = std::clamp(state->lesson_id, 1, 99999);
+   if (ImGui::InputInt("##lesson_id", &state->lesson.lesson_id)) {
+      state->lesson.lesson_id = std::clamp(state->lesson.lesson_id, 1, 99999);
       logic_clear(state);
    }
    ImGui::PopItemWidth();
@@ -245,30 +245,30 @@ static void app_buttons(struct state *state)
 
    ImGui::SameLine();
    if (ImGui::Button("Settings", ImVec2(bw, 0))) {
-      state->settings_open = true;
+      state->ui.settings_open = true;
    }
 
    // next line
    bw = ImGui::GetContentRegionAvail().x / 4;
 
    ImGui::PushItemWidth(2 * bw);
-   ImGui::InputText("##lesson_title", &state->lesson_title);
+   ImGui::InputText("##lesson_title", &state->lesson.lesson_title);
    ImGui::PopItemWidth();
 
    ImGui::SameLine();
-   const char *rel_label = state->edit_lesson ? "Discard" : "Reload";
+   const char *rel_label = state->ui.edit_lesson ? "Discard" : "Reload";
    if (ImGui::Button(rel_label, ImVec2(bw, 0))) {
       logic_clear(state);
    }
 
    ImGui::SameLine();
-   const char *btn_label = state->edit_lesson ? "Save" : "Edit";
+   const char *btn_label = state->ui.edit_lesson ? "Save" : "Edit";
    if (ImGui::Button(btn_label, ImVec2(bw, 0))) {
-      if (state->edit_lesson) {
+      if (state->ui.edit_lesson) {
          state_store_lesson(state);
-         state->edit_lesson = false;
+         state->ui.edit_lesson = false;
       } else {
-         state->edit_lesson = true;
+         state->ui.edit_lesson = true;
       }
    }
 }
@@ -279,7 +279,7 @@ static void stats_this_lesson(struct state *state)
    ImGui::TextUnformatted("THIS LESSON");
 
    // Lesson streak
-   ImGui::Text("Streak: %d", state->lesson_streak);
+   ImGui::Text("Streak: %d", state->stats.lesson_streak);
 }
 
 static void stats_today(struct state *state)
@@ -292,18 +292,18 @@ static void stats_today(struct state *state)
    // Score progress bar
    ImGui::TextUnformatted("Score");
    double max_score      = 2500.0F;
-   std::string score_str = std::to_string(int(state->score));
-   ImGui::ProgressBar((float)std::clamp(state->score / max_score, 0.0, 1.0),
+   std::string score_str = std::to_string(int(state->stats.score));
+   ImGui::ProgressBar((float)std::clamp(state->stats.score / max_score, 0.0, 1.0),
                       ImVec2(-1, bar_h),
                       score_str.c_str()
    );
 
    // Duration progress bar
    ImGui::TextUnformatted("Duration");
-   std::string duration_str = time_format(state->duration_today);
+   std::string duration_str = time_format(state->stats.duration_today);
    double max_duration      = 1200.0;
    ImGui::ProgressBar(
-       (float)std::clamp(state->duration_today / max_duration, 0.0, 1.0),
+       (float)std::clamp(state->stats.duration_today / max_duration, 0.0, 1.0),
        ImVec2(-1, bar_h),
        duration_str.c_str() // overlay text
    );
@@ -315,7 +315,7 @@ static void stats_overall(struct state *state)
    ImGui::TextUnformatted("OVERALL");
 
    // Example placeholder for future streak stats
-   ImGui::Text("Streak: %d", state->practice_streak);
+   ImGui::Text("Streak: %d", state->stats.practice_streak);
 }
 
 static void app_stats(struct state *state)
@@ -366,7 +366,7 @@ void app_render(struct state *state)
                     ImGuiWindowFlags_NoBringToFrontOnFocus |
                     ImGuiWindowFlags_NoNavFocus);
 
-   if (state->settings_open)
+   if (state->ui.settings_open)
       app_settings(state);
    else
       app_main_screen(state);

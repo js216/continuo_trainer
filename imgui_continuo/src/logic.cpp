@@ -19,18 +19,18 @@
 
 void logic_clear(struct state *state)
 {
-   if (state->lesson_id <= 0)
-      state->lesson_id = 1;
+   if (state->lesson.lesson_id <= 0)
+      state->lesson.lesson_id = 1;
 
-   if (db_lesson_exists(state->lesson_id)) {
+   if (db_lesson_exists(state->lesson.lesson_id)) {
       // load lesson
-      state->edit_lesson = false;
+      state->ui.edit_lesson = false;
       state_load_lesson(state);
-      state->status = "Loaded lesson " + std::to_string(state->lesson_id);
+      state->ui.status = "Loaded lesson " + std::to_string(state->lesson.lesson_id);
    } else {
       // enter edit mode
       state_clear_lesson(state);
-      state->edit_lesson = true;
+      state->ui.edit_lesson = true;
    }
 
    state_reload_stats(state);
@@ -58,15 +58,15 @@ static bool logic_adjudicate(const struct column &col,
 
 static void process_note(struct state *state, midi_note realization)
 {
-   if (state->chords.empty())
-      state->chords.emplace_back();
+   if (state->lesson.chords.empty())
+      state->lesson.chords.emplace_back();
 
-   if (state->active_col >= state->chords.size()) {
+   if (state->ui.active_col >= state->lesson.chords.size()) {
       error("active_col out of range!");
       return;
    }
 
-   struct column &col = state->chords[state->active_col];
+   struct column &col = state->lesson.chords[state->ui.active_col];
 
    // replace unordered_set::contains with find
    if (col.good.find(realization) != col.good.end() ||
@@ -82,33 +82,33 @@ static void process_note(struct state *state, midi_note realization)
 static void logic_play(struct state *state)
 {
    // cannot play without chords
-   if (state->chords.empty())
+   if (state->lesson.chords.empty())
       return;
 
    // lesson finished
-   if (state->active_col >= state->chords.size()) {
+   if (state->ui.active_col >= state->lesson.chords.size()) {
       logic_clear(state);
-      state->status = "Done!";
+      state->ui.status = "Done!";
       return;
    }
 
    // all notes released : go to next column
-   if (state->pressed_notes.empty()) {
-      struct column &col = state->chords[state->active_col];
+   if (state->midi.pressed_notes.empty()) {
+      struct column &col = state->lesson.chords[state->ui.active_col];
 
       if (!col.good.empty() || !col.bad.empty()) {
          col.time = time_now();
-         db_store_attempt(state->lesson_id, col);
-         state->active_col++;
+         db_store_attempt(state->lesson.lesson_id, col);
+         state->ui.active_col++;
       }
    }
 
    else {
       // accumulate pressed notes into the current back column
-      if (state->chords.empty())
-         state->chords.emplace_back();
+      if (state->lesson.chords.empty())
+         state->lesson.chords.emplace_back();
 
-      for (auto note_val : state->pressed_notes)
+      for (auto note_val : state->midi.pressed_notes)
          process_note(state, static_cast<midi_note>(note_val));
    }
 }
@@ -116,31 +116,31 @@ static void logic_play(struct state *state)
 static void logic_record(struct state *state)
 {
    // If nothing pressed → finalize column if anything was recorded
-   if (state->pressed_notes.empty()) {
-      if (state->active_col < state->chords.size()) {
-         struct column &col = state->chords[state->active_col];
+   if (state->midi.pressed_notes.empty()) {
+      if (state->ui.active_col < state->lesson.chords.size()) {
+         struct column &col = state->lesson.chords[state->ui.active_col];
          if (!col.bass.empty() || !col.answer.empty()) {
             // Finalize this column, move to the next
-            state->active_col++;
+            state->ui.active_col++;
          }
       }
       return;
    }
 
    // Notes currently pressed → ensure there is a column to record into
-   if (state->chords.empty() || state->active_col >= state->chords.size()) {
-      state->chords.emplace_back();
+   if (state->lesson.chords.empty() || state->ui.active_col >= state->lesson.chords.size()) {
+      state->lesson.chords.emplace_back();
    }
 
-   struct column &col = state->chords[state->active_col];
+   struct column &col = state->lesson.chords[state->ui.active_col];
 
    // Determine lowest pressed note
-   unsigned char lowest = *std::min_element(state->pressed_notes.begin(),
-                                            state->pressed_notes.end());
+   unsigned char lowest = *std::min_element(state->midi.pressed_notes.begin(),
+                                            state->midi.pressed_notes.end());
 
    // Insert into bass + answer sets
    col.bass.insert(static_cast<midi_note>(lowest));
-   for (auto n : state->pressed_notes) {
+   for (auto n : state->midi.pressed_notes) {
       if (n != lowest)
          col.answer.insert(static_cast<midi_note>(n));
    }
@@ -148,7 +148,7 @@ static void logic_record(struct state *state)
 
 void logic_receive(struct state *state)
 {
-   if (state->edit_lesson)
+   if (state->ui.edit_lesson)
       logic_record(state);
    else
       logic_play(state);

@@ -17,39 +17,57 @@
 
 struct ImFont;
 
-struct state {
-   // program general
-   std::string status;
-   ImFont *music_font;
-   bool settings_open;
-   std::string figs_entry;
-
-   // settings
-   bool midi_forward;
-   std::string in_dev;
-   std::string out_dev;
-
-   // lesson info
-   bool edit_lesson;
-   int lesson_id;
-   std::string lesson_title;
-   enum key_sig key;
-   std::vector<struct column> chords;
-   unsigned int active_col;
-
-   // stats
-   double score;
-   double duration_today;
-   int practice_streak;
-   int lesson_streak;
-
-   // MIDI devices and data
-   std::vector<std::string> midi_devices;
-   std::string selected_device;
-   std::unique_ptr<RtMidiIn> midi_in;
-   std::unique_ptr<RtMidiOut> midi_out;
-   std::vector<unsigned char> pressed_notes;
+struct app_ui
+{
+    std::string status;
+    bool settings_open;
+    std::string figs_entry;
+    std::string selected_device;
+    unsigned int active_col;
+    bool edit_lesson;
 };
+
+struct settings
+{
+    bool midi_forward;
+    std::string in_dev;
+    std::string out_dev;
+};
+
+struct lesson
+{
+    int lesson_id;
+    std::string lesson_title;
+    enum key_sig key;
+    std::vector<struct column> chords;
+};
+
+struct stats
+{
+    double score;
+    double duration_today;
+    int practice_streak;
+    int lesson_streak;
+};
+
+struct midi_devices
+{
+    std::vector<std::string> midi_devices;
+    std::unique_ptr<RtMidiIn> midi_in;
+    std::unique_ptr<RtMidiOut> midi_out;
+    std::vector<unsigned char> pressed_notes;
+};
+
+struct state
+{
+    struct app_ui ui;
+    struct settings settings;
+    struct lesson lesson;
+    struct stats stats;
+    struct midi_devices midi;
+    struct ImFont *music_font;
+};
+
 
 // global state for debug only
 extern float global_tune;
