@@ -1,0 +1,9 @@
+title: Couperin bar 6, beats 2-4
+key: G
+
+A3 4,6 D4,F#4,A4
+G3 /4 G3,C#4,E4,A4
+F#3 6 A3,D4,F#4
+E3 #6 C#4,E4,G4
+D3 6 B3,D4,F#4
+G2 /4 C#4,E4,G4,A4

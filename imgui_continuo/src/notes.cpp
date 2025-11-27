@@ -19,6 +19,9 @@
 #include <unordered_set>
 #include <vector>
 
+#define CHORD_SEP 79.0F
+#define N_CHORDS_LEFT 3
+
 struct acc {
    const char* sym;
    float dx;
@@ -36,11 +39,11 @@ static struct acc acc_sym(enum accidental a)
    }
 }
 
-static float calc_x(const int x_idx, const int x_sz)
+static float calc_x(const int x_idx)
 {
    ImVec2 p           = ImGui::GetCursorScreenPos();
    const float x_offs = 130;
-   return p.x + x_offs + ((float)x_idx + 1) * (float)x_sz / (10.0F);
+   return p.x + x_offs + ((float)x_idx + 1) * CHORD_SEP;
 }
 
 static float calc_y(const enum midi_note n, enum key_sig key)
@@ -226,10 +229,9 @@ static void draw_accidental(float x, enum midi_note n, float note_radius,
 static void notes_dot(enum key_sig key, enum midi_note n, int x_idx,
                       uint32_t color)
 {
-   ImVec2 size             = ImGui::GetContentRegionAvail();
    const float note_radius = 0.44F * staff_space();
 
-   const float x = calc_x(x_idx, (int)size.x);
+   const float x = calc_x(x_idx);
 
    draw_accidental(x, n, note_radius, color, key_sig_accidental(key, n), key);
    draw_ledger_lines(x, n, note_radius, key);
@@ -264,40 +266,93 @@ static void draw_chord_figures(float font_size, float x, float y,
    }
 }
 
+static int chords_per_screen(float width)
+{
+    // floor(), but guard against divide-by-zero if width < CHORD_SEP
+    if (CHORD_SEP <= 0.0f)
+        return 1;
+
+    int cps = static_cast<int>(width / CHORD_SEP);
+    return (cps > 0) ? cps : 1;
+}
+
+static void compute_visible_range(int total,
+                                  int active,
+                                  int cps,
+                                  int n_left,
+                                  int &start,
+                                  int &end)
+{
+    if (total <= 0) {
+        start = end = 0;
+        return;
+    }
+
+    // Try to center active with n_left before it
+    start = active - n_left;
+
+    // Clamp
+    if (start < 0)
+        start = 0;
+
+    end = start + cps;
+    if (end > total)
+        end = total;
+
+    // Fix start again if we clipped at the end
+    if (end - start > cps)
+        start = end - cps;
+    if (start < 0)
+        start = 0;
+}
+
 void notes_draw(const struct state *state)
 {
-   if (!ImGui::BeginChild("Staff", ImVec2(0, 0), false)) {
-      ImGui::EndChild();
-      return;
-   }
+    if (!ImGui::BeginChild("Staff", ImVec2(0, 0), false)) {
+        ImGui::EndChild();
+        return;
+    }
 
-   ImVec2 size = ImGui::GetContentRegionAvail();
+    const int total = static_cast<int>(state->chords.size());
+    if (total == 0) {
+        ImGui::EndChild();
+        return;
+    }
 
-   for (size_t i = 0; i < state->chords.size(); ++i) {
-      const auto &col = state->chords[i];
+    ImVec2 size = ImGui::GetContentRegionAvail();
+    const int cps = chords_per_screen(size.x);
+    const int active = static_cast<int>(state->active_col);
 
-      for (auto n : col.bass)
-         notes_dot(state->key, n, static_cast<int>(i), STYLE_WHITE);
+    int start = 0, end = 0;
+    compute_visible_range(total, active, cps, N_CHORDS_LEFT, start, end);
 
-      for (auto n : col.good)
-         notes_dot(state->key, n, static_cast<int>(i), STYLE_GREEN);
+    for (int i = start; i < end; ++i) {
+        const auto &col = state->chords[i];
+        const int idx = i - start;  // screen-space index
 
-      for (auto n : col.bad)
-         notes_dot(state->key, n, static_cast<int>(i), STYLE_RED);
+        for (auto n : col.bass)
+            notes_dot(state->key, n, idx, STYLE_WHITE);
 
-      if (state->edit_lesson)
-         for (auto n : col.answer)
-            notes_dot(state->key, n, static_cast<int>(i), STYLE_YELLOW);
+        for (auto n : col.good)
+            notes_dot(state->key, n, idx, STYLE_GREEN);
 
-      if (!col.bass.empty()) {
-         const float x = calc_x((int)i, (int)size.x);
-         const float y = calc_y(*col.bass.begin(), state->key);
-         if (y != NOTES_OUT_OF_RANGE) {
-            float fs = 1.7F * staff_space();
-            draw_chord_figures(fs, x, y, col.figures, STYLE_WHITE);
-         }
-      }
-   }
+        for (auto n : col.bad)
+            notes_dot(state->key, n, idx, STYLE_RED);
 
-   ImGui::EndChild();
+        if (state->edit_lesson)
+            for (auto n : col.answer)
+                notes_dot(state->key, n, idx, STYLE_YELLOW);
+
+        if (!col.bass.empty()) {
+            float x = calc_x(idx);
+            float y = calc_y(*col.bass.begin(), state->key);
+            if (y != NOTES_OUT_OF_RANGE) {
+                const float fs = 1.7F * staff_space();
+                draw_chord_figures(fs, x, y, col.figures, STYLE_WHITE);
+            }
+        }
+    }
+
+    ImGui::EndChild();
 }
+

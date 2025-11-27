@@ -1,7 +1,7 @@
 title: Couperin bar 5
 key: G
 
-C3 2,3,#5,7 D4,E4,G#4,B4
+C3 2,3,#5,7 C4,D4,E4,G#4,B4
 C3 6 A3,C4,E4
 D3 6,5,b3 D4,F4,A4,B4
 E3 4,#6 A3,C#4,E4

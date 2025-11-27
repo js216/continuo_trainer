@@ -266,7 +266,7 @@ static void stats_today(struct state *state)
    // Duration progress bar
    ImGui::TextUnformatted("Duration");
    std::string duration_str = time_format(state->duration_today);
-   double max_duration      = 1800.0;
+   double max_duration      = 1200.0;
    ImGui::ProgressBar(
        (float)std::clamp(state->duration_today / max_duration, 0.0, 1.0),
        ImVec2(-1, bar_h),
