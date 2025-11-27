@@ -66,3 +66,19 @@ std::string time_format(double seconds)
 
    return {buf.data()};
 }
+
+std::time_t day_start(double epoch_seconds)
+{
+    std::time_t t = static_cast<std::time_t>(epoch_seconds);
+    std::tm tm = *std::localtime(&t);
+    tm.tm_hour = tm.tm_min = tm.tm_sec = 0;
+    return std::mktime(&tm);
+}
+
+bool is_consecutive_day(std::time_t prev_day, std::time_t curr_day)
+{
+    std::tm tm_prev = *std::localtime(&prev_day);
+    std::tm tm_curr = *std::localtime(&curr_day);
+    return tm_curr.tm_year == tm_prev.tm_year &&
+           tm_curr.tm_yday + 1 == tm_prev.tm_yday;
+}

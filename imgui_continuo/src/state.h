@@ -41,10 +41,16 @@ struct lesson {
 };
 
 struct stats {
+   // lesson
+   int lesson_streak;
+   double avg_max_dt;
+
+   // today
    double score;
    double duration_today;
+
+   // overall
    int practice_streak;
-   int lesson_streak;
 };
 
 struct midi_devices {

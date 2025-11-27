@@ -312,8 +312,8 @@ static void stats_this_lesson(struct state *state)
    ImGui::AlignTextToFramePadding();
    ImGui::TextUnformatted("THIS LESSON");
 
-   // Lesson streak
    ImGui::Text("Streak: %d", state->stats.lesson_streak);
+   ImGui::Text("Speed: %.1f", state->stats.avg_max_dt);
 }
 
 static void stats_today(struct state *state)

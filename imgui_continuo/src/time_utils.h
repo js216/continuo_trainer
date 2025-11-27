@@ -10,9 +10,12 @@
 #define TIME_UTILS_H
 
 #include <string>
+#include <ctime>
 
 double time_now(void);
 bool time_is_today(double epoch_seconds);
 std::string time_format(double seconds);
+std::time_t day_start(double epoch_seconds);
+bool is_consecutive_day(std::time_t prev_day, std::time_t curr_day);
 
 #endif /* TIME_UTILS_H */

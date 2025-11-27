@@ -110,5 +110,6 @@ void state_reload_stats(struct state *state)
    state->stats.score          = calc_score_today(records);
    state->stats.lesson_streak  = calc_lesson_streak(
        records, state->lesson.lesson_id, state->lesson.chords.size());
-   state->stats.practice_streak = calc_practice_streak(records);
+   state->stats.practice_streak = calc_practice_streak(records, state->settings.goal_minutes);
+   state->stats.avg_max_dt = calc_avg_max_dt(records, state->lesson.lesson_id);
 }
