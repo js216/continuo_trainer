@@ -114,17 +114,17 @@ struct column {
    double time;
 };
 
-std::string key_sig_to_string(enum key_sig);
-std::string midi_to_name(enum midi_note n);
-std::string fig_to_string(const struct figure &f);
-enum accidental key_sig_accidental(enum key_sig key, midi_note n);
-int note_to_bass(const enum midi_note n, const enum key_sig k);
-int note_to_treble(const enum midi_note n, const enum key_sig k);
-int key_sig_acc_count(enum key_sig key);
+std::string th_key_sig_to_string(enum key_sig);
+std::string th_midi_to_name(enum midi_note n);
+std::string th_fig_to_string(const struct figure &f);
+enum accidental th_key_sig_accidental(enum key_sig key, midi_note n);
+int th_note_to_bass(const enum midi_note n, const enum key_sig k);
+int th_note_to_treble(const enum midi_note n, const enum key_sig k);
+int th_key_sig_acc_count(enum key_sig key);
 
 // string parsing
-key_sig parse_key(const std::string &token);
-std::vector<figure> db_parse_figures_from_str(const std::string &token);
-midi_note parse_midi_note(const std::string &token);
+key_sig th_parse_key(const std::string &token);
+std::vector<figure> th_parse_figures_from_str(const std::string &token);
+midi_note th_parse_midi_note(const std::string &token);
 
 #endif /* THEORY_H */

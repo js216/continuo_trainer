@@ -55,7 +55,7 @@ static float calc_y(const enum midi_note n, enum key_sig key)
 
    // treble staff
    if (n >= NOTES_D4) {
-      const int nb = note_to_treble(n, key);
+      const int nb = th_note_to_treble(n, key);
       if (nb == NOTES_OUT_OF_RANGE)
          return NOTES_OUT_OF_RANGE;
 
@@ -65,7 +65,7 @@ static float calc_y(const enum midi_note n, enum key_sig key)
 
    // bass staff
    {
-      const int nb = note_to_bass(n, key);
+      const int nb = th_note_to_bass(n, key);
       if (nb == NOTES_OUT_OF_RANGE)
          return NOTES_OUT_OF_RANGE;
 
@@ -116,7 +116,7 @@ static void draw_key_sig(struct state *state, ImVec2 origin, bool treble)
    static const std::array<midi_note, 7> bass_flats = {
        NOTES_B2, NOTES_E3, NOTES_A2, NOTES_D3, NOTES_G2, NOTES_C3, NOTES_F2};
 
-   int acc_count = key_sig_acc_count(state->lesson.key);
+   int acc_count = th_key_sig_acc_count(state->lesson.key);
 
    font_config cfg = {
        .fontsize = fs,
@@ -187,7 +187,7 @@ static void draw_ledger_lines(float x, enum midi_note n, float note_radius,
       return;
 
    // Out of staff range? Staff is 0..8
-   int pos = note_to_bass(n, key);
+   int pos = th_note_to_bass(n, key);
    if (pos >= 0 && pos <= 8)
       return;
 
@@ -232,7 +232,8 @@ static void notes_dot(enum key_sig key, enum midi_note n, int x_idx,
 
    const float x = calc_x(x_idx);
 
-   draw_accidental(x, n, note_radius, color, key_sig_accidental(key, n), key);
+   draw_accidental(x, n, note_radius, color, th_key_sig_accidental(key, n),
+                   key);
    draw_ledger_lines(x, n, note_radius, key);
 
    const float y = calc_y(n, key);

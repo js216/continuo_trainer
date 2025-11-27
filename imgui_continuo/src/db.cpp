@@ -178,13 +178,13 @@ static void parse_column_line(const std::string &line, struct column &col)
       return;
    }
 
-   col.bass.insert(parse_midi_note(bass_token));
-   col.figures = db_parse_figures_from_str(figures_token);
+   col.bass.insert(th_parse_midi_note(bass_token));
+   col.figures = th_parse_figures_from_str(figures_token);
 
    std::stringstream ass(answer_token);
    std::string ans_tok;
    while (std::getline(ass, ans_tok, ',')) {
-      col.answer.insert(parse_midi_note(ans_tok));
+      col.answer.insert(th_parse_midi_note(ans_tok));
    }
 }
 
@@ -260,13 +260,13 @@ void db_store_lesson_chords(int lesson_id, const std::vector<column> &chords)
 
       std::vector<midi_note> bass_notes(col.bass.begin(), col.bass.end());
       std::sort(bass_notes.begin(), bass_notes.end());
-      out << midi_to_name(bass_notes.front()) << " ";
+      out << th_midi_to_name(bass_notes.front()) << " ";
 
       if (!col.figures.empty()) {
          for (size_t i = 0; i < col.figures.size(); ++i) {
             if (i > 0)
                out << ",";
-            out << fig_to_string(col.figures[i]);
+            out << th_fig_to_string(col.figures[i]);
          }
          out << " ";
       } else {
@@ -278,7 +278,7 @@ void db_store_lesson_chords(int lesson_id, const std::vector<column> &chords)
       for (size_t i = 0; i < notes.size(); ++i) {
          if (i > 0)
             out << ",";
-         out << midi_to_name(notes[i]);
+         out << th_midi_to_name(notes[i]);
       }
 
       out << "\n";
@@ -382,7 +382,7 @@ void db_store_attempt(const int lesson_id, const struct column &col)
    if (!col.bass.empty()) {
       std::vector<midi_note> bass_notes(col.bass.begin(), col.bass.end());
       std::sort(bass_notes.begin(), bass_notes.end());
-      ofs << midi_to_name(bass_notes.front()) << " ";
+      ofs << th_midi_to_name(bass_notes.front()) << " ";
    } else {
       ofs << "- ";
    }
@@ -393,7 +393,7 @@ void db_store_attempt(const int lesson_id, const struct column &col)
       for (auto n : container) {
          if (!first)
             ofs << ",";
-         ofs << midi_to_name(n);
+         ofs << th_midi_to_name(n);
          first = false;
       }
       if (container.empty())
@@ -405,7 +405,7 @@ void db_store_attempt(const int lesson_id, const struct column &col)
    for (const auto &fig : col.figures) {
       if (!first_fig)
          ofs << ",";
-      ofs << fig_to_string(
+      ofs << th_fig_to_string(
           fig); // you need a function to convert figure to string
       first_fig = false;
    }

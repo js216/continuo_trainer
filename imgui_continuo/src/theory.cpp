@@ -16,7 +16,7 @@
 #include <unordered_set>
 #include <utility>
 
-std::string key_sig_to_string(const enum key_sig k)
+std::string th_key_sig_to_string(const enum key_sig k)
 {
    switch (k) {
       case KEY_SIG_0: return "C";
@@ -57,14 +57,14 @@ static std::string pitch_class_name(const int pc)
    }
 }
 
-std::string midi_to_name(const enum midi_note n)
+std::string th_midi_to_name(const enum midi_note n)
 {
    int octave = (n / 12) - 1; // n 0 = C-1
    int note   = n % 12;
    return std::string(pitch_class_name(note)) + std::to_string(octave);
 }
 
-std::string fig_to_string(const struct figure &f)
+std::string th_fig_to_string(const struct figure &f)
 {
    std::stringstream ss;
    switch (f.acc) {
@@ -81,7 +81,7 @@ std::string fig_to_string(const struct figure &f)
    return ss.str();
 }
 
-enum accidental key_sig_accidental(enum key_sig key, enum midi_note n)
+enum accidental th_key_sig_accidental(enum key_sig key, enum midi_note n)
 {
    static const int8_t table[KEY_NUM][12] = {
        // C  C# D  D# E  F  F# G  G# A  A# B
@@ -135,7 +135,7 @@ static int staff_adjust_for_key(enum midi_note n, enum key_sig k)
    return 0;
 }
 
-int note_to_bass(const enum midi_note n, const enum key_sig k)
+int th_note_to_bass(const enum midi_note n, const enum key_sig k)
 {
    int base = 0;
 
@@ -172,7 +172,7 @@ int note_to_bass(const enum midi_note n, const enum key_sig k)
    return base + staff_adjust_for_key(n, k);
 }
 
-int note_to_treble(const enum midi_note n, const enum key_sig k)
+int th_note_to_treble(const enum midi_note n, const enum key_sig k)
 {
    int base = 0;
 
@@ -204,7 +204,7 @@ int note_to_treble(const enum midi_note n, const enum key_sig k)
    return base + staff_adjust_for_key(n, k);
 }
 
-int key_sig_acc_count(enum key_sig key)
+int th_key_sig_acc_count(enum key_sig key)
 {
    switch (key) {
       case KEY_SIG_1_SHARP: return 1;
@@ -225,7 +225,7 @@ int key_sig_acc_count(enum key_sig key)
    }
 }
 
-key_sig parse_key(const std::string &token)
+key_sig th_parse_key(const std::string &token)
 {
    static const std::unordered_map<std::string, key_sig> key_map = {
        {"C",  KEY_SIG_0      },
@@ -253,7 +253,7 @@ key_sig parse_key(const std::string &token)
    return KEY_SIG_0; // fallback
 }
 
-std::vector<figure> db_parse_figures_from_str(const std::string &token)
+std::vector<figure> th_parse_figures_from_str(const std::string &token)
 {
    std::vector<figure> figures;
 
@@ -303,7 +303,7 @@ std::vector<figure> db_parse_figures_from_str(const std::string &token)
    return figures;
 }
 
-midi_note parse_midi_note(const std::string &token)
+midi_note th_parse_midi_note(const std::string &token)
 {
    static const std::unordered_map<std::string, midi_note> note_map = {
        {"D2",  NOTES_D2 },

@@ -57,7 +57,7 @@ void state_load_lesson(struct state *state)
    state->lesson.lesson_title =
        db_load_lesson_key_val(state->lesson.lesson_id, "title");
    state->lesson.key =
-       parse_key(db_load_lesson_key_val(state->lesson.lesson_id, "key"));
+       th_parse_key(db_load_lesson_key_val(state->lesson.lesson_id, "key"));
    state->lesson.chords = db_load_lesson_chords(state->lesson.lesson_id);
 
    state->ui.status =
@@ -70,7 +70,7 @@ void state_store_lesson(struct state *state)
    db_store_lesson_key_val(state->lesson.lesson_id, "title",
                            state->lesson.lesson_title);
    db_store_lesson_key_val(state->lesson.lesson_id, "key",
-                           key_sig_to_string(state->lesson.key));
+                           th_key_sig_to_string(state->lesson.key));
    db_store_lesson_chords(state->lesson.lesson_id, state->lesson.chords);
 
    state->ui.status =

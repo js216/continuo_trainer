@@ -184,11 +184,11 @@ static void app_settings(struct state *state)
 static void app_key_sig_selector(state *state)
 {
    if (ImGui::BeginCombo("##keysig",
-                         key_sig_to_string(state->lesson.key).c_str())) {
+                         th_key_sig_to_string(state->lesson.key).c_str())) {
       for (int i = 0; i < KEY_NUM; ++i) {
          bool is_selected = (state->lesson.key == i);
          if (ImGui::Selectable(
-                 key_sig_to_string(static_cast<key_sig>(i)).c_str(),
+                 th_key_sig_to_string(static_cast<key_sig>(i)).c_str(),
                  is_selected))
             state->lesson.key = static_cast<key_sig>(i);
          if (is_selected)
@@ -208,7 +208,7 @@ static void app_figures_entry(state *state)
          return;
 
       struct column &col = state->lesson.chords[state->ui.active_col - 1];
-      col.figures        = db_parse_figures_from_str(state->ui.figs_entry);
+      col.figures        = th_parse_figures_from_str(state->ui.figs_entry);
    }
 }
 
