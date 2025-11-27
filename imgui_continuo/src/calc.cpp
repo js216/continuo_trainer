@@ -45,29 +45,29 @@ static double calc_score(double dt, size_t good_count, size_t bad_count)
 }
 
 int calc_lesson_streak(const std::vector<attempt_record> &attempts,
-                       int lesson_id, size_t chords_per_lesson)
+                       int lesson_id, size_t len)
 {
-   if (chords_per_lesson == 0)
+   if (len == 0)
       return 0;
 
    int streak = 0;
+   bool begin = false;
 
-   // make a copy and reverse it
-   std::vector<attempt_record> reversed_attempts = attempts;
-   std::reverse(reversed_attempts.begin(), reversed_attempts.end());
-
-   for (const auto &attempt : reversed_attempts) {
+   for (const auto &attempt : attempts) {
       if (attempt.lesson_id != lesson_id)
          continue;
 
-      if (attempt.bad_count == 0 && attempt.good_count >= chords_per_lesson) {
+      if (attempt.col_id == 0)
+         begin = true;
+
+      if (begin && (attempt.col_id == len - 1))
          ++streak;
-      } else {
-         break; // streak ends at first failure
-      }
+
+      if (attempt.bad_count != 0)
+         streak = 0;
    }
 
-   return streak / chords_per_lesson;
+   return streak;
 }
 
 int calc_practice_streak(const std::vector<attempt_record> &attempts)

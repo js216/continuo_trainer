@@ -30,7 +30,7 @@ void app_init(struct state *state)
    logic_clear(state);
 
    refresh_midi_devices(state);
-   state_load_settings(state);
+   state_load_settings(state->settings);
 
    init_midi_in(state);
    init_midi_out(state);
@@ -160,6 +160,12 @@ static void app_close_settings(struct state *state)
    }
 }
 
+static void app_algorithm_settings(struct settings &set)
+{
+   ImGui::SliderInt("Daily practice goal [min]", &set.goal_minutes, 1, 60);
+}
+
+
 static void app_settings(struct state *state)
 {
    if (ImGui::BeginTabBar("SettingsTabBar")) {
@@ -173,6 +179,11 @@ static void app_settings(struct state *state)
       }
 
       if (ImGui::BeginTabItem("Audio")) {
+         ImGui::EndTabItem();
+      }
+
+      if (ImGui::BeginTabItem("Algorithm")) {
+         app_algorithm_settings(state->settings);
          ImGui::EndTabItem();
       }
 
@@ -323,7 +334,7 @@ static void stats_today(struct state *state)
    // Duration progress bar
    ImGui::TextUnformatted("Duration");
    std::string duration_str = time_format(state->stats.duration_today);
-   double max_duration      = 1200.0;
+   double max_duration      = 60.0F * state->settings.goal_minutes;
    ImGui::ProgressBar(
        (float)std::clamp(state->stats.duration_today / max_duration, 0.0, 1.0),
        ImVec2(-1, bar_h),

@@ -31,7 +31,7 @@ static bool handle_events(struct state *state)
    while (SDL_PollEvent(&event)) {
       ImGui_ImplSDL2_ProcessEvent(&event);
       if (event.type == SDL_QUIT) {
-         state_save_settings(state);
+         state_save_settings(state->settings);
          return false;
       }
    }

@@ -99,6 +99,7 @@ struct figure {
 };
 
 struct attempt_record {
+   unsigned int col_id;
    double time;
    size_t good_count;
    size_t bad_count;

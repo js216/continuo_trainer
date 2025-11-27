@@ -148,6 +148,25 @@ void db_store_bool(const std::string &key, bool v)
    db_store_key_val(key, v ? "true" : "false");
 }
 
+void db_store_int(const std::string &key, int v)
+{
+   db_store_key_val(key, std::to_string(v));
+}
+
+int db_load_int(const std::string &key)
+{
+    std::string v = db_load_key_val(key);
+    if (v.empty())
+        return 0;
+
+    try {
+        return std::stoi(v);
+    }
+    catch (...) {
+        return 0;
+    }
+}
+
 static std::string db_lesson_fname(const int id)
 {
    std::string fname = std::to_string(id);
@@ -303,15 +322,18 @@ static bool parse_attempt_line(const std::string &line, attempt_record &out)
 
    std::istringstream iss(line);
 
+   // lesson id
+   iss >> out.lesson_id;
+
+   // column id
+   iss >> out.col_id;
+
    // timestamp
    double t = 0.0;
    iss >> t;
    if (iss.fail())
       return false;
    out.time = t;
-
-   // lesson id
-   iss >> out.lesson_id;
 
    // skip bass, figures, answer
    std::string ignore;
@@ -355,7 +377,7 @@ std::vector<attempt_record> db_read_attempts()
    return records;
 }
 
-void db_store_attempt(const int lesson_id, const struct column &col)
+void db_store_attempt(const int lesson_id, unsigned int col_id, const struct column &col)
 {
    std::ofstream ofs(attempts_file, std::ios::app);
    if (!ofs.is_open()) {
@@ -363,11 +385,14 @@ void db_store_attempt(const int lesson_id, const struct column &col)
       return;
    }
 
-   // timestamp in seconds with 2 decimal places
-   ofs << std::fixed << std::setprecision(2) << time_now() << " ";
-
    // lesson id
    ofs << lesson_id << " ";
+
+   // column id
+   ofs << col_id << " ";
+
+   // timestamp in seconds with 2 decimal places
+   ofs << std::fixed << std::setprecision(2) << time_now() << " ";
 
    // bass note (print lowest if multiple)
    if (!col.bass.empty()) {

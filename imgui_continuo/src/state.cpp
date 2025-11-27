@@ -18,18 +18,20 @@
 // global state for debug only
 float global_tune;
 
-void state_save_settings(const struct state *state)
+void state_save_settings(const struct settings &set)
 {
-   db_store_key_val("in_dev", state->settings.in_dev);
-   db_store_key_val("out_dev", state->settings.out_dev);
-   db_store_bool("midi_forward", state->settings.midi_forward);
+   db_store_key_val("in_dev", set.in_dev);
+   db_store_key_val("out_dev", set.out_dev);
+   db_store_bool("midi_forward", set.midi_forward);
+   db_store_int("goal_minutes", set.goal_minutes);
 }
 
-void state_load_settings(struct state *state)
+void state_load_settings(struct settings &set)
 {
-   state->settings.in_dev       = db_load_key_val("in_dev");
-   state->settings.out_dev      = db_load_key_val("out_dev");
-   state->settings.midi_forward = db_load_bool("midi_forward");
+   set.in_dev       = db_load_key_val("in_dev");
+   set.out_dev      = db_load_key_val("out_dev");
+   set.midi_forward = db_load_bool("midi_forward");
+   set.goal_minutes = db_load_int("goal_minutes");
 }
 
 void state_clear_lesson(struct state *state)

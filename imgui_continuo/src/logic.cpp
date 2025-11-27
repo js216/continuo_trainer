@@ -100,7 +100,7 @@ static void logic_play(struct state *state)
 
       if (!col.good.empty() || !col.bad.empty()) {
          col.time = time_now();
-         db_store_attempt(state->lesson.lesson_id, col);
+         db_store_attempt(state->lesson.lesson_id, state->ui.active_col, col);
          state->ui.active_col++;
       }
    }
