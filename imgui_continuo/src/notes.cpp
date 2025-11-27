@@ -2,7 +2,7 @@
 
 /**
  * @file notes.cpp
- * @brief Note manupulation routines.
+ * @brief Note manipulation routines.
  * @author Jakob Kastelic
  */
 
@@ -312,6 +312,27 @@ static void compute_visible_range(int total, int active, int cps, int n_left,
    }
 }
 
+static void draw_active_col_cursor(int x_idx)
+{
+   uint32_t color = IM_COL32(255, 255, 255, 25);
+   const float margin = 20.0F;
+
+   ImDrawList *draw_list = ImGui::GetWindowDrawList();
+   ImVec2 avail = ImGui::GetContentRegionAvail();
+   ImVec2 origin = ImGui::GetCursorScreenPos();
+
+   // Compute X position for the left and right edges of the rectangle
+   float x_left  = calc_x(x_idx) - margin;
+   float x_right = calc_x(x_idx) + margin;
+
+   // Y spans entire available content region (grand staff)
+   float y_top    = origin.y;
+   float y_bottom = origin.y + avail.y;
+
+   draw_list->AddRectFilled(ImVec2(x_left, y_top), ImVec2(x_right, y_bottom),
+         color);
+}
+
 void notes_draw(const struct state *state)
 {
    if (!ImGui::BeginChild("Staff", ImVec2(0, 0), false)) {
@@ -331,6 +352,8 @@ void notes_draw(const struct state *state)
 
    int start = 0, end = 0;
    compute_visible_range(total, active, cps, 0.3F * cps, start, end);
+
+   draw_active_col_cursor(active - start);
 
    for (int i = start; i < end; ++i) {
       const auto &col = state->lesson.chords[i];
