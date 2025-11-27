@@ -262,16 +262,7 @@ void db_store_lesson_chords(int lesson_id, const std::vector<column> &chords)
       std::sort(bass_notes.begin(), bass_notes.end());
       out << th_midi_to_name(bass_notes.front()) << " ";
 
-      if (!col.figures.empty()) {
-         for (size_t i = 0; i < col.figures.size(); ++i) {
-            if (i > 0)
-               out << ",";
-            out << th_fig_to_string(col.figures[i]);
-         }
-         out << " ";
-      } else {
-         out << "- ";
-      }
+      out << th_fig_to_string(col.figures);
 
       std::vector<midi_note> notes(col.answer.begin(), col.answer.end());
       std::sort(notes.begin(), notes.end());
@@ -401,16 +392,7 @@ void db_store_attempt(const int lesson_id, const struct column &col)
    };
 
    // figures (comma-delimited)
-   bool first_fig = true;
-   for (const auto &fig : col.figures) {
-      if (!first_fig)
-         ofs << ",";
-      ofs << th_fig_to_string(
-          fig); // you need a function to convert figure to string
-      first_fig = false;
-   }
-   if (col.figures.empty())
-      ofs << "-";
+   ofs << th_fig_to_string(col.figures);
 
    ofs << " ";
 

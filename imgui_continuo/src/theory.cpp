@@ -64,23 +64,30 @@ std::string th_midi_to_name(const enum midi_note n)
    return std::string(pitch_class_name(note)) + std::to_string(octave);
 }
 
-std::string th_fig_to_string(const struct figure &f)
+std::string th_fig_to_string(const std::vector<figure> &figs)
 {
-   std::stringstream ss;
-   switch (f.acc) {
-      case ACC_NONE: break;
-      case ACC_SHARP: ss << "#"; break;
-      case ACC_FLAT: ss << "b"; break;
-      case ACC_NATURAL: ss << "n"; break;
-      case ACC_SLASH: ss << "/"; break;
+    if (figs.empty())
+        return "- ";
 
-      case ACC_NUM:
-      default: ; // do nothing
-   }
-   if (f.num != 0)
-      ss << f.num;
-   return ss.str();
+    std::stringstream ss;
+    for (size_t i = 0; i < figs.size(); ++i) {
+        if (i > 0) ss << ",";
+        const auto &f = figs[i];
+        switch (f.acc) {
+            case ACC_NONE: break;
+            case ACC_SHARP: ss << "#"; break;
+            case ACC_FLAT: ss << "b"; break;
+            case ACC_NATURAL: ss << "n"; break;
+            case ACC_SLASH: ss << "/"; break;
+            case ACC_NUM:
+            default: ; // do nothing
+        }
+        if (f.num != 0) ss << f.num;
+    }
+    ss << " "; // keep trailing space as before
+    return ss.str();
 }
+
 
 enum accidental th_key_sig_accidental(enum key_sig key, enum midi_note n)
 {

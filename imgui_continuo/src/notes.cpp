@@ -375,6 +375,10 @@ static void handle_chord_click(int screen_idx, int chord_idx, struct state *stat
    // Execute action on mouse release
    if (hovering && io.MouseReleased[0]) {
       state->ui.active_col = chord_idx;
+      if (state->ui.active_col < state->lesson.chords.size()) {
+         struct column &col = state->lesson.chords[state->ui.active_col];
+         state->ui.figs_entry = th_fig_to_string(col.figures);
+      }
    }
 }
 

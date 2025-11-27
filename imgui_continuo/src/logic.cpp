@@ -120,19 +120,14 @@ static void logic_record(struct state *state)
    bool is_pressed = !state->midi.pressed_notes.empty();
 
    // --- RELEASE LOGIC (Falling Edge) ---
-   // Finalize the recorded column and advance the cursor once.
    if (!is_pressed) {
-      if (was_pressed) {
-         if (state->ui.active_col < state->lesson.chords.size()) {
-            //state->ui.active_col++;
-         }
-      }
+      if (was_pressed)
+         state->ui.figs_entry = "";
       was_pressed = false;
       return;
    }
 
    // --- PRESS LOGIC (Rising Edge) ---
-   // Prepare the new column slot AFTER the current cursor position.
    if (!was_pressed) {
       if (state->lesson.chords.empty()) {
          // Case 1: Start of lesson. Insert at index 0.

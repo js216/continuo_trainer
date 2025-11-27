@@ -200,6 +200,11 @@ static void app_key_sig_selector(state *state)
 
 static void app_figures_entry(state *state)
 {
+   if (!state->ui.edit_lesson) {
+      ImGui::InputText("##figs_entry", &state->ui.figs_entry, ImGuiInputTextFlags_ReadOnly);
+      return;
+   }
+
    if (ImGui::InputText("##figs_entry", &state->ui.figs_entry)) {
       if (state->lesson.chords.empty())
          return;

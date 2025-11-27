@@ -114,15 +114,17 @@ struct column {
    double time;
 };
 
-std::string th_key_sig_to_string(enum key_sig);
-std::string th_midi_to_name(enum midi_note n);
-std::string th_fig_to_string(const struct figure &f);
 enum accidental th_key_sig_accidental(enum key_sig key, midi_note n);
 int th_note_to_bass(const enum midi_note n, const enum key_sig k);
 int th_note_to_treble(const enum midi_note n, const enum key_sig k);
 int th_key_sig_acc_count(enum key_sig key);
 
-// string parsing
+// convert TO string
+std::string th_key_sig_to_string(enum key_sig);
+std::string th_midi_to_name(enum midi_note n);
+std::string th_fig_to_string(const std::vector<figure> &figs);
+
+// convert FROM string
 key_sig th_parse_key(const std::string &token);
 std::vector<figure> th_parse_figures_from_str(const std::string &token);
 midi_note th_parse_midi_note(const std::string &token);
