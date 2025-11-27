@@ -177,6 +177,8 @@ int note_to_treble(const enum midi_note n, const enum key_sig k)
    int base = 0;
 
    switch (n) {
+      case NOTES_D4:
+      case NOTES_Ds4: base = -1; break;
       case NOTES_E4: base = 0; break;
       case NOTES_F4:
       case NOTES_Fs4: base = 1; break;

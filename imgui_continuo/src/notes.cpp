@@ -54,7 +54,7 @@ static float calc_y(const enum midi_note n, enum key_sig key)
    const float staff_gap = spacing * 2.0F;
 
    // treble staff
-   if (n >= NOTES_E4) {
+   if (n >= NOTES_D4) {
       const int nb = note_to_treble(n, key);
       if (nb == NOTES_OUT_OF_RANGE)
          return NOTES_OUT_OF_RANGE;
