@@ -204,10 +204,10 @@ static void app_figures_entry(state *state)
       if (state->lesson.chords.empty())
          return;
 
-      if (state->ui.active_col - 1 >= state->lesson.chords.size())
+      if (state->ui.active_col >= state->lesson.chords.size())
          return;
 
-      struct column &col = state->lesson.chords[state->ui.active_col - 1];
+      struct column &col = state->lesson.chords[state->ui.active_col];
       col.figures        = th_parse_figures_from_str(state->ui.figs_entry);
    }
 }
@@ -215,21 +215,21 @@ static void app_figures_entry(state *state)
 static void app_save_discard(struct state *state, const float bw)
 {
    ImGui::SameLine();
-const char *rel_label = state->ui.edit_lesson ? "Discard" : "Reload";
+   const char *rel_label = state->ui.edit_lesson ? "Discard" : "Reload";
 
-if (state->ui.edit_lesson) {
-    ImGui::PushStyleColor(ImGuiCol_Button, IM_COL32(200, 0, 0, 255));
-    ImGui::PushStyleColor(ImGuiCol_ButtonHovered, IM_COL32(255, 0, 0, 255));
-    ImGui::PushStyleColor(ImGuiCol_ButtonActive, IM_COL32(180, 0, 0, 255));
-    bool pressed = ImGui::Button(rel_label, ImVec2(bw, 0));
-    ImGui::PopStyleColor(3);
+   if (state->ui.edit_lesson && ! state->lesson.chords.empty()) {
+      ImGui::PushStyleColor(ImGuiCol_Button, IM_COL32(200, 0, 0, 255));
+      ImGui::PushStyleColor(ImGuiCol_ButtonHovered, IM_COL32(255, 0, 0, 255));
+      ImGui::PushStyleColor(ImGuiCol_ButtonActive, IM_COL32(180, 0, 0, 255));
+      bool pressed = ImGui::Button(rel_label, ImVec2(bw, 0));
+      ImGui::PopStyleColor(3);
 
-    if (pressed)
-        logic_clear(state);
-} else {
-    if (ImGui::Button(rel_label, ImVec2(bw, 0)))
-        logic_clear(state);
-}
+      if (pressed)
+         logic_clear(state);
+   } else {
+      if (ImGui::Button(rel_label, ImVec2(bw, 0)))
+         logic_clear(state);
+   }
 
 }
 

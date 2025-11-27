@@ -44,11 +44,22 @@ void state_clear_lesson(struct state *state)
 
 void state_pop_lesson(struct state *state)
 {
-   if (state->lesson.chords.empty())
+   if (!state->ui.edit_lesson)
       return;
 
-   state->lesson.chords.pop_back();
-   state->ui.active_col--;
+   if (state->lesson.chords.empty() ||
+         state->ui.active_col >= state->lesson.chords.size())
+      return;
+
+   // Remove the currently active column
+   state->lesson.chords.erase(
+         state->lesson.chords.begin() + state->ui.active_col
+         );
+
+   // Adjust active_col so it stays in bounds
+   if (state->ui.active_col >= state->lesson.chords.size()) {
+      state->ui.active_col = state->lesson.chords.size() - 1;
+   }
 }
 
 void state_load_lesson(struct state *state)

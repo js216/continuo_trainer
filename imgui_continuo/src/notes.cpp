@@ -333,7 +333,52 @@ static void draw_active_col_cursor(int x_idx)
          color);
 }
 
-void notes_draw(const struct state *state)
+static void handle_chord_click(int screen_idx, int chord_idx, struct state *state)
+{
+   ImVec2 origin = ImGui::GetCursorScreenPos();
+   ImVec2 avail  = ImGui::GetContentRegionAvail();
+   const float margin = 20.0F;
+
+   float x_left   = calc_x(screen_idx) - margin;
+   float x_right  = calc_x(screen_idx) + margin;
+   float y_top    = origin.y;
+   float y_bottom = origin.y + avail.y;
+
+   ImGuiIO &io = ImGui::GetIO();
+   bool hovering = ImGui::IsMouseHoveringRect(
+         ImVec2(x_left, y_top),
+         ImVec2(x_right, y_bottom)
+         );
+
+   ImDrawList *draw = ImGui::GetWindowDrawList();
+
+   // Draw hover highlight
+   if (hovering) {
+      ImU32 color = IM_COL32(200, 200, 200, 50); // light gray
+      draw->AddRectFilled(
+            ImVec2(x_left, y_top),
+            ImVec2(x_right, y_bottom),
+            color
+            );
+   }
+
+   // Draw pressed highlight if mouse is down over this column
+   if (hovering && io.MouseDown[0]) {
+      ImU32 color = IM_COL32(255, 200, 0, 50); // light orange
+      draw->AddRectFilled(
+            ImVec2(x_left, y_top),
+            ImVec2(x_right, y_bottom),
+            color
+            );
+   }
+
+   // Execute action on mouse release
+   if (hovering && io.MouseReleased[0]) {
+      state->ui.active_col = chord_idx;
+   }
+}
+
+void notes_draw(struct state *state)
 {
    if (!ImGui::BeginChild("Staff", ImVec2(0, 0), false)) {
       ImGui::EndChild();
@@ -358,6 +403,8 @@ void notes_draw(const struct state *state)
    for (int i = start; i < end; ++i) {
       const auto &col = state->lesson.chords[i];
       const int idx   = i - start; // screen-space index
+
+      handle_chord_click(idx, i, state);
 
       for (auto n : col.bass)
          notes_dot(state->lesson.key, n, idx, STYLE_WHITE);

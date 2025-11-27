@@ -10,6 +10,6 @@
 #define NOTES_H
 
 void notes_staff(struct state *state);
-void notes_draw(const struct state *state);
+void notes_draw(struct state *state);
 
 #endif /* NOTES_H */

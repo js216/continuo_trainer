@@ -116,24 +116,49 @@ static void logic_play(struct state *state)
 
 static void logic_record(struct state *state)
 {
-   // If nothing pressed → finalize column if anything was recorded
-   if (state->midi.pressed_notes.empty()) {
-      if (state->ui.active_col < state->lesson.chords.size()) {
-         struct column &col = state->lesson.chords[state->ui.active_col];
-         if (!col.bass.empty() || !col.answer.empty()) {
-            // Finalize this column, move to the next
-            state->ui.active_col++;
+   static bool was_pressed = false;
+   bool is_pressed = !state->midi.pressed_notes.empty();
+
+   // --- RELEASE LOGIC (Falling Edge) ---
+   // Finalize the recorded column and advance the cursor once.
+   if (!is_pressed) {
+      if (was_pressed) {
+         if (state->ui.active_col < state->lesson.chords.size()) {
+            //state->ui.active_col++;
          }
       }
+      was_pressed = false;
       return;
    }
 
-   // Notes currently pressed → ensure there is a column to record into
-   if (state->lesson.chords.empty() ||
-       state->ui.active_col >= state->lesson.chords.size()) {
+   // --- PRESS LOGIC (Rising Edge) ---
+   // Prepare the new column slot AFTER the current cursor position.
+   if (!was_pressed) {
+      if (state->lesson.chords.empty()) {
+         // Case 1: Start of lesson. Insert at index 0.
+         state->lesson.chords.emplace_back();
+         state->ui.active_col = 0;
+      } else {
+         // Case 2: Insert into the middle or at the end.
+         // We insert at active_col + 1 (AFTER the currently selected column).
+         size_t insert_idx = state->ui.active_col + 1;
+
+         // Insert the new empty column.
+         state->lesson.chords.insert(
+            state->lesson.chords.begin() + insert_idx,
+            column());
+
+         // Move the active cursor to the newly inserted column.
+         state->ui.active_col = insert_idx;
+      }
+   }
+
+   // Ensure the vector is large enough (safety check).
+   if (state->ui.active_col >= state->lesson.chords.size()) {
       state->lesson.chords.emplace_back();
    }
 
+   // --- RECORDING ---
    struct column &col = state->lesson.chords[state->ui.active_col];
 
    // Determine lowest pressed note
@@ -146,6 +171,8 @@ static void logic_record(struct state *state)
       if (n != lowest)
          col.answer.insert(static_cast<midi_note>(n));
    }
+
+   was_pressed = true;
 }
 
 void logic_receive(struct state *state)
