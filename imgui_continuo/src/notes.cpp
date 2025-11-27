@@ -40,10 +40,10 @@ static struct acc acc_sym(enum accidental a)
    }
 }
 
-static float calc_x(const int x_idx)
+static float calc_x(const int x_idx, const enum key_sig key)
 {
    ImVec2 p           = ImGui::GetCursorScreenPos();
-   const float x_offs = 130;
+   const float x_offs = 40 + 7.50F * std::abs(th_key_sig_acc_count(key));
    return p.x + x_offs + ((float)x_idx + 1) * CHORD_SEP;
 }
 
@@ -232,7 +232,7 @@ static void notes_dot(enum key_sig key, enum midi_note n, int x_idx,
 {
    const float note_radius = 0.44F * staff_space();
 
-   const float x = calc_x(x_idx);
+   const float x = calc_x(x_idx, key);
 
    draw_accidental(x, n, note_radius, color, th_key_sig_accidental(key, n),
                    key);
@@ -288,7 +288,7 @@ static void compute_visible_range(int total, int active, int cps, int n_left,
       return;
    }
 
-   cps -= n_left;
+   cps -= n_left - 1;
 
    // If everything fits, no clipping needed
    if (total <= cps) {
@@ -312,7 +312,7 @@ static void compute_visible_range(int total, int active, int cps, int n_left,
    }
 }
 
-static void draw_active_col_cursor(int x_idx)
+static void draw_active_col_cursor(int x_idx, const enum key_sig key)
 {
    uint32_t color = IM_COL32(255, 255, 255, 25);
    const float margin = 20.0F;
@@ -322,8 +322,8 @@ static void draw_active_col_cursor(int x_idx)
    ImVec2 origin = ImGui::GetCursorScreenPos();
 
    // Compute X position for the left and right edges of the rectangle
-   float x_left  = calc_x(x_idx) - margin;
-   float x_right = calc_x(x_idx) + margin;
+   float x_left  = calc_x(x_idx, key) - margin;
+   float x_right = calc_x(x_idx, key) + margin;
 
    // Y spans entire available content region (grand staff)
    float y_top    = origin.y;
@@ -339,8 +339,8 @@ static void handle_chord_click(int screen_idx, int chord_idx, struct state *stat
    ImVec2 avail  = ImGui::GetContentRegionAvail();
    const float margin = 20.0F;
 
-   float x_left   = calc_x(screen_idx) - margin;
-   float x_right  = calc_x(screen_idx) + margin;
+   float x_left   = calc_x(screen_idx, state->lesson.key) - margin;
+   float x_right  = calc_x(screen_idx, state->lesson.key) + margin;
    float y_top    = origin.y;
    float y_bottom = origin.y + avail.y;
 
@@ -402,7 +402,7 @@ void notes_draw(struct state *state)
    int start = 0, end = 0;
    compute_visible_range(total, active, cps, 0.3F * cps, start, end);
 
-   draw_active_col_cursor(active - start);
+   draw_active_col_cursor(active - start, state->lesson.key);
 
    for (int i = start; i < end; ++i) {
       const auto &col = state->lesson.chords[i];
@@ -424,7 +424,7 @@ void notes_draw(struct state *state)
             notes_dot(state->lesson.key, n, idx, STYLE_YELLOW);
 
       if (!col.bass.empty()) {
-         float x = calc_x(idx);
+         float x = calc_x(idx, state->lesson.key);
          float y = calc_y(*col.bass.begin(), state->lesson.key);
          if (y != NOTES_OUT_OF_RANGE) {
             const float fs = 1.7F * staff_space();

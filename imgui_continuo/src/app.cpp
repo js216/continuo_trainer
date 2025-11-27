@@ -240,7 +240,7 @@ static void app_save_discard(struct state *state, const float bw)
 
 static void app_buttons(struct state *state)
 {
-   float bw = ImGui::GetContentRegionAvail().x / 5;
+   float bw = ImGui::GetContentRegionAvail().x / 5 - 8.0F;
 
    ImGui::PushItemWidth(bw);
    if (ImGui::InputInt("##lesson_id", &state->lesson.lesson_id)) {
@@ -264,7 +264,7 @@ static void app_buttons(struct state *state)
 
    ImGui::SameLine();
    ImGui::PushItemWidth(bw);
-   ImGui::DragFloat("##tune", &global_tune, 0.1F, 1, 50);
+   ImGui::DragFloat("##tune", &global_tune, 0.1F, 1, 20);
    ImGui::PopItemWidth();
 
    ImGui::SameLine();
@@ -273,9 +273,9 @@ static void app_buttons(struct state *state)
    }
 
    // next line
-   bw = ImGui::GetContentRegionAvail().x / 5;
+   bw = ImGui::GetContentRegionAvail().x / 6 - 5.0F;
 
-   ImGui::PushItemWidth(2 * bw);
+   ImGui::PushItemWidth(3 * bw);
    ImGui::InputText("##lesson_title", &state->lesson.lesson_title);
    ImGui::PopItemWidth();
 
@@ -290,7 +290,7 @@ static void app_buttons(struct state *state)
    ImGui::PopItemWidth();
 
    ImGui::SameLine();
-   if (ImGui::Button("x", ImVec2(bw, 0))) {
+   if (ImGui::Button("X", ImVec2(bw, 0))) {
       state_pop_lesson(state);
    }
 

@@ -32,6 +32,7 @@ void logic_clear(struct state *state)
       // enter edit mode
       state_clear_lesson(state);
       state->ui.edit_lesson = true;
+      state->ui.status = "Empty lesson; enter new notes.";
    }
 
    state_reload_stats(state);
