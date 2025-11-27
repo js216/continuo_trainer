@@ -34,8 +34,8 @@ void state_load_settings(struct state *state)
 
 void state_clear_lesson(struct state *state)
 {
-   std::fill(std::begin(state->lesson.lesson_title), std::end(state->lesson.lesson_title),
-             '\0');
+   std::fill(std::begin(state->lesson.lesson_title),
+             std::end(state->lesson.lesson_title), '\0');
    state->lesson.key = KEY_SIG_0;
    state->lesson.chords.clear();
    state->midi.pressed_notes.clear();
@@ -54,22 +54,27 @@ void state_pop_lesson(struct state *state)
 void state_load_lesson(struct state *state)
 {
    state_clear_lesson(state);
-   state->lesson.lesson_title = db_load_lesson_key_val(state->lesson.lesson_id, "title");
-   state->lesson.key    = parse_key(db_load_lesson_key_val(state->lesson.lesson_id, "key"));
+   state->lesson.lesson_title =
+       db_load_lesson_key_val(state->lesson.lesson_id, "title");
+   state->lesson.key =
+       parse_key(db_load_lesson_key_val(state->lesson.lesson_id, "key"));
    state->lesson.chords = db_load_lesson_chords(state->lesson.lesson_id);
 
-   state->ui.status = "Loaded lesson " + std::to_string(state->lesson.lesson_id);
+   state->ui.status =
+       "Loaded lesson " + std::to_string(state->lesson.lesson_id);
 }
 
 void state_store_lesson(struct state *state)
 {
    db_clear_lesson(state->lesson.lesson_id);
-   db_store_lesson_key_val(state->lesson.lesson_id, "title", state->lesson.lesson_title);
+   db_store_lesson_key_val(state->lesson.lesson_id, "title",
+                           state->lesson.lesson_title);
    db_store_lesson_key_val(state->lesson.lesson_id, "key",
                            key_sig_to_string(state->lesson.key));
    db_store_lesson_chords(state->lesson.lesson_id, state->lesson.chords);
 
-   state->ui.status = "Lesson saved to " + std::to_string(state->lesson.lesson_id);
+   state->ui.status =
+       "Lesson saved to " + std::to_string(state->lesson.lesson_id);
 }
 
 void state_reload_stats(struct state *state)
@@ -90,7 +95,7 @@ void state_reload_stats(struct state *state)
    // Compute score and streaks
    state->stats.duration_today = calc_duration_today(records);
    state->stats.score          = calc_score_today(records);
-   state->stats.lesson_streak =
-       calc_lesson_streak(records, state->lesson.lesson_id, state->lesson.chords.size());
+   state->stats.lesson_streak  = calc_lesson_streak(
+       records, state->lesson.lesson_id, state->lesson.chords.size());
    state->stats.practice_streak = calc_practice_streak(records);
 }

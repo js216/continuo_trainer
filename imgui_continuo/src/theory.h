@@ -84,7 +84,14 @@ enum key_sig {
    KEY_NUM
 };
 
-enum accidental { ACC_NONE, ACC_SHARP, ACC_FLAT, ACC_NATURAL, ACC_SLASH, ACC_NUM };
+enum accidental {
+   ACC_NONE,
+   ACC_SHARP,
+   ACC_FLAT,
+   ACC_NATURAL,
+   ACC_SLASH,
+   ACC_NUM
+};
 
 struct figure {
    int num;

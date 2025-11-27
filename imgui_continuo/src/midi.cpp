@@ -33,7 +33,7 @@ void refresh_midi_devices(struct state *state)
    } catch (RtMidiError &error) {
       state->midi.midi_devices.clear();
       state->midi.midi_devices.push_back(std::string("RtMidi error: ") +
-                                    error.getMessage());
+                                         error.getMessage());
    }
 }
 
@@ -52,7 +52,8 @@ static int midi_to_idx(const std::vector<std::string> &list,
 
 void init_midi_in(struct state *state)
 {
-   const int idx = midi_to_idx(state->midi.midi_devices, state->settings.in_dev);
+   const int idx =
+       midi_to_idx(state->midi.midi_devices, state->settings.in_dev);
 
    if (idx >= 0) {
       try {
@@ -73,7 +74,8 @@ void init_midi_in(struct state *state)
 
 void init_midi_out(struct state *state)
 {
-   const int idx = midi_to_idx(state->midi.midi_devices, state->settings.out_dev);
+   const int idx =
+       midi_to_idx(state->midi.midi_devices, state->settings.out_dev);
 
    if (idx >= 0) {
       try {
@@ -201,7 +203,8 @@ void poll_midi(struct state *state)
 
       // Forward message to output immediately if enabled
       if (state->settings.midi_forward && state->midi.midi_out &&
-          state->settings.in_dev != state->settings.out_dev) // now string compare
+          state->settings.in_dev !=
+              state->settings.out_dev) // now string compare
       {
          try {
             state->midi.midi_out->sendMessage(&message);

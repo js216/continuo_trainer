@@ -26,7 +26,8 @@ void logic_clear(struct state *state)
       // load lesson
       state->ui.edit_lesson = false;
       state_load_lesson(state);
-      state->ui.status = "Loaded lesson " + std::to_string(state->lesson.lesson_id);
+      state->ui.status =
+          "Loaded lesson " + std::to_string(state->lesson.lesson_id);
    } else {
       // enter edit mode
       state_clear_lesson(state);
@@ -128,7 +129,8 @@ static void logic_record(struct state *state)
    }
 
    // Notes currently pressed → ensure there is a column to record into
-   if (state->lesson.chords.empty() || state->ui.active_col >= state->lesson.chords.size()) {
+   if (state->lesson.chords.empty() ||
+       state->ui.active_col >= state->lesson.chords.size()) {
       state->lesson.chords.emplace_back();
    }
 

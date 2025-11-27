@@ -73,8 +73,9 @@ static void draw_midi_in_row(struct state *state, const float bw)
    }
 
    ImGui::SameLine();
-   ImGui::TextUnformatted(state->settings.in_dev.empty() ? "(No input device selected.)"
-                                                : state->settings.in_dev.c_str());
+   ImGui::TextUnformatted(state->settings.in_dev.empty()
+                              ? "(No input device selected.)"
+                              : state->settings.in_dev.c_str());
 }
 
 static void draw_midi_out_row(struct state *state, const float bw)
@@ -150,41 +151,40 @@ static void app_close_settings(struct state *state)
 
    // Compute width of button
    const char *label = "X";
-   float bw = 50.0F;
+   float bw          = 50.0F;
    const ImGuiIO &io = ImGui::GetIO();
    ImGui::SetCursorPosX(io.DisplaySize.x - bw - STYLE_PAD_X);
 
    if (ImGui::Button(label, ImVec2(bw, 0))) {
-      state->ui.settings_open = false;  // close settings
+      state->ui.settings_open = false; // close settings
    }
 }
 
-
 static void app_settings(struct state *state)
 {
-    if (ImGui::BeginTabBar("SettingsTabBar")) {
-        if (ImGui::BeginTabItem("MIDI")) {
-            app_midi_menu(state);
-            ImGui::EndTabItem();
-        }
+   if (ImGui::BeginTabBar("SettingsTabBar")) {
+      if (ImGui::BeginTabItem("MIDI")) {
+         app_midi_menu(state);
+         ImGui::EndTabItem();
+      }
 
-        if (ImGui::BeginTabItem("Display")) {
-            ImGui::EndTabItem();
-        }
+      if (ImGui::BeginTabItem("Display")) {
+         ImGui::EndTabItem();
+      }
 
-        if (ImGui::BeginTabItem("Audio")) {
-            ImGui::EndTabItem();
-        }
+      if (ImGui::BeginTabItem("Audio")) {
+         ImGui::EndTabItem();
+      }
 
-        app_close_settings(state);
-        ImGui::EndTabBar();
-    }
+      app_close_settings(state);
+      ImGui::EndTabBar();
+   }
 }
-
 
 static void app_key_sig_selector(state *state)
 {
-   if (ImGui::BeginCombo("##keysig", key_sig_to_string(state->lesson.key).c_str())) {
+   if (ImGui::BeginCombo("##keysig",
+                         key_sig_to_string(state->lesson.key).c_str())) {
       for (int i = 0; i < KEY_NUM; ++i) {
          bool is_selected = (state->lesson.key == i);
          if (ImGui::Selectable(
@@ -293,10 +293,9 @@ static void stats_today(struct state *state)
    ImGui::TextUnformatted("Score");
    double max_score      = 2500.0F;
    std::string score_str = std::to_string(int(state->stats.score));
-   ImGui::ProgressBar((float)std::clamp(state->stats.score / max_score, 0.0, 1.0),
-                      ImVec2(-1, bar_h),
-                      score_str.c_str()
-   );
+   ImGui::ProgressBar(
+       (float)std::clamp(state->stats.score / max_score, 0.0, 1.0),
+       ImVec2(-1, bar_h), score_str.c_str());
 
    // Duration progress bar
    ImGui::TextUnformatted("Duration");

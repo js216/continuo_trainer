@@ -20,9 +20,9 @@
 #define STYLE_GRAY   0xFFAAAAAAU
 #define STYLE_YELLOW 0xFF50D0D0U
 
-#define STYLE_BTN_H  40.0F
-#define STYLE_PAD_X  10.0F
-#define STYLE_PAD_Y  10.0F
+#define STYLE_BTN_H 40.0F
+#define STYLE_PAD_X 10.0F
+#define STYLE_PAD_Y 10.0F
 
 enum anchor {
    ANCHOR_TOP_LEFT,
