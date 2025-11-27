@@ -212,15 +212,66 @@ static void app_figures_entry(state *state)
    }
 }
 
+static void app_save_discard(struct state *state, const float bw)
+{
+   ImGui::SameLine();
+const char *rel_label = state->ui.edit_lesson ? "Discard" : "Reload";
+
+if (state->ui.edit_lesson) {
+    ImGui::PushStyleColor(ImGuiCol_Button, IM_COL32(200, 0, 0, 255));
+    ImGui::PushStyleColor(ImGuiCol_ButtonHovered, IM_COL32(255, 0, 0, 255));
+    ImGui::PushStyleColor(ImGuiCol_ButtonActive, IM_COL32(180, 0, 0, 255));
+    bool pressed = ImGui::Button(rel_label, ImVec2(bw, 0));
+    ImGui::PopStyleColor(3);
+
+    if (pressed)
+        logic_clear(state);
+} else {
+    if (ImGui::Button(rel_label, ImVec2(bw, 0)))
+        logic_clear(state);
+}
+
+}
+
 static void app_buttons(struct state *state)
 {
-   float bw = ImGui::GetContentRegionAvail().x / 6;
+   float bw = ImGui::GetContentRegionAvail().x / 5;
 
    ImGui::PushItemWidth(bw);
    if (ImGui::InputInt("##lesson_id", &state->lesson.lesson_id)) {
       state->lesson.lesson_id = std::clamp(state->lesson.lesson_id, 1, 99999);
       logic_clear(state);
    }
+   ImGui::PopItemWidth();
+
+   app_save_discard(state, bw);
+
+   ImGui::SameLine();
+   const char *btn_label = state->ui.edit_lesson ? "Save" : "Edit";
+   if (ImGui::Button(btn_label, ImVec2(bw, 0))) {
+      if (state->ui.edit_lesson) {
+         state_store_lesson(state);
+         state->ui.edit_lesson = false;
+      } else {
+         state->ui.edit_lesson = true;
+      }
+   }
+
+   ImGui::SameLine();
+   ImGui::PushItemWidth(bw);
+   ImGui::DragFloat("##tune", &global_tune, 0.1F, 1, 50);
+   ImGui::PopItemWidth();
+
+   ImGui::SameLine();
+   if (ImGui::Button("Settings", ImVec2(bw, 0))) {
+      state->ui.settings_open = true;
+   }
+
+   // next line
+   bw = ImGui::GetContentRegionAvail().x / 5;
+
+   ImGui::PushItemWidth(2 * bw);
+   ImGui::InputText("##lesson_title", &state->lesson.lesson_title);
    ImGui::PopItemWidth();
 
    ImGui::SameLine();
@@ -238,39 +289,6 @@ static void app_buttons(struct state *state)
       state_pop_lesson(state);
    }
 
-   ImGui::SameLine();
-   ImGui::PushItemWidth(bw);
-   ImGui::DragFloat("##tune", &global_tune, 0.1F, 1, 50);
-   ImGui::PopItemWidth();
-
-   ImGui::SameLine();
-   if (ImGui::Button("Settings", ImVec2(bw, 0))) {
-      state->ui.settings_open = true;
-   }
-
-   // next line
-   bw = ImGui::GetContentRegionAvail().x / 4;
-
-   ImGui::PushItemWidth(2 * bw);
-   ImGui::InputText("##lesson_title", &state->lesson.lesson_title);
-   ImGui::PopItemWidth();
-
-   ImGui::SameLine();
-   const char *rel_label = state->ui.edit_lesson ? "Discard" : "Reload";
-   if (ImGui::Button(rel_label, ImVec2(bw, 0))) {
-      logic_clear(state);
-   }
-
-   ImGui::SameLine();
-   const char *btn_label = state->ui.edit_lesson ? "Save" : "Edit";
-   if (ImGui::Button(btn_label, ImVec2(bw, 0))) {
-      if (state->ui.edit_lesson) {
-         state_store_lesson(state);
-         state->ui.edit_lesson = false;
-      } else {
-         state->ui.edit_lesson = true;
-      }
-   }
 }
 
 static void stats_this_lesson(struct state *state)
