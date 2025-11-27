@@ -23,18 +23,20 @@
 
 struct acc {
    const char *sym;
-   float dx;
-   float dy;
+   float dx; // horiz from number
+   float dy; // vert from number
+   float xx; // horiz w/o numnber
+   float yy; // vert w/o numer
 };
 
 static struct acc acc_sym(enum accidental a)
 {
    switch (a) {
-      case ACC_SHARP: return {"\uE262", -0.7F, -0.3F};
-      case ACC_FLAT: return {"\uE260", -0.7F, -0.3F};
-      case ACC_NATURAL: return {"\uE261", -0.7F, -0.3F};
-      case ACC_SLASH: return {"/", 0.09F, 0.0F};
-      default: return {"", 0.0F, 0.0F};
+      case ACC_SHARP: return   {"\uE262", -0.7F, -0.3F, -0.25F, -0.3F};
+      case ACC_FLAT: return    {"\uE260", -0.7F, -0.3F, -0.25F, -0.3F};
+      case ACC_NATURAL: return {"\uE261", -0.7F, -0.3F, -0.25F, -0.3F};
+      case ACC_SLASH: return   {"/", 0.09F, 0.0F, 0.0F, 0.0F};
+      default: return {"", 0.0F, 0.0F, 0.0F, 0.0F};
    }
 }
 
@@ -244,24 +246,26 @@ static void notes_dot(enum key_sig key, enum midi_note n, int x_idx,
    draw_list->AddCircleFilled(ImVec2(x, y), note_radius, color);
 }
 
-static void draw_chord_figures(float font_size, float x, float y,
+static void draw_chord_figures(float fs, float x, float y,
                                const std::vector<figure> &figs, uint32_t color)
 {
    font_config cfg = {
-       .fontsize = font_size, .anch = ANCHOR_TOP_LEFT, .color = color};
+       .fontsize = fs, .anch = ANCHOR_TOP_LEFT, .color = color};
 
    for (size_t i = 0; i < figs.size(); ++i) {
       // figure
-      float fx = x - 0.25F * font_size;
-      float fy = y - (float)i * 0.9F * font_size - 1.5F * font_size;
-      style_text(std::to_string(figs[i].num).c_str(), fx, fy, &cfg);
+      float fx = x - 0.25F * fs;
+      float fy = y - (float)i * 0.9F * fs - 1.5F * fs;
+      if (figs[i].num != 0)
+         style_text(std::to_string(figs[i].num).c_str(), fx, fy, &cfg);
 
       // accidental
       if (figs[i].acc != ACC_NONE) {
          struct acc a = acc_sym(figs[i].acc);
-         float nx     = fx + a.dx * font_size;
-         float ny     = fy + a.dy * font_size;
-         style_text(a.sym, nx, ny, &cfg);
+         if (figs[i].num == 0)
+            style_text(a.sym, fx + a.xx * fs, fy + a.yy * fs, &cfg);
+         else
+            style_text(a.sym, fx + a.dx * fs, fy + a.dy * fs, &cfg);
       }
    }
 }
