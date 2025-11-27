@@ -23,7 +23,6 @@
 #define STYLE_BTN_H  40.0F
 #define STYLE_PAD_X  10.0F
 #define STYLE_PAD_Y  10.0F
-#define STYLE_BORDER 0.0F
 
 enum anchor {
    ANCHOR_TOP_LEFT,

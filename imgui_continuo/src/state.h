@@ -21,9 +21,13 @@ struct state {
    // program general
    std::string status;
    ImFont *music_font;
-   bool midi_menu_open;
-   bool midi_forward;
+   bool settings_open;
    std::string figs_entry;
+
+   // settings
+   bool midi_forward;
+   std::string in_dev;
+   std::string out_dev;
 
    // lesson info
    bool edit_lesson;
@@ -41,8 +45,6 @@ struct state {
 
    // MIDI devices and data
    std::vector<std::string> midi_devices;
-   std::string in_dev;
-   std::string out_dev;
    std::string selected_device;
    std::unique_ptr<RtMidiIn> midi_in;
    std::unique_ptr<RtMidiOut> midi_out;

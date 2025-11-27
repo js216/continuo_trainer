@@ -50,7 +50,7 @@ void set_style(void)
 
    // spacing
    style.ItemSpacing       = ImVec2(STYLE_PAD_X, STYLE_PAD_Y);
-   style.ItemInnerSpacing  = ImVec2(0.0F, 0.0F);
+   style.ItemInnerSpacing  = ImVec2(STYLE_PAD_X, STYLE_PAD_Y);
    style.IndentSpacing     = 0.0F;
    style.ColumnsMinSpacing = 0.0F;
 
@@ -64,13 +64,13 @@ void set_style(void)
    style.GrabRounding      = 0.0F;
 
    // border size
-   style.WindowBorderSize        = STYLE_BORDER;
-   style.ChildBorderSize         = STYLE_BORDER;
-   style.PopupBorderSize         = STYLE_BORDER;
-   style.FrameBorderSize         = STYLE_BORDER;
-   style.TabBorderSize           = STYLE_BORDER;
-   style.TabBarBorderSize        = STYLE_BORDER;
-   style.SeparatorTextBorderSize = STYLE_BORDER;
+   style.WindowBorderSize        = 0.0F;
+   style.ChildBorderSize         = 0.0F;
+   style.PopupBorderSize         = 0.0F;
+   style.FrameBorderSize         = 0.0F;
+   style.TabBorderSize           = 0.0F;
+   style.TabBarBorderSize        = 5.0F;
+   style.SeparatorTextBorderSize = 0.0F;
 
    // window & child windows
    style.WindowMinSize            = ImVec2(2.0F, 32.0F);

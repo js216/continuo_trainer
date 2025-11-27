@@ -47,7 +47,6 @@ static void draw_midi_top_row(struct state *state, const float bw)
    if (ImGui::Button("MIDI Refresh", ImVec2(bw, 0))) {
       refresh_midi_devices(state);
       state->status         = "MIDI devices refreshed";
-      state->midi_menu_open = true;
    }
 
    ImGui::SameLine();
@@ -55,7 +54,7 @@ static void draw_midi_top_row(struct state *state, const float bw)
 
    ImGui::SameLine(ImGui::GetContentRegionAvail().x - bw);
    if (ImGui::Button("Back", ImVec2(bw, 0))) {
-      state->midi_menu_open = false;
+      state->settings_open = false;
    }
 }
 
@@ -136,16 +135,52 @@ static void app_midi_menu(struct state *state)
    const float bw = 150.0F;
 
    draw_midi_top_row(state, bw);
-   ImGui::Separator();
    draw_midi_in_row(state, bw);
    draw_midi_out_row(state, bw);
-   ImGui::Separator();
    draw_midi_device_list(state);
 
    app_status_bar(state);
 
    ImGui::EndChild();
 }
+
+static void app_close_settings(struct state *state)
+{
+   ImGui::SameLine();
+
+   // Compute width of button
+   const char *label = "X";
+   float bw = 50.0F;
+   const ImGuiIO &io = ImGui::GetIO();
+   ImGui::SetCursorPosX(io.DisplaySize.x - bw - STYLE_PAD_X);
+
+   if (ImGui::Button(label, ImVec2(bw, 0))) {
+      state->settings_open = false;  // close settings
+   }
+}
+
+
+static void app_settings(struct state *state)
+{
+    if (ImGui::BeginTabBar("SettingsTabBar")) {
+        if (ImGui::BeginTabItem("MIDI")) {
+            app_midi_menu(state);
+            ImGui::EndTabItem();
+        }
+
+        if (ImGui::BeginTabItem("Display")) {
+            ImGui::EndTabItem();
+        }
+
+        if (ImGui::BeginTabItem("Audio")) {
+            ImGui::EndTabItem();
+        }
+
+        app_close_settings(state);
+        ImGui::EndTabBar();
+    }
+}
+
 
 static void app_key_sig_selector(state *state)
 {
@@ -205,12 +240,12 @@ static void app_buttons(struct state *state)
 
    ImGui::SameLine();
    ImGui::PushItemWidth(bw);
-   ImGui::DragFloat("##tune", &global_tune, 0.01F, 0.1, 1);
+   ImGui::DragFloat("##tune", &global_tune, 1.0F, 10, 200);
    ImGui::PopItemWidth();
 
    ImGui::SameLine();
-   if (ImGui::Button("MIDI ...", ImVec2(bw, 0))) {
-      state->midi_menu_open = true;
+   if (ImGui::Button("Settings", ImVec2(bw, 0))) {
+      state->settings_open = true;
    }
 
    // next line
@@ -331,8 +366,8 @@ void app_render(struct state *state)
                     ImGuiWindowFlags_NoBringToFrontOnFocus |
                     ImGuiWindowFlags_NoNavFocus);
 
-   if (state->midi_menu_open)
-      app_midi_menu(state);
+   if (state->settings_open)
+      app_settings(state);
    else
       app_main_screen(state);
 
