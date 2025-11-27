@@ -280,37 +280,44 @@ static int chords_per_screen(float width)
    return (cps > 0) ? cps : 1;
 }
 
-static void compute_visible_range(int total, int active, int cps, int n_left,
-                                  int &start, int &end)
+static void compute_visible_range(int total,
+                                  int active,
+                                  int cps,
+                                  int n_left,
+                                  int &start,
+                                  int &end)
 {
-   if (total <= 0) {
-      start = end = 0;
-      return;
-   }
+    if (total <= 0) {
+        start = end = 0;
+        return;
+    }
 
-   cps -= n_left - 1;
+    // If everything fits including barlines:
+    if (total <= cps - 2) {
+        start = 0;
+        end   = total;
+        return;
+    }
 
-   // If everything fits, no clipping needed
-   if (total <= cps) {
-      start = 0;
-      end   = total;
-      return;
-   }
+    // Default: final note not visible → reserve 1 slot for right edge
+    int usable = cps - 1;
 
-   // Try to place n_left items before active
-   start = active - n_left;
-   if (start < 0)
-      start = 0;
+    // Try centering active with n_left before it
+    start = active - n_left;
+    if (start < 0)
+        start = 0;
 
-   end = start + cps;
+    end = start + usable;
 
-   if (end >= total) {
-      // The last item is visible -> show final window
-      end   = total;
-      start = total - cps;
-      return;
-   }
+    if (end >= total) {
+        // Final region reached → reserve 2 slots for final double barline
+        end   = total;
+        start = total - (cps - 2);
+        if (start < 0)
+            start = 0;
+    }
 }
+
 
 static void draw_active_col_cursor(int x_idx, const enum key_sig key)
 {
@@ -382,6 +389,27 @@ static void handle_chord_click(int screen_idx, int chord_idx, struct state *stat
    }
 }
 
+static void draw_final_barline(int screen_idx, const enum key_sig key)
+{
+   ImDrawList *dl = ImGui::GetWindowDrawList();
+   const float x = calc_x(screen_idx + 1, key);
+
+   const float y_top    = calc_y(NOTES_F5, KEY_SIG_0);
+   const float y_bottom = calc_y(NOTES_G2, KEY_SIG_0);
+
+   const float thin = 1.0F;
+   const float thick = 3.50F;
+   const float sep = staff_space() * 0.30F;
+
+   // Thin line on left
+   dl->AddLine(ImVec2(x - sep, y_top), ImVec2(x - sep, y_bottom),
+         STYLE_GRAY, thin);
+
+   // Thick line on right
+   dl->AddLine(ImVec2(x + sep, y_top), ImVec2(x + sep, y_bottom),
+         STYLE_GRAY, thick);
+}
+
 void notes_draw(struct state *state)
 {
    if (!ImGui::BeginChild("Staff", ImVec2(0, 0), false)) {
@@ -431,6 +459,10 @@ void notes_draw(struct state *state)
             draw_chord_figures(fs, x, y, col.figures, STYLE_WHITE);
          }
       }
+
+      // Final barline: only if this is the last chord overall
+      if (i == total - 1)
+         draw_final_barline(idx, state->lesson.key);
    }
 
    ImGui::EndChild();
