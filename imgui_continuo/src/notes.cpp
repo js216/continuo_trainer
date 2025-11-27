@@ -19,8 +19,7 @@
 #include <unordered_set>
 #include <vector>
 
-#define CHORD_SEP 79.0F
-#define N_CHORDS_LEFT 3
+#define CHORD_SEP 48.0F
 
 struct acc {
    const char* sym;
@@ -288,23 +287,30 @@ static void compute_visible_range(int total,
         return;
     }
 
-    // Try to center active with n_left before it
-    start = active - n_left;
+    // If everything fits, no clipping needed
+    if (total <= cps) {
+        start = 0;
+        end = total;
+        return;
+    }
 
-    // Clamp
+    // Try to place n_left items before active
+    start = active - n_left;
     if (start < 0)
         start = 0;
 
     end = start + cps;
-    if (end > total)
-        end = total;
 
-    // Fix start again if we clipped at the end
-    if (end - start > cps)
-        start = end - cps;
-    if (start < 0)
-        start = 0;
+    if (end >= total) {
+        // The last item is visible -> show final window
+        end = total;
+        start = total - cps;
+        if (start < 0)
+            start = 0;
+        return;
+    }
 }
+
 
 void notes_draw(const struct state *state)
 {
@@ -324,7 +330,7 @@ void notes_draw(const struct state *state)
     const int active = static_cast<int>(state->active_col);
 
     int start = 0, end = 0;
-    compute_visible_range(total, active, cps, N_CHORDS_LEFT, start, end);
+    compute_visible_range(total, active, cps, 0.3F * cps, start, end);
 
     for (int i = start; i < end; ++i) {
         const auto &col = state->chords[i];

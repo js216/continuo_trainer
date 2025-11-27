@@ -205,7 +205,7 @@ static void app_buttons(struct state *state)
 
    ImGui::SameLine();
    ImGui::PushItemWidth(bw);
-   ImGui::DragFloat("##tune", &global_tune, 0.01F, -1, 1);
+   ImGui::DragFloat("##tune", &global_tune, 0.01F, 0.1, 1);
    ImGui::PopItemWidth();
 
    ImGui::SameLine();
