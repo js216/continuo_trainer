@@ -283,6 +283,8 @@ static void compute_visible_range(int total, int active, int cps, int n_left,
       return;
    }
 
+   cps -= n_left;
+
    // If everything fits, no clipping needed
    if (total <= cps) {
       start = 0;
