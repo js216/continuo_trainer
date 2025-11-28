@@ -155,16 +155,15 @@ void db_store_int(const std::string &key, int v)
 
 int db_load_int(const std::string &key)
 {
-    std::string v = db_load_key_val(key);
-    if (v.empty())
-        return 0;
+   std::string v = db_load_key_val(key);
+   if (v.empty())
+      return 0;
 
-    try {
-        return std::stoi(v);
-    }
-    catch (...) {
-        return 0;
-    }
+   try {
+      return std::stoi(v);
+   } catch (...) {
+      return 0;
+   }
 }
 
 static std::string db_lesson_fname(const int id)
@@ -376,7 +375,8 @@ std::vector<attempt_record> db_read_attempts()
    return records;
 }
 
-void db_store_attempt(const int lesson_id, unsigned int col_id, const struct column &col)
+void db_store_attempt(const int lesson_id, unsigned int col_id,
+                      const struct column &col)
 {
    std::ofstream ofs(attempts_file, std::ios::app);
    if (!ofs.is_open()) {

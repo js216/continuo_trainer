@@ -9,8 +9,8 @@
 #ifndef TIME_UTILS_H
 #define TIME_UTILS_H
 
-#include <string>
 #include <ctime>
+#include <string>
 
 double time_now(void);
 bool time_is_today(double epoch_seconds);

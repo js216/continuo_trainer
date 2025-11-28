@@ -32,7 +32,7 @@ void logic_clear(struct state *state)
       // enter edit mode
       state_clear_lesson(state);
       state->ui.edit_lesson = true;
-      state->ui.status = "Empty lesson; enter new notes.";
+      state->ui.status      = "Empty lesson; enter new notes.";
    }
 
    state_reload_stats(state);
@@ -118,7 +118,7 @@ static void logic_play(struct state *state)
 static void logic_record(struct state *state)
 {
    static bool was_pressed = false;
-   bool is_pressed = !state->midi.pressed_notes.empty();
+   bool is_pressed         = !state->midi.pressed_notes.empty();
 
    // --- RELEASE LOGIC (Falling Edge) ---
    if (!is_pressed) {
@@ -140,9 +140,8 @@ static void logic_record(struct state *state)
          size_t insert_idx = state->ui.active_col + 1;
 
          // Insert the new empty column.
-         state->lesson.chords.insert(
-            state->lesson.chords.begin() + insert_idx,
-            column());
+         state->lesson.chords.insert(state->lesson.chords.begin() + insert_idx,
+                                     column());
 
          // Move the active cursor to the newly inserted column.
          state->ui.active_col = insert_idx;

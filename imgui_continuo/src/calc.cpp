@@ -31,106 +31,99 @@ static double calc_score(double dt, size_t good_count, size_t bad_count)
 }
 
 static double lesson_delta_seconds(const attempt_record &prev,
-                                  const attempt_record &cur)
+                                   const attempt_record &cur)
 {
-    if (cur.time <= prev.time)
-        return 0.0;
-    if (cur.col_id == 0) // new lesson
-        return 0.0;
+   if (cur.time <= prev.time)
+      return 0.0;
+   if (cur.col_id == 0) // new lesson
+      return 0.0;
 
-    double dt = cur.time - prev.time;
-    if (dt > 5.0)
-        dt = 5.0;
+   double dt = cur.time - prev.time;
+   if (dt > 5.0)
+      dt = 5.0;
 
-    return dt; // seconds
+   return dt; // seconds
 }
 
 static void calc_day_totals(const std::vector<attempt_record> &recs,
                             std::vector<std::time_t> &days,
                             std::vector<double> &seconds)
 {
-    if (recs.empty())
-        return;
+   if (recs.empty())
+      return;
 
-    days.clear();
-    seconds.clear();
+   days.clear();
+   seconds.clear();
 
-    std::time_t curr_day = day_start(recs[0].time);
-    days.push_back(curr_day);
-    seconds.push_back(0.0);
+   std::time_t curr_day = day_start(recs[0].time);
+   days.push_back(curr_day);
+   seconds.push_back(0.0);
 
-    attempt_record prev = recs[0];
+   attempt_record prev = recs[0];
 
-    for (size_t i = 1; i < recs.size(); ++i)
-    {
-        const auto &cur = recs[i];
-        std::time_t ds = day_start(cur.time);
+   for (size_t i = 1; i < recs.size(); ++i) {
+      const auto &cur = recs[i];
+      std::time_t ds  = day_start(cur.time);
 
-        if (ds != curr_day)
-        {
-            curr_day = ds;
-            days.push_back(curr_day);
-            seconds.push_back(0.0);
-        }
+      if (ds != curr_day) {
+         curr_day = ds;
+         days.push_back(curr_day);
+         seconds.push_back(0.0);
+      }
 
-        seconds.back() += lesson_delta_seconds(prev, cur);
-        prev = cur;
-    }
+      seconds.back() += lesson_delta_seconds(prev, cur);
+      prev = cur;
+   }
 }
 
-int calc_practice_streak(const std::vector<attempt_record> &recs,
-                         int goal_min)
+int calc_practice_streak(const std::vector<attempt_record> &recs, int goal_min)
 {
-    if (recs.size() < 2)
-        return 0;
+   if (recs.size() < 2)
+      return 0;
 
-    std::vector<std::time_t> days;
-    std::vector<double> sec_per_day;
-    calc_day_totals(recs, days, sec_per_day);
+   std::vector<std::time_t> days;
+   std::vector<double> sec_per_day;
+   calc_day_totals(recs, days, sec_per_day);
 
-    const double goal_sec = goal_min * 60.0;
+   const double goal_sec = goal_min * 60.0;
 
-    int streak = 0;
-    for (int i = (int)sec_per_day.size() - 1; i >= 0; --i)
-    {
-        if (sec_per_day[i] < goal_sec)
-            break;
+   int streak = 0;
+   for (int i = (int)sec_per_day.size() - 1; i >= 0; --i) {
+      if (sec_per_day[i] < goal_sec)
+         break;
 
-        if (i != (int)sec_per_day.size() - 1 &&
-            !is_consecutive_day(days[i + 1], days[i]))
-        {
-            break;
-        }
+      if (i != (int)sec_per_day.size() - 1 &&
+          !is_consecutive_day(days[i + 1], days[i])) {
+         break;
+      }
 
-        streak++;
-    }
+      streak++;
+   }
 
-    return streak;
+   return streak;
 }
 
 double calc_duration_today(const std::vector<attempt_record> &records)
 {
-    if (records.size() < 2)
-        return 0.0;
+   if (records.size() < 2)
+      return 0.0;
 
-    double sum_sec = 0.0;
-    attempt_record prev = records[0];
+   double sum_sec      = 0.0;
+   attempt_record prev = records[0];
 
-    for (size_t i = 1; i < records.size(); ++i)
-    {
-        const auto &cur = records[i];
+   for (size_t i = 1; i < records.size(); ++i) {
+      const auto &cur = records[i];
 
-        if (!time_is_today(prev.time) || !time_is_today(cur.time))
-        {
-            prev = cur;
-            continue;
-        }
+      if (!time_is_today(prev.time) || !time_is_today(cur.time)) {
+         prev = cur;
+         continue;
+      }
 
-        sum_sec += lesson_delta_seconds(prev, cur);
-        prev = cur;
-    }
+      sum_sec += lesson_delta_seconds(prev, cur);
+      prev = cur;
+   }
 
-    return sum_sec;
+   return sum_sec;
 }
 
 int calc_lesson_streak(const std::vector<attempt_record> &attempts,
@@ -152,8 +145,10 @@ int calc_lesson_streak(const std::vector<attempt_record> &attempts,
       if (begin && (attempt.col_id == len - 1))
          ++streak;
 
-      if (attempt.bad_count != 0)
+      if (attempt.bad_count != 0) {
          streak = 0;
+         begin  = false;
+      }
    }
 
    return streak;
@@ -183,64 +178,65 @@ double calc_score_today(const std::vector<attempt_record> &records)
    return score;
 }
 
-double calc_speed(const std::vector<attempt_record> &records, const int lesson_id)
+double calc_speed(const std::vector<attempt_record> &records,
+                  const int lesson_id)
 {
-    const double alpha = 2.0 / 6.0; // EMA roughly over last 5 attempts
-    double ema = 0.0;
-    bool first_attempt = true;
+   const double alpha = 2.0 / 6.0; // EMA roughly over last 5 attempts
+   double ema         = 0.0;
+   bool first_attempt = true;
 
-    unsigned int last_col_id = 0;
-    double last_time = 0.0;
-    double max_dt = 0.0;
-    bool first_in_attempt = true;
-    bool mistake_in_attempt = false;
+   unsigned int last_col_id = 0;
+   double last_time         = 0.0;
+   double max_dt            = 0.0;
+   bool first_in_attempt    = true;
+   bool mistake_in_attempt  = false;
 
-    for (const auto &rec : records) {
-        if (rec.lesson_id != lesson_id)
-            continue;
+   for (const auto &rec : records) {
+      if (rec.lesson_id != lesson_id)
+         continue;
 
-        // New lesson attempt if col_id resets
-        if (!first_in_attempt && rec.col_id <= last_col_id) {
-            if (!mistake_in_attempt) {
-                // Update EMA with this attempt
-                if (first_attempt) {
-                    ema = max_dt;
-                    first_attempt = false;
-                } else {
-                    ema = alpha * max_dt + (1.0 - alpha) * ema;
-                }
+      // New lesson attempt if col_id resets
+      if (!first_in_attempt && rec.col_id <= last_col_id) {
+         if (!mistake_in_attempt) {
+            // Update EMA with this attempt
+            if (first_attempt) {
+               ema           = max_dt;
+               first_attempt = false;
+            } else {
+               ema = alpha * max_dt + (1.0 - alpha) * ema;
             }
-            // Reset for next attempt
-            max_dt = 0.0;
-            first_in_attempt = true;
-            mistake_in_attempt = false;
-        }
+         }
+         // Reset for next attempt
+         max_dt             = 0.0;
+         first_in_attempt   = true;
+         mistake_in_attempt = false;
+      }
 
-        if (!first_in_attempt) {
-            double dt = rec.time - last_time;
-            if (dt > max_dt)
-                max_dt = dt;
-        }
+      if (!first_in_attempt) {
+         double dt = rec.time - last_time;
+         if (dt > max_dt)
+            max_dt = dt;
+      }
 
-        if (rec.bad_count > 0)
-            mistake_in_attempt = true;
+      if (rec.bad_count > 0)
+         mistake_in_attempt = true;
 
-        last_time = rec.time;
-        last_col_id = rec.col_id;
-        first_in_attempt = false;
-    }
+      last_time        = rec.time;
+      last_col_id      = rec.col_id;
+      first_in_attempt = false;
+   }
 
-    // Handle last attempt
-    if (!first_in_attempt && !mistake_in_attempt) {
-        if (first_attempt) {
-            ema = max_dt;
-        } else {
-            ema = alpha * max_dt + (1.0 - alpha) * ema;
-        }
-    }
+   // Handle last attempt
+   if (!first_in_attempt && !mistake_in_attempt) {
+      if (first_attempt) {
+         ema = max_dt;
+      } else {
+         ema = alpha * max_dt + (1.0 - alpha) * ema;
+      }
+   }
 
-    if (ema == 0)
-       return 0;
+   if (ema == 0)
+      return 0;
 
-    return 1/ema;
+   return 1 / ema;
 }

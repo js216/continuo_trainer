@@ -32,10 +32,10 @@ struct acc {
 static struct acc acc_sym(enum accidental a)
 {
    switch (a) {
-      case ACC_SHARP: return   {"\uE262", -0.7F, -0.3F, -0.25F, -0.3F};
-      case ACC_FLAT: return    {"\uE260", -0.7F, -0.3F, -0.25F, -0.3F};
+      case ACC_SHARP: return {"\uE262", -0.7F, -0.3F, -0.25F, -0.3F};
+      case ACC_FLAT: return {"\uE260", -0.7F, -0.3F, -0.25F, -0.3F};
       case ACC_NATURAL: return {"\uE261", -0.7F, -0.3F, -0.25F, -0.3F};
-      case ACC_SLASH: return   {"/", 0.09F, 0.0F, 0.0F, 0.0F};
+      case ACC_SLASH: return {"/", 0.09F, 0.0F, 0.0F, 0.0F};
       default: return {"", 0.0F, 0.0F, 0.0F, 0.0F};
    }
 }
@@ -249,8 +249,7 @@ static void notes_dot(enum key_sig key, enum midi_note n, int x_idx,
 static void draw_chord_figures(float fs, float x, float y,
                                const std::vector<figure> &figs, uint32_t color)
 {
-   font_config cfg = {
-       .fontsize = fs, .anch = ANCHOR_TOP_LEFT, .color = color};
+   font_config cfg = {.fontsize = fs, .anch = ANCHOR_TOP_LEFT, .color = color};
 
    for (size_t i = 0; i < figs.size(); ++i) {
       // figure
@@ -280,53 +279,48 @@ static int chords_per_screen(float width)
    return (cps > 0) ? cps : 1;
 }
 
-static void compute_visible_range(int total,
-                                  int active,
-                                  int cps,
-                                  int n_left,
-                                  int &start,
-                                  int &end)
+static void compute_visible_range(int total, int active, int cps, int n_left,
+                                  int &start, int &end)
 {
-    if (total <= 0) {
-        start = end = 0;
-        return;
-    }
+   if (total <= 0) {
+      start = end = 0;
+      return;
+   }
 
-    // If everything fits including barlines:
-    if (total <= cps - 2) {
-        start = 0;
-        end   = total;
-        return;
-    }
+   // If everything fits including barlines:
+   if (total <= cps - 2) {
+      start = 0;
+      end   = total;
+      return;
+   }
 
-    // Default: final note not visible → reserve 1 slot for right edge
-    int usable = cps - 1;
+   // Default: final note not visible → reserve 1 slot for right edge
+   int usable = cps - 1;
 
-    // Try centering active with n_left before it
-    start = active - n_left;
-    if (start < 0)
-        start = 0;
+   // Try centering active with n_left before it
+   start = active - n_left;
+   if (start < 0)
+      start = 0;
 
-    end = start + usable;
+   end = start + usable;
 
-    if (end >= total) {
-        // Final region reached → reserve 2 slots for final double barline
-        end   = total;
-        start = total - (cps - 2);
-        if (start < 0)
-            start = 0;
-    }
+   if (end >= total) {
+      // Final region reached → reserve 2 slots for final double barline
+      end   = total;
+      start = total - (cps - 2);
+      if (start < 0)
+         start = 0;
+   }
 }
-
 
 static void draw_active_col_cursor(int x_idx, const enum key_sig key)
 {
-   uint32_t color = IM_COL32(255, 255, 255, 25);
+   uint32_t color     = IM_COL32(255, 255, 255, 25);
    const float margin = 20.0F;
 
    ImDrawList *draw_list = ImGui::GetWindowDrawList();
-   ImVec2 avail = ImGui::GetContentRegionAvail();
-   ImVec2 origin = ImGui::GetCursorScreenPos();
+   ImVec2 avail          = ImGui::GetContentRegionAvail();
+   ImVec2 origin         = ImGui::GetCursorScreenPos();
 
    // Compute X position for the left and right edges of the rectangle
    float x_left  = calc_x(x_idx, key) - margin;
@@ -337,13 +331,14 @@ static void draw_active_col_cursor(int x_idx, const enum key_sig key)
    float y_bottom = origin.y + avail.y;
 
    draw_list->AddRectFilled(ImVec2(x_left, y_top), ImVec2(x_right, y_bottom),
-         color);
+                            color);
 }
 
-static void handle_chord_click(int screen_idx, int chord_idx, struct state *state)
+static void handle_chord_click(int screen_idx, int chord_idx,
+                               struct state *state)
 {
-   ImVec2 origin = ImGui::GetCursorScreenPos();
-   ImVec2 avail  = ImGui::GetContentRegionAvail();
+   ImVec2 origin      = ImGui::GetCursorScreenPos();
+   ImVec2 avail       = ImGui::GetContentRegionAvail();
    const float margin = 20.0F;
 
    float x_left   = calc_x(screen_idx, state->lesson.key) - margin;
@@ -351,39 +346,31 @@ static void handle_chord_click(int screen_idx, int chord_idx, struct state *stat
    float y_top    = origin.y;
    float y_bottom = origin.y + avail.y;
 
-   ImGuiIO &io = ImGui::GetIO();
-   bool hovering = ImGui::IsMouseHoveringRect(
-         ImVec2(x_left, y_top),
-         ImVec2(x_right, y_bottom)
-         );
+   ImGuiIO &io   = ImGui::GetIO();
+   bool hovering = ImGui::IsMouseHoveringRect(ImVec2(x_left, y_top),
+                                              ImVec2(x_right, y_bottom));
 
    ImDrawList *draw = ImGui::GetWindowDrawList();
 
    // Draw hover highlight
    if (hovering) {
       ImU32 color = IM_COL32(200, 200, 200, 50); // light gray
-      draw->AddRectFilled(
-            ImVec2(x_left, y_top),
-            ImVec2(x_right, y_bottom),
-            color
-            );
+      draw->AddRectFilled(ImVec2(x_left, y_top), ImVec2(x_right, y_bottom),
+                          color);
    }
 
    // Draw pressed highlight if mouse is down over this column
    if (hovering && io.MouseDown[0]) {
       ImU32 color = IM_COL32(255, 200, 0, 50); // light orange
-      draw->AddRectFilled(
-            ImVec2(x_left, y_top),
-            ImVec2(x_right, y_bottom),
-            color
-            );
+      draw->AddRectFilled(ImVec2(x_left, y_top), ImVec2(x_right, y_bottom),
+                          color);
    }
 
    // Execute action on mouse release
    if (hovering && io.MouseReleased[0]) {
       state->ui.active_col = chord_idx;
       if (state->ui.active_col < state->lesson.chords.size()) {
-         struct column &col = state->lesson.chords[state->ui.active_col];
+         struct column &col   = state->lesson.chords[state->ui.active_col];
          state->ui.figs_entry = th_fig_to_string(col.figures);
       }
    }
@@ -392,22 +379,22 @@ static void handle_chord_click(int screen_idx, int chord_idx, struct state *stat
 static void draw_final_barline(int screen_idx, const enum key_sig key)
 {
    ImDrawList *dl = ImGui::GetWindowDrawList();
-   const float x = calc_x(screen_idx + 1, key);
+   const float x  = calc_x(screen_idx + 1, key);
 
    const float y_top    = calc_y(NOTES_F5, KEY_SIG_0);
    const float y_bottom = calc_y(NOTES_G2, KEY_SIG_0);
 
-   const float thin = 1.0F;
+   const float thin  = 1.0F;
    const float thick = 3.50F;
-   const float sep = staff_space() * 0.30F;
+   const float sep   = staff_space() * 0.30F;
 
    // Thin line on left
-   dl->AddLine(ImVec2(x - sep, y_top), ImVec2(x - sep, y_bottom),
-         STYLE_GRAY, thin);
+   dl->AddLine(ImVec2(x - sep, y_top), ImVec2(x - sep, y_bottom), STYLE_GRAY,
+               thin);
 
    // Thick line on right
-   dl->AddLine(ImVec2(x + sep, y_top), ImVec2(x + sep, y_bottom),
-         STYLE_GRAY, thick);
+   dl->AddLine(ImVec2(x + sep, y_top), ImVec2(x + sep, y_bottom), STYLE_GRAY,
+               thick);
 }
 
 void notes_draw(struct state *state)
