@@ -183,7 +183,7 @@ double calc_score_today(const std::vector<attempt_record> &records)
    return score;
 }
 
-double calc_avg_max_dt(const std::vector<attempt_record> &records, const int lesson_id)
+double calc_speed(const std::vector<attempt_record> &records, const int lesson_id)
 {
     const double alpha = 2.0 / 6.0; // EMA roughly over last 5 attempts
     double ema = 0.0;
@@ -239,5 +239,8 @@ double calc_avg_max_dt(const std::vector<attempt_record> &records, const int les
         }
     }
 
-    return ema;
+    if (ema == 0)
+       return 0;
+
+    return 1/ema;
 }

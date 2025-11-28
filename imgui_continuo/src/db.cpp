@@ -301,12 +301,11 @@ int db_load_last_lesson_id(void)
    if (!f.is_open())
       return 1; // default: first lesson
 
-   double ts     = 0;
    int lesson_id = 0;
    std::string rest_of_line;
    int last_lesson_id = 0;
 
-   while (f >> ts >> lesson_id) {
+   while (f >> lesson_id) {
       // throw away the rest of the line
       std::getline(f, rest_of_line);
       last_lesson_id = lesson_id;

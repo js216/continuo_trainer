@@ -307,13 +307,47 @@ static void app_buttons(struct state *state)
 
 }
 
+static void draw_streak_boxes(int streak)
+{
+    const int max_boxes = 5;
+    const ImVec2 box_size(12, 12);
+    const float spacing = 4.0f;
+
+    // Choose color based on streak
+    ImU32 fill_col;
+    switch (streak) {
+        case 5: fill_col = IM_COL32(51, 204, 51, 255); break;   // green
+        case 4: fill_col = IM_COL32(180, 220, 60, 255); break;  // lime
+        case 3: fill_col = IM_COL32(220, 180, 60, 255); break;  // yellow
+        case 2: fill_col = IM_COL32(200, 140, 60, 255); break;  // warm orange
+        case 1: fill_col = IM_COL32(180, 120, 60, 255); break;  // dull orange-brown
+        default: fill_col = IM_COL32(180, 120, 60, 255); break; // fallback
+    }
+
+    ImU32 empty_col = IM_COL32(128, 128, 128, 255);
+
+    ImDrawList* draw_list = ImGui::GetWindowDrawList();
+    ImVec2 p = ImGui::GetCursorScreenPos();
+
+    for (int i = 0; i < max_boxes; i++) {
+        ImU32 col = (i < streak) ? fill_col : empty_col;
+        draw_list->AddRectFilled(p, ImVec2(p.x + box_size.x, p.y + box_size.y), col);
+        p.x += box_size.x + spacing;
+    }
+
+    ImGui::Dummy(ImVec2(0, box_size.y + spacing));
+}
+
 static void stats_this_lesson(struct state *state)
 {
-   ImGui::AlignTextToFramePadding();
-   ImGui::TextUnformatted("THIS LESSON");
+    ImGui::AlignTextToFramePadding();
+    ImGui::TextUnformatted("THIS LESSON");
 
-   ImGui::Text("Streak: %d", state->stats.lesson_streak);
-   ImGui::Text("Speed: %.1f", state->stats.avg_max_dt);
+    ImGui::TextUnformatted("Streak: ");
+    ImGui::SameLine();
+    draw_streak_boxes(state->stats.lesson_streak);
+
+    ImGui::Text("Speed: %.1f", state->stats.lesson_speed);
 }
 
 static void stats_today(struct state *state)

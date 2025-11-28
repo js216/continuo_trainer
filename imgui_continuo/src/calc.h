@@ -21,6 +21,6 @@ int calc_practice_streak(const std::vector<attempt_record> &attempts, int goal_m
 
 double calc_duration_today(const std::vector<attempt_record> &records);
 double calc_score_today(const std::vector<attempt_record> &records);
-double calc_avg_max_dt(const std::vector<attempt_record> &records, const int lesson_id);
+double calc_speed(const std::vector<attempt_record> &records, const int lesson_id);
 
 #endif /* CALC_H */

@@ -43,7 +43,7 @@ struct lesson {
 struct stats {
    // lesson
    int lesson_streak;
-   double avg_max_dt;
+   double lesson_speed;
 
    // today
    double score;
