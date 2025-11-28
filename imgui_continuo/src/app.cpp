@@ -21,6 +21,7 @@
 #include <memory>
 #include <string>
 #include <vector>
+#include <cmath>
 
 void app_init(struct state *state)
 {
@@ -275,7 +276,7 @@ static void app_buttons(struct state *state)
 
    ImGui::SameLine();
    ImGui::PushItemWidth(bw);
-   ImGui::DragFloat("##tune", &global_tune, 0.01F, 0.1, 10);
+   ImGui::DragFloat("##tune", &global_tune, 0.4F, 1, 100);
    ImGui::PopItemWidth();
 
    ImGui::SameLine();
@@ -309,45 +310,127 @@ static void app_buttons(struct state *state)
 
 static void draw_streak_boxes(int streak)
 {
-    const int max_boxes = 5;
-    const ImVec2 box_size(12, 12);
-    const float spacing = 4.0f;
+   const int max_boxes = 5;
+   const ImVec2 box_size(12, 12);
+   const float spacing = 4.0F;
 
-    // Choose color based on streak
-    ImU32 fill_col;
-    switch (streak) {
-        case 5: fill_col = IM_COL32(51, 204, 51, 255); break;   // green
-        case 4: fill_col = IM_COL32(180, 220, 60, 255); break;  // lime
-        case 3: fill_col = IM_COL32(220, 180, 60, 255); break;  // yellow
-        case 2: fill_col = IM_COL32(200, 140, 60, 255); break;  // warm orange
-        case 1: fill_col = IM_COL32(180, 120, 60, 255); break;  // dull orange-brown
-        default: fill_col = IM_COL32(180, 120, 60, 255); break; // fallback
-    }
+   // Choose color based on streak
+   ImU32 fill_col;
+   switch (streak) {
+      case 5: fill_col = IM_COL32(51, 204, 51, 255); break;   // green
+      case 4: fill_col = IM_COL32(180, 220, 60, 255); break;  // lime
+      case 3: fill_col = IM_COL32(220, 180, 60, 255); break;  // yellow
+      case 2: fill_col = IM_COL32(200, 140, 60, 255); break;  // warm orange
+      case 1: fill_col = IM_COL32(180, 120, 60, 255); break;  // dull orange-brown
+      default: fill_col = IM_COL32(180, 120, 60, 255); break; // fallback
+   }
 
-    ImU32 empty_col = IM_COL32(128, 128, 128, 255);
+   ImU32 empty_col = IM_COL32(128, 128, 128, 255);
 
-    ImDrawList* draw_list = ImGui::GetWindowDrawList();
-    ImVec2 p = ImGui::GetCursorScreenPos();
+   ImDrawList* draw_list = ImGui::GetWindowDrawList();
+   ImVec2 p = ImGui::GetCursorScreenPos();
 
-    for (int i = 0; i < max_boxes; i++) {
-        ImU32 col = (i < streak) ? fill_col : empty_col;
-        draw_list->AddRectFilled(p, ImVec2(p.x + box_size.x, p.y + box_size.y), col);
-        p.x += box_size.x + spacing;
-    }
+   for (int i = 0; i < max_boxes; i++) {
+      ImU32 col = (i < streak) ? fill_col : empty_col;
+      draw_list->AddRectFilled(p, ImVec2(p.x + box_size.x, p.y + box_size.y), col);
+      p.x += box_size.x + spacing;
+   }
 
-    ImGui::Dummy(ImVec2(0, box_size.y + spacing));
+   ImGui::Dummy(ImVec2(0, box_size.y + spacing));
 }
+
+static void draw_speedometer_arc(ImDrawList* draw_list, const ImVec2 &center,
+                                 float radius, float thickness)
+{
+    draw_list->PathClear();
+    draw_list->PathArcTo(center, radius, M_PI, M_PI + M_PI, 64);
+    draw_list->PathStroke(IM_COL32(128,128,128,100), false, thickness);
+
+    float t0 = M_PI;
+    float t1 = M_PI + ((0.25f / 0.5f) / 2.0f) * M_PI;
+    draw_list->PathClear();
+    draw_list->PathArcTo(center, radius, t0, t1, 32);
+    draw_list->PathStroke(IM_COL32(200,50,50,255), false, thickness);
+
+    t0 = t1;
+    t1 = M_PI + ((0.4f / 0.5f) / 2.0f) * M_PI;
+    draw_list->PathClear();
+    draw_list->PathArcTo(center, radius, t0, t1, 32);
+    draw_list->PathStroke(IM_COL32(240,200,50,255), false, thickness);
+
+    t0 = t1;
+    t1 = M_PI + ((0.6f / 0.5f) / 2.0f) * M_PI;
+    draw_list->PathClear();
+    draw_list->PathArcTo(center, radius, t0, t1, 32);
+    draw_list->PathStroke(IM_COL32(51,204,51,255), false, thickness);
+}
+
+static void draw_speedometer_needle(float speed, ImDrawList* draw_list,
+                                    const ImVec2 &center, float radius)
+{
+    if (speed < 0.0F) speed = 0.0F;
+    if (speed > 5.0F) speed = 5.0F;
+
+    float t = 0.0F;
+    if (speed <= 0.5F) t = speed / 0.5F;
+    else t = 1.0F + logf((speed - 0.5F) + 1.0F) / logf(5.0F);
+    if (t > 2.0F) t = 2.0F;
+
+    float angle = M_PI + (t / 2.0F) * M_PI;
+
+    ImVec2 needle = ImVec2(center.x + cosf(angle) * radius * 0.9F,
+                           center.y + sinf(angle) * radius * 0.9F);
+    draw_list->AddLine(center, needle, IM_COL32_WHITE, 3.0F);
+}
+
+static void draw_speedometer_labels(float speed, const ImVec2 &center, float radius)
+{
+    float text_height = ImGui::GetTextLineHeight();
+    ImVec2 num_pos = ImVec2(center.x, center.y + radius * 0.10F);
+    ImGui::SetCursorScreenPos(ImVec2(num_pos.x - 10, num_pos.y));
+    ImGui::Text("%.2F", speed);
+
+    ImGui::SetCursorScreenPos(ImVec2(center.x - 20, num_pos.y + text_height));
+    ImGui::TextUnformatted("Speed");
+
+    ImGui::Dummy(ImVec2(radius*2, radius + 3*text_height));
+}
+
+static void draw_speedometer(float speed)
+{
+    ImDrawList* draw_list = ImGui::GetWindowDrawList();
+    const ImVec2 pos = ImGui::GetCursorScreenPos();
+    const float radius = 50.0F;
+    const float thickness = 8.0F;
+    ImVec2 center = ImVec2(pos.x + radius, pos.y + radius);
+
+    draw_speedometer_arc(draw_list, center, radius, thickness);
+    draw_speedometer_needle(speed, draw_list, center, radius);
+    draw_speedometer_labels(speed, center, radius);
+}
+
 
 static void stats_this_lesson(struct state *state)
 {
     ImGui::AlignTextToFramePadding();
     ImGui::TextUnformatted("THIS LESSON");
 
-    ImGui::TextUnformatted("Streak: ");
-    ImGui::SameLine();
+    float avail_w = ImGui::GetContentRegionAvail().x;
+
+    // --- Streak ---
+    ImVec2 streak_size = ImVec2(5 * 12 + 4*4, 12); // 5 boxes * 12px + 4px spacing
+    float streak_offset = (avail_w - streak_size.x) * 0.5F;
+    ImGui::SetCursorPosX(ImGui::GetCursorPosX() + streak_offset);
     draw_streak_boxes(state->stats.lesson_streak);
 
-    ImGui::Text("Speed: %.1f", state->stats.lesson_speed);
+    ImGui::Dummy(ImVec2(0.0F, 5.0F));
+
+    // --- Speedometer ---
+    float gauge_width = 100.0F; // match radius*2 from draw_speedometer
+    float speed_offset = (avail_w - gauge_width) * 0.5F;
+    ImGui::SetCursorPosX(ImGui::GetCursorPosX() + speed_offset);
+
+    draw_speedometer(state->stats.lesson_speed);
 }
 
 static void stats_today(struct state *state)
