@@ -1,6 +1,6 @@
 CPPFLAGS = -Iimgui -Irtmidi -Isrc $(shell pkg-config --cflags x11)
-CXXFLAGS  = -Wall -Wextra -std=c++20 -Os
-LDFLAGS   = -lGL -lX11 -lXext -lpthread -lasound
+CXXFLAGS  = -Wall -Wextra -std=c++20 -g -fsanitize=address
+LDFLAGS   = -lGL -lX11 -lXext -lpthread -lasound -fsanitize=address
 
 # Files
 
