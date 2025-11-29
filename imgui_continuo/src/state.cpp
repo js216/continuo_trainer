@@ -24,6 +24,7 @@ void state_save_settings(const struct settings &set)
    db_store_key_val("out_dev", set.out_dev);
    db_store_bool("midi_forward", set.midi_forward);
    db_store_int("goal_minutes", set.goal_minutes);
+   db_store_int("goal_score", set.goal_score);
 }
 
 void state_load_settings(struct settings &set)
@@ -32,6 +33,7 @@ void state_load_settings(struct settings &set)
    set.out_dev      = db_load_key_val("out_dev");
    set.midi_forward = db_load_bool("midi_forward");
    set.goal_minutes = db_load_int("goal_minutes");
+   set.goal_score   = db_load_int("goal_score");
 }
 
 void state_clear_lesson(struct state *state)
@@ -50,12 +52,13 @@ void state_pop_lesson(struct state *state)
       return;
 
    if (state->lesson.chords.empty() ||
-       state->ui.active_col >= state->lesson.chords.size())
+         state->ui.active_col >= state->lesson.chords.size())
       return;
 
    // Remove the currently active column
-   state->lesson.chords.erase(state->lesson.chords.begin() +
-                              state->ui.active_col);
+   state->lesson.chords.erase(
+         state->lesson.chords.begin() + state->ui.active_col
+         );
 
    // Adjust active_col so it stays in bounds
    if (state->ui.active_col >= state->lesson.chords.size()) {
@@ -109,7 +112,6 @@ void state_reload_stats(struct state *state)
    state->stats.score          = calc_score_today(records);
    state->stats.lesson_streak  = calc_lesson_streak(
        records, state->lesson.lesson_id, state->lesson.chords.size());
-   state->stats.practice_streak =
-       calc_practice_streak(records, state->settings.goal_minutes);
+   state->stats.practice_streak = calc_practice_streak(records, state->settings.goal_minutes);
    state->stats.lesson_speed = calc_speed(records, state->lesson.lesson_id);
 }

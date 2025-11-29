@@ -9,7 +9,6 @@
 #include "calc.h"
 #include "theory.h"
 #include "time_utils.h"
-#include <algorithm>
 #include <ctime>
 #include <vector>
 

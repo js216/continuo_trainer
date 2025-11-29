@@ -54,9 +54,6 @@ static void draw_midi_top_row(struct state *state, const float bw)
    ImGui::Checkbox("Forward In -> Out", &state->settings.midi_forward);
 
    ImGui::SameLine(ImGui::GetContentRegionAvail().x - bw);
-   if (ImGui::Button("Back", ImVec2(bw, 0))) {
-      state->ui.settings_open = false;
-   }
 }
 
 static void draw_midi_in_row(struct state *state, const float bw)
@@ -161,14 +158,11 @@ static void app_close_settings(struct state *state)
    }
 }
 
-static void app_algorithm_settings(struct settings &set)
-{
-   ImGui::SliderInt("Daily practice goal [min]", &set.goal_minutes, 1, 60);
-}
-
 static void app_settings(struct state *state)
 {
    if (ImGui::BeginTabBar("SettingsTabBar")) {
+      app_close_settings(state);
+
       if (ImGui::BeginTabItem("MIDI")) {
          app_midi_menu(state);
          ImGui::EndTabItem();
@@ -183,11 +177,11 @@ static void app_settings(struct state *state)
       }
 
       if (ImGui::BeginTabItem("Algorithm")) {
-         app_algorithm_settings(state->settings);
+         ImGui::SliderInt("Daily practice goal [min]", &state->settings.goal_minutes, 1, 60);
+         ImGui::SliderInt("Daily score goal", &state->settings.goal_score, 1000, 10000);
          ImGui::EndTabItem();
       }
 
-      app_close_settings(state);
       ImGui::EndTabBar();
    }
 }
@@ -451,7 +445,7 @@ static void stats_today(struct state *state)
 
    // Score progress bar
    ImGui::TextUnformatted("Score");
-   double max_score      = 2500.0F;
+   double max_score      = state->settings.goal_score;
    std::string score_str = std::to_string(int(state->stats.score));
    ImGui::PushItemWidth(25.0f);
    ImGui::ProgressBar(

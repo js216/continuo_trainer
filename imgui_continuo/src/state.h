@@ -15,8 +15,6 @@
 #include <string>
 #include <vector>
 
-struct ImFont;
-
 struct app_ui {
    std::string status;
    bool settings_open;
@@ -31,6 +29,7 @@ struct settings {
    std::string in_dev;
    std::string out_dev;
    int goal_minutes;
+   int goal_score;
 };
 
 struct lesson {

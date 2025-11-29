@@ -13,11 +13,11 @@
 #include "theory.h"
 #include <array>
 #include <cmath>
-#include <cstddef>
 #include <cstdint>
 #include <string>
 #include <unordered_set>
 #include <vector>
+#include <cstdlib>
 
 #define CHORD_SEP 48.0F
 
