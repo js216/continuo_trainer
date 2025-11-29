@@ -18,8 +18,8 @@ To build, just clone project and call make, and then run the program:
     $ ./continuo_trainer
 
 For static code analysis, before committing new changes, we also need bear,
-clang-tidy, clang-format, cppcheck, graphviz, include-what-you-use. Or run the
-checks one by one as desired:
+clang-tidy and clang-format (from llvmorg-21.1.6), cppcheck, graphviz,
+include-what-you-use. Or run the checks one by one as desired:
 
     $ make check # runs all of them; or:
     $ make format
@@ -81,8 +81,6 @@ practice.
 
 ### Todo
 
-- score increases only from perfect (or near perfect) lessons, but decreases
-  from any mistake
 - streak comes from score goal
 - time is just a number, not a progress bar
 - automatically select the next lesson (via next lesson button)

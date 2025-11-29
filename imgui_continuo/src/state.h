@@ -13,6 +13,7 @@
 #include "theory.h"
 #include <memory>
 #include <string>
+#include <unordered_map>
 #include <vector>
 
 struct app_ui {
@@ -50,6 +51,9 @@ struct stats {
 
    // overall
    int practice_streak;
+
+   // scoring support: lesson metadata cache
+   std::unordered_map<int, lesson_meta> lesson_cache;
 };
 
 struct midi_devices {

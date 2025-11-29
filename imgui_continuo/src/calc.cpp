@@ -7,27 +7,12 @@
  */
 
 #include "calc.h"
+#include "db.h"
 #include "theory.h"
 #include "time_utils.h"
 #include <ctime>
+#include <unordered_map>
 #include <vector>
-
-static double calc_score(double dt, size_t good_count, size_t bad_count)
-{
-   auto good = static_cast<double>(good_count);
-   auto bad  = static_cast<double>(bad_count);
-
-   double score = good - (1.5F * bad);
-
-   if (score > 0.0F) {
-      double speed_multiplier = 1.0F / (0.3F + dt);
-      speed_multiplier *= speed_multiplier;
-
-      score += score * speed_multiplier;
-   }
-
-   return score;
-}
 
 static double lesson_delta_seconds(const attempt_record &prev,
                                    const attempt_record &cur)
@@ -150,30 +135,6 @@ int calc_lesson_streak(const std::vector<attempt_record> &attempts,
    return streak;
 }
 
-double calc_score_today(const std::vector<attempt_record> &records)
-{
-   if (records.size() < 2)
-      return 0.0;
-
-   double score        = 0.0;
-   attempt_record last = records[0];
-
-   for (size_t i = 1; i < records.size(); ++i) {
-      const auto &cur = records[i];
-
-      if (!time_is_today(cur.time) || !time_is_today(last.time)) {
-         last = cur;
-         continue;
-      }
-
-      const double dt = lesson_delta_seconds(last, cur);
-      score += calc_score(dt, cur.good_count, cur.bad_count);
-
-      last = cur;
-   }
-   return score;
-}
-
 double calc_speed(const std::vector<attempt_record> &records,
                   const int lesson_id)
 {
@@ -232,4 +193,101 @@ double calc_speed(const std::vector<attempt_record> &records,
       return 0;
 
    return 1 / ema;
+}
+
+// Fetch lesson metadata from cache or compute it from DB
+static lesson_meta &get_lesson_meta(std::unordered_map<int, lesson_meta> &cache,
+                                    int lesson_id)
+{
+   auto it = cache.find(lesson_id);
+   if (it != cache.end())
+      return it->second;
+
+   std::vector<column> chords = db_load_lesson_chords(lesson_id);
+
+   lesson_meta meta{};
+   meta.lesson_id     = lesson_id;
+   meta.total_columns = chords.size();
+   meta.allowed_mistakes =
+       static_cast<size_t>(meta.total_columns * 0.05); // 5% tolerance
+
+   return cache[lesson_id] = std::move(meta);
+}
+
+// Compute the score for a single full lesson attempt
+static double score_lesson_attempt(size_t good_count, size_t bad_count,
+                                   double dt, const lesson_meta &meta)
+{
+   double good = static_cast<double>(good_count);
+   double bad  = static_cast<double>(bad_count);
+
+   if (bad <= meta.allowed_mistakes) {
+      // Near-perfect: positive score with speed bonus
+      double speed_multiplier = 1.0 / (0.3 + dt);
+      speed_multiplier *= speed_multiplier;
+      return good + good * speed_multiplier;
+   }
+
+   // Too many mistakes: negative score proportional to mistakes
+   return -bad;
+}
+
+// Calculate total score for today by processing all records
+double calc_score_today(const std::vector<attempt_record> &records,
+                        std::unordered_map<int, lesson_meta> &cache)
+{
+   if (records.empty())
+      return 0.0;
+
+   double total_score = 0.0;
+
+   size_t good_accum = 0;
+   size_t bad_accum  = 0;
+   double dt_accum   = 0.0;
+
+   attempt_record last{};
+   bool first_record  = true;
+   int current_lesson = 0;
+
+   auto finalize_attempt = [&](size_t good, size_t bad, double dt, int lesson) {
+      if (lesson == 0)
+         return 0.0; // nothing to score
+      const lesson_meta &meta = get_lesson_meta(cache, lesson);
+      return score_lesson_attempt(good, bad, dt, meta);
+   };
+
+   for (const auto &rec : records) {
+      if (!time_is_today(rec.time))
+         continue;
+
+      bool is_new_attempt =
+          (rec.col_id == 0 || rec.lesson_id != last.lesson_id);
+      if (first_record || is_new_attempt) {
+         // Score the previous attempt
+         total_score +=
+             finalize_attempt(good_accum, bad_accum, dt_accum, current_lesson);
+
+         // Start new attempt
+         good_accum     = rec.good_count;
+         bad_accum      = rec.bad_count;
+         dt_accum       = 0.0;
+         current_lesson = rec.lesson_id;
+         last           = rec;
+         first_record   = false;
+         continue;
+      }
+
+      // Accumulate ongoing attempt
+      good_accum += rec.good_count;
+      bad_accum += rec.bad_count;
+      dt_accum += lesson_delta_seconds(last, rec);
+
+      last = rec;
+   }
+
+   // Score the last attempt
+   total_score +=
+       finalize_attempt(good_accum, bad_accum, dt_accum, current_lesson);
+
+   return total_score;
 }

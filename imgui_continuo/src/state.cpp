@@ -96,6 +96,9 @@ void state_reload_stats(struct state *state)
    if (!state)
       return;
 
+   // Clear lesson metadata cache to avoid stale data
+   state->stats.lesson_cache.clear();
+
    // Read all attempts from file
    std::vector<attempt_record> records = db_read_attempts();
    if (records.empty()) {
@@ -108,10 +111,10 @@ void state_reload_stats(struct state *state)
 
    // Compute score and streaks
    state->stats.duration_today = calc_duration_today(records);
-   state->stats.score          = calc_score_today(records);
    state->stats.lesson_streak  = calc_lesson_streak(
        records, state->lesson.lesson_id, state->lesson.chords.size());
    state->stats.practice_streak =
        calc_practice_streak(records, state->settings.goal_minutes);
    state->stats.lesson_speed = calc_speed(records, state->lesson.lesson_id);
+   state->stats.score = calc_score_today(records, state->stats.lesson_cache);
 }

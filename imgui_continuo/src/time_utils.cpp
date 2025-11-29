@@ -32,7 +32,7 @@ bool time_is_today(double epoch_seconds)
    auto now_sec = time_point_cast<seconds>(now_tp).time_since_epoch().count();
 
    // Determine the current local timezone offset in seconds
-   auto now_tt       = static_cast<std::time_t>(now_sec);
+   auto now_tt             = static_cast<std::time_t>(now_sec);
    const std::tm *local_tm = std::localtime(&now_tt);
    auto offset =
        (local_tm->tm_hour * 3600 + local_tm->tm_min * 60 + local_tm->tm_sec) -
@@ -70,7 +70,7 @@ std::string time_format(double seconds)
 std::time_t day_start(double epoch_seconds)
 {
    const auto t = static_cast<std::time_t>(epoch_seconds);
-   std::tm tm    = *std::localtime(&t);
+   std::tm tm   = *std::localtime(&t);
    tm.tm_hour = tm.tm_min = tm.tm_sec = 0;
    return std::mktime(&tm);
 }

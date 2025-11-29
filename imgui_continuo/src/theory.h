@@ -98,6 +98,15 @@ struct figure {
    enum accidental acc;
 };
 
+struct column {
+   std::unordered_set<midi_note> bass;
+   std::vector<struct figure> figures;
+   std::unordered_set<midi_note> answer;
+   std::unordered_set<midi_note> good;
+   std::unordered_set<midi_note> bad;
+   double time;
+};
+
 struct attempt_record {
    unsigned int col_id;
    double time;
@@ -106,13 +115,10 @@ struct attempt_record {
    int lesson_id;
 };
 
-struct column {
-   std::unordered_set<midi_note> bass;
-   std::vector<struct figure> figures;
-   std::unordered_set<midi_note> answer;
-   std::unordered_set<midi_note> good;
-   std::unordered_set<midi_note> bad;
-   double time;
+struct lesson_meta {
+   int lesson_id;
+   size_t total_columns;
+   size_t allowed_mistakes;
 };
 
 enum accidental th_key_sig_accidental(enum key_sig key, midi_note n);
