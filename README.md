@@ -1,24 +1,32 @@
 # Continuo Trainer
 
-An interactive AI-based basso continuo trainer that analyzes your performance on
-a MIDI keyboard against a displayed bassline, giving feedback on harmony,
-rhythm, and style while adapting exercises through spaced repetition and
-gamified learning; eventually envisioned as a compact standalone practice
-device.
+An interactive basso continuo trainer that analyzes your performance on a MIDI
+keyboard against a displayed bassline, giving feedback on harmony, rhythm, and
+style while adapting exercises through spaced repetition and gamified learning.
 
 ![Screenshot](screenshot.png)
 
 ### Getting Started
 
-Prerequisites: SDL2. (For static code analysis also need bear, clang-tidy,
-clang-format, cppcheck, graphviz.)
+Prerequisites: SDL2.
 
 To build, just clone project and call make, and then run the program:
 
     $ git clone git@github.com:js216/continuo_trainer.git
-    $ cd continuo_trainer
+    $ cd continuo_trainer/imgui_continuo
     $ make -j4
     $ ./continuo_trainer
+
+For static code analysis, before committing new changes, we also need bear,
+clang-tidy, clang-format, cppcheck, graphviz, include-what-you-use. Or run the
+checks one by one as desired:
+
+    $ make check # runs all of them; or:
+    $ make format
+    $ make cppcheck
+    $ make tidy
+    $ make inclusions
+    $ make iwyu
 
 ### The Story
 
@@ -53,13 +61,61 @@ small speaker, and some input/output connections (maybe MIDI in/out, sound
 in/out, and/or USB for either). Then, the whole thing would be placed on the
 market only to realize there is no market for continuo-training toys ...
 
+This is a highly engaging web-based musical game designed to teach how to
+realize basso continuo from traditional notation. It transforms real-time
+musical skill execution into a fast, rewarding loop to redirect the attention
+that would otherwise go to passive media consumption towards mastering a musical
+skill.
+
+To make skill-building as compelling as social media, we use dynamic
+audio-visual feedback, surprise, anticipation, streaks, progression cues,
+variable rewards, social comparison, and fantasy identity framing. Over time,
+challenges escalate from single chords to extended continuo lines, simple fugal
+improvisation, and ultimately full orchestral accompaniment.
+
+In short: it's a compulsively playable musical "skill machine" that turns the
+addictive mechanics of modern media into rapid, focused, and creative music
+practice.
+
 ### Todo
 
-- free-timing vs fixed rhythm mode
-- melody playback via MIDI or audio
-- analyze lessons to generate new ones
-- voice leading analysis; hints displayed
-- research gamification, motivation strategy; scores, levels
+- score increases only from perfect (or near perfect) lessons, but decreases
+  from any mistake
+- streak comes from score goal
+- time is just a number, not a progress bar
+- automatically select the next lesson (via next lesson button)
+- generate lots of intro lessons in Python, nd targeted ones
+- add voice leading to scoring
+- add time pressure via "Challenge" mode, where notes fly in from the right and
+  you have to hit to chord in the central green region (or yellow around it, &c)
+- add melody instruments that play in "Karaoke" mode
+- use Emscripten to make a web app
+- Adaptive difficulty scaling for skill retention and challenge
+
+#### Gamification
+
+- more rewards and complexity
+    - Unlock slightly more complex figures for jackpots
+    - Introduce rare collectible items (ornaments, timbres, historical figures)
+    - Unlock new rewards based on streaks and performance
+    - Full progression system visible: points, streaks, ranks, collectibles
+    - Audio/visual reward variety expansion
+    - More complex audio/visual flourishes for jackpot hits
+    - Phase-based progression to keep “one more challenge” loop compelling
+- social and competitive features
+    - Add leaderboard placeholders (local for MVP)
+    - Implement leaderboards (global/friends)
+    - Show streaks, ranks, and relative performance notifications
+    - Optional social comparison features (avatars, status badges)
+    - Limited-time weekly/daily challenges
+    - Unlock rare musical content for top performers
+- Identity & Engagement Optimization
+    - Experiment with fantasy identity framing (Virtuoso, Scholar, Assassin)
+    - Adjust audio/visual reward metaphors per identity
+    - Collect engagement data for identity A/B testing
+    - Tune reward probabilities, jackpot intensity, and pacing based on metrics
+    - Implement hybrid rewards (music + social + collectibles)
+
 
 ### Author
 
