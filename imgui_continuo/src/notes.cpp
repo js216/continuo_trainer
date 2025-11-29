@@ -14,10 +14,10 @@
 #include <array>
 #include <cmath>
 #include <cstdint>
+#include <cstdlib>
 #include <string>
 #include <unordered_set>
 #include <vector>
-#include <cstdlib>
 
 #define CHORD_SEP 48.0F
 

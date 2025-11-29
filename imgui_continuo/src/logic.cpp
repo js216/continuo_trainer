@@ -13,10 +13,10 @@
 #include "time_utils.h"
 #include "util.h"
 #include <algorithm>
+#include <cstddef>
 #include <string>
 #include <unordered_set>
 #include <vector>
-#include <cstddef>
 
 void logic_clear(struct state *state)
 {

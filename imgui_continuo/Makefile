@@ -1,10 +1,6 @@
-CPPFLAGS = -Iimgui -Irtmidi -Isrc $(shell pkg-config --cflags sdl2)
-
-CXXFLAGS  = -Wall -Wextra -std=c++20 \
-	  -g -fsanitize=address -fno-omit-frame-pointer
-
-LDFLAGS = -lGL -lasound -lpthread -fsanitize=address \
-	  $(shell pkg-config --libs sdl2)
+CPPFLAGS = -Iimgui -Irtmidi -Isrc $(shell pkg-config --cflags x11)
+CXXFLAGS  = -Wall -Wextra -std=c++20 -Os
+LDFLAGS   = -lGL -lX11 -lXext -lpthread -lasound
 
 # Files
 
@@ -23,7 +19,6 @@ LIB_OBJS = \
 	imgui/imgui_tables.o \
 	imgui/imgui_widgets.o \
 	imgui/misc/cpp/imgui_stdlib.o \
-	imgui/backends/imgui_impl_sdl2.o \
 	imgui/backends/imgui_impl_opengl3.o
 
 # Building the program

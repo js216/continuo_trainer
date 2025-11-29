@@ -177,8 +177,10 @@ static void app_settings(struct state *state)
       }
 
       if (ImGui::BeginTabItem("Algorithm")) {
-         ImGui::SliderInt("Daily practice goal [min]", &state->settings.goal_minutes, 1, 60);
-         ImGui::SliderInt("Daily score goal", &state->settings.goal_score, 1000, 10000);
+         ImGui::SliderInt("Daily practice goal [min]",
+                          &state->settings.goal_minutes, 1, 60);
+         ImGui::SliderInt("Daily score goal", &state->settings.goal_score, 1000,
+                          10000);
          ImGui::EndTabItem();
       }
 
