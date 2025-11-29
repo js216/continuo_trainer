@@ -45,7 +45,7 @@ static bool logic_adjudicate(const struct column &col,
    if (col.bass.empty())
       return false;
 
-   int realized_pc = static_cast<int>(realization) % 12;
+   const int realized_pc = static_cast<int>(realization) % 12;
 
    auto matches_pc = [realized_pc](auto n) {
       return realized_pc == (int(n) % 12);
@@ -71,7 +71,6 @@ static void process_note(struct state *state, midi_note realization)
 
    struct column &col = state->lesson.chords[state->ui.active_col];
 
-   // replace unordered_set::contains with find
    if (col.good.find(realization) != col.good.end() ||
        col.bad.find(realization) != col.bad.end())
       return;
@@ -119,7 +118,7 @@ static void logic_play(struct state *state)
 static void logic_record(struct state *state)
 {
    static bool was_pressed = false;
-   bool is_pressed         = !state->midi.pressed_notes.empty();
+   const bool is_pressed   = !state->midi.pressed_notes.empty();
 
    // --- RELEASE LOGIC (Falling Edge) ---
    if (!is_pressed) {
@@ -138,7 +137,7 @@ static void logic_record(struct state *state)
       } else {
          // Case 2: Insert into the middle or at the end.
          // We insert at active_col + 1 (AFTER the currently selected column).
-         size_t insert_idx = state->ui.active_col + 1;
+         const size_t insert_idx = state->ui.active_col + 1;
 
          // Insert the new empty column.
          state->lesson.chords.insert(state->lesson.chords.begin() + insert_idx,

@@ -61,6 +61,8 @@ small speaker, and some input/output connections (maybe MIDI in/out, sound
 in/out, and/or USB for either). Then, the whole thing would be placed on the
 market only to realize there is no market for continuo-training toys ...
 
+### The App
+
 This is a highly engaging web-based musical game designed to teach how to
 realize basso continuo from traditional notation. It transforms real-time
 musical skill execution into a fast, rewarding loop to redirect the attention
@@ -115,7 +117,6 @@ practice.
     - Collect engagement data for identity A/B testing
     - Tune reward probabilities, jackpot intensity, and pacing based on metrics
     - Implement hybrid rewards (music + social + collectibles)
-
 
 ### Author
 

@@ -26,6 +26,7 @@ Checks: >
   -cppcoreguidelines-avoid-non-const-global-variables,
   -readability-use-anyofallof,
   -cppcoreguidelines-pro-bounds-pointer-arithmetic,
+  -misc-use-anonymous-namespace,
 
 WarningsAsErrors: '*'
 

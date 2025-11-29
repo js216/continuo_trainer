@@ -328,6 +328,7 @@ int main()
    }
 
    // 3. Cleanup
+   state_save_settings(app_state.settings);
    shutdown_imgui_system();
    shutdown_x11_opengl(&x11_ctx);
 

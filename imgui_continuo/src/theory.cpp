@@ -9,12 +9,12 @@
 #include "theory.h"
 #include "util.h"
 #include <cctype>
+#include <cstddef>
 #include <cstdint>
 #include <sstream>
 #include <string>
 #include <unordered_map>
-#include <unordered_set>
-#include <utility>
+#include <vector>
 
 std::string th_key_sig_to_string(const enum key_sig k)
 {
@@ -59,8 +59,8 @@ static std::string pitch_class_name(const int pc)
 
 std::string th_midi_to_name(const enum midi_note n)
 {
-   int octave = (n / 12) - 1; // n 0 = C-1
-   int note   = n % 12;
+   const int octave = (n / 12) - 1; // n 0 = C-1
+   const int note   = n % 12;
    return std::string(pitch_class_name(note)) + std::to_string(octave);
 }
 
@@ -136,7 +136,7 @@ static int staff_adjust_for_key(enum midi_note n, enum key_sig k)
    };
 
    if (k >= KEY_SIG_1_FLAT && k <= KEY_SIG_7_FLAT) {
-      int pc = n % 12;
+      const int pc = n % 12;
       return flat_key_pc_adjust[k - KEY_SIG_1_FLAT][pc];
    }
 
@@ -301,7 +301,7 @@ std::vector<figure> th_parse_figures_from_str(const std::string &token)
             ok = false;
             break;
          }
-         value = value * 10 + (part[i] - '0');
+         value = (value * 10) + (part[i] - '0');
       }
 
       if (ok)

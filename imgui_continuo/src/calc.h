@@ -15,11 +15,8 @@
 struct attempt_record;
 
 int calc_lesson_streak(const std::vector<attempt_record> &attempts,
-                       int lesson_id, size_t chords_per_lesson);
-
-int calc_practice_streak(const std::vector<attempt_record> &attempts,
-                         int goal_min);
-
+                       int lesson_id, size_t len);
+int calc_practice_streak(const std::vector<attempt_record> &recs, int goal_min);
 double calc_duration_today(const std::vector<attempt_record> &records);
 double calc_score_today(const std::vector<attempt_record> &records);
 double calc_speed(const std::vector<attempt_record> &records,

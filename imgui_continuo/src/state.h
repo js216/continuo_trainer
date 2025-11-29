@@ -71,8 +71,8 @@ struct state {
 // global state for debug only
 extern float global_tune;
 
-void state_save_settings(const struct settings &state);
-void state_load_settings(struct settings &state);
+void state_save_settings(const struct settings &set);
+void state_load_settings(struct settings &set);
 
 void state_clear_lesson(struct state *state);
 void state_pop_lesson(struct state *state);

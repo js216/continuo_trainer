@@ -308,8 +308,6 @@ static void compute_visible_range(int total, int active, int cps, int n_left,
       // Final region reached → reserve 2 slots for final double barline
       end   = total;
       start = total - (cps - 2);
-      if (start < 0)
-         start = 0;
    }
 }
 
@@ -346,9 +344,9 @@ static void handle_chord_click(int screen_idx, int chord_idx,
    float y_top    = origin.y;
    float y_bottom = origin.y + avail.y;
 
-   ImGuiIO &io   = ImGui::GetIO();
-   bool hovering = ImGui::IsMouseHoveringRect(ImVec2(x_left, y_top),
-                                              ImVec2(x_right, y_bottom));
+   const ImGuiIO &io = ImGui::GetIO();
+   bool hovering     = ImGui::IsMouseHoveringRect(ImVec2(x_left, y_top),
+                                                  ImVec2(x_right, y_bottom));
 
    ImDrawList *draw = ImGui::GetWindowDrawList();
 
@@ -370,8 +368,8 @@ static void handle_chord_click(int screen_idx, int chord_idx,
    if (hovering && io.MouseReleased[0]) {
       state->ui.active_col = chord_idx;
       if (state->ui.active_col < state->lesson.chords.size()) {
-         struct column &col   = state->lesson.chords[state->ui.active_col];
-         state->ui.figs_entry = th_fig_to_string(col.figures);
+         const struct column &col = state->lesson.chords[state->ui.active_col];
+         state->ui.figs_entry     = th_fig_to_string(col.figures);
       }
    }
 }

@@ -12,6 +12,7 @@
 #include "util.h"
 #include <array>
 #include <cfloat>
+#include <cstdint>
 #include <string>
 
 void set_font(struct state *state)
@@ -167,13 +168,13 @@ void style_text(const char *text, float x, float y, const font_config *cfg)
    if (!cfg)
       cfg = &default_cfg;
 
-   ImFont *font    = ImGui::GetFont();
-   float font_size = cfg->fontsize;
-   uint32_t color  = cfg->color;
+   ImFont *font          = ImGui::GetFont();
+   const float font_size = cfg->fontsize;
+   const uint32_t color  = cfg->color;
 
-   ImVec2 text_size = font->CalcTextSizeA(font_size, FLT_MAX, 0.0F, text);
-   ImVec2 offset    = anchor_offset(cfg->anch, text_size);
-   ImVec2 pos       = ImVec2(x + offset.x, y + offset.y);
+   const ImVec2 text_size = font->CalcTextSizeA(font_size, FLT_MAX, 0.0F, text);
+   const ImVec2 offset    = anchor_offset(cfg->anch, text_size);
+   const ImVec2 pos       = ImVec2(x + offset.x, y + offset.y);
 
    ImDrawList *draw = ImGui::GetWindowDrawList();
    draw->AddText(font, font_size, pos, color, text);

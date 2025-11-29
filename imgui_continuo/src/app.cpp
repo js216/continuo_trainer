@@ -321,7 +321,7 @@ static void draw_streak_boxes(int streak)
    else if (streak == 1)
       fill_col = IM_COL32(180, 120, 60, 255); // dull orange-brown
    else
-      fill_col = IM_COL32(180, 120, 60, 255); // fallback
+      fill_col = IM_COL32(255, 0, 0, 255); // fallback
 
    ImU32 empty_col = IM_COL32(128, 128, 128, 255);
 

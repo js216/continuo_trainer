@@ -17,7 +17,7 @@ static double calc_score(double dt, size_t good_count, size_t bad_count)
    auto good = static_cast<double>(good_count);
    auto bad  = static_cast<double>(bad_count);
 
-   double score = good - 1.5F * bad;
+   double score = good - (1.5F * bad);
 
    if (score > 0.0F) {
       double speed_multiplier = 1.0F / (0.3F + dt);
@@ -34,14 +34,11 @@ static double lesson_delta_seconds(const attempt_record &prev,
 {
    if (cur.time <= prev.time)
       return 0.0;
+
    if (cur.col_id == 0) // new lesson
       return 0.0;
 
-   double dt = cur.time - prev.time;
-   if (dt > 5.0)
-      dt = 5.0;
-
-   return dt; // seconds
+   return std::min(cur.time - prev.time, 5.0);
 }
 
 static void calc_day_totals(const std::vector<attempt_record> &recs,
@@ -61,8 +58,8 @@ static void calc_day_totals(const std::vector<attempt_record> &recs,
    attempt_record prev = recs[0];
 
    for (size_t i = 1; i < recs.size(); ++i) {
-      const auto &cur = recs[i];
-      std::time_t ds  = day_start(cur.time);
+      const auto &cur      = recs[i];
+      const std::time_t ds = day_start(cur.time);
 
       if (ds != curr_day) {
          curr_day = ds;
@@ -169,7 +166,7 @@ double calc_score_today(const std::vector<attempt_record> &records)
          continue;
       }
 
-      double dt = lesson_delta_seconds(last, cur);
+      const double dt = lesson_delta_seconds(last, cur);
       score += calc_score(dt, cur.good_count, cur.bad_count);
 
       last = cur;
@@ -202,7 +199,7 @@ double calc_speed(const std::vector<attempt_record> &records,
                ema           = max_dt;
                first_attempt = false;
             } else {
-               ema = alpha * max_dt + (1.0 - alpha) * ema;
+               ema = (alpha * max_dt) + ((1.0 - alpha) * ema);
             }
          }
          // Reset for next attempt
@@ -211,11 +208,8 @@ double calc_speed(const std::vector<attempt_record> &records,
          mistake_in_attempt = false;
       }
 
-      if (!first_in_attempt) {
-         double dt = rec.time - last_time;
-         if (dt > max_dt)
-            max_dt = dt;
-      }
+      if (!first_in_attempt)
+         max_dt = std::max(rec.time - last_time, max_dt);
 
       if (rec.bad_count > 0)
          mistake_in_attempt = true;
@@ -230,7 +224,7 @@ double calc_speed(const std::vector<attempt_record> &records,
       if (first_attempt) {
          ema = max_dt;
       } else {
-         ema = alpha * max_dt + (1.0 - alpha) * ema;
+         ema = (alpha * max_dt) + ((1.0 - alpha) * ema);
       }
    }
 

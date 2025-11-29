@@ -33,7 +33,7 @@ bool time_is_today(double epoch_seconds)
 
    // Determine the current local timezone offset in seconds
    auto now_tt       = static_cast<std::time_t>(now_sec);
-   std::tm *local_tm = std::localtime(&now_tt);
+   const std::tm *local_tm = std::localtime(&now_tt);
    auto offset =
        (local_tm->tm_hour * 3600 + local_tm->tm_min * 60 + local_tm->tm_sec) -
        (now_sec % 86400);
@@ -53,13 +53,13 @@ std::string time_format(double seconds)
    if (seconds < 60.0) {
       (void)std::snprintf(buf.data(), buf.size(), "%.0fs", seconds);
    } else if (seconds < 3600.0) {
-      int mins = static_cast<int>(seconds / 60.0);
-      int secs = static_cast<int>(seconds) % 60;
+      const int mins = static_cast<int>(seconds / 60.0);
+      const int secs = static_cast<int>(seconds) % 60;
       (void)std::snprintf(buf.data(), buf.size(), "%02d:%02d", mins, secs);
    } else {
-      int hours = static_cast<int>(seconds / 3600.0);
-      int mins  = (static_cast<int>(seconds) % 3600) / 60;
-      int secs  = static_cast<int>(seconds) % 60;
+      const int hours = static_cast<int>(seconds / 3600.0);
+      const int mins  = (static_cast<int>(seconds) % 3600) / 60;
+      const int secs  = static_cast<int>(seconds) % 60;
       (void)std::snprintf(buf.data(), buf.size(), "%d:%02d:%02d", hours, mins,
                           secs);
    }
@@ -69,7 +69,7 @@ std::string time_format(double seconds)
 
 std::time_t day_start(double epoch_seconds)
 {
-   std::time_t t = static_cast<std::time_t>(epoch_seconds);
+   const auto t = static_cast<std::time_t>(epoch_seconds);
    std::tm tm    = *std::localtime(&t);
    tm.tm_hour = tm.tm_min = tm.tm_sec = 0;
    return std::mktime(&tm);
@@ -77,8 +77,8 @@ std::time_t day_start(double epoch_seconds)
 
 bool is_consecutive_day(std::time_t prev_day, std::time_t curr_day)
 {
-   std::tm tm_prev = *std::localtime(&prev_day);
-   std::tm tm_curr = *std::localtime(&curr_day);
+   const std::tm tm_prev = *std::localtime(&prev_day);
+   const std::tm tm_curr = *std::localtime(&curr_day);
    return tm_curr.tm_year == tm_prev.tm_year &&
           tm_curr.tm_yday + 1 == tm_prev.tm_yday;
 }
