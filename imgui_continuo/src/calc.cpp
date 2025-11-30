@@ -10,10 +10,10 @@
 #include "db.h"
 #include "theory.h"
 #include "time_utils.h"
+#include <algorithm>
 #include <ctime>
 #include <unordered_map>
 #include <vector>
-#include <algorithm>
 
 static double lesson_delta_seconds(const attempt_record &prev,
                                    const attempt_record &cur)

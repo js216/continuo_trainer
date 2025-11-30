@@ -177,10 +177,8 @@ static void app_settings(struct state *state)
       }
 
       if (ImGui::BeginTabItem("Algorithm")) {
-         ImGui::SliderInt("Daily practice goal [min]",
-                          &state->settings.goal_minutes, 1, 60);
-         ImGui::SliderInt("Daily score goal", &state->settings.score_goal, 1000,
-                          10000);
+         ImGui::SliderInt("Daily score goal", &state->settings.score_goal, 1,
+                          100);
          ImGui::EndTabItem();
       }
 
@@ -456,14 +454,8 @@ static void stats_today(struct state *state)
    ImGui::PopItemWidth();
 
    // Duration progress bar
-   ImGui::TextUnformatted("Duration");
-   std::string duration_str = time_format(state->stats.duration_today);
-   double max_duration      = 60.0F * state->settings.goal_minutes;
-   ImGui::ProgressBar(
-       (float)std::clamp(state->stats.duration_today / max_duration, 0.0, 1.0),
-       ImVec2(-1, bar_h),
-       duration_str.c_str() // overlay text
-   );
+   ImGui::TextUnformatted(
+       ("Duration: " + time_format(state->stats.duration_today)).c_str());
 }
 
 static void stats_overall(struct state *state)

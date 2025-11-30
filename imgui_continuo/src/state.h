@@ -29,7 +29,6 @@ struct settings {
    bool midi_forward;
    std::string in_dev;
    std::string out_dev;
-   int goal_minutes;
    int score_goal;
 };
 

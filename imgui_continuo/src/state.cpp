@@ -23,7 +23,6 @@ void state_save_settings(const struct settings &set)
    db_store_key_val("in_dev", set.in_dev);
    db_store_key_val("out_dev", set.out_dev);
    db_store_bool("midi_forward", set.midi_forward);
-   db_store_int("goal_minutes", set.goal_minutes);
    db_store_int("score_goal", set.score_goal);
 }
 
@@ -32,7 +31,6 @@ void state_load_settings(struct settings &set)
    set.in_dev       = db_load_key_val("in_dev");
    set.out_dev      = db_load_key_val("out_dev");
    set.midi_forward = db_load_bool("midi_forward");
-   set.goal_minutes = db_load_int("goal_minutes");
    set.score_goal   = db_load_int("score_goal");
 }
 

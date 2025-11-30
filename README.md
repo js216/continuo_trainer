@@ -81,7 +81,6 @@ practice.
 
 ### Todo
 
-- time is just a number, not a progress bar
 - automatically select the next lesson (via next lesson button)
 - generate lots of intro lessons in Python, nd targeted ones
 - add voice leading to scoring
