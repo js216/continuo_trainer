@@ -35,8 +35,6 @@ void logic_clear(struct state *state)
       state->ui.edit_lesson = true;
       state->ui.status      = "Empty lesson; enter new notes.";
    }
-
-   state_reload_stats(state);
 }
 
 static bool logic_adjudicate(const struct column &col,
@@ -100,7 +98,7 @@ static void logic_play(struct state *state)
 
       if (!col.good.empty() || !col.bad.empty()) {
          col.time = time_now();
-         db_store_attempt(state->lesson.lesson_id, state->ui.active_col, col);
+         state_stream_in(state, col);
          state->ui.active_col++;
       }
    }

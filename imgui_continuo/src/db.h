@@ -43,6 +43,6 @@ void db_store_lesson_chords(int lesson_id, const std::vector<column> &chords);
 int db_load_last_lesson_id(void);
 std::vector<struct attempt_record> db_read_attempts(void);
 void db_store_attempt(const int lesson_id, unsigned int col_id,
-                      const struct column &col);
+                      const struct column &col, double t);
 
 #endif /* DB_H */

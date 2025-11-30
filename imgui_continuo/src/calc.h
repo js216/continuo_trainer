@@ -2,15 +2,14 @@
 
 /**
  * @file calc.h
- * @brief Calculate statistics.
+ * @brief Calculate statistics using a streaming API.
  * @author Jakob Kastelic
  */
 
 #ifndef CALC_H
 #define CALC_H
 
-#include "theory.h"
-#include <stddef.h>
+#include <ctime>
 #include <unordered_map>
 #include <vector>
 
@@ -26,42 +25,59 @@ struct lesson_meta {
    int lesson_id;
    size_t total_columns;
    size_t allowed_mistakes;
-   double difficulty;
-   bool difficulty_init;
+
+   // Performance metrics
+   int streak;
+   double speed; // EMA of max_dt
+
+   // SRS (Spaced Repetition) state
+   double srs_ease;     // Multiplier (e.g., 2.5)
+   double srs_interval; // In seconds
+   std::time_t srs_due; // Unix timestamp
+
+   // Working state for the current active attempt
+   bool in_progress;
+   unsigned int last_col_id;
+   double last_time;
+   double working_max_dt;
+   size_t working_good;
+   size_t working_bad;
+   double working_duration;
 };
 
 struct stats {
-   // lesson
-   int lesson_streak;
-   double lesson_speed;
-   double difficulty;
-
-   // today
-   double score;
+   // Today's metrics
+   double score_today;
    double duration_today;
 
-   // overall
+   // Overall metrics
    int practice_streak;
+   std::time_t last_practice_date;
+   bool goal_met_today;
 
-   // scoring support: lesson metadata cache
+   // Global streaming state (to detect lesson switches/abandonment)
+   attempt_record last_record;
+   bool has_last_record;
+
+   // Lesson metadata cache
    std::unordered_map<int, lesson_meta> lesson_cache;
 };
 
-int calc_lesson_streak(const std::vector<attempt_record> &attempts,
-                       int lesson_id, size_t len);
-double calc_duration_today(const std::vector<attempt_record> &records);
-double calc_speed(const std::vector<attempt_record> &records,
-                  const int lesson_id);
-double calc_score_today(const std::vector<attempt_record> &records,
-                        std::unordered_map<int, lesson_meta> &cache);
-int calc_practice_streak(const std::vector<attempt_record> &records,
-                         double score_goal,
-                         std::unordered_map<int, lesson_meta> &cache);
-double calc_difficulty(int lesson_id,
-                       const std::vector<attempt_record> &records,
-                       std::unordered_map<int, lesson_meta> &cache);
+// Data acess
+void create_lesson_meta(struct stats &stats, int lesson_id, int len);
+struct lesson_meta &calc_get_lesson_meta(struct stats &stats, int lesson_id);
+
+// Streaming API
+void calc_speed(struct stats &stats, const struct attempt_record &r);
+void calc_lesson_streak(struct stats &stats, const struct attempt_record &r);
+void calc_duration(struct stats &stats, const struct attempt_record &r);
+void calc_score(struct stats &stats, const struct attempt_record &r);
+void calc_practice_streak(struct stats &stats, const struct attempt_record &r,
+                          double score_goal);
+
+// SRS & Scheduling
+void calc_schedule(struct stats &stats, const struct attempt_record &r);
 int calc_next(int current_id, const std::vector<int> &lesson_ids,
-              const std::vector<attempt_record> &records,
-              std::unordered_map<int, lesson_meta> &cache);
+              struct stats &stats);
 
 #endif /* CALC_H */

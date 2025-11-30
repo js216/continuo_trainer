@@ -14,8 +14,9 @@
 
 double time_now(void);
 bool time_is_today(double epoch_seconds);
-std::string time_format(double seconds);
 std::time_t day_start(double epoch_seconds);
-bool is_consecutive_day(std::time_t prev_day, std::time_t curr_day);
+
+std::string time_format(double seconds);
+std::string time_datestring(double epoch_seconds);
 
 #endif /* TIME_UTILS_H */

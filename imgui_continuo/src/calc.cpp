@@ -10,358 +10,318 @@
 #include "db.h"
 #include "theory.h"
 #include "time_utils.h"
+#include "util.h"
 #include <algorithm>
-#include <ctime>
-#include <unordered_map>
-#include <vector>
+#include <cmath>
+#include <limits>
 
-static double lesson_delta_seconds(const attempt_record &prev,
+void create_lesson_meta(struct stats &stats, int lesson_id, int len)
+{
+   lesson_meta meta{};
+
+   meta.lesson_id        = lesson_id;
+   meta.total_columns    = len;
+   meta.allowed_mistakes = static_cast<size_t>(meta.total_columns * 0.05);
+
+   meta.streak = 0;
+   meta.speed  = 0.0;
+
+   meta.srs_ease     = 2.5;
+   meta.srs_interval = 0.0;
+   meta.srs_due      = 0;
+
+   meta.in_progress      = false;
+   meta.last_col_id      = 0;
+   meta.last_time        = 0.0;
+   meta.working_max_dt   = 0.0;
+   meta.working_good     = 0;
+   meta.working_bad      = 0;
+   meta.working_duration = 0.0;
+
+   stats.lesson_cache.emplace(lesson_id, std::move(meta));
+}
+
+struct lesson_meta &calc_get_lesson_meta(struct stats &stats, int lesson_id)
+{
+   auto it = stats.lesson_cache.find(lesson_id);
+   if (it != stats.lesson_cache.end())
+      return it->second;
+
+   static lesson_meta dummy{}; // fallback reference
+   error("Lesson not found in cache");
+   return dummy;
+}
+
+static double record_delta_seconds(const attempt_record &prev,
                                    const attempt_record &cur)
 {
    if (cur.time <= prev.time)
       return 0.0;
-
-   if (cur.col_id == 0) // new lesson
+   // If it's a new lesson or restart, there's no delta from previous
+   if (cur.col_id == 0 || cur.lesson_id != prev.lesson_id)
       return 0.0;
 
    return std::min(cur.time - prev.time, 5.0);
 }
 
-double calc_duration_today(const std::vector<attempt_record> &records)
+void calc_duration(struct stats &stats, const struct attempt_record &r)
 {
-   if (records.size() < 2)
-      return 0.0;
-
-   double sum_sec      = 0.0;
-   attempt_record prev = records[0];
-
-   for (size_t i = 1; i < records.size(); ++i) {
-      const auto &cur = records[i];
-
-      if (!time_is_today(prev.time) || !time_is_today(cur.time)) {
-         prev = cur;
-         continue;
-      }
-
-      sum_sec += lesson_delta_seconds(prev, cur);
-      prev = cur;
+   if (!stats.has_last_record) {
+      stats.last_record     = r;
+      stats.has_last_record = true;
+      return;
    }
 
-   return sum_sec;
+   // Only add duration if both records are from today
+   if (time_is_today(stats.last_record.time) && time_is_today(r.time)) {
+      stats.duration_today += record_delta_seconds(stats.last_record, r);
+   }
 }
 
-int calc_lesson_streak(const std::vector<attempt_record> &attempts,
-                       int lesson_id, size_t len)
+void calc_speed(struct stats &stats, const struct attempt_record &r)
 {
-   if (len == 0)
-      return 0;
+   auto &meta = calc_get_lesson_meta(stats, r.lesson_id);
 
-   int streak = 0;
-   bool begin = false;
-
-   for (const auto &attempt : attempts) {
-      if (attempt.lesson_id != lesson_id)
-         continue;
-
-      if (attempt.col_id == 0)
-         begin = true;
-
-      if (begin && (attempt.col_id == len - 1))
-         ++streak;
-
-      if (attempt.bad_count != 0) {
-         streak = 0;
-         begin  = false;
-      }
+   // Determine dt from the previous record *within this lesson attempt*
+   double dt = 0.0;
+   if (meta.in_progress && r.col_id > meta.last_col_id) {
+      dt = std::min(r.time - meta.last_time, 5.0);
    }
 
-   return streak;
-}
-
-double calc_speed(const std::vector<attempt_record> &records,
-                  const int lesson_id)
-{
-   const double alpha = 2.0 / 6.0; // EMA roughly over last 5 attempts
-   double ema         = 0.0;
-   bool first_attempt = true;
-
-   unsigned int last_col_id = 0;
-   double last_time         = 0.0;
-   double max_dt            = 0.0;
-   bool first_in_attempt    = true;
-   bool mistake_in_attempt  = false;
-
-   for (const auto &rec : records) {
-      if (rec.lesson_id != lesson_id)
-         continue;
-
-      // New lesson attempt if col_id resets
-      if (!first_in_attempt && rec.col_id <= last_col_id) {
-         if (!mistake_in_attempt) {
-            // Update EMA with this attempt
-            if (first_attempt) {
-               ema           = max_dt;
-               first_attempt = false;
-            } else {
-               ema = (alpha * max_dt) + ((1.0 - alpha) * ema);
-            }
-         }
-         // Reset for next attempt
-         max_dt             = 0.0;
-         first_in_attempt   = true;
-         mistake_in_attempt = false;
-      }
-
-      if (!first_in_attempt)
-         max_dt = std::max(rec.time - last_time, max_dt);
-
-      if (rec.bad_count > 0)
-         mistake_in_attempt = true;
-
-      last_time        = rec.time;
-      last_col_id      = rec.col_id;
-      first_in_attempt = false;
-   }
-
-   // Handle last attempt
-   if (!first_in_attempt && !mistake_in_attempt) {
-      if (first_attempt) {
-         ema = max_dt;
-      } else {
-         ema = (alpha * max_dt) + ((1.0 - alpha) * ema);
-      }
-   }
-
-   if (ema == 0)
-      return 0;
-
-   return 1 / ema;
-}
-
-static lesson_meta &get_lesson_meta(std::unordered_map<int, lesson_meta> &cache,
-                                    int lesson_id)
-{
-   auto it = cache.find(lesson_id);
-   if (it != cache.end())
-      return it->second;
-
-   std::vector<column> chords = db_load_lesson_chords(lesson_id);
-
-   lesson_meta meta{};
-   meta.lesson_id        = lesson_id;
-   meta.total_columns    = chords.size();
-   meta.allowed_mistakes = static_cast<size_t>(meta.total_columns * 0.05);
-   meta.difficulty_init  = false;
-
-   return cache[lesson_id] = std::move(meta);
-}
-
-// Compute the score for a single full lesson attempt
-static double score_lesson_attempt(size_t good_count, size_t bad_count,
-                                   double dt, const lesson_meta &meta)
-{
-   double good = static_cast<double>(good_count);
-   double bad  = static_cast<double>(bad_count);
-
-   if (bad <= meta.allowed_mistakes) {
-      // Near-perfect: positive score with speed bonus
-      double speed_multiplier = 1.0 / (0.3 + dt);
-      speed_multiplier *= speed_multiplier;
-      return good + good * speed_multiplier;
-   }
-
-   // Too many mistakes: negative score proportional to mistakes
-   return -bad;
-}
-
-static void update_difficulty(lesson_meta &meta, size_t bad, double dt)
-{
-   double struggle = bad + dt; // simple: more mistakes or slow → more struggle
-
-   const double alpha = 0.1; // EMA update weight (lower -> move slower)
-
-   if (!meta.difficulty_init) {
-      meta.difficulty      = std::clamp(struggle, 0.5, 5.0);
-      meta.difficulty_init = true;
+   // Update max_dt for this specific attempt
+   if (r.col_id == 0) {
+      meta.working_max_dt = 0.0; // Reset on start
    } else {
-      meta.difficulty = (alpha * std::clamp(struggle, 0.5, 5.0)) +
-                        ((1.0 - alpha) * meta.difficulty);
-   }
-}
-
-static double
-finalize_lesson_attempt(std::unordered_map<int, lesson_meta> &cache,
-                        int lesson_id, size_t good_accum, size_t bad_accum,
-                        double dt_accum)
-{
-   if (lesson_id == 0)
-      return 0.0;
-
-   auto &meta = get_lesson_meta(cache, lesson_id);
-
-   double result = score_lesson_attempt(good_accum, bad_accum, dt_accum, meta);
-
-   // Update difficulty AFTER scoring using “so far” meta difficulty
-   update_difficulty(meta, bad_accum, dt_accum);
-
-   return result;
-}
-
-static double calc_score_for_day(const std::vector<attempt_record> &records,
-                                 std::unordered_map<int, lesson_meta> &cache,
-                                 std::time_t day)
-{
-   double total_score = 0.0;
-
-   size_t good_accum = 0;
-   size_t bad_accum  = 0;
-   double dt_accum   = 0.0;
-
-   attempt_record last{};
-   bool first_record  = true;
-   int current_lesson = 0;
-
-   for (const auto &rec : records) {
-      if (day_start(rec.time) != day)
-         continue;
-
-      bool new_attempt = (rec.col_id == 0 || rec.lesson_id != current_lesson);
-
-      if (first_record || new_attempt) {
-         total_score += finalize_lesson_attempt(
-             cache, current_lesson, good_accum, bad_accum, dt_accum);
-
-         good_accum     = rec.good_count;
-         bad_accum      = rec.bad_count;
-         dt_accum       = 0.0;
-         current_lesson = rec.lesson_id;
-         last           = rec;
-         first_record   = false;
-         continue;
-      }
-
-      good_accum += rec.good_count;
-      bad_accum += rec.bad_count;
-      dt_accum += lesson_delta_seconds(last, rec);
-      last = rec;
+      meta.working_max_dt = std::max(meta.working_max_dt, dt);
    }
 
-   total_score += finalize_lesson_attempt(cache, current_lesson, good_accum,
-                                          bad_accum, dt_accum);
-
-   return total_score;
-}
-
-double calc_score_today(const std::vector<attempt_record> &records,
-                        std::unordered_map<int, lesson_meta> &cache)
-{
-   if (records.empty())
-      return 0.0;
-
-   const auto it = std::find_if(
-       records.begin(), records.end(),
-       [](const attempt_record &r) { return time_is_today(r.time); });
-
-   if (it == records.end())
-      return 0.0;
-
-   const std::time_t today = day_start(it->time);
-   return calc_score_for_day(records, cache, today);
-}
-
-int calc_practice_streak(const std::vector<attempt_record> &records,
-                         double score_goal,
-                         std::unordered_map<int, lesson_meta> &cache)
-{
-   if (records.empty())
-      return 0;
-
-   // Build list of unique days in chronological order
-   std::vector<std::time_t> days;
-   std::time_t last_day = -1;
-
-   for (const auto &rec : records) {
-      std::time_t d = day_start(rec.time);
-      if (d != last_day) {
-         days.push_back(d);
-         last_day = d;
+   // If lesson finished, update the EMA
+   if (r.col_id == meta.total_columns - 1) {
+      const double alpha = 2.0 / 6.0; // EMA over ~5 attempts
+      if (meta.speed == 0.0) {
+         meta.speed = meta.working_max_dt;
+      } else {
+         meta.speed =
+             (alpha * meta.working_max_dt) + ((1.0 - alpha) * meta.speed);
       }
    }
-
-   int streak = 0;
-   for (int i = (int)days.size() - 1; i >= 0; --i) {
-      double score = calc_score_for_day(records, cache, days[i]);
-      if (score < score_goal)
-         break;
-      if (i != (int)days.size() - 1 &&
-          !is_consecutive_day(days[i + 1], days[i]))
-         break;
-      streak++;
-   }
-   return streak;
 }
 
-double calc_difficulty(int lesson_id,
-                       const std::vector<attempt_record> &records,
-                       std::unordered_map<int, lesson_meta> &cache)
+void calc_lesson_streak(struct stats &stats, const struct attempt_record &r)
 {
-   std::vector<attempt_record> lesson_records;
-   lesson_records.reserve(records.size()); // optional, avoid reallocations
+   auto &meta = calc_get_lesson_meta(stats, r.lesson_id);
 
-   std::copy_if(records.begin(), records.end(),
-                std::back_inserter(lesson_records),
-                [lesson_id](const attempt_record &r) {
-                   return r.lesson_id == lesson_id;
-                });
+   if (r.bad_count > 0) {
+      meta.streak = 0;
+   } else if (r.col_id == meta.total_columns - 1) {
+      // Only increment on full completion
+      meta.streak++;
+   }
+}
 
-   if (lesson_records.empty())
-      return 0.0;
+void calc_score(struct stats &stats, const struct attempt_record &r)
+{
+   // This function accumulates score *as we go*.
+   // We score the "delta" represented by this record.
+   // However, the "Speed Bonus" applies to the *whole* lesson.
+   // Strategy: We only commit score to `stats.score_today` when an attempt
+   // finishes or fails. But the prompt asks to update `score_today` with `r`.
+   //
+   // Adaptation: We treat every small step as 0 score, until the lesson
+   // is finalized (completion). MISTAKES are penalized immediately.
 
-   // Simulate scoring to update difficulty
-   calc_score_for_day(lesson_records, cache, day_start(lesson_records[0].time));
+   auto &meta = calc_get_lesson_meta(stats, r.lesson_id);
 
-   const auto &meta = get_lesson_meta(cache, lesson_id);
-   return meta.difficulty_init ? meta.difficulty : 0.0;
+   // 1. Penalize mistakes immediately
+   if (r.bad_count > 0) {
+      stats.score_today -= static_cast<double>(r.bad_count);
+   }
+
+   // Accumulate working state for the bonus calculation
+   double dt = 0.0;
+   if (meta.in_progress && r.col_id > meta.last_col_id) {
+      dt = std::min(r.time - meta.last_time, 5.0);
+   }
+
+   if (r.col_id == 0) {
+      // Reset working accumulation
+      meta.working_good     = 0;
+      meta.working_bad      = 0;
+      meta.working_duration = 0.0;
+   }
+
+   meta.working_good += r.good_count;
+   meta.working_bad += r.bad_count;
+   meta.working_duration += dt;
+
+   // 2. Apply completion bonus
+   if (r.col_id == meta.total_columns - 1) {
+      if (meta.working_bad <= meta.allowed_mistakes) {
+         double good_score = static_cast<double>(meta.working_good);
+
+         // Speed multiplier: 1 / (0.3 + avg_dt_per_col)
+         // avg_dt = total_duration / total_cols
+         double avg_dt = 0.0;
+         if (meta.total_columns > 0)
+            avg_dt = meta.working_duration / meta.total_columns;
+
+         double speed_mult = 1.0 / (0.3 + avg_dt);
+         speed_mult *= speed_mult; // Squared
+
+         double bonus = good_score + (good_score * speed_mult);
+         stats.score_today += bonus;
+      }
+   }
+}
+
+void calc_practice_streak(struct stats &stats, const struct attempt_record &r,
+                          double score_goal)
+{
+   if (!time_is_today(r.time))
+      return; // Only process today's records
+
+   std::time_t today = day_start(r.time);
+   std::time_t yesterday =
+       today - 24 * 60 * 60; // Approximate, relying on time_utils usually
+
+   // Check if we just crossed the goal threshold
+   if (stats.score_today >= score_goal && !stats.goal_met_today) {
+      stats.goal_met_today = true;
+
+      // Check continuity
+      if (day_start(stats.last_practice_date) == yesterday) {
+         stats.practice_streak++;
+      } else if (day_start(stats.last_practice_date) == today) {
+         // Already counted (should be covered by goal_met_today, but safe
+         // check)
+      } else {
+         // Streak broken or new
+         stats.practice_streak = 1;
+      }
+      stats.last_practice_date = r.time;
+   }
+}
+
+static void update_srs_state(lesson_meta &meta, double quality)
+{
+   // Quality: 0 (Fail/Abandon), 3 (Pass), 4 (Good), 5 (Perfect)
+
+   if (quality < 3.0) {
+      // Fail/Abandon
+      meta.srs_interval = 0.0;
+      meta.srs_ease     = std::max(1.3, meta.srs_ease - 0.2);
+   } else {
+      // Success
+      if (meta.srs_interval == 0.0) {
+         // First success, set to ~1 day (86400s) or short interval?
+         // Since this is likely typing practice, we might want shorter initial
+         // intervals Let's say 4 hours for first success.
+         meta.srs_interval = 4 * 3600.0;
+      } else {
+         meta.srs_interval = meta.srs_interval * meta.srs_ease;
+      }
+
+      // Ease adjustment (Standard SM-2 formula part)
+      // ease = ease + (0.1 - (5 - q) * (0.08 + (5 - q) * 0.02))
+      // Simplified:
+      if (quality == 5.0)
+         meta.srs_ease += 0.15;
+      else if (quality == 4.0)
+         meta.srs_ease += 0.0; // No change
+      else
+         meta.srs_ease -= 0.15;
+   }
+
+   meta.srs_ease = std::max(1.3, meta.srs_ease);
+
+   // Set due date
+   std::time_t now = std::time(nullptr);
+   meta.srs_due    = now + static_cast<long>(meta.srs_interval);
+}
+
+void calc_schedule(struct stats &stats, const struct attempt_record &r)
+{
+   // Detect Abandonment of PREVIOUS lesson
+   // If we switch lessons or restart col_id 0, the previous specific attempt is
+   // over.
+   if (stats.has_last_record) {
+      bool same_lesson = (r.lesson_id == stats.last_record.lesson_id);
+      bool restart     = (r.col_id == 0);
+
+      if (!same_lesson || restart) {
+         // Did the previous attempt finish?
+         auto &prev_meta =
+             calc_get_lesson_meta(stats, stats.last_record.lesson_id);
+
+         // If previous was in progress and NOT at the end, it was abandoned
+         if (prev_meta.in_progress &&
+             prev_meta.last_col_id != prev_meta.total_columns - 1) {
+            update_srs_state(prev_meta, 0.0); // 0.0 quality for abandonment
+            prev_meta.in_progress = false;
+         }
+      }
+   }
+
+   // Update Current Lesson State
+   auto &meta = calc_get_lesson_meta(stats, r.lesson_id);
+
+   // Update tracking vars
+   meta.last_col_id = r.col_id;
+   meta.last_time   = r.time;
+   meta.in_progress = true;
+
+   // Check for Completion
+   if (r.col_id == meta.total_columns - 1) {
+      // Calculate Grade
+      double quality = 0.0;
+
+      if (meta.working_bad == 0) {
+         quality = 5.0; // Perfect
+      } else if (meta.working_bad <= meta.allowed_mistakes) {
+         quality = 4.0; // Pass with minor mistakes
+      } else {
+         quality = 0.0; // Fail (too many mistakes)
+      }
+
+      update_srs_state(meta, quality);
+      meta.in_progress = false; // Attempt complete
+   }
+
+   // Final step: update global last record
+   // (Assuming this is the last call in the chain)
+   stats.last_record     = r;
+   stats.has_last_record = true;
 }
 
 int calc_next(int current_id, const std::vector<int> &lesson_ids,
-              const std::vector<attempt_record> &records,
-              std::unordered_map<int, lesson_meta> &cache)
+              struct stats &stats)
 {
-   const int full_streak = 5;
+   if (lesson_ids.empty())
+      return -1;
 
-   int candidate_lesson        = -1;
-   double candidate_difficulty = 0.0;
-   bool found_incomplete       = false;
+   int best_candidate     = -1;
+   std::time_t lowest_due = std::numeric_limits<std::time_t>::max();
 
-   for (int lesson_id : lesson_ids) {
-      if (lesson_id == current_id)
+   for (int id : lesson_ids) {
+      if (id == current_id)
          continue;
 
-      // Calculate streak for this lesson
-      int streak = calc_lesson_streak(
-          records, lesson_id, get_lesson_meta(cache, lesson_id).total_columns);
+      const auto &meta = calc_get_lesson_meta(stats, id);
 
-      double difficulty = calc_difficulty(lesson_id, records, cache);
-
-      if (streak < full_streak) {
-         // Treat unattempted lessons as “highest difficulty” for selection
-         double effective_difficulty = (difficulty == 0.0) ? 9999 : difficulty;
-
-         // Incomplete streak: candidate for practice
-         if (!found_incomplete || effective_difficulty < candidate_difficulty) {
-            candidate_lesson     = lesson_id;
-            candidate_difficulty = effective_difficulty;
-            found_incomplete     = true;
-         }
-      } else if (!found_incomplete) {
-         // All completed so far, track the hardest lesson
-         if (candidate_lesson == -1 || difficulty > candidate_difficulty) {
-            candidate_lesson     = lesson_id;
-            candidate_difficulty = difficulty;
-         }
+      // Simple Scheduler: Lowest due date (overdue items first)
+      if (meta.srs_due < lowest_due) {
+         lowest_due     = meta.srs_due;
+         best_candidate = id;
       }
    }
 
-   return candidate_lesson;
+   // If everything is in the future, still pick the one due soonest
+   // Or if uninitialized, due is 0 (1970), so they come first naturally.
+
+   if (best_candidate == -1 && !lesson_ids.empty()) {
+      // Fallback if current_id was the only one or something went wrong
+      return lesson_ids[0];
+   }
+
+   return best_candidate;
 }

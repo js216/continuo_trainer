@@ -10,6 +10,7 @@
 #include "calc.h"
 #include "db.h"
 #include "theory.h"
+#include "time_utils.h"
 #include <algorithm>
 #include <iterator>
 #include <string>
@@ -94,39 +95,76 @@ void state_reload_stats(struct state *state)
    if (!state)
       return;
 
-   // Clear lesson metadata cache to avoid stale data
-   state->stats.lesson_cache.clear();
+   // 1. Reset Global Stats
+   // We are rebuilding from scratch, so we must zero out today's accumulators.
+   state->stats.score_today        = 0.0;
+   state->stats.duration_today     = 0.0;
+   state->stats.practice_streak    = 0;
+   state->stats.last_practice_date = 0;
+   state->stats.goal_met_today     = false;
+   state->stats.has_last_record    = false;
 
-   // Read all attempts from file
-   std::vector<attempt_record> records = db_read_attempts();
-   if (records.empty()) {
-      state->stats.duration_today  = 0.0;
-      state->stats.score           = 0.0;
-      state->stats.lesson_streak   = 0;
-      state->stats.practice_streak = 0;
-      return;
+   // 2. Initialize Lesson Cache
+   state->stats.lesson_cache.clear();
+   std::vector<int> lessons = db_get_lesson_ids();
+   for (auto lesson_id : lessons) {
+      std::vector<column> chords = db_load_lesson_chords(lesson_id);
+      create_lesson_meta(state->stats, lesson_id, chords.size());
    }
 
-   // Compute score and streaks
-   state->stats.duration_today = calc_duration_today(records);
-   state->stats.lesson_streak  = calc_lesson_streak(
-       records, state->lesson.lesson_id, state->lesson.chords.size());
-   state->stats.lesson_speed = calc_speed(records, state->lesson.lesson_id);
-   state->stats.score = calc_score_today(records, state->stats.lesson_cache);
-   state->stats.practice_streak = calc_practice_streak(
-       records, state->settings.score_goal, state->stats.lesson_cache);
-   state->stats.difficulty = calc_difficulty(state->lesson.lesson_id, records,
-                                             state->stats.lesson_cache);
-}
-
-void state_choose_next(struct state *state)
-{
+   // 3. Read History
    std::vector<attempt_record> records = db_read_attempts();
    if (records.empty())
       return;
 
+   // 4. Stream Process
+   // Replay every record through the calculator to build the current state.
+   for (const auto &r : records) {
+      // Order is generally flexible, but calc_schedule handles the logic
+      // for "finishing" the previous attempt, so it's good to call it
+      // alongside the metric updaters.
+
+      calc_duration(state->stats, r);
+      calc_speed(state->stats, r);
+      calc_lesson_streak(state->stats, r);
+      calc_score(state->stats, r);
+      calc_practice_streak(state->stats, r, state->settings.score_goal);
+      calc_schedule(state->stats, r);
+   }
+}
+
+void state_stream_in(struct state *state, const struct column &col)
+{
+   double t = time_now();
+   db_store_attempt(state->lesson.lesson_id, state->ui.active_col, col, t);
+
+   struct attempt_record r = {
+       .lesson_id  = state->lesson.lesson_id,
+       .col_id     = state->ui.active_col,
+       .time       = t,
+       .good_count = col.good.size(),
+       .bad_count  = col.bad.size(),
+   };
+
+   calc_duration(state->stats, r);
+   calc_speed(state->stats, r);
+   calc_lesson_streak(state->stats, r);
+   calc_score(state->stats, r);
+   calc_practice_streak(state->stats, r, state->settings.score_goal);
+   calc_schedule(state->stats, r);
+}
+
+void state_choose_next(struct state *state)
+{
+   // In the new SRS system, the "next" lesson is determined by
+   // the data now stored in state->stats.lesson_cache.
+
+   // We assume state_reload_stats() has been called at startup
+   // or after the last lesson to ensure state->stats is up to date.
+
    const std::vector<int> lesson_ids = db_get_lesson_ids();
 
-   state->lesson.lesson_id = calc_next(state->lesson.lesson_id, lesson_ids,
-                                       records, state->stats.lesson_cache);
+   // Select the lesson with the lowest 'due' timestamp (or fallback logic)
+   state->lesson.lesson_id =
+       calc_next(state->lesson.lesson_id, lesson_ids, state->stats);
 }

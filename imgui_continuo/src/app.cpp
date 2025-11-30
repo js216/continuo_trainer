@@ -27,14 +27,16 @@ void app_init(struct state *state)
 {
    global_tune = 1;
 
-   refresh_midi_devices(state);
    state_load_settings(state->settings);
+
+   refresh_midi_devices(state);
+   init_midi_in(state);
+   init_midi_out(state);
+
+   state_reload_stats(state);
 
    state->lesson.lesson_id = db_load_last_lesson_id();
    logic_clear(state);
-
-   init_midi_in(state);
-   init_midi_out(state);
 
    set_style();
    set_font(state);
@@ -422,12 +424,15 @@ static void stats_this_lesson(struct state *state)
    ImGui::TextUnformatted("THIS LESSON");
    float avail_w = ImGui::GetContentRegionAvail().x;
 
+   // get lesson meta
+   auto &m = calc_get_lesson_meta(state->stats, state->lesson.lesson_id);
+
    // streak
    ImVec2 streak_size =
        ImVec2(5 * 12 + 4 * 4, 12); // 5 boxes * 12px + 4px spacing
    float streak_offset = (avail_w - streak_size.x) * 0.5F;
    ImGui::SetCursorPosX(ImGui::GetCursorPosX() + streak_offset);
-   draw_streak_boxes(state->stats.lesson_streak);
+   draw_streak_boxes(m.streak);
 
    ImGui::Dummy(ImVec2(0.0F, 5.0F));
 
@@ -435,12 +440,12 @@ static void stats_this_lesson(struct state *state)
    float gauge_width  = 100.0F; // match radius*2 from draw_speedometer
    float speed_offset = (avail_w - gauge_width) * 0.5F;
    ImGui::SetCursorPosX(ImGui::GetCursorPosX() + speed_offset);
-   draw_speedometer(state->stats.lesson_speed);
+   draw_speedometer(m.speed);
 
    // difficulty
-   ImGui::TextUnformatted(
-       ("Difficulty: " + std::to_string((int)(10 * state->stats.difficulty)))
-           .c_str());
+   ImGui::TextUnformatted(("Ease: " + std::to_string(m.srs_ease)).c_str());
+   ImGui::TextUnformatted(("Interval: " + time_format(m.srs_interval)).c_str());
+   ImGui::TextUnformatted(("Due: " + time_datestring(m.srs_due)).c_str());
 }
 
 static void stats_today(struct state *state)
@@ -453,10 +458,10 @@ static void stats_today(struct state *state)
    // Score progress bar
    ImGui::TextUnformatted("Score");
    double max_score      = state->settings.score_goal;
-   std::string score_str = std::to_string(int(state->stats.score));
+   std::string score_str = std::to_string(int(state->stats.score_today));
    ImGui::PushItemWidth(25.0f);
    ImGui::ProgressBar(
-       (float)std::clamp(state->stats.score / max_score, 0.0, 1.0),
+       (float)std::clamp(state->stats.score_today / max_score, 0.0, 1.0),
        ImVec2(-1, bar_h), score_str.c_str());
    ImGui::PopItemWidth();
 
@@ -505,7 +510,7 @@ static void app_main_screen(struct state *state)
    notes_draw(state);
    ImGui::EndChild();
 
-   ImGui::BeginChild("Stats", ImVec2(0, 250.0F), true);
+   ImGui::BeginChild("Stats", ImVec2(0, 300.0F), true);
    app_stats(state);
    ImGui::EndChild();
 

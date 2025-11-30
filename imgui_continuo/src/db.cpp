@@ -408,7 +408,7 @@ std::vector<attempt_record> db_read_attempts()
 }
 
 void db_store_attempt(const int lesson_id, unsigned int col_id,
-                      const struct column &col)
+                      const struct column &col, double t)
 {
    std::ofstream ofs(attempts_file, std::ios::app);
    if (!ofs.is_open()) {
@@ -423,7 +423,7 @@ void db_store_attempt(const int lesson_id, unsigned int col_id,
    ofs << col_id << " ";
 
    // timestamp in seconds with 2 decimal places
-   ofs << std::fixed << std::setprecision(2) << time_now() << " ";
+   ofs << std::fixed << std::setprecision(2) << t << " ";
 
    // bass note (print lowest if multiple)
    if (!col.bass.empty()) {
