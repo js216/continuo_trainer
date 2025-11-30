@@ -43,6 +43,7 @@ struct stats {
    // lesson
    int lesson_streak;
    double lesson_speed;
+   double difficulty;
 
    // today
    double score;
@@ -84,5 +85,6 @@ void state_store_lesson(struct state *state);
 
 // stats
 void state_reload_stats(struct state *state);
+void state_choose_next(struct state *state);
 
 #endif /* STATE_H */

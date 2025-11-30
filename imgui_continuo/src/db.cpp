@@ -184,6 +184,38 @@ void db_clear_lesson(int lesson_id)
    std::ofstream out(db_lesson_fname(lesson_id), std::ios::trunc);
 }
 
+std::vector<int> db_get_lesson_ids(void)
+{
+   std::vector<int> ids;
+
+   const std::filesystem::path lesson_dir("lessons");
+   if (!std::filesystem::exists(lesson_dir) ||
+       !std::filesystem::is_directory(lesson_dir))
+      return ids;
+
+   for (const auto &entry : std::filesystem::directory_iterator(lesson_dir)) {
+      if (!entry.is_regular_file())
+         continue;
+
+      const auto &fname = entry.path().filename().string();
+      if (fname.size() < 5 || fname.substr(fname.size() - 4) != ".txt")
+         continue;
+
+      // Remove extension
+      std::string num_str = fname.substr(0, fname.size() - 4);
+      try {
+         int id = std::stoi(num_str);
+         if (db_lesson_exists(id)) // optional sanity check
+            ids.push_back(id);
+      } catch (...) {
+         // ignore non-numeric filenames
+      }
+   }
+
+   std::sort(ids.begin(), ids.end()); // optional: return in ascending order
+   return ids;
+}
+
 static void parse_column_line(const std::string &line, struct column &col)
 {
    std::istringstream iss(line);

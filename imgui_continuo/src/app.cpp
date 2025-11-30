@@ -278,9 +278,15 @@ static void app_buttons(struct state *state)
    }
 
    // next line
-   bw = ImGui::GetContentRegionAvail().x / 6 - 5.0F;
+   bw = ImGui::GetContentRegionAvail().x / 8 - 5.0F;
 
-   ImGui::PushItemWidth(3 * bw);
+   if (ImGui::Button("Next", ImVec2(bw, 0))) {
+      state_choose_next(state);
+      logic_clear(state);
+   }
+
+   ImGui::SameLine();
+   ImGui::PushItemWidth(4 * bw);
    ImGui::InputText("##lesson_title", &state->lesson.lesson_title);
    ImGui::PopItemWidth();
 
@@ -395,8 +401,6 @@ static void draw_speedometer_labels(float speed, const ImVec2 &center,
 
    ImGui::SetCursorScreenPos(ImVec2(center.x - 20, num_pos.y + text_height));
    ImGui::TextUnformatted("Speed");
-
-   ImGui::Dummy(ImVec2(radius * 2, radius + 3 * text_height));
 }
 
 static void draw_speedometer(float speed)
@@ -416,10 +420,9 @@ static void stats_this_lesson(struct state *state)
 {
    ImGui::AlignTextToFramePadding();
    ImGui::TextUnformatted("THIS LESSON");
-
    float avail_w = ImGui::GetContentRegionAvail().x;
 
-   // --- Streak ---
+   // streak
    ImVec2 streak_size =
        ImVec2(5 * 12 + 4 * 4, 12); // 5 boxes * 12px + 4px spacing
    float streak_offset = (avail_w - streak_size.x) * 0.5F;
@@ -428,12 +431,16 @@ static void stats_this_lesson(struct state *state)
 
    ImGui::Dummy(ImVec2(0.0F, 5.0F));
 
-   // --- Speedometer ---
+   // speedometer
    float gauge_width  = 100.0F; // match radius*2 from draw_speedometer
    float speed_offset = (avail_w - gauge_width) * 0.5F;
    ImGui::SetCursorPosX(ImGui::GetCursorPosX() + speed_offset);
-
    draw_speedometer(state->stats.lesson_speed);
+
+   // difficulty
+   ImGui::TextUnformatted(
+       ("Difficulty: " + std::to_string((int)(10 * state->stats.difficulty)))
+           .c_str());
 }
 
 static void stats_today(struct state *state)
@@ -498,7 +505,7 @@ static void app_main_screen(struct state *state)
    notes_draw(state);
    ImGui::EndChild();
 
-   ImGui::BeginChild("Stats", ImVec2(0, 200.0F), true);
+   ImGui::BeginChild("Stats", ImVec2(0, 250.0F), true);
    app_stats(state);
    ImGui::EndChild();
 

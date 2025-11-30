@@ -29,5 +29,11 @@ double calc_score_today(const std::vector<attempt_record> &records,
 int calc_practice_streak(const std::vector<attempt_record> &records,
                          double score_goal,
                          std::unordered_map<int, lesson_meta> &cache);
+double calc_difficulty(int lesson_id,
+                       const std::vector<attempt_record> &records,
+                       std::unordered_map<int, lesson_meta> &cache);
+int calc_next(int current_id, const std::vector<int> &lesson_ids,
+              const std::vector<attempt_record> &records,
+              std::unordered_map<int, lesson_meta> &cache);
 
 #endif /* CALC_H */

@@ -28,6 +28,7 @@ void db_store_int(const std::string &key, int v);
 // lesson general
 bool db_lesson_exists(int lesson_id);
 void db_clear_lesson(int lesson_id);
+std::vector<int> db_get_lesson_ids(void);
 
 // lesson key:value pairs
 std::string db_load_lesson_key_val(int lesson_id, const std::string &key);

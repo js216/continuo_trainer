@@ -115,4 +115,18 @@ void state_reload_stats(struct state *state)
    state->stats.score = calc_score_today(records, state->stats.lesson_cache);
    state->stats.practice_streak = calc_practice_streak(
        records, state->settings.score_goal, state->stats.lesson_cache);
+   state->stats.difficulty = calc_difficulty(state->lesson.lesson_id, records,
+                                             state->stats.lesson_cache);
+}
+
+void state_choose_next(struct state *state)
+{
+   std::vector<attempt_record> records = db_read_attempts();
+   if (records.empty())
+      return;
+
+   const std::vector<int> lesson_ids = db_get_lesson_ids();
+
+   state->lesson.lesson_id = calc_next(state->lesson.lesson_id, lesson_ids,
+                                       records, state->stats.lesson_cache);
 }

@@ -300,3 +300,68 @@ int calc_practice_streak(const std::vector<attempt_record> &records,
    }
    return streak;
 }
+
+double calc_difficulty(int lesson_id,
+                       const std::vector<attempt_record> &records,
+                       std::unordered_map<int, lesson_meta> &cache)
+{
+   std::vector<attempt_record> lesson_records;
+   lesson_records.reserve(records.size()); // optional, avoid reallocations
+
+   std::copy_if(records.begin(), records.end(),
+                std::back_inserter(lesson_records),
+                [lesson_id](const attempt_record &r) {
+                   return r.lesson_id == lesson_id;
+                });
+
+   if (lesson_records.empty())
+      return 0.0;
+
+   // Simulate scoring to update difficulty
+   calc_score_for_day(lesson_records, cache, day_start(lesson_records[0].time));
+
+   const auto &meta = get_lesson_meta(cache, lesson_id);
+   return meta.difficulty_init ? meta.difficulty : 0.0;
+}
+
+int calc_next(int current_id, const std::vector<int> &lesson_ids,
+              const std::vector<attempt_record> &records,
+              std::unordered_map<int, lesson_meta> &cache)
+{
+   const int full_streak = 5;
+
+   int candidate_lesson        = -1;
+   double candidate_difficulty = 0.0;
+   bool found_incomplete       = false;
+
+   for (int lesson_id : lesson_ids) {
+      if (lesson_id == current_id)
+         continue;
+
+      // Calculate streak for this lesson
+      int streak = calc_lesson_streak(
+          records, lesson_id, get_lesson_meta(cache, lesson_id).total_columns);
+
+      double difficulty = calc_difficulty(lesson_id, records, cache);
+
+      if (streak < full_streak) {
+         // Treat unattempted lessons as “highest difficulty” for selection
+         double effective_difficulty = (difficulty == 0.0) ? 9999 : difficulty;
+
+         // Incomplete streak: candidate for practice
+         if (!found_incomplete || effective_difficulty < candidate_difficulty) {
+            candidate_lesson     = lesson_id;
+            candidate_difficulty = effective_difficulty;
+            found_incomplete     = true;
+         }
+      } else if (!found_incomplete) {
+         // All completed so far, track the hardest lesson
+         if (candidate_lesson == -1 || difficulty > candidate_difficulty) {
+            candidate_lesson     = lesson_id;
+            candidate_difficulty = difficulty;
+         }
+      }
+   }
+
+   return candidate_lesson;
+}

@@ -81,7 +81,6 @@ practice.
 
 ### Todo
 
-- automatically select the next lesson (via next lesson button)
 - generate lots of intro lessons in Python, nd targeted ones
 - add voice leading to scoring
 - add time pressure via "Challenge" mode, where notes fly in from the right and
