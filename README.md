@@ -81,7 +81,8 @@ practice.
 
 ### Todo
 
-- generate lots of intro lessons in Python, nd targeted ones
+- next lesson should be chosen with spaced repetition in mind
+- generate lots of intro lessons in Python, and also targeted ones
 - add voice leading to scoring
 - add time pressure via "Challenge" mode, where notes fly in from the right and
   you have to hit to chord in the central green region (or yellow around it, &c)

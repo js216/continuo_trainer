@@ -2,5 +2,5 @@ title: Couperin bar 6, beats 2-3
 key: G
 
 A3 4,6 D4,F#4,A4
-G3 /4 A3,C#4,E4,A4
+G3 /4 G4,C#4,E4,A4
 F#3 6 A3,D4,F#4
