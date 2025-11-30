@@ -107,22 +107,6 @@ struct column {
    double time;
 };
 
-struct attempt_record {
-   unsigned int col_id;
-   double time;
-   size_t good_count;
-   size_t bad_count;
-   int lesson_id;
-};
-
-struct lesson_meta {
-   int lesson_id;
-   size_t total_columns;
-   size_t allowed_mistakes;
-   double difficulty;
-   bool difficulty_init;
-};
-
 enum accidental th_key_sig_accidental(enum key_sig key, midi_note n);
 int th_note_to_bass(const enum midi_note n, const enum key_sig k);
 int th_note_to_treble(const enum midi_note n, const enum key_sig k);

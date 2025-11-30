@@ -14,10 +14,38 @@
 #include <unordered_map>
 #include <vector>
 
-struct attempt_record;
+struct attempt_record {
+   int lesson_id;
+   unsigned int col_id;
+   double time;
+   size_t good_count;
+   size_t bad_count;
+};
 
-// stats
-void state_reload_stats(struct state *state);
+struct lesson_meta {
+   int lesson_id;
+   size_t total_columns;
+   size_t allowed_mistakes;
+   double difficulty;
+   bool difficulty_init;
+};
+
+struct stats {
+   // lesson
+   int lesson_streak;
+   double lesson_speed;
+   double difficulty;
+
+   // today
+   double score;
+   double duration_today;
+
+   // overall
+   int practice_streak;
+
+   // scoring support: lesson metadata cache
+   std::unordered_map<int, lesson_meta> lesson_cache;
+};
 
 int calc_lesson_streak(const std::vector<attempt_record> &attempts,
                        int lesson_id, size_t len);

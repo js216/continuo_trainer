@@ -9,7 +9,7 @@
 #ifndef DB_H
 #define DB_H
 
-#include "theory.h"
+#include "calc.h"
 #include <string>
 #include <vector>
 

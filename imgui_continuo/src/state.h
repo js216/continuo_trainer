@@ -10,6 +10,7 @@
 #define STATE_H
 
 #include "RtMidi.h"
+#include "calc.h"
 #include "theory.h"
 #include <memory>
 #include <string>
@@ -37,23 +38,6 @@ struct lesson {
    std::string lesson_title;
    enum key_sig key;
    std::vector<struct column> chords;
-};
-
-struct stats {
-   // lesson
-   int lesson_streak;
-   double lesson_speed;
-   double difficulty;
-
-   // today
-   double score;
-   double duration_today;
-
-   // overall
-   int practice_streak;
-
-   // scoring support: lesson metadata cache
-   std::unordered_map<int, lesson_meta> lesson_cache;
 };
 
 struct midi_devices {

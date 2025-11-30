@@ -79,6 +79,73 @@ In short: it's a compulsively playable musical "skill machine" that turns the
 addictive mechanics of modern media into rapid, focused, and creative music
 practice.
 
+### calc update
+
+We need to make the stats calculation MUCH cleaner. Right now, most public
+functions take vector<attempt_record> arguments, so each time we want stats, we
+need to recompute using all the past performance data, which is both ugly and
+inefficient. Moreover, I want to implement Anki-style spaced repetition, which
+would be difficult in the current system.
+
+To this end, remove lesson_streak, lesson_speed, difficulty from struct stats.
+Add speed and streak to struct lesson_meta. Remove difficulty and
+difficulty_init from lesson_meta. To support Anki-style spaced repetition,
+lesson_meta needs to have ease, interval (seconds), and due_on (unix timestamp)
+added.
+
+I propose the following new "streaming" API:
+
+calc_speed(struct stats &stats, struct attempt_record &r); // updates the new
+stats.lesson_cache[r.lesson_id].speed field using the moving average algorithm
+as already implemented, but be very careful: "speed" is defined in terms of
+*average maximum dt*, where dt is time difference between two successive
+attempt_record.time, maximum is maximum over a single lesson-attempt (which
+starts with r.col_id==0 and ends before the next ==0), and average is an
+exponential moving average (EMA)
+
+calc_lesson_streak(struct stats &stats, struct attempt_record &r); // updates
+the new stats.lesson_cache[r.lesson_id].streak field (if r.bad_count!=0, resets
+streak to 0, otherwise if
+r.col_id==stats.lesson_cache[r.lesson_id].total_columns-1 it increments the
+streak)
+
+calc_duration(struct stats &stats, struct attempt_record &r); // updates
+stats.duration_today, and for that must probably keep a vector or queue or
+something of all timestamps today, and when the new day comes, kick out all the
+old timestamps (or some more efficient/clean scheme, you decide)
+
+calc_score(struct stats &stats, struct attempt_record &r); // updates
+stats.score_today (renamed from stats.score) with an algorithm identical or
+similar to the current score_lesson_attempt()
+
+calc_practice_streak(struct stats &stats, struct attempt_record &r, double
+score_goal); // updates stats.practice_streak, which is the number of days from
+today backwards on which the player got at least score_goal points (calculated
+via the same formula as calc_score uses)
+
+calc_next(...?...) needs to be very much reworked to select the next lesson with
+Anki-style scheduling. In fact it becomes very simple: return the lesson for
+which lesson_meta.due_on is the lowest number. To support that, we need another
+function:
+
+calc_schedule(struct stats &stats, struct attempt_record &r) updates the ease,
+interval, and due_on, depending on the score received in the most recent
+lesson-attempt. Note again that the lesson-attempt is over only when
+r.col_id==stats.lesson_cache[r.lesson_id].total_columns-1, otherwise this
+function does nothing, right?
+
+state should be stored in the appropriate place in struct stats and struct
+lesson_meta.
+
+If the user does not complete a lesson, they do not get any positive score from
+it, but they do get penalized for any mistakes made in the partial attempt. For
+scheduling purposes, such a lesson would have a lower ease, for instance. Make
+use of the state stored in struct stats and struct lesson_meta to detect when a
+lesson is abandoned in this way.
+
+If anything does not make perfect sense, ask clarifying questions before writing
+code!
+
 ### Todo
 
 - next lesson should be chosen with spaced repetition in mind
