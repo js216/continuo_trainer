@@ -12,6 +12,7 @@
 #include <algorithm>
 #include <cmath>
 #include <limits>
+#include <random>
 #include <string>
 #include <utility>
 
@@ -340,6 +341,9 @@ void calc_schedule(struct stats &stats, const struct attempt_record &r)
    stats.has_last_record = true;
 }
 
+// <F9>TODO: remove this
+#include <iostream>
+
 int calc_next(const std::vector<int> &lesson_ids, struct stats &stats)
 {
    if (lesson_ids.empty())
@@ -348,22 +352,39 @@ int calc_next(const std::vector<int> &lesson_ids, struct stats &stats)
    int best_candidate     = -1;
    std::time_t lowest_due = std::numeric_limits<std::time_t>::max();
 
+   // Step 1: Find the earliest due lesson
    for (int id : lesson_ids) {
       const auto &meta = calc_get_lesson_meta(stats, id);
-
-      // Simple Scheduler: Lowest due date (overdue items first)
       if (meta.srs_due < lowest_due) {
          lowest_due     = meta.srs_due;
          best_candidate = id;
       }
    }
 
-   // If everything is in the future, still pick the one due soonest
-   // Or if uninitialized, due is 0 (1970), so they come first naturally.
+   // Step 2: Occasionally pick an easier lesson to boost motivation
+   static std::mt19937 rng(std::random_device{}());
+   std::uniform_real_distribution<double> dist(0.0, 1.0);
 
-   if (best_candidate == -1 && !lesson_ids.empty()) {
-      // Fallback if current_id was the only one or something went wrong
-      return lesson_ids[0];
+   const double easier_prob = 0.25;
+   if (dist(rng) < easier_prob) {
+      const auto &best_meta = calc_get_lesson_meta(stats, best_candidate);
+      std::vector<int> easier_alternatives;
+
+      for (int id : lesson_ids) {
+         if (id == best_candidate)
+            continue;
+         const auto &meta = calc_get_lesson_meta(stats, id);
+
+         // Treat lower working_max_dt as easier
+         if (meta.working_max_dt < best_meta.working_max_dt)
+            easier_alternatives.push_back(id);
+      }
+
+      if (!easier_alternatives.empty()) {
+         std::uniform_int_distribution<size_t> idx_dist(
+             0, easier_alternatives.size() - 1);
+         best_candidate = easier_alternatives[idx_dist(rng)];
+      }
    }
 
    return best_candidate;

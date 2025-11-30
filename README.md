@@ -87,7 +87,6 @@ practice.
   you have to hit to chord in the central green region (or yellow around it, &c)
 - add melody instruments that play in "Karaoke" mode
 - use Emscripten to make a web app
-- Adaptive difficulty scaling for skill retention and challenge
 
 #### Gamification
 
