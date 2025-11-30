@@ -119,6 +119,8 @@ struct lesson_meta {
    int lesson_id;
    size_t total_columns;
    size_t allowed_mistakes;
+   double difficulty;
+   bool difficulty_init;
 };
 
 enum accidental th_key_sig_accidental(enum key_sig key, midi_note n);

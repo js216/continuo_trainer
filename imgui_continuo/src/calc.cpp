@@ -138,7 +138,6 @@ double calc_speed(const std::vector<attempt_record> &records,
    return 1 / ema;
 }
 
-// Fetch lesson metadata from cache or compute it from DB
 static lesson_meta &get_lesson_meta(std::unordered_map<int, lesson_meta> &cache,
                                     int lesson_id)
 {
@@ -149,10 +148,10 @@ static lesson_meta &get_lesson_meta(std::unordered_map<int, lesson_meta> &cache,
    std::vector<column> chords = db_load_lesson_chords(lesson_id);
 
    lesson_meta meta{};
-   meta.lesson_id     = lesson_id;
-   meta.total_columns = chords.size();
-   meta.allowed_mistakes =
-       static_cast<size_t>(meta.total_columns * 0.05); // 5% tolerance
+   meta.lesson_id        = lesson_id;
+   meta.total_columns    = chords.size();
+   meta.allowed_mistakes = static_cast<size_t>(meta.total_columns * 0.05);
+   meta.difficulty_init  = false;
 
    return cache[lesson_id] = std::move(meta);
 }
@@ -175,6 +174,39 @@ static double score_lesson_attempt(size_t good_count, size_t bad_count,
    return -bad;
 }
 
+static void update_difficulty(lesson_meta &meta, size_t bad, double dt)
+{
+   double struggle = bad + dt; // simple: more mistakes or slow → more struggle
+
+   const double alpha = 0.1; // EMA update weight (lower -> move slower)
+
+   if (!meta.difficulty_init) {
+      meta.difficulty      = std::clamp(struggle, 0.5, 5.0);
+      meta.difficulty_init = true;
+   } else {
+      meta.difficulty = (alpha * std::clamp(struggle, 0.5, 5.0)) +
+                        ((1.0 - alpha) * meta.difficulty);
+   }
+}
+
+static double
+finalize_lesson_attempt(std::unordered_map<int, lesson_meta> &cache,
+                        int lesson_id, size_t good_accum, size_t bad_accum,
+                        double dt_accum)
+{
+   if (lesson_id == 0)
+      return 0.0;
+
+   auto &meta = get_lesson_meta(cache, lesson_id);
+
+   double result = score_lesson_attempt(good_accum, bad_accum, dt_accum, meta);
+
+   // Update difficulty AFTER scoring using “so far” meta difficulty
+   update_difficulty(meta, bad_accum, dt_accum);
+
+   return result;
+}
+
 static double calc_score_for_day(const std::vector<attempt_record> &records,
                                  std::unordered_map<int, lesson_meta> &cache,
                                  std::time_t day)
@@ -189,13 +221,6 @@ static double calc_score_for_day(const std::vector<attempt_record> &records,
    bool first_record  = true;
    int current_lesson = 0;
 
-   auto finalize_attempt = [&](void) {
-      if (current_lesson == 0)
-         return 0.0;
-      const lesson_meta &meta = get_lesson_meta(cache, current_lesson);
-      return score_lesson_attempt(good_accum, bad_accum, dt_accum, meta);
-   };
-
    for (const auto &rec : records) {
       if (day_start(rec.time) != day)
          continue;
@@ -203,7 +228,8 @@ static double calc_score_for_day(const std::vector<attempt_record> &records,
       bool new_attempt = (rec.col_id == 0 || rec.lesson_id != current_lesson);
 
       if (first_record || new_attempt) {
-         total_score += finalize_attempt();
+         total_score += finalize_lesson_attempt(
+             cache, current_lesson, good_accum, bad_accum, dt_accum);
 
          good_accum     = rec.good_count;
          bad_accum      = rec.bad_count;
@@ -220,7 +246,9 @@ static double calc_score_for_day(const std::vector<attempt_record> &records,
       last = rec;
    }
 
-   total_score += finalize_attempt();
+   total_score += finalize_lesson_attempt(cache, current_lesson, good_accum,
+                                          bad_accum, dt_accum);
+
    return total_score;
 }
 
