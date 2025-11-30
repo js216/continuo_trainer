@@ -27,11 +27,11 @@ void app_init(struct state *state)
 {
    global_tune = 1;
 
-   state->lesson.lesson_id = db_load_last_lesson_id();
-   logic_clear(state);
-
    refresh_midi_devices(state);
    state_load_settings(state->settings);
+
+   state->lesson.lesson_id = db_load_last_lesson_id();
+   logic_clear(state);
 
    init_midi_in(state);
    init_midi_out(state);
@@ -179,7 +179,7 @@ static void app_settings(struct state *state)
       if (ImGui::BeginTabItem("Algorithm")) {
          ImGui::SliderInt("Daily practice goal [min]",
                           &state->settings.goal_minutes, 1, 60);
-         ImGui::SliderInt("Daily score goal", &state->settings.goal_score, 1000,
+         ImGui::SliderInt("Daily score goal", &state->settings.score_goal, 1000,
                           10000);
          ImGui::EndTabItem();
       }
@@ -447,7 +447,7 @@ static void stats_today(struct state *state)
 
    // Score progress bar
    ImGui::TextUnformatted("Score");
-   double max_score      = state->settings.goal_score;
+   double max_score      = state->settings.score_goal;
    std::string score_str = std::to_string(int(state->stats.score));
    ImGui::PushItemWidth(25.0f);
    ImGui::ProgressBar(

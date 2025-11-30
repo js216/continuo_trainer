@@ -13,6 +13,7 @@
 #include <ctime>
 #include <unordered_map>
 #include <vector>
+#include <algorithm>
 
 static double lesson_delta_seconds(const attempt_record &prev,
                                    const attempt_record &cur)
@@ -24,64 +25,6 @@ static double lesson_delta_seconds(const attempt_record &prev,
       return 0.0;
 
    return std::min(cur.time - prev.time, 5.0);
-}
-
-static void calc_day_totals(const std::vector<attempt_record> &recs,
-                            std::vector<std::time_t> &days,
-                            std::vector<double> &seconds)
-{
-   if (recs.empty())
-      return;
-
-   days.clear();
-   seconds.clear();
-
-   std::time_t curr_day = day_start(recs[0].time);
-   days.push_back(curr_day);
-   seconds.push_back(0.0);
-
-   attempt_record prev = recs[0];
-
-   for (size_t i = 1; i < recs.size(); ++i) {
-      const auto &cur      = recs[i];
-      const std::time_t ds = day_start(cur.time);
-
-      if (ds != curr_day) {
-         curr_day = ds;
-         days.push_back(curr_day);
-         seconds.push_back(0.0);
-      }
-
-      seconds.back() += lesson_delta_seconds(prev, cur);
-      prev = cur;
-   }
-}
-
-int calc_practice_streak(const std::vector<attempt_record> &recs, int goal_min)
-{
-   if (recs.size() < 2)
-      return 0;
-
-   std::vector<std::time_t> days;
-   std::vector<double> sec_per_day;
-   calc_day_totals(recs, days, sec_per_day);
-
-   const double goal_sec = goal_min * 60.0;
-
-   int streak = 0;
-   for (int i = (int)sec_per_day.size() - 1; i >= 0; --i) {
-      if (sec_per_day[i] < goal_sec)
-         break;
-
-      if (i != (int)sec_per_day.size() - 1 &&
-          !is_consecutive_day(days[i + 1], days[i])) {
-         break;
-      }
-
-      streak++;
-   }
-
-   return streak;
 }
 
 double calc_duration_today(const std::vector<attempt_record> &records)
@@ -232,13 +175,10 @@ static double score_lesson_attempt(size_t good_count, size_t bad_count,
    return -bad;
 }
 
-// Calculate total score for today by processing all records
-double calc_score_today(const std::vector<attempt_record> &records,
-                        std::unordered_map<int, lesson_meta> &cache)
+static double calc_score_for_day(const std::vector<attempt_record> &records,
+                                 std::unordered_map<int, lesson_meta> &cache,
+                                 std::time_t day)
 {
-   if (records.empty())
-      return 0.0;
-
    double total_score = 0.0;
 
    size_t good_accum = 0;
@@ -249,25 +189,22 @@ double calc_score_today(const std::vector<attempt_record> &records,
    bool first_record  = true;
    int current_lesson = 0;
 
-   auto finalize_attempt = [&](size_t good, size_t bad, double dt, int lesson) {
-      if (lesson == 0)
-         return 0.0; // nothing to score
-      const lesson_meta &meta = get_lesson_meta(cache, lesson);
-      return score_lesson_attempt(good, bad, dt, meta);
+   auto finalize_attempt = [&](void) {
+      if (current_lesson == 0)
+         return 0.0;
+      const lesson_meta &meta = get_lesson_meta(cache, current_lesson);
+      return score_lesson_attempt(good_accum, bad_accum, dt_accum, meta);
    };
 
    for (const auto &rec : records) {
-      if (!time_is_today(rec.time))
+      if (day_start(rec.time) != day)
          continue;
 
-      bool is_new_attempt =
-          (rec.col_id == 0 || rec.lesson_id != last.lesson_id);
-      if (first_record || is_new_attempt) {
-         // Score the previous attempt
-         total_score +=
-             finalize_attempt(good_accum, bad_accum, dt_accum, current_lesson);
+      bool new_attempt = (rec.col_id == 0 || rec.lesson_id != current_lesson);
 
-         // Start new attempt
+      if (first_record || new_attempt) {
+         total_score += finalize_attempt();
+
          good_accum     = rec.good_count;
          bad_accum      = rec.bad_count;
          dt_accum       = 0.0;
@@ -277,17 +214,61 @@ double calc_score_today(const std::vector<attempt_record> &records,
          continue;
       }
 
-      // Accumulate ongoing attempt
       good_accum += rec.good_count;
       bad_accum += rec.bad_count;
       dt_accum += lesson_delta_seconds(last, rec);
-
       last = rec;
    }
 
-   // Score the last attempt
-   total_score +=
-       finalize_attempt(good_accum, bad_accum, dt_accum, current_lesson);
-
+   total_score += finalize_attempt();
    return total_score;
+}
+
+double calc_score_today(const std::vector<attempt_record> &records,
+                        std::unordered_map<int, lesson_meta> &cache)
+{
+   if (records.empty())
+      return 0.0;
+
+   const auto it = std::find_if(
+       records.begin(), records.end(),
+       [](const attempt_record &r) { return time_is_today(r.time); });
+
+   if (it == records.end())
+      return 0.0;
+
+   const std::time_t today = day_start(it->time);
+   return calc_score_for_day(records, cache, today);
+}
+
+int calc_practice_streak(const std::vector<attempt_record> &records,
+                         double score_goal,
+                         std::unordered_map<int, lesson_meta> &cache)
+{
+   if (records.empty())
+      return 0;
+
+   // Build list of unique days in chronological order
+   std::vector<std::time_t> days;
+   std::time_t last_day = -1;
+
+   for (const auto &rec : records) {
+      std::time_t d = day_start(rec.time);
+      if (d != last_day) {
+         days.push_back(d);
+         last_day = d;
+      }
+   }
+
+   int streak = 0;
+   for (int i = (int)days.size() - 1; i >= 0; --i) {
+      double score = calc_score_for_day(records, cache, days[i]);
+      if (score < score_goal)
+         break;
+      if (i != (int)days.size() - 1 &&
+          !is_consecutive_day(days[i + 1], days[i]))
+         break;
+      streak++;
+   }
+   return streak;
 }
