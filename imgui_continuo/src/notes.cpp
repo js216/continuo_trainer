@@ -432,9 +432,12 @@ void notes_draw(struct state *state)
       for (auto n : col.bad)
          notes_dot(state->lesson.key, n, idx, STYLE_RED);
 
+      for (auto n : col.missed)
+         notes_dot(state->lesson.key, n, idx, STYLE_YELLOW);
+
       if (state->ui.edit_lesson)
          for (auto n : col.answer)
-            notes_dot(state->lesson.key, n, idx, STYLE_YELLOW);
+            notes_dot(state->lesson.key, n, idx, STYLE_BLUE);
 
       if (!col.bass.empty()) {
          float x = calc_x(idx, state->lesson.key);

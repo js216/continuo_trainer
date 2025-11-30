@@ -8,7 +8,6 @@
 
 #include "db.h"
 #include "theory.h"
-#include "time_utils.h"
 #include "util.h"
 #include <algorithm>
 #include <cctype>

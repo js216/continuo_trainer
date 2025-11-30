@@ -7,6 +7,7 @@
  */
 
 #include "app.h"
+#include "calc.h"
 #include "db.h"
 #include "imgui.h"
 #include "logic.h"
@@ -179,8 +180,8 @@ static void app_settings(struct state *state)
       }
 
       if (ImGui::BeginTabItem("Algorithm")) {
-         ImGui::SliderInt("Daily score goal", &state->settings.score_goal, 100,
-                          1000);
+         ImGui::SliderInt("Daily score goal", &state->settings.score_goal, 1000,
+                          10000);
          ImGui::EndTabItem();
       }
 
@@ -446,6 +447,7 @@ static void stats_this_lesson(struct state *state)
    ImGui::TextUnformatted(("Ease: " + std::to_string(m.srs_ease)).c_str());
    ImGui::TextUnformatted(("Interval: " + time_format(m.srs_interval)).c_str());
    ImGui::TextUnformatted(("Due: " + time_datestring(m.srs_due)).c_str());
+   ImGui::TextUnformatted(("Quality: " + std::to_string(m.quality)).c_str());
 }
 
 static void stats_today(struct state *state)
@@ -510,7 +512,7 @@ static void app_main_screen(struct state *state)
    notes_draw(state);
    ImGui::EndChild();
 
-   ImGui::BeginChild("Stats", ImVec2(0, 300.0F), true);
+   ImGui::BeginChild("Stats", ImVec2(0, 325.0F), true);
    app_stats(state);
    ImGui::EndChild();
 

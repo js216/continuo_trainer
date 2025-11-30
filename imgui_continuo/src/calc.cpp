@@ -7,13 +7,13 @@
  */
 
 #include "calc.h"
-#include "db.h"
-#include "theory.h"
 #include "time_utils.h"
 #include "util.h"
 #include <algorithm>
 #include <cmath>
 #include <limits>
+#include <string>
+#include <utility>
 
 void create_lesson_meta(struct stats &stats, int lesson_id, int len)
 {
@@ -36,6 +36,7 @@ void create_lesson_meta(struct stats &stats, int lesson_id, int len)
    meta.working_max_dt   = 0.0;
    meta.working_good     = 0;
    meta.working_bad      = 0;
+   meta.working_missed   = 0;
    meta.working_duration = 0.0;
 
    stats.lesson_cache.emplace(lesson_id, std::move(meta));
@@ -82,6 +83,9 @@ void calc_speed(struct stats &stats, const struct attempt_record &r)
 {
    auto &meta = calc_get_lesson_meta(stats, r.lesson_id);
 
+   if ((meta.working_bad != 0) || (meta.working_missed != 0))
+      return;
+
    // Determine dt from the previous record *within this lesson attempt*
    double dt = 0.0;
    if (meta.in_progress && r.col_id > meta.last_col_id) {
@@ -99,10 +103,10 @@ void calc_speed(struct stats &stats, const struct attempt_record &r)
    if (r.col_id == meta.total_columns - 1) {
       const double alpha = 2.0 / 6.0; // EMA over ~5 attempts
       if (meta.speed == 0.0) {
-         meta.speed = meta.working_max_dt;
+         meta.speed = 1 / meta.working_max_dt;
       } else {
          meta.speed =
-             (alpha * meta.working_max_dt) + ((1.0 - alpha) * meta.speed);
+             (alpha * 1 / meta.working_max_dt) + ((1.0 - alpha) * meta.speed);
       }
    }
 }
@@ -112,6 +116,8 @@ void calc_lesson_streak(struct stats &stats, const struct attempt_record &r)
    auto &meta = calc_get_lesson_meta(stats, r.lesson_id);
 
    if (r.bad_count > 0) {
+      meta.streak = 0;
+   } else if (r.missed_count > 0) {
       meta.streak = 0;
    } else if (r.col_id == meta.total_columns - 1) {
       // Only increment on full completion
@@ -136,6 +142,9 @@ void calc_score(struct stats &stats, const struct attempt_record &r)
    if (r.bad_count > 0) {
       stats.score_today -= static_cast<double>(r.bad_count);
    }
+   if (r.missed_count > 0) {
+      stats.score_today -= static_cast<double>(r.missed_count);
+   }
 
    // Accumulate working state for the bonus calculation
    double dt = 0.0;
@@ -147,16 +156,19 @@ void calc_score(struct stats &stats, const struct attempt_record &r)
       // Reset working accumulation
       meta.working_good     = 0;
       meta.working_bad      = 0;
+      meta.working_missed   = 0;
       meta.working_duration = 0.0;
    }
 
    meta.working_good += r.good_count;
    meta.working_bad += r.bad_count;
+   meta.working_missed += r.missed_count;
    meta.working_duration += dt;
 
    // 2. Apply completion bonus
    if (r.col_id == meta.total_columns - 1) {
-      if (meta.working_bad <= meta.allowed_mistakes) {
+      if ((meta.working_bad <= meta.allowed_mistakes) &&
+          (meta.working_missed <= meta.allowed_mistakes)) {
          double good_score = static_cast<double>(meta.working_good);
 
          // Speed multiplier: 1 / (0.3 + avg_dt_per_col)
@@ -202,99 +214,133 @@ void calc_practice_streak(struct stats &stats, const struct attempt_record &r,
    }
 }
 
-static void update_srs_state(lesson_meta &meta, double quality)
+static void update_srs_state(lesson_meta &meta)
 {
-   // Quality: 0 (Fail/Abandon), 3 (Pass), 4 (Good), 5 (Perfect)
-
-   if (quality < 3.0) {
-      // Fail/Abandon
+   // Fail / abandon → reset interval
+   if (meta.quality < 3.0)
       meta.srs_interval = 0.0;
-      meta.srs_ease     = std::max(1.3, meta.srs_ease - 0.2);
-   } else {
-      // Success
-      if (meta.srs_interval == 0.0) {
-         // First success, set to ~1 day (86400s) or short interval?
-         // Since this is likely typing practice, we might want shorter initial
-         // intervals Let's say 4 hours for first success.
-         meta.srs_interval = 4 * 3600.0;
-      } else {
-         meta.srs_interval = meta.srs_interval * meta.srs_ease;
-      }
 
-      // Ease adjustment (Standard SM-2 formula part)
-      // ease = ease + (0.1 - (5 - q) * (0.08 + (5 - q) * 0.02))
-      // Simplified:
-      if (quality == 5.0)
-         meta.srs_ease += 0.15;
-      else if (quality == 4.0)
-         meta.srs_ease += 0.0; // No change
-      else
-         meta.srs_ease -= 0.15;
+   // Update interval
+   if (meta.srs_interval == 0.0) {
+      // Short initial interval for typing practice (4h)
+      meta.srs_interval = 4.0 * 3600.0;
+   } else {
+      meta.srs_interval *= meta.srs_ease;
    }
 
+   // Continuous SM-2 ease adjustment
+   double delta =
+       0.1 - (5.0 - meta.quality) * (0.08 + (5.0 - meta.quality) * 0.02);
+   meta.srs_ease += delta;
    meta.srs_ease = std::max(1.3, meta.srs_ease);
 
-   // Set due date
+   // Due time
    std::time_t now = std::time(nullptr);
    meta.srs_due    = now + static_cast<long>(meta.srs_interval);
 }
 
+static void handle_abandonment(struct stats &stats,
+                               const struct attempt_record &r)
+{
+   if (!stats.has_last_record)
+      return;
+
+   bool same_lesson = (r.lesson_id == stats.last_record.lesson_id);
+   bool restart     = (r.col_id == 0);
+
+   if (same_lesson && !restart)
+      return; // Still on same lesson attempt, not abandoned
+
+   auto &prev_meta = calc_get_lesson_meta(stats, stats.last_record.lesson_id);
+
+   // If previous was in progress and not at the end → abandoned
+   if (prev_meta.in_progress &&
+       prev_meta.last_col_id != prev_meta.total_columns - 1) {
+      prev_meta.quality = 0.0;
+      update_srs_state(prev_meta);
+      prev_meta.in_progress = false;
+   }
+}
+static double compute_pace_score(double working_max_dt, double speed)
+{
+   const double eps = 1e-9;
+
+   // Instant performance factor (smaller is better)
+   const double target_dt = 1.0;
+   double instant_factor  = target_dt / (working_max_dt + eps);
+   instant_factor         = std::clamp(instant_factor, 0.0, 1.0);
+
+   // Historical speed factor (larger is better)
+   const double target_speed = 0.1;
+   double historical_factor  = speed / (target_speed + eps);
+   historical_factor         = std::clamp(historical_factor, 0.0, 1.0);
+
+   // Blend the two contributions
+   const double w_instant    = 0.5;
+   const double w_historical = 0.5;
+
+   double pace_score =
+       instant_factor * w_instant + historical_factor * w_historical;
+
+   return pace_score;
+}
+
+static double compute_quality(const lesson_meta &meta)
+{
+   const double eps = 1e-9;
+   const double total_events =
+       static_cast<double>(meta.working_good + meta.working_bad +
+                           meta.working_missed) +
+       eps;
+
+   // Mistake score
+   double bad_ratio =
+       static_cast<double>(meta.working_bad + meta.working_missed) /
+       total_events;
+   const double max_bad_ratio = 0.30; // tolerable mistake rate
+   double mistake_score       = 1.0 - (bad_ratio / max_bad_ratio);
+   mistake_score              = std::clamp(mistake_score, 0.0, 1.0);
+
+   // Pace score
+   double pace_score = compute_pace_score(meta.working_max_dt, meta.speed);
+
+   // Streak score
+   const double full_streak = 5.0; // streak ≥5 → full credit
+   double streak_score      = std::clamp(meta.streak / full_streak, 0.0, 1.0);
+
+   // Weighted blend
+   const double w_mistake = 0.50;
+   const double w_pace    = 0.25;
+   const double w_streak  = 0.25;
+
+   double smooth_score = mistake_score * w_mistake + pace_score * w_pace +
+                         streak_score * w_streak;
+
+   double quality = smooth_score * 5.0;
+
+   return quality;
+}
+
 void calc_schedule(struct stats &stats, const struct attempt_record &r)
 {
-   // Detect Abandonment of PREVIOUS lesson
-   // If we switch lessons or restart col_id 0, the previous specific attempt is
-   // over.
-   if (stats.has_last_record) {
-      bool same_lesson = (r.lesson_id == stats.last_record.lesson_id);
-      bool restart     = (r.col_id == 0);
+   handle_abandonment(stats, r);
 
-      if (!same_lesson || restart) {
-         // Did the previous attempt finish?
-         auto &prev_meta =
-             calc_get_lesson_meta(stats, stats.last_record.lesson_id);
-
-         // If previous was in progress and NOT at the end, it was abandoned
-         if (prev_meta.in_progress &&
-             prev_meta.last_col_id != prev_meta.total_columns - 1) {
-            update_srs_state(prev_meta, 0.0); // 0.0 quality for abandonment
-            prev_meta.in_progress = false;
-         }
-      }
-   }
-
-   // Update Current Lesson State
-   auto &meta = calc_get_lesson_meta(stats, r.lesson_id);
-
-   // Update tracking vars
+   auto &meta       = calc_get_lesson_meta(stats, r.lesson_id);
    meta.last_col_id = r.col_id;
    meta.last_time   = r.time;
    meta.in_progress = true;
 
-   // Check for Completion
    if (r.col_id == meta.total_columns - 1) {
-      // Calculate Grade
-      double quality = 0.0;
-
-      if (meta.working_bad == 0) {
-         quality = 5.0; // Perfect
-      } else if (meta.working_bad <= meta.allowed_mistakes) {
-         quality = 4.0; // Pass with minor mistakes
-      } else {
-         quality = 0.0; // Fail (too many mistakes)
-      }
-
-      update_srs_state(meta, quality);
-      meta.in_progress = false; // Attempt complete
+      meta.quality = compute_quality(meta);
+      update_srs_state(meta);
+      meta.in_progress = false;
    }
 
-   // Final step: update global last record
-   // (Assuming this is the last call in the chain)
    stats.last_record     = r;
    stats.has_last_record = true;
 }
 
-int calc_next(int current_id, const std::vector<int> &lesson_ids,
-              struct stats &stats)
+int calc_next(const std::vector<int> &lesson_ids, struct stats &stats)
 {
    if (lesson_ids.empty())
       return -1;
@@ -303,9 +349,6 @@ int calc_next(int current_id, const std::vector<int> &lesson_ids,
    std::time_t lowest_due = std::numeric_limits<std::time_t>::max();
 
    for (int id : lesson_ids) {
-      if (id == current_id)
-         continue;
-
       const auto &meta = calc_get_lesson_meta(stats, id);
 
       // Simple Scheduler: Lowest due date (overdue items first)

@@ -14,6 +14,8 @@
 #include <algorithm>
 #include <iterator>
 #include <string>
+#include <unordered_map>
+#include <unordered_set>
 #include <vector>
 
 // global state for debug only
@@ -133,17 +135,20 @@ void state_reload_stats(struct state *state)
    }
 }
 
-void state_stream_in(struct state *state, const struct column &col)
+void state_stream_in(struct state *state, struct column &col)
 {
    double t = time_now();
    db_store_attempt(state->lesson.lesson_id, state->ui.active_col, col, t);
 
+   col.missed = th_get_missed(col.answer, col.good);
+
    struct attempt_record r = {
-       .lesson_id  = state->lesson.lesson_id,
-       .col_id     = state->ui.active_col,
-       .time       = t,
-       .good_count = col.good.size(),
-       .bad_count  = col.bad.size(),
+       .lesson_id    = state->lesson.lesson_id,
+       .col_id       = state->ui.active_col,
+       .time         = t,
+       .good_count   = col.good.size(),
+       .bad_count    = col.bad.size(),
+       .missed_count = col.missed.size(),
    };
 
    calc_duration(state->stats, r);
@@ -165,6 +170,5 @@ void state_choose_next(struct state *state)
    const std::vector<int> lesson_ids = db_get_lesson_ids();
 
    // Select the lesson with the lowest 'due' timestamp (or fallback logic)
-   state->lesson.lesson_id =
-       calc_next(state->lesson.lesson_id, lesson_ids, state->stats);
+   state->lesson.lesson_id = calc_next(lesson_ids, state->stats);
 }

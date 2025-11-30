@@ -9,7 +9,6 @@
 #ifndef THEORY_H
 #define THEORY_H
 
-#include <cstddef>
 #include <string>
 #include <unordered_set>
 #include <vector>
@@ -104,6 +103,7 @@ struct column {
    std::unordered_set<midi_note> answer;
    std::unordered_set<midi_note> good;
    std::unordered_set<midi_note> bad;
+   std::unordered_set<midi_note> missed;
    double time;
 };
 
@@ -111,6 +111,9 @@ enum accidental th_key_sig_accidental(enum key_sig key, midi_note n);
 int th_note_to_bass(const enum midi_note n, const enum key_sig k);
 int th_note_to_treble(const enum midi_note n, const enum key_sig k);
 int th_key_sig_acc_count(enum key_sig key);
+std::unordered_set<midi_note>
+th_get_missed(const std::unordered_set<midi_note> &answer,
+              const std::unordered_set<midi_note> &good);
 
 // convert TO string
 std::string th_key_sig_to_string(enum key_sig);

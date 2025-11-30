@@ -19,6 +19,7 @@ struct attempt_record {
    double time;
    size_t good_count;
    size_t bad_count;
+   size_t missed_count;
 };
 
 struct lesson_meta {
@@ -42,7 +43,9 @@ struct lesson_meta {
    double working_max_dt;
    size_t working_good;
    size_t working_bad;
+   size_t working_missed;
    double working_duration;
+   double quality;
 };
 
 struct stats {
@@ -77,7 +80,6 @@ void calc_practice_streak(struct stats &stats, const struct attempt_record &r,
 
 // SRS & Scheduling
 void calc_schedule(struct stats &stats, const struct attempt_record &r);
-int calc_next(int current_id, const std::vector<int> &lesson_ids,
-              struct stats &stats);
+int calc_next(const std::vector<int> &lesson_ids, struct stats &stats);
 
 #endif /* CALC_H */

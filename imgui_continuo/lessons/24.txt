@@ -1,0 +1,5 @@
+title: Super simple
+key: C
+
+C3 3 C4,E4,G4
+E3 3 B4,E4,G4

@@ -14,6 +14,7 @@
 #include <sstream>
 #include <string>
 #include <unordered_map>
+#include <utility>
 #include <vector>
 
 std::string th_key_sig_to_string(const enum key_sig k)
@@ -371,4 +372,26 @@ midi_note th_parse_midi_note(const std::string &token)
 
    error("Unknown note: " + token);
    return NOTES_E2; // fallback
+}
+
+std::unordered_set<midi_note>
+th_get_missed(const std::unordered_set<midi_note> &answer,
+              const std::unordered_set<midi_note> &good)
+{
+   // Build a set of pitch classes that were played correctly
+   std::unordered_set<int> good_pc;
+   for (auto n : good) {
+      good_pc.insert(static_cast<int>(n) % 12);
+   }
+
+   // Collect missed notes from answer
+   std::unordered_set<midi_note> missed;
+   for (auto n : answer) {
+      int pc = static_cast<int>(n) % 12;
+      if (good_pc.find(pc) == good_pc.end()) {
+         missed.insert(n); // keep the original midi_note from answer
+      }
+   }
+
+   return missed;
 }

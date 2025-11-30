@@ -7,8 +7,10 @@
  * checking.
  */
 
+#include "RtMidi.h"
 #include "app.h"
 #include "backends/imgui_impl_opengl3.h"
+#include "calc.h"
 #include "imgui.h"
 #include "logic.h"
 #include "midi.h"
@@ -16,13 +18,18 @@
 #include "theory.h"
 #include <GL/gl.h>
 #include <GL/glx.h>
+#include <X11/X.h>
 #include <X11/Xlib.h>
 #include <X11/Xutil.h>
 #include <X11/keysym.h>
 #include <chrono>
 #include <cstdio>
-#include <cstring>
+#include <memory>
+#include <ratio>
+#include <string>
 #include <thread>
+#include <unordered_map>
+#include <vector>
 
 struct PlatformState {
    // 0-255 safe ASCII storage.
