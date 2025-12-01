@@ -1,0 +1,10 @@
+title: Handel No. 7
+key: G
+
+G2 - D4,G4,B4
+G3 - D4,G4,B4
+F#3 6 A3,D4
+E3 6 G4,C5
+F#3 6 A4,D5
+G3 - G4,B4
+B2 6 D4,G4

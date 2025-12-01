@@ -81,7 +81,12 @@ void state_load_lesson(struct state *state)
 
 void state_store_lesson(struct state *state)
 {
-   db_clear_lesson(state->lesson.lesson_id);
+   // if it's a new lesson, we have to add it to the cache
+   if (!db_lesson_exists(state->lesson.lesson_id))
+      create_lesson_meta(state->stats, state->lesson.lesson_id,
+                         state->lesson.chords.size());
+
+   db_clear_lesson_file(state->lesson.lesson_id);
    db_store_lesson_key_val(state->lesson.lesson_id, "title",
                            state->lesson.lesson_title);
    db_store_lesson_key_val(state->lesson.lesson_id, "key",

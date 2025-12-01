@@ -176,7 +176,7 @@ bool db_lesson_exists(int lesson_id)
    return std::filesystem::exists(db_lesson_fname(lesson_id));
 }
 
-void db_clear_lesson(int lesson_id)
+void db_clear_lesson_file(int lesson_id)
 {
    // Open the file in truncation mode to erase everything
    // File will be closed automatically when 'out' goes out of scope
