@@ -72,7 +72,6 @@ struct lesson_meta &calc_get_lesson_meta(struct stats &stats, int lesson_id);
 
 // Streaming API
 void calc_speed(struct stats &stats, const struct attempt_record &r);
-void calc_lesson_streak(struct stats &stats, const struct attempt_record &r);
 void calc_duration(struct stats &stats, const struct attempt_record &r);
 void calc_score(struct stats &stats, const struct attempt_record &r);
 void calc_practice_streak(struct stats &stats, const struct attempt_record &r,

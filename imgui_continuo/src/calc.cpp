@@ -22,7 +22,7 @@ void create_lesson_meta(struct stats &stats, int lesson_id, int len)
 
    meta.lesson_id        = lesson_id;
    meta.total_columns    = len;
-   meta.allowed_mistakes = static_cast<size_t>(meta.total_columns * 0.05);
+   meta.allowed_mistakes = static_cast<size_t>(meta.total_columns * 0.1);
 
    meta.streak = 0;
    meta.speed  = 0.0;
@@ -112,30 +112,10 @@ void calc_speed(struct stats &stats, const struct attempt_record &r)
    }
 }
 
-void calc_lesson_streak(struct stats &stats, const struct attempt_record &r)
-{
-   auto &meta = calc_get_lesson_meta(stats, r.lesson_id);
-
-   if (r.bad_count > 0) {
-      meta.streak = 0;
-   } else if (r.missed_count > 0) {
-      meta.streak = 0;
-   } else if (r.col_id == meta.total_columns - 1) {
-      // Only increment on full completion
-      meta.streak++;
-   }
-}
-
 void calc_score(struct stats &stats, const struct attempt_record &r)
 {
-   // This function accumulates score *as we go*.
-   // We score the "delta" represented by this record.
-   // However, the "Speed Bonus" applies to the *whole* lesson.
-   // Strategy: We only commit score to `stats.score_today` when an attempt
-   // finishes or fails. But the prompt asks to update `score_today` with `r`.
-   //
-   // Adaptation: We treat every small step as 0 score, until the lesson
-   // is finalized (completion). MISTAKES are penalized immediately.
+   // We treat every small step as 0 score, until the lesson is finalized
+   // (completion). MISTAKES are penalized immediately.
 
    auto &meta = calc_get_lesson_meta(stats, r.lesson_id);
 
@@ -184,6 +164,14 @@ void calc_score(struct stats &stats, const struct attempt_record &r)
          double bonus = good_score + (good_score * speed_mult);
          stats.score_today += bonus;
       }
+   }
+
+   // keep track of streak
+   if ((meta.working_bad != 0) || (meta.working_missed != 0)) {
+      meta.streak = 0;
+   } else if (r.col_id == meta.total_columns - 1) {
+      // Only increment streak on full lesson completion
+      meta.streak++;
    }
 }
 

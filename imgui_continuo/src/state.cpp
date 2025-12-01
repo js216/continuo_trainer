@@ -133,7 +133,6 @@ void state_reload_stats(struct state *state)
 
       calc_duration(state->stats, r);
       calc_speed(state->stats, r);
-      calc_lesson_streak(state->stats, r);
       calc_score(state->stats, r);
       calc_practice_streak(state->stats, r, state->settings.score_goal);
       calc_schedule(state->stats, r);
@@ -158,7 +157,6 @@ void state_stream_in(struct state *state, struct column &col)
 
    calc_duration(state->stats, r);
    calc_speed(state->stats, r);
-   calc_lesson_streak(state->stats, r);
    calc_score(state->stats, r);
    calc_practice_streak(state->stats, r, state->settings.score_goal);
    calc_schedule(state->stats, r);
