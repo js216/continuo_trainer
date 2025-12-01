@@ -426,7 +426,10 @@ static void stats_this_lesson(struct state *state)
    float avail_w = ImGui::GetContentRegionAvail().x;
 
    // get lesson meta
-   auto &m = calc_get_lesson_meta(state->stats, state->lesson.lesson_id);
+   const struct lesson_meta m =
+       db_lesson_exists(state->lesson.lesson_id)
+           ? calc_get_lesson_meta(state->stats, state->lesson.lesson_id)
+           : lesson_meta{};
 
    // streak
    ImVec2 streak_size =

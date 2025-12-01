@@ -81,10 +81,12 @@ practice.
 
 ### Todo
 
+- add the entire Couperin, and the next few Handel lessons
 - generate lots of intro lessons in Python, and also targeted ones
 - add voice leading to scoring
 - add time pressure via "Challenge" mode, where notes fly in from the right and
   you have to hit to chord in the central green region (or yellow around it, &c)
+- support for time signatures and different note durations
 - add melody instruments that play in "Karaoke" mode
 - use Emscripten to make a web app
 
