@@ -341,8 +341,35 @@ void calc_schedule(struct stats &stats, const struct attempt_record &r)
    stats.has_last_record = true;
 }
 
-// <F9>TODO: remove this
-#include <iostream>
+static int pick_easier_lesson(const std::vector<int> &lesson_ids,
+                              stats &stats,
+                              int current_best)
+{
+   const auto &best_meta = calc_get_lesson_meta(stats, current_best);
+   std::vector<int> easier_alternatives;
+
+   for (int id : lesson_ids) {
+      if (id == current_best)
+         continue;
+
+      const auto &meta = calc_get_lesson_meta(stats, id);
+
+      // Only consider lessons that are due or past due
+      if (meta.srs_due > std::time(nullptr))
+         continue;
+
+      // Treat lower working_max_dt as easier
+      if (meta.working_max_dt < best_meta.working_max_dt)
+         easier_alternatives.push_back(id);
+   }
+
+   if (easier_alternatives.empty())
+      return current_best;
+
+   static std::mt19937 rng(std::random_device{}());
+   std::uniform_int_distribution<size_t> idx_dist(0, easier_alternatives.size() - 1);
+   return easier_alternatives[idx_dist(rng)];
+}
 
 int calc_next(const std::vector<int> &lesson_ids, struct stats &stats)
 {
@@ -351,12 +378,19 @@ int calc_next(const std::vector<int> &lesson_ids, struct stats &stats)
 
    int best_candidate     = -1;
    std::time_t lowest_due = std::numeric_limits<std::time_t>::max();
+   std::time_t now        = std::time(nullptr);
 
    // Step 1: Find the earliest due lesson
    for (int id : lesson_ids) {
       const auto &meta = calc_get_lesson_meta(stats, id);
-      if (meta.srs_due < lowest_due) {
-         lowest_due     = meta.srs_due;
+      std::time_t due = meta.srs_due;
+
+      // Treat srs_due == 0 (new lesson) as due right now
+      if (due == 0)
+         due = now;
+
+      if (due < lowest_due) {
+         lowest_due     = due;
          best_candidate = id;
       }
    }
@@ -365,27 +399,10 @@ int calc_next(const std::vector<int> &lesson_ids, struct stats &stats)
    static std::mt19937 rng(std::random_device{}());
    std::uniform_real_distribution<double> dist(0.0, 1.0);
 
-   const double easier_prob = 0.25;
-   if (dist(rng) < easier_prob) {
-      const auto &best_meta = calc_get_lesson_meta(stats, best_candidate);
-      std::vector<int> easier_alternatives;
-
-      for (int id : lesson_ids) {
-         if (id == best_candidate)
-            continue;
-         const auto &meta = calc_get_lesson_meta(stats, id);
-
-         // Treat lower working_max_dt as easier
-         if (meta.working_max_dt < best_meta.working_max_dt)
-            easier_alternatives.push_back(id);
-      }
-
-      if (!easier_alternatives.empty()) {
-         std::uniform_int_distribution<size_t> idx_dist(
-             0, easier_alternatives.size() - 1);
-         best_candidate = easier_alternatives[idx_dist(rng)];
-      }
-   }
+   const double easier_prob = 0.10;  // 10% chance
+   if (dist(rng) < easier_prob)
+      best_candidate = pick_easier_lesson(lesson_ids, stats, best_candidate);
 
    return best_candidate;
 }
+
