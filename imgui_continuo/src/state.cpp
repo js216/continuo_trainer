@@ -111,7 +111,7 @@ void state_reload_stats(struct state *state)
    std::vector<int> lessons = db_get_lesson_ids();
    for (auto lesson_id : lessons) {
       std::vector<column> chords = db_load_lesson_chords(lesson_id);
-      create_lesson_meta(state->stats, lesson_id, chords.size());
+      calc_create_lesson_meta(state->stats, lesson_id, chords.size());
    }
 
    // 3. Read History

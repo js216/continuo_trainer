@@ -67,7 +67,8 @@ struct stats {
 };
 
 // Data acess
-void create_lesson_meta(struct stats &stats, int lesson_id, int len);
+void calc_create_lesson_meta(struct stats &stats, int lesson_id,
+                             std::size_t len);
 struct lesson_meta &calc_get_lesson_meta(struct stats &stats, int lesson_id);
 
 // Streaming API

@@ -19,7 +19,7 @@
 #include <unordered_set>
 #include <vector>
 
-#define CHORD_SEP 48.0F
+constexpr float chord_sep = 48.0F;
 
 struct acc {
    const char *sym;
@@ -42,9 +42,10 @@ static struct acc acc_sym(enum accidental a)
 
 static float calc_x(const int x_idx, const enum key_sig key)
 {
-   ImVec2 p           = ImGui::GetCursorScreenPos();
-   const float x_offs = 40 + 7.50F * std::abs(th_key_sig_acc_count(key));
-   return p.x + x_offs + ((float)x_idx + 1) * CHORD_SEP;
+   ImVec2 p = ImGui::GetCursorScreenPos();
+   const float x_offs =
+       40 + 7.50F * static_cast<float>(std::abs(th_key_sig_acc_count(key)));
+   return p.x + x_offs + ((float)x_idx + 1) * chord_sep;
 }
 
 static float calc_y(const enum midi_note n, enum key_sig key)
@@ -271,11 +272,11 @@ static void draw_chord_figures(float fs, float x, float y,
 
 static int chords_per_screen(float width)
 {
-   // floor(), but guard against divide-by-zero if width < CHORD_SEP
-   if (CHORD_SEP <= 0.0f)
+   // floor(), but guard against divide-by-zero if width < chord_sep
+   if (chord_sep <= 0.0F)
       return 1;
 
-   int cps = static_cast<int>(width / CHORD_SEP);
+   int cps = static_cast<int>(width / chord_sep);
    return (cps > 0) ? cps : 1;
 }
 
@@ -412,8 +413,9 @@ void notes_draw(struct state *state)
    const int cps    = chords_per_screen(size.x);
    const int active = static_cast<int>(state->ui.active_col);
 
-   int start = 0, end = 0;
-   compute_visible_range(total, active, cps, 0.3F * cps, start, end);
+   int start = 0;
+   int end   = 0;
+   compute_visible_range(total, active, cps, cps / 3, start, end);
 
    draw_active_col_cursor(active - start, state->lesson.key);
 

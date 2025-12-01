@@ -138,8 +138,10 @@ static void logic_record(struct state *state)
          const size_t insert_idx = state->ui.active_col + 1;
 
          // Insert the new empty column.
-         state->lesson.chords.insert(state->lesson.chords.begin() + insert_idx,
-                                     column());
+         auto pos =
+             state->lesson.chords.begin() +
+             static_cast<std::vector<column>::difference_type>(insert_idx);
+         state->lesson.chords.insert(pos, column());
 
          // Move the active cursor to the newly inserted column.
          state->ui.active_col = insert_idx;

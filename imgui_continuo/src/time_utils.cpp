@@ -48,7 +48,7 @@ bool time_is_today(double epoch_seconds)
    return days_now == days_ts;
 }
 
-std::time_t day_start(double epoch_seconds)
+std::time_t time_day_start(double epoch_seconds)
 {
    const auto t = static_cast<std::time_t>(epoch_seconds);
    std::tm tm   = *std::localtime(&t);
@@ -68,29 +68,29 @@ std::string time_format(double seconds)
    const int secs  = rem % 60;
 
    if (total < 60) {
-      std::snprintf(buf.data(), buf.size(), "%ds", secs);
+      (void)std::snprintf(buf.data(), buf.size(), "%ds", secs);
    } else if (total < 3600) {
       // “3 min”, “59 min”
-      std::snprintf(buf.data(), buf.size(), "%d min", mins);
+      (void)std::snprintf(buf.data(), buf.size(), "%d min", mins);
    } else if (days == 0) {
       // “1:02”, “23:59”
-      std::snprintf(buf.data(), buf.size(), "%d:%02d", hours, mins);
+      (void)std::snprintf(buf.data(), buf.size(), "%d:%02d", hours, mins);
    } else {
       // “2 days, 4:07”
-      std::snprintf(buf.data(), buf.size(), "%d day%s, %d:%02d", days,
-                    (days == 1 ? "" : "s"), hours, mins);
+      (void)std::snprintf(buf.data(), buf.size(), "%d day%s, %d:%02d", days,
+                          (days == 1 ? "" : "s"), hours, mins);
    }
 
-   return std::string(buf.data());
+   return {buf.data()};
 }
 
 std::string time_datestring(double epoch_seconds)
 {
    // Convert to time_t (integral seconds)
-   std::time_t t = static_cast<std::time_t>(epoch_seconds);
+   auto t = static_cast<std::time_t>(epoch_seconds);
 
    // Convert to local calendar time
-   std::tm tm_buf;
+   std::tm tm_buf = {};
    localtime_r(&t, &tm_buf);
 
    // Format: YYYY-MM-DD HH:MM:SS

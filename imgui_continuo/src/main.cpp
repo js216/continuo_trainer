@@ -16,6 +16,7 @@
 #include "midi.h"
 #include "state.h"
 #include "theory.h"
+#include "util.h"
 #include <GL/gl.h>
 #include <GL/glx.h>
 #include <X11/X.h>
@@ -23,7 +24,6 @@
 #include <X11/Xutil.h>
 #include <X11/keysym.h>
 #include <chrono>
-#include <cstdio>
 #include <memory>
 #include <ratio>
 #include <string>
@@ -49,10 +49,10 @@ struct X11Context {
    bool valid;
 };
 
-constexpr int SCREEN_W      = 800;
-constexpr int SCREEN_H      = 650;
-constexpr double TARGET_FPS = 60.0;
-constexpr std::chrono::duration<double> TARGET_FRAME_TIME(1.0 / TARGET_FPS);
+constexpr int screen_w      = 800;
+constexpr int screen_h      = 650;
+constexpr double target_fps = 60.0;
+constexpr std::chrono::duration<double> target_frame_time(1.0 / target_fps);
 
 static ImGuiKey key_map_x11_to_imgui(KeySym ks)
 {
@@ -101,7 +101,7 @@ static bool init_x11_opengl(X11Context *ctx, int width, int height,
 
    ctx->display = XOpenDisplay(nullptr);
    if (!ctx->display) {
-      fprintf(stderr, "Fatal: Failed to open X display.\n");
+      error("Fatal: Failed to open X display");
       return false;
    }
 
@@ -112,7 +112,7 @@ static bool init_x11_opengl(X11Context *ctx, int width, int height,
                                   GLX_DOUBLEBUFFER, None};
    XVisualInfo *vi = glXChooseVisual(ctx->display, screen, visual_attribs);
    if (!vi) {
-      fprintf(stderr, "Fatal: Failed to choose visual.\n");
+      error("Fatal: Failed to choose visual");
       XCloseDisplay(ctx->display);
       ctx->display = nullptr;
       return false;
@@ -132,7 +132,7 @@ static bool init_x11_opengl(X11Context *ctx, int width, int height,
    XFree(vi);
 
    if (!ctx->window) {
-      fprintf(stderr, "Fatal: Failed to create window.\n");
+      error("Fatal: Failed to create window");
       XCloseDisplay(ctx->display);
       return false;
    }
@@ -144,7 +144,7 @@ static bool init_x11_opengl(X11Context *ctx, int width, int height,
 
    ctx->gl_context = glXCreateContext(ctx->display, vi, nullptr, GL_TRUE);
    if (!ctx->gl_context) {
-      fprintf(stderr, "Fatal: Failed to create GL context.\n");
+      error("Fatal: Failed to create GL context");
       XDestroyWindow(ctx->display, ctx->window);
       XCloseDisplay(ctx->display);
       return false;
@@ -187,85 +187,95 @@ static void shutdown_imgui_system()
    ImGui::DestroyContext();
 }
 
+static void handle_client_message(const XEvent *xev, bool *running,
+                                  X11Context *ctx)
+{
+   long value = xev->xclient.data.l[0];
+
+   if (value == static_cast<long>(ctx->wm_delete_window)) {
+      *running = false;
+   }
+}
+
+static void handle_key_event(const XEvent *xev, PlatformState *pstate,
+                             ImGuiIO &io)
+{
+   bool pressed = (xev->type == KeyPress);
+
+   // Create a local mutable copy for Xlib functions
+   XKeyEvent key_event = xev->xkey;
+
+   // Safe: XLookupKeysym does not modify the fields we care about
+   KeySym ks = XLookupKeysym(&key_event, 0);
+
+   if (ks < 256) {
+      pstate->keys[ks] = pressed;
+   }
+
+   ImGuiKey imgui_key = key_map_x11_to_imgui(ks);
+   if (imgui_key != ImGuiKey_None) {
+      io.AddKeyEvent(imgui_key, pressed);
+   }
+
+   io.AddKeyEvent(ImGuiKey_LeftShift, (key_event.state & ShiftMask));
+   io.AddKeyEvent(ImGuiKey_LeftCtrl, (key_event.state & ControlMask));
+   io.AddKeyEvent(ImGuiKey_LeftAlt, (key_event.state & Mod1Mask));
+
+   if (pressed) {
+      char text[32];
+      // key_event is already mutable and safe to pass
+      int count = XLookupString(&key_event, text, sizeof(text), &ks, nullptr);
+      for (int i = 0; i < count; ++i) {
+         io.AddInputCharacter(text[i]);
+      }
+   }
+}
+
+static void handle_button_event(const XEvent *xev, PlatformState *pstate,
+                                ImGuiIO &io)
+{
+   int btn = static_cast<int>(xev->xbutton.button) - 1;
+   if (btn >= 0 && btn < 3) {
+      pstate->mouse_buttons[btn] = (xev->type == ButtonPress);
+   }
+
+   if (xev->type == ButtonPress) {
+      if (xev->xbutton.button == 4)
+         io.AddMouseWheelEvent(0.0F, 1.0F);
+      if (xev->xbutton.button == 5)
+         io.AddMouseWheelEvent(0.0F, -1.0F);
+   }
+}
+
+static void handle_motion_event(const XEvent *xev, PlatformState *pstate)
+{
+   pstate->mouse_x = xev->xmotion.x;
+   pstate->mouse_y = xev->xmotion.y;
+}
+
+static void handle_configure_event(const XEvent *xev, ImGuiIO &io)
+{
+   io.DisplaySize =
+       ImVec2((float)xev->xconfigure.width, (float)xev->xconfigure.height);
+}
+
 static void process_platform_events(X11Context *ctx, PlatformState *pstate,
                                     bool *running)
 {
-   XEvent xev;
    ImGuiIO &io = ImGui::GetIO();
+   XEvent xev;
 
    while (XPending(ctx->display)) {
       XNextEvent(ctx->display, &xev);
 
       switch (xev.type) {
-         case ClientMessage:
-            if ((Atom)xev.xclient.data.l[0] == ctx->wm_delete_window) {
-               *running = false;
-            }
-            break;
-
+         case ClientMessage: handle_client_message(&xev, running, ctx); break;
          case KeyPress:
-         case KeyRelease: {
-            bool pressed = (xev.type == KeyPress);
-            KeySym ks    = XLookupKeysym(&xev.xkey, 0);
-
-            // FIXED: Removed redundant 'ks >= 0' check (KeySym is unsigned)
-            if (ks < 256) {
-               pstate->keys[ks] = pressed;
-            }
-
-            // Pass to ImGui
-            ImGuiKey imgui_key = key_map_x11_to_imgui(ks);
-            if (imgui_key != ImGuiKey_None) {
-               io.AddKeyEvent(imgui_key, pressed);
-            }
-
-            // FIXED: Use explicit Left keys instead of Mod keys (more
-            // compatible) This syncs the ImGui modifier state with the X11
-            // mask.
-            io.AddKeyEvent(ImGuiKey_LeftShift, (xev.xkey.state & ShiftMask));
-            io.AddKeyEvent(ImGuiKey_LeftCtrl, (xev.xkey.state & ControlMask));
-            io.AddKeyEvent(ImGuiKey_LeftAlt, (xev.xkey.state & Mod1Mask));
-            // Optional: Super/Meta key usually on Mod4Mask
-            // io.AddKeyEvent(ImGuiKey_LeftSuper, (xev.xkey.state & Mod4Mask));
-
-            // Character Input
-            if (pressed) {
-               char text[32];
-               int count =
-                   XLookupString(&xev.xkey, text, sizeof(text), &ks, nullptr);
-               for (int i = 0; i < count; ++i) {
-                  io.AddInputCharacter(text[i]);
-               }
-            }
-            break;
-         }
-
+         case KeyRelease: handle_key_event(&xev, pstate, io); break;
          case ButtonPress:
-         case ButtonRelease: {
-            int btn = xev.xbutton.button - 1;
-            // Buttons 1, 2, 3
-            if (btn >= 0 && btn < 3) {
-               pstate->mouse_buttons[btn] = (xev.type == ButtonPress);
-            }
-            // Wheel (Buttons 4, 5)
-            if (xev.type == ButtonPress) {
-               if (xev.xbutton.button == 4)
-                  io.AddMouseWheelEvent(0.0f, 1.0f);
-               if (xev.xbutton.button == 5)
-                  io.AddMouseWheelEvent(0.0f, -1.0f);
-            }
-            break;
-         }
-
-         case MotionNotify:
-            pstate->mouse_x = xev.xmotion.x;
-            pstate->mouse_y = xev.xmotion.y;
-            break;
-
-         case ConfigureNotify:
-            io.DisplaySize = ImVec2((float)xev.xconfigure.width,
-                                    (float)xev.xconfigure.height);
-            break;
+         case ButtonRelease: handle_button_event(&xev, pstate, io); break;
+         case MotionNotify: handle_motion_event(&xev, pstate); break;
+         case ConfigureNotify: handle_configure_event(&xev, io); break;
       }
    }
 }
@@ -274,7 +284,7 @@ int main()
 {
    // 1. Initialization
    X11Context x11_ctx = {};
-   if (!init_x11_opengl(&x11_ctx, SCREEN_W, SCREEN_H, "ImGui Procedural")) {
+   if (!init_x11_opengl(&x11_ctx, screen_w, screen_h, "ImGui Procedural")) {
       return 1;
    }
 
@@ -298,8 +308,8 @@ int main()
       std::chrono::duration<float> elapsed = frame_start - last_time;
       last_time                            = frame_start;
       float dt                             = elapsed.count();
-      if (dt <= 0.0f)
-         dt = 0.0001f;
+      if (dt <= 0.0F)
+         dt = 0.0001F;
 
       // Logic
       process_platform_events(&x11_ctx, &pstate, &running);
@@ -329,8 +339,8 @@ int main()
       // Frame Limiter
       auto frame_end                          = clock::now();
       std::chrono::duration<double> work_time = frame_end - frame_start;
-      if (work_time < TARGET_FRAME_TIME) {
-         std::this_thread::sleep_for(TARGET_FRAME_TIME - work_time);
+      if (work_time < target_frame_time) {
+         std::this_thread::sleep_for(target_frame_time - work_time);
       }
    }
 
