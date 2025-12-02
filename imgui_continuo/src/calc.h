@@ -26,6 +26,7 @@ struct lesson_meta {
    int lesson_id;
    size_t total_columns;
    size_t allowed_mistakes;
+   int lives_left;
 
    // Performance metrics
    int streak;
@@ -66,14 +67,16 @@ struct stats {
    std::unordered_map<int, lesson_meta> lesson_cache;
 };
 
-// Data acess
 void calc_create_lesson_meta(struct stats &stats, int lesson_id,
                              std::size_t len);
+
 struct lesson_meta &calc_get_lesson_meta(struct stats &stats, int lesson_id);
 
-// Scheduling
+void calc_reset_working_state(struct lesson_meta &meta);
+
 void calc_stats(struct stats &stats, int score_goal,
                 const struct attempt_record &r);
+
 int calc_next(const std::vector<int> &lesson_ids, struct stats &stats);
 
 #endif /* CALC_H */

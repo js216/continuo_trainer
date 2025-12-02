@@ -463,6 +463,7 @@ static void stats_this_lesson(struct state *state)
    // difficulty
    ImGui::TextUnformatted(("Ease: " + std::to_string(m.srs_ease)).c_str());
    ImGui::TextUnformatted(("Quality: " + std::to_string(m.quality)).c_str());
+   ImGui::TextUnformatted(("Lives: " + std::to_string(m.lives_left)).c_str());
 }
 
 static void stats_today(struct state *state)
@@ -527,7 +528,7 @@ static void app_main_screen(struct state *state)
    notes_draw(state);
    ImGui::EndChild();
 
-   ImGui::BeginChild("Stats", ImVec2(0, 250.0F), true);
+   ImGui::BeginChild("Stats", ImVec2(0, 300.0F), true);
    app_stats(state);
    ImGui::EndChild();
 

@@ -75,6 +75,9 @@ void state_load_lesson(struct state *state)
        th_parse_key(db_load_lesson_key_val(state->lesson.lesson_id, "key"));
    state->lesson.chords = db_load_lesson_chords(state->lesson.lesson_id);
 
+   auto &meta = calc_get_lesson_meta(state->stats, state->lesson.lesson_id);
+   calc_reset_working_state(meta);
+
    state->ui.status =
        "Loaded lesson " + std::to_string(state->lesson.lesson_id);
 }

@@ -14,6 +14,7 @@
 #include <random>
 #include <string>
 #include <utility>
+#include <cmath>
 
 void calc_create_lesson_meta(struct stats &stats, int lesson_id,
                              std::size_t len)
@@ -85,7 +86,7 @@ static void calc_speed(struct stats &stats, const struct attempt_record &r)
 {
    auto &meta = calc_get_lesson_meta(stats, r.lesson_id);
 
-   if ((meta.working_bad != 0) || (meta.working_missed != 0))
+   if (meta.lives_left < 1)
       return;
 
    // Determine dt from the previous record *within this lesson attempt*
@@ -118,27 +119,32 @@ static void apply_mistake_penalty(struct stats &stats, const attempt_record &r)
       stats.score_today -= static_cast<double>(r.missed_count);
 }
 
-static void update_working_state(lesson_meta &meta, const attempt_record &r,
+void calc_reset_working_state(struct lesson_meta &meta)
+{
+   meta.working_good     = 0;
+   meta.working_bad      = 0;
+   meta.working_missed   = 0;
+   meta.working_duration = 0.0;
+   meta.lives_left = std::max(1, static_cast<int>(meta.allowed_mistakes));
+}
+
+static void update_working_state(struct lesson_meta &meta, const attempt_record &r,
                                  double dt)
 {
-   if (r.col_id == 0) {
-      // Reset working accumulation
-      meta.working_good     = 0;
-      meta.working_bad      = 0;
-      meta.working_missed   = 0;
-      meta.working_duration = 0.0;
-   }
+   if ((r.col_id == 0) || (r.col_id == meta.total_columns - 1))
+      calc_reset_working_state(meta);
 
    meta.working_good += r.good_count;
    meta.working_bad += r.bad_count;
    meta.working_missed += r.missed_count;
    meta.working_duration += dt;
+   meta.lives_left -= meta.working_bad + meta.working_missed;
+   meta.lives_left = std::max(0, meta.lives_left);
 }
 
 static void maybe_apply_completion_bonus(struct stats &stats, lesson_meta &meta)
 {
-   if (meta.working_bad > meta.allowed_mistakes ||
-       meta.working_missed > meta.allowed_mistakes)
+   if (meta.lives_left < 1)
       return;
 
    if (meta.total_columns == 0)
@@ -157,10 +163,11 @@ static void maybe_apply_completion_bonus(struct stats &stats, lesson_meta &meta)
 
 static void update_streak(lesson_meta &meta, const attempt_record &r)
 {
-   if (meta.working_bad != 0 || meta.working_missed != 0) {
+   if (meta.lives_left < 1) {
       meta.streak = 0;
       return;
    }
+
    if (r.col_id == meta.total_columns - 1) {
       meta.streak++;
    }
