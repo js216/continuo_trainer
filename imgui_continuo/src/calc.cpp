@@ -113,27 +113,18 @@ void calc_speed(struct stats &stats, const struct attempt_record &r)
    }
 }
 
-void calc_score(struct stats &stats, const struct attempt_record &r)
+static void apply_mistake_penalty(struct stats &stats, const attempt_record &r)
 {
-   // We treat every small step as 0 score, until the lesson is finalized
-   // (completion). MISTAKES are penalized immediately.
-
-   auto &meta = calc_get_lesson_meta(stats, r.lesson_id);
-
-   // 1. Penalize mistakes immediately
-   if (r.bad_count > 0) {
+   if (r.bad_count > 0)
       stats.score_today -= static_cast<double>(r.bad_count);
-   }
-   if (r.missed_count > 0) {
+
+   if (r.missed_count > 0)
       stats.score_today -= static_cast<double>(r.missed_count);
-   }
+}
 
-   // Accumulate working state for the bonus calculation
-   double dt = 0.0;
-   if (meta.in_progress && r.col_id > meta.last_col_id) {
-      dt = std::min(r.time - meta.last_time, 5.0);
-   }
-
+static void update_working_state(lesson_meta &meta, const attempt_record &r,
+                                 double dt)
+{
    if (r.col_id == 0) {
       // Reset working accumulation
       meta.working_good     = 0;
@@ -146,34 +137,69 @@ void calc_score(struct stats &stats, const struct attempt_record &r)
    meta.working_bad += r.bad_count;
    meta.working_missed += r.missed_count;
    meta.working_duration += dt;
+}
 
-   // 2. Apply completion bonus
-   if (r.col_id == meta.total_columns - 1) {
-      if ((meta.working_bad <= meta.allowed_mistakes) &&
-          (meta.working_missed <= meta.allowed_mistakes)) {
-         auto good_score = static_cast<double>(meta.working_good);
+static void maybe_apply_completion_bonus(struct stats &stats, lesson_meta &meta)
+{
+   if (meta.working_bad > meta.allowed_mistakes ||
+       meta.working_missed > meta.allowed_mistakes)
+      return;
 
-         // Speed multiplier: 1 / (0.3 + avg_dt_per_col)
-         // avg_dt = total_duration / total_cols
-         double avg_dt = 0.0;
-         if (meta.total_columns > 0)
-            avg_dt = meta.working_duration / (double)meta.total_columns;
+   if (meta.total_columns == 0)
+      return;
 
-         double speed_mult = 1.0 / (0.3 + avg_dt);
-         speed_mult *= speed_mult; // Squared
+   // Completion bonus logic
+   double good_score = static_cast<double>(meta.working_good);
+   double avg_dt     = meta.working_duration / (double)meta.total_columns;
 
-         double bonus = good_score + (good_score * speed_mult);
-         stats.score_today += bonus;
-      }
-   }
+   double speed_mult = 1.0 / (0.3 + avg_dt);
+   speed_mult *= speed_mult; // squared
 
-   // keep track of streak
-   if ((meta.working_bad != 0) || (meta.working_missed != 0)) {
+   double bonus = good_score + (good_score * speed_mult);
+   stats.score_today += bonus;
+}
+
+static void update_streak(lesson_meta &meta, const attempt_record &r)
+{
+   if (meta.working_bad != 0 || meta.working_missed != 0) {
       meta.streak = 0;
-   } else if (r.col_id == meta.total_columns - 1) {
-      // Only increment streak on full lesson completion
+      return;
+   }
+   if (r.col_id == meta.total_columns - 1) {
       meta.streak++;
    }
+}
+
+void calc_score(struct stats &stats, const struct attempt_record &r)
+{
+   if (!time_is_today(r.time))
+      return; // Only count score from today's attempts
+
+   auto &meta = calc_get_lesson_meta(stats, r.lesson_id);
+
+   // (1) Immediate penalties
+   apply_mistake_penalty(stats, r);
+
+   // (2) Accumulate dt only if progressing
+   double dt = 0.0;
+   if (meta.in_progress && r.col_id > meta.last_col_id) {
+      dt = std::min(r.time - meta.last_time, 5.0);
+   }
+
+   update_working_state(meta, r, dt);
+
+   // (3) Award bonus only on successful completion
+   if (r.col_id == meta.total_columns - 1) {
+      maybe_apply_completion_bonus(stats, meta);
+   }
+
+   // (4) Update streak based on mistakes
+   update_streak(meta, r);
+
+   // Update working progress tracking for next step
+   meta.in_progress = true;
+   meta.last_col_id = r.col_id;
+   meta.last_time   = r.time;
 }
 
 void calc_practice_streak(struct stats &stats, const struct attempt_record &r,
