@@ -71,15 +71,9 @@ void calc_create_lesson_meta(struct stats &stats, int lesson_id,
                              std::size_t len);
 struct lesson_meta &calc_get_lesson_meta(struct stats &stats, int lesson_id);
 
-// Streaming API
-void calc_speed(struct stats &stats, const struct attempt_record &r);
-void calc_duration(struct stats &stats, const struct attempt_record &r);
-void calc_score(struct stats &stats, const struct attempt_record &r);
-void calc_practice_streak(struct stats &stats, const struct attempt_record &r,
-                          double score_goal);
-
-// SRS & Scheduling
-void calc_schedule(struct stats &stats, const struct attempt_record &r);
+// Scheduling
+void calc_stats(struct stats &stats, int score_goal,
+                const struct attempt_record &r);
 int calc_next(const std::vector<int> &lesson_ids, struct stats &stats);
 
 #endif /* CALC_H */

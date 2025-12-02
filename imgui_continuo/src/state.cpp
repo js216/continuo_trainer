@@ -131,11 +131,7 @@ void state_reload_stats(struct state *state)
       // for "finishing" the previous attempt, so it's good to call it
       // alongside the metric updaters.
 
-      calc_duration(state->stats, r);
-      calc_speed(state->stats, r);
-      calc_score(state->stats, r);
-      calc_practice_streak(state->stats, r, state->settings.score_goal);
-      calc_schedule(state->stats, r);
+      calc_stats(state->stats, state->settings.score_goal, r);
    }
 }
 
@@ -155,11 +151,7 @@ void state_stream_in(struct state *state, struct column &col)
        .missed_count = col.missed.size(),
    };
 
-   calc_duration(state->stats, r);
-   calc_speed(state->stats, r);
-   calc_score(state->stats, r);
-   calc_practice_streak(state->stats, r, state->settings.score_goal);
-   calc_schedule(state->stats, r);
+   calc_stats(state->stats, state->settings.score_goal, r);
 }
 
 void state_choose_next(struct state *state)

@@ -67,7 +67,7 @@ static double record_delta_seconds(const attempt_record &prev,
    return std::min(cur.time - prev.time, 5.0);
 }
 
-void calc_duration(struct stats &stats, const struct attempt_record &r)
+static void calc_duration(struct stats &stats, const struct attempt_record &r)
 {
    if (!stats.has_last_record) {
       stats.last_record     = r;
@@ -81,7 +81,7 @@ void calc_duration(struct stats &stats, const struct attempt_record &r)
    }
 }
 
-void calc_speed(struct stats &stats, const struct attempt_record &r)
+static void calc_speed(struct stats &stats, const struct attempt_record &r)
 {
    auto &meta = calc_get_lesson_meta(stats, r.lesson_id);
 
@@ -170,7 +170,7 @@ static void update_streak(lesson_meta &meta, const attempt_record &r)
    }
 }
 
-void calc_score(struct stats &stats, const struct attempt_record &r)
+static void calc_score(struct stats &stats, const struct attempt_record &r)
 {
    if (!time_is_today(r.time))
       return; // Only count score from today's attempts
@@ -202,8 +202,9 @@ void calc_score(struct stats &stats, const struct attempt_record &r)
    meta.last_time   = r.time;
 }
 
-void calc_practice_streak(struct stats &stats, const struct attempt_record &r,
-                          double score_goal)
+static void calc_practice_streak(struct stats &stats,
+                                 const struct attempt_record &r,
+                                 double score_goal)
 {
    if (!time_is_today(r.time))
       return; // Only process today's records
@@ -338,7 +339,7 @@ static double compute_quality(const lesson_meta &meta)
    return quality;
 }
 
-void calc_schedule(struct stats &stats, const struct attempt_record &r)
+static void calc_schedule(struct stats &stats, const struct attempt_record &r)
 {
    handle_abandonment(stats, r);
 
@@ -420,4 +421,14 @@ int calc_next(const std::vector<int> &lesson_ids, struct stats &stats)
       best_candidate = pick_easier_lesson(lesson_ids, stats, best_candidate);
 
    return best_candidate;
+}
+
+void calc_stats(struct stats &stats, int score_goal,
+                const struct attempt_record &r)
+{
+   calc_duration(stats, r);
+   calc_speed(stats, r);
+   calc_score(stats, r);
+   calc_practice_streak(stats, r, score_goal);
+   calc_schedule(stats, r);
 }
