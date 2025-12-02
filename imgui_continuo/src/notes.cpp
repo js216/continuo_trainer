@@ -19,6 +19,9 @@
 #include <unordered_set>
 #include <vector>
 
+// TODO: remove this
+#include <iostream>
+
 constexpr float chord_sep = 48.0F;
 
 struct acc {
@@ -308,7 +311,9 @@ static void compute_visible_range(int total, int active, int cps, int n_left,
    if (end >= total) {
       // Final region reached → reserve 2 slots for final double barline
       end   = total;
-      start = total - (cps - 2);
+      start = total - (cps - 1);
+      if (start < 0)
+         start = 0;
    }
 }
 

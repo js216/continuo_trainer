@@ -246,10 +246,10 @@ static void app_save_discard(struct state *state, const float bw)
    if (state->ui.edit_lesson && !state->lesson.chords.empty()) {
       if (color_button(rel_label, IM_COL32(200, 0, 0, 255), bw)) {
          logic_clear(state);
-      } else {
-         if (ImGui::Button(rel_label, ImVec2(bw, 0)))
-            logic_clear(state);
       }
+   } else {
+      if (ImGui::Button(rel_label, ImVec2(bw, 0)))
+         logic_clear(state);
    }
 }
 
