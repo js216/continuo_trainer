@@ -69,6 +69,6 @@ void state_store_lesson(struct state *state);
 // stats
 void state_stream_in(struct state *state, struct column &col);
 void state_reload_stats(struct state *state);
-void state_choose_next(struct state *state);
+int state_choose_next(struct state *state);
 
 #endif /* STATE_H */

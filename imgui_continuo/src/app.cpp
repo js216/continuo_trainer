@@ -226,23 +226,30 @@ static void app_figures_entry(state *state)
    }
 }
 
+static bool color_button(const char *label, uint32_t color, float bw)
+{
+   ImGui::PushStyleColor(ImGuiCol_Button, color);
+   ImGui::PushStyleColor(ImGuiCol_ButtonHovered, color);
+   ImGui::PushStyleColor(ImGuiCol_ButtonActive, color);
+
+   bool pressed = ImGui::Button(label, ImVec2(bw, 0));
+
+   ImGui::PopStyleColor(3);
+   return pressed;
+}
+
 static void app_save_discard(struct state *state, const float bw)
 {
    ImGui::SameLine();
    const char *rel_label = state->ui.edit_lesson ? "Discard" : "Reload";
 
    if (state->ui.edit_lesson && !state->lesson.chords.empty()) {
-      ImGui::PushStyleColor(ImGuiCol_Button, IM_COL32(200, 0, 0, 255));
-      ImGui::PushStyleColor(ImGuiCol_ButtonHovered, IM_COL32(255, 0, 0, 255));
-      ImGui::PushStyleColor(ImGuiCol_ButtonActive, IM_COL32(180, 0, 0, 255));
-      bool pressed = ImGui::Button(rel_label, ImVec2(bw, 0));
-      ImGui::PopStyleColor(3);
-
-      if (pressed)
+      if (color_button(rel_label, IM_COL32(200, 0, 0, 255), bw)) {
          logic_clear(state);
-   } else {
-      if (ImGui::Button(rel_label, ImVec2(bw, 0)))
-         logic_clear(state);
+      } else {
+         if (ImGui::Button(rel_label, ImVec2(bw, 0)))
+            logic_clear(state);
+      }
    }
 }
 
@@ -283,8 +290,15 @@ static void app_buttons(struct state *state)
    // next line
    bw = ImGui::GetContentRegionAvail().x / 8 - 5.0F;
 
-   if (ImGui::Button("Next", ImVec2(bw, 0))) {
-      state_choose_next(state);
+   // green "Next" button when next lesson is available
+   bool next_pressed = false;
+   const int next_lesson = state_choose_next(state);
+   if (state->lesson.lesson_id == next_lesson)
+      next_pressed = ImGui::Button("Next", ImVec2(bw, 0));
+   else
+      next_pressed = color_button("Next", IM_COL32(0, 200, 0, 255), bw);
+   if (next_pressed) {
+      state->lesson.lesson_id = state_choose_next(state);
       logic_clear(state);
    }
 
@@ -448,12 +462,7 @@ static void stats_this_lesson(struct state *state)
 
    // difficulty
    ImGui::TextUnformatted(("Ease: " + std::to_string(m.srs_ease)).c_str());
-   ImGui::TextUnformatted(("Interval: " + time_format(m.srs_interval)).c_str());
-   ImGui::TextUnformatted(
-       ("Due: " + time_datestring(static_cast<double>(m.srs_due))).c_str());
    ImGui::TextUnformatted(("Quality: " + std::to_string(m.quality)).c_str());
-   ImGui::TextUnformatted(
-       ("last_col_id: " + std::to_string(m.last_col_id)).c_str());
 }
 
 static void stats_today(struct state *state)
@@ -518,7 +527,7 @@ static void app_main_screen(struct state *state)
    notes_draw(state);
    ImGui::EndChild();
 
-   ImGui::BeginChild("Stats", ImVec2(0, 350.0F), true);
+   ImGui::BeginChild("Stats", ImVec2(0, 250.0F), true);
    app_stats(state);
    ImGui::EndChild();
 

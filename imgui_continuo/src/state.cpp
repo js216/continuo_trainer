@@ -154,16 +154,8 @@ void state_stream_in(struct state *state, struct column &col)
    calc_stats(state->stats, state->settings.score_goal, r);
 }
 
-void state_choose_next(struct state *state)
+int state_choose_next(struct state *state)
 {
-   // In the new SRS system, the "next" lesson is determined by
-   // the data now stored in state->stats.lesson_cache.
-
-   // We assume state_reload_stats() has been called at startup
-   // or after the last lesson to ensure state->stats is up to date.
-
    const std::vector<int> lesson_ids = db_get_lesson_ids();
-
-   // Select the lesson with the lowest 'due' timestamp (or fallback logic)
-   state->lesson.lesson_id = calc_next(lesson_ids, state->stats);
+   return calc_next(lesson_ids, state->stats);
 }

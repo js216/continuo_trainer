@@ -129,7 +129,7 @@ void dark_mode(void)
 
    // buttons
    colors[ImGuiCol_Button]        = ImVec4(0.2F, 0.2F, 0.3F, 1.0F);
-   colors[ImGuiCol_ButtonHovered] = ImVec4(0.3F, 0.8F, 0.4F, 1.0F);
+   colors[ImGuiCol_ButtonHovered] = ImVec4(0.4F, 0.4F, 0.5F, 1.0F);
    colors[ImGuiCol_ButtonActive]  = ImVec4(0.1F, 0.6F, 0.2F, 1.0F);
 
    // plots
