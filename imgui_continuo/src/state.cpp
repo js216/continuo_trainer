@@ -83,8 +83,8 @@ void state_store_lesson(struct state *state)
 {
    // if it's a new lesson, we have to add it to the cache
    if (!db_lesson_exists(state->lesson.lesson_id))
-      create_lesson_meta(state->stats, state->lesson.lesson_id,
-                         state->lesson.chords.size());
+      calc_create_lesson_meta(state->stats, state->lesson.lesson_id,
+                              state->lesson.chords.size());
 
    db_clear_lesson_file(state->lesson.lesson_id);
    db_store_lesson_key_val(state->lesson.lesson_id, "title",
@@ -116,7 +116,7 @@ void state_reload_stats(struct state *state)
    std::vector<int> lessons = db_get_lesson_ids();
    for (auto lesson_id : lessons) {
       std::vector<column> chords = db_load_lesson_chords(lesson_id);
-      create_lesson_meta(state->stats, lesson_id, chords.size());
+      calc_create_lesson_meta(state->stats, lesson_id, chords.size());
    }
 
    // 3. Read History

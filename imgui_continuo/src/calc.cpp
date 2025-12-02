@@ -10,19 +10,20 @@
 #include "time_utils.h"
 #include "util.h"
 #include <algorithm>
-#include <cmath>
 #include <limits>
 #include <random>
 #include <string>
 #include <utility>
 
-void create_lesson_meta(struct stats &stats, int lesson_id, int len)
+void calc_create_lesson_meta(struct stats &stats, int lesson_id,
+                             std::size_t len)
 {
    lesson_meta meta{};
 
-   meta.lesson_id        = lesson_id;
-   meta.total_columns    = len;
-   meta.allowed_mistakes = static_cast<size_t>(meta.total_columns * 0.1);
+   meta.lesson_id     = lesson_id;
+   meta.total_columns = len;
+   meta.allowed_mistakes =
+       static_cast<size_t>(static_cast<double>(meta.total_columns) * 0.1F);
 
    meta.streak = 0;
    meta.speed  = 0.0;
@@ -40,7 +41,7 @@ void create_lesson_meta(struct stats &stats, int lesson_id, int len)
    meta.working_missed   = 0;
    meta.working_duration = 0.0;
 
-   stats.lesson_cache.emplace(lesson_id, std::move(meta));
+   stats.lesson_cache.emplace(lesson_id, meta);
 }
 
 struct lesson_meta &calc_get_lesson_meta(struct stats &stats, int lesson_id)
@@ -150,13 +151,13 @@ void calc_score(struct stats &stats, const struct attempt_record &r)
    if (r.col_id == meta.total_columns - 1) {
       if ((meta.working_bad <= meta.allowed_mistakes) &&
           (meta.working_missed <= meta.allowed_mistakes)) {
-         double good_score = static_cast<double>(meta.working_good);
+         auto good_score = static_cast<double>(meta.working_good);
 
          // Speed multiplier: 1 / (0.3 + avg_dt_per_col)
          // avg_dt = total_duration / total_cols
          double avg_dt = 0.0;
          if (meta.total_columns > 0)
-            avg_dt = meta.working_duration / meta.total_columns;
+            avg_dt = meta.working_duration / (double)meta.total_columns;
 
          double speed_mult = 1.0 / (0.3 + avg_dt);
          speed_mult *= speed_mult; // Squared
@@ -181,25 +182,26 @@ void calc_practice_streak(struct stats &stats, const struct attempt_record &r,
    if (!time_is_today(r.time))
       return; // Only process today's records
 
-   std::time_t today = day_start(r.time);
-   std::time_t yesterday =
-       today - 24 * 60 * 60; // Approximate, relying on time_utils usually
+   std::time_t today     = time_day_start(r.time);
+   std::time_t yesterday = today - 86400;
 
    // Check if we just crossed the goal threshold
    if (stats.score_today >= score_goal && !stats.goal_met_today) {
       stats.goal_met_today = true;
 
       // Check continuity
-      if (day_start(stats.last_practice_date) == yesterday) {
+      if (time_day_start(static_cast<double>(stats.last_practice_date)) ==
+          yesterday) {
          stats.practice_streak++;
-      } else if (day_start(stats.last_practice_date) == today) {
+      } else if (time_day_start(
+                     static_cast<double>(stats.last_practice_date)) == today) {
          // Already counted (should be covered by goal_met_today, but safe
          // check)
       } else {
          // Streak broken or new
          stats.practice_streak = 1;
       }
-      stats.last_practice_date = r.time;
+      stats.last_practice_date = static_cast<std::time_t>(r.time);
    }
 }
 

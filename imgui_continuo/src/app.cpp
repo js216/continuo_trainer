@@ -316,7 +316,7 @@ static void draw_streak_boxes(int streak)
    const float spacing = 4.0F;
 
    // Choose color based on streak
-   ImU32 fill_col;
+   ImU32 fill_col = 0;
    if (streak >= 5)
       fill_col = IM_COL32(51, 204, 51, 255); // green
    else if (streak == 4)
@@ -353,19 +353,19 @@ static void draw_speedometer_arc(ImDrawList *draw_list, const ImVec2 &center,
    draw_list->PathStroke(IM_COL32(128, 128, 128, 100), false, thickness);
 
    float t0 = M_PI;
-   float t1 = M_PI + ((0.25f / 0.5f) / 2.0f) * M_PI;
+   float t1 = M_PI + ((0.25F / 0.5F) / 2.0F) * M_PI;
    draw_list->PathClear();
    draw_list->PathArcTo(center, radius, t0, t1, 32);
    draw_list->PathStroke(IM_COL32(200, 50, 50, 255), false, thickness);
 
    t0 = t1;
-   t1 = M_PI + ((0.4f / 0.5f) / 2.0f) * M_PI;
+   t1 = M_PI + ((0.4F / 0.5F) / 2.0F) * M_PI;
    draw_list->PathClear();
    draw_list->PathArcTo(center, radius, t0, t1, 32);
    draw_list->PathStroke(IM_COL32(240, 200, 50, 255), false, thickness);
 
    t0 = t1;
-   t1 = M_PI + ((0.6f / 0.5f) / 2.0f) * M_PI;
+   t1 = M_PI + ((0.6F / 0.5F) / 2.0F) * M_PI;
    draw_list->PathClear();
    draw_list->PathArcTo(center, radius, t0, t1, 32);
    draw_list->PathStroke(IM_COL32(51, 204, 51, 255), false, thickness);
@@ -444,12 +444,13 @@ static void stats_this_lesson(struct state *state)
    float gauge_width  = 100.0F; // match radius*2 from draw_speedometer
    float speed_offset = (avail_w - gauge_width) * 0.5F;
    ImGui::SetCursorPosX(ImGui::GetCursorPosX() + speed_offset);
-   draw_speedometer(m.speed);
+   draw_speedometer(static_cast<float>(m.speed));
 
    // difficulty
    ImGui::TextUnformatted(("Ease: " + std::to_string(m.srs_ease)).c_str());
    ImGui::TextUnformatted(("Interval: " + time_format(m.srs_interval)).c_str());
-   ImGui::TextUnformatted(("Due: " + time_datestring(m.srs_due)).c_str());
+   ImGui::TextUnformatted(
+       ("Due: " + time_datestring(static_cast<double>(m.srs_due))).c_str());
    ImGui::TextUnformatted(("Quality: " + std::to_string(m.quality)).c_str());
 }
 
@@ -464,7 +465,7 @@ static void stats_today(struct state *state)
    ImGui::TextUnformatted("Score");
    double max_score      = state->settings.score_goal;
    std::string score_str = std::to_string(int(state->stats.score_today));
-   ImGui::PushItemWidth(25.0f);
+   ImGui::PushItemWidth(25.0F);
    ImGui::ProgressBar(
        (float)std::clamp(state->stats.score_today / max_score, 0.0, 1.0),
        ImVec2(-1, bar_h), score_str.c_str());
