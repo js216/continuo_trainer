@@ -104,12 +104,8 @@ static void calc_speed(struct stats &stats, const struct attempt_record &r)
    // If lesson finished, update the EMA
    if (r.col_id == meta.total_columns - 1) {
       const double alpha = 2.0 / 6.0; // EMA over ~5 attempts
-      if (meta.speed == 0.0) {
-         meta.speed = 1 / meta.working_max_dt;
-      } else {
-         meta.speed =
-             (alpha * 1 / meta.working_max_dt) + ((1.0 - alpha) * meta.speed);
-      }
+      meta.speed =
+          (alpha * 1 / meta.working_max_dt) + ((1.0 - alpha) * meta.speed);
    }
 }
 
@@ -195,11 +191,6 @@ static void calc_score(struct stats &stats, const struct attempt_record &r)
 
    // (4) Update streak based on mistakes
    update_streak(meta, r);
-
-   // Update working progress tracking for next step
-   meta.in_progress = true;
-   meta.last_col_id = r.col_id;
-   meta.last_time   = r.time;
 }
 
 static void calc_practice_streak(struct stats &stats,
@@ -343,15 +334,11 @@ static void calc_schedule(struct stats &stats, const struct attempt_record &r)
 {
    handle_abandonment(stats, r);
 
-   auto &meta       = calc_get_lesson_meta(stats, r.lesson_id);
-   meta.last_col_id = r.col_id;
-   meta.last_time   = r.time;
-   meta.in_progress = true;
+   auto &meta = calc_get_lesson_meta(stats, r.lesson_id);
 
    if (r.col_id == meta.total_columns - 1) {
       meta.quality = compute_quality(meta);
       update_srs_state(meta);
-      meta.in_progress = false;
    }
 
    stats.last_record     = r;
@@ -431,4 +418,15 @@ void calc_stats(struct stats &stats, int score_goal,
    calc_score(stats, r);
    calc_practice_streak(stats, r, score_goal);
    calc_schedule(stats, r);
+
+   // Calculate if lesson is still in progress
+   auto &meta = calc_get_lesson_meta(stats, r.lesson_id);
+   if (r.col_id == meta.total_columns - 1)
+      meta.in_progress = false;
+   else
+      meta.in_progress = true;
+
+   // Update working progress tracking for next step
+   meta.last_col_id = r.col_id;
+   meta.last_time   = r.time;
 }

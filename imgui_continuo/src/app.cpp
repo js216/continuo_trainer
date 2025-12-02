@@ -452,6 +452,8 @@ static void stats_this_lesson(struct state *state)
    ImGui::TextUnformatted(
        ("Due: " + time_datestring(static_cast<double>(m.srs_due))).c_str());
    ImGui::TextUnformatted(("Quality: " + std::to_string(m.quality)).c_str());
+   ImGui::TextUnformatted(
+       ("last_col_id: " + std::to_string(m.last_col_id)).c_str());
 }
 
 static void stats_today(struct state *state)
@@ -516,7 +518,7 @@ static void app_main_screen(struct state *state)
    notes_draw(state);
    ImGui::EndChild();
 
-   ImGui::BeginChild("Stats", ImVec2(0, 325.0F), true);
+   ImGui::BeginChild("Stats", ImVec2(0, 350.0F), true);
    app_stats(state);
    ImGui::EndChild();
 
