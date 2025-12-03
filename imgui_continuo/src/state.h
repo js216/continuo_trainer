@@ -19,6 +19,7 @@
 struct app_ui {
    std::string status;
    bool settings_open;
+   bool history_open;
    std::string figs_entry;
    std::string selected_device;
    unsigned int active_col;

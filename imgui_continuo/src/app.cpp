@@ -255,7 +255,7 @@ static void app_save_discard(struct state *state, const float bw)
 
 static void app_buttons(struct state *state)
 {
-   float bw = ImGui::GetContentRegionAvail().x / 5 - 8.0F;
+   float bw = ImGui::GetContentRegionAvail().x / 6 - 8.0F;
 
    ImGui::PushItemWidth(bw);
    if (ImGui::InputInt("##lesson_id", &state->lesson.lesson_id)) {
@@ -285,6 +285,11 @@ static void app_buttons(struct state *state)
    ImGui::SameLine();
    if (ImGui::Button("Settings", ImVec2(bw, 0))) {
       state->ui.settings_open = true;
+   }
+
+   ImGui::SameLine();
+   if (ImGui::Button("History", ImVec2(bw, 0))) {
+      state->ui.history_open = true;
    }
 
    // next line
@@ -534,6 +539,50 @@ static void app_main_screen(struct state *state)
    app_status_bar(state);
 }
 
+void app_history(struct state *state)
+{
+   const ImGuiIO &io = ImGui::GetIO();
+   ImGui::BeginChild("HistoryFullScreen", io.DisplaySize, true);
+
+   // Close button
+   float bw = 50.0F;
+   ImGui::SetCursorPosX(io.DisplaySize.x - bw - STYLE_PAD_X);
+   if (ImGui::Button("X", ImVec2(bw, 0))) {
+      state->ui.history_open = false;
+   }
+
+   ImGui::Dummy(ImVec2(0, 20.0F)); // spacing
+
+   // Prepare data
+   std::vector<float> scores, durations;
+   double max_score = 1.0, max_duration = 1.0;
+   for (auto &[t, ds] : state->stats.history) {
+      scores.push_back((float)(int)ds.score);
+      durations.push_back((float)ds.duration);
+      if (ds.score > max_score)
+         max_score = ds.score;
+      if (ds.duration > max_duration)
+         max_duration = ds.duration;
+   }
+
+   // Score chart
+   ImGui::TextUnformatted("Score");
+   ImGui::PlotHistogram("##score_hist", scores.data(), (int)scores.size(), 0,
+                        nullptr, 0.0f, (float)max_score, ImVec2(-1, 150));
+   ImGui::Text("Day");
+
+   ImGui::Dummy(ImVec2(0, 10));
+
+   // Duration chart
+   ImGui::TextUnformatted("Duration");
+   ImGui::PlotHistogram("##duration_hist", durations.data(),
+                        (int)durations.size(), 0, nullptr, 0.0f,
+                        (float)max_duration, ImVec2(-1, 150));
+   ImGui::Text("Day");
+
+   ImGui::EndChild();
+}
+
 void app_render(struct state *state)
 {
    ImGui::SetNextWindowPos(ImVec2(0, 0));
@@ -546,6 +595,8 @@ void app_render(struct state *state)
 
    if (state->ui.settings_open)
       app_settings(state);
+   else if (state->ui.history_open)
+      app_history(state);
    else
       app_main_screen(state);
 
