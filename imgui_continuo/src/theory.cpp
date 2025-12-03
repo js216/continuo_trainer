@@ -14,7 +14,7 @@
 #include <sstream>
 #include <string>
 #include <unordered_map>
-#include <utility>
+#include <unordered_set>
 #include <vector>
 
 std::string th_key_sig_to_string(const enum key_sig k)
@@ -112,7 +112,7 @@ enum accidental th_key_sig_accidental(enum key_sig key, enum midi_note n)
        {3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3}, // Cb Major
    };
 
-   int8_t ks = table[key][n % 12];
+   const int8_t ks = table[key][n % 12];
 
    if (ks == 1)
       return ACC_SHARP;
@@ -316,7 +316,7 @@ std::vector<figure> th_parse_figures_from_str(const std::string &token)
    return figures;
 }
 
-midi_note th_parse_midi_note(const std::string &token)
+enum midi_note th_parse_midi_note(const std::string &token)
 {
    static const std::unordered_map<std::string, midi_note> note_map = {
        {"D2",  NOTES_D2 },
@@ -374,9 +374,9 @@ midi_note th_parse_midi_note(const std::string &token)
    return NOTES_E2; // fallback
 }
 
-std::unordered_set<midi_note>
-th_get_missed(const std::unordered_set<midi_note> &answer,
-              const std::unordered_set<midi_note> &good)
+std::unordered_set<enum midi_note>
+th_get_missed(const std::unordered_set<enum midi_note> &answer,
+              const std::unordered_set<enum midi_note> &good)
 {
    // Build a set of pitch classes that were played correctly
    std::unordered_set<int> good_pc;
@@ -385,12 +385,11 @@ th_get_missed(const std::unordered_set<midi_note> &answer,
    }
 
    // Collect missed notes from answer
-   std::unordered_set<midi_note> missed;
+   std::unordered_set<enum midi_note> missed;
    for (auto n : answer) {
-      int pc = static_cast<int>(n) % 12;
-      if (good_pc.find(pc) == good_pc.end()) {
-         missed.insert(n); // keep the original midi_note from answer
-      }
+      const int pc = static_cast<int>(n) % 12;
+      if (!good_pc.contains(pc))
+         missed.insert(n);
    }
 
    return missed;

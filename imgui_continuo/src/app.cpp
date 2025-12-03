@@ -20,7 +20,7 @@
 #include "time_utils.h"
 #include <algorithm>
 #include <cmath>
-#include <memory>
+#include <numbers>
 #include <string>
 #include <vector>
 
@@ -102,15 +102,15 @@ static void draw_midi_out_row(struct state *state, const float bw)
 
 static void draw_midi_device_list(struct state *state)
 {
-   const ImGuiIO &io    = ImGui::GetIO();
-   float listbox_height = io.DisplaySize.y - 6 * STYLE_BTN_H;
+   const ImGuiIO &io          = ImGui::GetIO();
+   const float listbox_height = io.DisplaySize.y - (6 * STYLE_BTN_H);
 
    if (ImGui::BeginListBox(
            "##midi_list",
            ImVec2(ImGui::GetContentRegionAvail().x, listbox_height))) {
 
       for (auto &dev : state->midi.midi_devices) {
-         bool selected = (dev == state->ui.selected_device);
+         const bool selected = (dev == state->ui.selected_device);
 
          if (ImGui::Selectable(dev.c_str(), selected)) {
             state->ui.selected_device = dev;
@@ -152,7 +152,7 @@ static void app_close_settings(struct state *state)
 
    // Compute width of button
    const char *label = "X";
-   float bw          = 50.0F;
+   const float bw    = 50.0F;
    const ImGuiIO &io = ImGui::GetIO();
    ImGui::SetCursorPosX(io.DisplaySize.x - bw - STYLE_PAD_X);
 
@@ -194,7 +194,7 @@ static void app_key_sig_selector(state *state)
    if (ImGui::BeginCombo("##keysig",
                          th_key_sig_to_string(state->lesson.key).c_str())) {
       for (int i = 0; i < KEY_NUM; ++i) {
-         bool is_selected = (state->lesson.key == i);
+         const bool is_selected = (state->lesson.key == i);
          if (ImGui::Selectable(
                  th_key_sig_to_string(static_cast<key_sig>(i)).c_str(),
                  is_selected))
@@ -226,13 +226,13 @@ static void app_figures_entry(state *state)
    }
 }
 
-static bool color_button(const char *label, uint32_t color, float bw)
+static bool color_button(const char *label, ImU32 color, float bw)
 {
    ImGui::PushStyleColor(ImGuiCol_Button, color);
    ImGui::PushStyleColor(ImGuiCol_ButtonHovered, color);
    ImGui::PushStyleColor(ImGuiCol_ButtonActive, color);
 
-   bool pressed = ImGui::Button(label, ImVec2(bw, 0));
+   const bool pressed = ImGui::Button(label, ImVec2(bw, 0));
 
    ImGui::PopStyleColor(3);
    return pressed;
@@ -255,7 +255,7 @@ static void app_save_discard(struct state *state, const float bw)
 
 static void app_buttons(struct state *state)
 {
-   float bw = ImGui::GetContentRegionAvail().x / 6 - 8.0F;
+   float bw = (ImGui::GetContentRegionAvail().x / 6) - 8.0F;
 
    ImGui::PushItemWidth(bw);
    if (ImGui::InputInt("##lesson_id", &state->lesson.lesson_id)) {
@@ -293,7 +293,7 @@ static void app_buttons(struct state *state)
    }
 
    // next line
-   bw = ImGui::GetContentRegionAvail().x / 8 - 5.0F;
+   bw = (ImGui::GetContentRegionAvail().x / 8) - 5.0F;
 
    // green "Next" button when next lesson is available
    bool next_pressed     = false;
@@ -348,13 +348,13 @@ static void draw_streak_boxes(int streak)
    else
       fill_col = IM_COL32(255, 0, 0, 255); // fallback
 
-   ImU32 empty_col = IM_COL32(128, 128, 128, 255);
+   const ImU32 empty_col = IM_COL32(128, 128, 128, 255);
 
    ImDrawList *draw_list = ImGui::GetWindowDrawList();
    ImVec2 p              = ImGui::GetCursorScreenPos();
 
    for (int i = 0; i < FULL_STREAK; i++) {
-      ImU32 col = (i < streak) ? fill_col : empty_col;
+      const ImU32 col = (i < streak) ? fill_col : empty_col;
       draw_list->AddRectFilled(p, ImVec2(p.x + box_size.x, p.y + box_size.y),
                                col);
       p.x += box_size.x + spacing;
@@ -367,23 +367,24 @@ static void draw_speedometer_arc(ImDrawList *draw_list, const ImVec2 &center,
                                  float radius, float thickness)
 {
    draw_list->PathClear();
-   draw_list->PathArcTo(center, radius, M_PI, M_PI + M_PI, 64);
+   draw_list->PathArcTo(center, radius, std::numbers::pi,
+                        std::numbers::pi + std::numbers::pi, 64);
    draw_list->PathStroke(IM_COL32(128, 128, 128, 100), false, thickness);
 
-   float t0 = M_PI;
-   float t1 = M_PI + ((0.25F / 0.5F) / 2.0F) * M_PI;
+   float t0 = std::numbers::pi;
+   float t1 = std::numbers::pi + (((0.25F / 0.5F) / 2.0F) * std::numbers::pi);
    draw_list->PathClear();
    draw_list->PathArcTo(center, radius, t0, t1, 32);
    draw_list->PathStroke(IM_COL32(200, 50, 50, 255), false, thickness);
 
    t0 = t1;
-   t1 = M_PI + ((0.4F / 0.5F) / 2.0F) * M_PI;
+   t1 = std::numbers::pi + (((0.4F / 0.5F) / 2.0F) * std::numbers::pi);
    draw_list->PathClear();
    draw_list->PathArcTo(center, radius, t0, t1, 32);
    draw_list->PathStroke(IM_COL32(240, 200, 50, 255), false, thickness);
 
    t0 = t1;
-   t1 = M_PI + ((0.6F / 0.5F) / 2.0F) * M_PI;
+   t1 = std::numbers::pi + (((0.6F / 0.5F) / 2.0F) * std::numbers::pi);
    draw_list->PathClear();
    draw_list->PathArcTo(center, radius, t0, t1, 32);
    draw_list->PathStroke(IM_COL32(51, 204, 51, 255), false, thickness);
@@ -392,31 +393,28 @@ static void draw_speedometer_arc(ImDrawList *draw_list, const ImVec2 &center,
 static void draw_speedometer_needle(float speed, ImDrawList *draw_list,
                                     const ImVec2 &center, float radius)
 {
-   if (speed < 0.0F)
-      speed = 0.0F;
-   if (speed > 5.0F)
-      speed = 5.0F;
+   speed = std::clamp(speed, 0.0F, 5.0F);
 
    float t = 0.0F;
    if (speed <= 0.5F)
       t = speed / 0.5F;
    else
-      t = 1.0F + logf((speed - 0.5F) + 1.0F) / logf(5.0F);
-   if (t > 2.0F)
-      t = 2.0F;
+      t = 1.0F + (logf((speed - 0.5F) + 1.0F) / logf(5.0F));
+   t = std::min(t, 2.0F);
 
-   float angle = M_PI + (t / 2.0F) * M_PI;
+   const auto angle =
+       static_cast<float>(std::numbers::pi + ((t / 2.0F) * std::numbers::pi));
 
-   ImVec2 needle = ImVec2(center.x + cosf(angle) * radius * 0.9F,
-                          center.y + sinf(angle) * radius * 0.9F);
+   const ImVec2 needle = ImVec2(center.x + (cosf(angle) * radius * 0.9F),
+                                center.y + (sinf(angle) * radius * 0.9F));
    draw_list->AddLine(center, needle, IM_COL32_WHITE, 3.0F);
 }
 
 static void draw_speedometer_labels(float speed, const ImVec2 &center,
                                     float radius)
 {
-   float text_height = ImGui::GetTextLineHeight();
-   ImVec2 num_pos    = ImVec2(center.x, center.y + radius * 0.10F);
+   const float text_height = ImGui::GetTextLineHeight();
+   const ImVec2 num_pos    = ImVec2(center.x, center.y + (radius * 0.10F));
    ImGui::SetCursorScreenPos(ImVec2(num_pos.x - 10, num_pos.y));
    ImGui::Text("%.2F", speed);
 
@@ -430,7 +428,7 @@ static void draw_speedometer(float speed)
    const ImVec2 pos      = ImGui::GetCursorScreenPos();
    const float radius    = 50.0F;
    const float thickness = 8.0F;
-   ImVec2 center         = ImVec2(pos.x + radius, pos.y + radius);
+   const ImVec2 center   = ImVec2(pos.x + radius, pos.y + radius);
 
    draw_speedometer_arc(draw_list, center, radius, thickness);
    draw_speedometer_needle(speed, draw_list, center, radius);
@@ -441,7 +439,7 @@ static void stats_this_lesson(struct state *state)
 {
    ImGui::AlignTextToFramePadding();
    ImGui::TextUnformatted("THIS LESSON");
-   float avail_w = ImGui::GetContentRegionAvail().x;
+   const float avail_w = ImGui::GetContentRegionAvail().x;
 
    // get lesson meta
    const struct lesson_meta m =
@@ -450,17 +448,17 @@ static void stats_this_lesson(struct state *state)
            : lesson_meta{};
 
    // streak
-   ImVec2 streak_size =
-       ImVec2(5 * 12 + 4 * 4, 12); // 5 boxes * 12px + 4px spacing
-   float streak_offset = (avail_w - streak_size.x) * 0.5F;
+   const ImVec2 streak_size =
+       ImVec2((5 * 12) + (4 * 4), 12); // 5 boxes * 12px + 4px spacing
+   const float streak_offset = (avail_w - streak_size.x) * 0.5F;
    ImGui::SetCursorPosX(ImGui::GetCursorPosX() + streak_offset);
    draw_streak_boxes(m.streak);
 
    ImGui::Dummy(ImVec2(0.0F, 5.0F));
 
    // speedometer
-   float gauge_width  = 100.0F; // match radius*2 from draw_speedometer
-   float speed_offset = (avail_w - gauge_width) * 0.5F;
+   const float gauge_width  = 100.0F; // match radius*2 from draw_speedometer
+   const float speed_offset = (avail_w - gauge_width) * 0.5F;
    ImGui::SetCursorPosX(ImGui::GetCursorPosX() + speed_offset);
    draw_speedometer(static_cast<float>(m.speed));
 
@@ -479,8 +477,8 @@ static void stats_today(struct state *state)
 
    // Score progress bar
    ImGui::TextUnformatted("Score");
-   double max_score      = state->settings.score_goal;
-   std::string score_str = std::to_string(int(state->stats.score_today));
+   const double max_score      = state->settings.score_goal;
+   const std::string score_str = std::to_string(int(state->stats.score_today));
    ImGui::PushItemWidth(25.0F);
    ImGui::ProgressBar(
        (float)std::clamp(state->stats.score_today / max_score, 0.0, 1.0),
@@ -522,8 +520,8 @@ static void app_stats(struct state *state)
 
 static void app_main_screen(struct state *state)
 {
-   ImGui::BeginChild("Controls", ImVec2(0, 2 * STYLE_BTN_H + 2 * STYLE_PAD_Y),
-                     true);
+   ImGui::BeginChild("Controls",
+                     ImVec2(0, (2 * STYLE_BTN_H) + (2 * STYLE_PAD_Y)), true);
    app_buttons(state);
    ImGui::EndChild();
 
@@ -539,13 +537,13 @@ static void app_main_screen(struct state *state)
    app_status_bar(state);
 }
 
-void app_history(struct state *state)
+static void app_history(struct state *state)
 {
    const ImGuiIO &io = ImGui::GetIO();
    ImGui::BeginChild("HistoryFullScreen", io.DisplaySize, true);
 
    // Close button
-   float bw = 50.0F;
+   const float bw = 50.0F;
    ImGui::SetCursorPosX(io.DisplaySize.x - bw - STYLE_PAD_X);
    if (ImGui::Button("X", ImVec2(bw, 0))) {
       state->ui.history_open = false;
@@ -554,21 +552,21 @@ void app_history(struct state *state)
    ImGui::Dummy(ImVec2(0, 20.0F)); // spacing
 
    // Prepare data
-   std::vector<float> scores, durations;
-   double max_score = 1.0, max_duration = 1.0;
-   for (auto &[t, ds] : state->stats.history) {
-      scores.push_back((float)(int)ds.score);
-      durations.push_back((float)ds.duration);
-      if (ds.score > max_score)
-         max_score = ds.score;
-      if (ds.duration > max_duration)
-         max_duration = ds.duration;
+   std::vector<float> scores;
+   std::vector<float> durations;
+   double max_score    = 1.0;
+   double max_duration = 1.0;
+   for (auto &ds : state->stats.history) {
+      scores.push_back((float)(int)ds.second.score);
+      durations.push_back((float)ds.second.duration);
+      max_score    = std::max(max_score, ds.second.score);
+      max_duration = std::max(max_duration, ds.second.duration);
    }
 
    // Score chart
    ImGui::TextUnformatted("Score");
    ImGui::PlotHistogram("##score_hist", scores.data(), (int)scores.size(), 0,
-                        nullptr, 0.0f, (float)max_score, ImVec2(-1, 150));
+                        nullptr, 0.0F, (float)max_score, ImVec2(-1, 150));
    ImGui::Text("Day");
 
    ImGui::Dummy(ImVec2(0, 10));
@@ -576,7 +574,7 @@ void app_history(struct state *state)
    // Duration chart
    ImGui::TextUnformatted("Duration");
    ImGui::PlotHistogram("##duration_hist", durations.data(),
-                        (int)durations.size(), 0, nullptr, 0.0f,
+                        (int)durations.size(), 0, nullptr, 0.0F,
                         (float)max_duration, ImVec2(-1, 150));
    ImGui::Text("Day");
 

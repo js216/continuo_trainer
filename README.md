@@ -80,6 +80,7 @@ practice.
 ### Todo
 
 - add the entire Couperin, and the next few Handel lessons
+- implement proper gauge widgets in a separate file
 - generate lots of intro lessons in Python, and also targeted ones
 - add voice leading to scoring
 - add time pressure via "Challenge" mode, where notes fly in from the right and

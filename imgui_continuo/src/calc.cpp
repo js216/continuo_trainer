@@ -11,10 +11,13 @@
 #include "util.h"
 #include <algorithm>
 #include <cmath>
+#include <cstddef>
+#include <ctime>
 #include <limits>
 #include <random>
 #include <string>
 #include <utility>
+#include <vector>
 
 // TODO: remove this
 #include <iostream>
@@ -27,7 +30,7 @@ void calc_create_lesson_meta(struct stats &stats, int lesson_id,
    meta.lesson_id     = lesson_id;
    meta.total_columns = len;
    meta.allowed_mistakes =
-       static_cast<size_t>(static_cast<double>(meta.total_columns) * 0.1F);
+       static_cast<std::size_t>(static_cast<double>(meta.total_columns) * 0.1F);
 
    meta.streak = 0;
    meta.speed  = 0.0;
@@ -143,10 +146,10 @@ static void calc_duration(struct stats &stats, const struct attempt_record &r)
       return;
    }
 
-   std::time_t day      = time_day_start(r.time);
-   std::time_t last_day = time_day_start(stats.last_record.time);
+   const std::time_t day      = time_day_start(r.time);
+   const std::time_t last_day = time_day_start(stats.last_record.time);
 
-   double delta = record_delta_seconds(stats.last_record, r);
+   const double delta = record_delta_seconds(stats.last_record, r);
 
    // Add duration if both records are from the same day
    if (day == last_day && delta > 0.0) {
@@ -161,14 +164,14 @@ static void calc_duration(struct stats &stats, const struct attempt_record &r)
 
 static void calc_score(struct stats &stats, const struct attempt_record &r)
 {
-   std::time_t day = time_day_start(r.time);
+   const std::time_t day = time_day_start(r.time);
 
    // Initialize day entry if it doesn't exist
    stats.history.try_emplace(day);
 
    // (1) Immediate penalties
    if (r.bad_count > 0 || r.missed_count > 0) {
-      double penalty = static_cast<double>(r.bad_count + r.missed_count);
+      const auto penalty = static_cast<double>(r.bad_count + r.missed_count);
       stats.history[day].score -= penalty;
 
       if (time_is_today(r.time)) {
@@ -188,12 +191,12 @@ static void calc_score(struct stats &stats, const struct attempt_record &r)
    // (3) Award bonus only on successful completion
    if (r.col_id == meta.total_columns - 1 && meta.lives_left >= 1) {
       if (meta.total_columns > 0) {
-         double good_score = static_cast<double>(meta.working_good);
-         double avg_dt =
+         const auto good_score = static_cast<double>(meta.working_good);
+         const double avg_dt =
              meta.working_duration / static_cast<double>(meta.total_columns);
          double speed_mult = 1.0 / (0.3 + avg_dt);
          speed_mult *= speed_mult;
-         double bonus = good_score + (good_score * speed_mult);
+         const double bonus = good_score + (good_score * speed_mult);
 
          stats.history[day].score += bonus;
 
@@ -211,7 +214,7 @@ static void calc_practice_streak(struct stats &stats,
                                  const struct attempt_record &r,
                                  double score_goal)
 {
-   std::time_t day = time_day_start(r.time);
+   const std::time_t day = time_day_start(r.time);
 
    // Check if we just crossed the goal threshold for this day
    if (stats.history[day].score >= score_goal) {
@@ -220,8 +223,8 @@ static void calc_practice_streak(struct stats &stats,
          if (!stats.goal_met_today) {
             stats.goal_met_today = true;
 
-            std::time_t today     = day;
-            std::time_t yesterday = today - 86400;
+            const std::time_t today     = day;
+            const std::time_t yesterday = today - 86400;
 
             // Check continuity
             if (time_day_start(static_cast<double>(stats.last_practice_date)) ==
@@ -240,7 +243,7 @@ static void calc_practice_streak(struct stats &stats,
          // For historical days, check if we haven't already counted this day
          if (time_day_start(static_cast<double>(stats.last_practice_date)) !=
              day) {
-            std::time_t yesterday = day - 86400;
+            const std::time_t yesterday = day - 86400;
 
             if (time_day_start(static_cast<double>(stats.last_practice_date)) ==
                 yesterday) {
@@ -260,12 +263,13 @@ void print_history(const struct stats &stats)
    std::cout << "----------------\n";
 
    for (const auto &entry : stats.history) {
-      std::time_t day     = entry.first;
-      const day_stats &ds = entry.second;
+      const std::time_t day = entry.first;
+      const day_stats &ds   = entry.second;
 
       char date_str[64];
-      struct tm *tm_info = std::localtime(&day);
-      std::strftime(date_str, sizeof(date_str), "%Y-%m-%d", tm_info);
+      const struct tm *tm_info = std::localtime(&day);
+      std::ignore =
+          std::strftime(date_str, sizeof(date_str), "%Y-%m-%d", tm_info);
 
       std::cout << "Date: " << date_str << ", Score: " << ds.score
                 << ", Duration: " << ds.duration << "s\n";
@@ -288,14 +292,14 @@ static void update_srs_state(lesson_meta &meta)
    }
 
    // Continuous SM-2 ease adjustment
-   double delta =
-       0.1 - (5.0 - meta.quality) * (0.08 + (5.0 - meta.quality) * 0.02);
+   const double delta =
+       0.1 - ((5.0 - meta.quality) * (0.08 + (5.0 - meta.quality) * 0.02));
    meta.srs_ease += delta;
    meta.srs_ease = std::max(1.3, meta.srs_ease);
 
    // Due time
-   std::time_t now = std::time(nullptr);
-   meta.srs_due    = now + static_cast<long>(meta.srs_interval);
+   const std::time_t now = std::time(nullptr);
+   meta.srs_due          = now + static_cast<long>(meta.srs_interval);
 }
 
 static void handle_abandonment(struct stats &stats,
@@ -304,8 +308,8 @@ static void handle_abandonment(struct stats &stats,
    if (!stats.has_last_record)
       return;
 
-   bool same_lesson = (r.lesson_id == stats.last_record.lesson_id);
-   bool restart     = (r.col_id == 0);
+   const bool same_lesson = (r.lesson_id == stats.last_record.lesson_id);
+   const bool restart     = (r.col_id == 0);
 
    if (same_lesson && !restart)
       return; // Still on same lesson attempt, not abandoned
@@ -338,8 +342,8 @@ static double compute_pace_score(double working_max_dt, double speed)
    const double w_instant    = 0.5;
    const double w_historical = 0.5;
 
-   double pace_score =
-       instant_factor * w_instant + historical_factor * w_historical;
+   const double pace_score =
+       (instant_factor * w_instant) + (historical_factor * w_historical);
 
    return pace_score;
 }
@@ -353,7 +357,7 @@ static double compute_quality(const lesson_meta &meta)
        eps;
 
    // Mistake score
-   double bad_ratio =
+   const double bad_ratio =
        static_cast<double>(meta.working_bad + meta.working_missed) /
        total_events;
    const double max_bad_ratio = 0.30; // tolerable mistake rate
@@ -361,22 +365,24 @@ static double compute_quality(const lesson_meta &meta)
    mistake_score              = std::clamp(mistake_score, 0.0, 1.0);
 
    // Pace score
-   double pace_score = compute_pace_score(meta.working_max_dt, meta.speed);
+   const double pace_score =
+       compute_pace_score(meta.working_max_dt, meta.speed);
 
    // Streak score
-   double streak_score = std::clamp(static_cast<double>(meta.streak) /
-                                        static_cast<double>(FULL_STREAK),
-                                    0.0, 1.0);
+   const double streak_score = std::clamp(static_cast<double>(meta.streak) /
+                                              static_cast<double>(FULL_STREAK),
+                                          0.0, 1.0);
 
    // Weighted blend
    const double w_mistake = 0.50;
    const double w_pace    = 0.25;
    const double w_streak  = 0.25;
 
-   double smooth_score = mistake_score * w_mistake + pace_score * w_pace +
-                         streak_score * w_streak;
+   const double smooth_score = (mistake_score * w_mistake) +
+                               (pace_score * w_pace) +
+                               (streak_score * w_streak);
 
-   double quality = smooth_score * 5.0;
+   const double quality = smooth_score * 5.0;
 
    return quality;
 }
@@ -402,7 +408,7 @@ static int pick_easier_lesson(const std::vector<int> &lesson_ids, stats &stats,
    const auto &best_meta = calc_get_lesson_meta(stats, current_best);
    std::vector<int> easier_alternatives;
 
-   for (int id : lesson_ids) {
+   for (const int id : lesson_ids) {
       if (id == current_best)
          continue;
 
@@ -421,7 +427,7 @@ static int pick_easier_lesson(const std::vector<int> &lesson_ids, stats &stats,
       return current_best;
 
    static std::mt19937 rng(std::random_device{}());
-   std::uniform_int_distribution<size_t> idx_dist(
+   std::uniform_int_distribution<std::size_t> idx_dist(
        0, easier_alternatives.size() - 1);
    return easier_alternatives[idx_dist(rng)];
 }
@@ -433,16 +439,18 @@ int calc_next(int current_lesson, const std::vector<int> &lesson_ids,
       return -1;
 
    // current lesson must have a full streak before choosing the next one
-   const auto &m_cur = calc_get_lesson_meta(stats, current_lesson);
-   if (m_cur.streak < FULL_STREAK)
-      return current_lesson;
+   if (current_lesson >= 0) {
+      const auto &m_cur = calc_get_lesson_meta(stats, current_lesson);
+      if (m_cur.streak < FULL_STREAK)
+         return current_lesson;
+   }
 
    int best_candidate     = -1;
    std::time_t lowest_due = std::numeric_limits<std::time_t>::max();
-   std::time_t now        = std::time(nullptr);
+   const std::time_t now  = std::time(nullptr);
 
    // Step 1: Find the earliest due lesson
-   for (int id : lesson_ids) {
+   for (const int id : lesson_ids) {
       const auto &meta = calc_get_lesson_meta(stats, id);
       std::time_t due  = meta.srs_due;
 
@@ -477,11 +485,8 @@ void calc_stats(struct stats &stats, int score_goal,
    calc_schedule(stats, r);
 
    // Calculate if lesson is still in progress
-   auto &meta = calc_get_lesson_meta(stats, r.lesson_id);
-   if (r.col_id == meta.total_columns - 1)
-      meta.in_progress = false;
-   else
-      meta.in_progress = true;
+   auto &meta       = calc_get_lesson_meta(stats, r.lesson_id);
+   meta.in_progress = (r.col_id != meta.total_columns - 1);
 
    // Update working progress tracking for next step
    meta.last_col_id = r.col_id;

@@ -7,6 +7,7 @@
  */
 
 #include "db.h"
+#include "calc.h"
 #include "theory.h"
 #include "util.h"
 #include <algorithm>
@@ -15,19 +16,21 @@
 #include <filesystem>
 #include <fstream>
 #include <iomanip>
+#include <ios>
 #include <sstream>
 #include <string>
 #include <unordered_set>
 #include <utility>
+#include <vector>
 
-const char *config_file   = "settings.ini";
-const char *attempts_file = "attempts.log";
+static const char *config_file   = "settings.ini";
+static const char *attempts_file = "attempts.log";
 
 static std::string escape_value(const std::string &s)
 {
    std::string out;
    out.reserve(s.size());
-   for (char c : s) {
+   for (const char c : s) {
       if (c == '\n')
          out += "\\n";
       else if (c == '\r')
@@ -46,7 +49,7 @@ static std::string unescape_value(const std::string &s)
    out.reserve(s.size());
    for (size_t i = 0; i < s.size(); i++) {
       if (s[i] == '\\' && i + 1 < s.size()) {
-         char n = s[i + 1];
+         const char n = s[i + 1];
          if (n == 'n') {
             out += '\n';
             i++;
@@ -80,7 +83,7 @@ void db_store_key_val(const std::string &key, const std::string &value)
       std::string line;
       while (std::getline(fin, line)) {
          // Keep only lines that don't match the key:
-         if (!(line.rfind(key + ":", 0) == 0)) {
+         if (!line.starts_with(key + ":")) {
             lines.push_back(line);
          }
       }
@@ -114,8 +117,8 @@ std::string db_load_key_val(const std::string &wanted_key)
       if (pos == std::string::npos)
          continue;
 
-      std::string key   = line.substr(0, pos);
-      std::string value = line.substr(pos + 1);
+      const std::string key = line.substr(0, pos);
+      std::string value     = line.substr(pos + 1);
 
       // trim left
       while (!value.empty() && std::isspace((unsigned char)value.front()))
@@ -138,7 +141,7 @@ bool db_load_bool(const std::string &key)
    if (v.empty())
       return default_value;
 
-   std::transform(v.begin(), v.end(), v.begin(), ::tolower);
+   std::ranges::transform(v, v.begin(), ::tolower);
    return (v == "1" || v == "true" || v == "yes" || v == "on");
 }
 
@@ -154,7 +157,7 @@ void db_store_int(const std::string &key, int v)
 
 int db_load_int(const std::string &key)
 {
-   std::string v = db_load_key_val(key);
+   const std::string v = db_load_key_val(key);
    if (v.empty())
       return 0;
 
@@ -167,7 +170,7 @@ int db_load_int(const std::string &key)
 
 static std::string db_lesson_fname(const int id)
 {
-   std::string fname = std::to_string(id);
+   const std::string fname = std::to_string(id);
    return "lessons/" + fname + ".txt";
 }
 
@@ -180,7 +183,7 @@ void db_clear_lesson_file(int lesson_id)
 {
    // Open the file in truncation mode to erase everything
    // File will be closed automatically when 'out' goes out of scope
-   std::ofstream out(db_lesson_fname(lesson_id), std::ios::trunc);
+   const std::ofstream out(db_lesson_fname(lesson_id), std::ios::trunc);
 }
 
 std::vector<int> db_get_lesson_ids(void)
@@ -201,17 +204,17 @@ std::vector<int> db_get_lesson_ids(void)
          continue;
 
       // Remove extension
-      std::string num_str = fname.substr(0, fname.size() - 4);
+      const std::string num_str = fname.substr(0, fname.size() - 4);
       try {
-         int id = std::stoi(num_str);
+         const int id = std::stoi(num_str);
          if (db_lesson_exists(id)) // optional sanity check
             ids.push_back(id);
       } catch (...) {
-         // ignore non-numeric filenames
+         error("non-numeric lesson file detected");
       }
    }
 
-   std::sort(ids.begin(), ids.end()); // optional: return in ascending order
+   std::ranges::sort(ids);
    return ids;
 }
 
@@ -247,7 +250,7 @@ std::string db_load_lesson_key_val(int lesson_id, const std::string &key)
    while (std::getline(file, line)) {
       if (line.empty())
          break;
-      if (line.rfind(key + ":", 0) == 0) {
+      if (line.starts_with(key + ":")) {
          std::string val = line.substr(key.size() + 1);
          val.erase(0, val.find_first_not_of(" \t")); // trim leading spaces/tabs
          return val;
@@ -308,13 +311,13 @@ void db_store_lesson_chords(int lesson_id, const std::vector<column> &chords)
          continue;
 
       std::vector<midi_note> bass_notes(col.bass.begin(), col.bass.end());
-      std::sort(bass_notes.begin(), bass_notes.end());
+      std::ranges::sort(bass_notes);
       out << th_midi_to_name(bass_notes.front()) << " ";
 
       out << th_fig_to_string(col.figures);
 
       std::vector<midi_note> notes(col.answer.begin(), col.answer.end());
-      std::sort(notes.begin(), notes.end());
+      std::ranges::sort(notes);
       for (size_t i = 0; i < notes.size(); ++i) {
          if (i > 0)
             out << ",";
@@ -344,7 +347,8 @@ int db_load_last_lesson_id(void)
    return last_lesson_id;
 }
 
-static bool parse_attempt_line(const std::string &line, attempt_record &out)
+static bool parse_attempt_line(const std::string &line,
+                               struct attempt_record &out)
 {
    if (line.empty())
       return false;
@@ -388,16 +392,16 @@ static bool parse_attempt_line(const std::string &line, attempt_record &out)
    return true;
 }
 
-std::vector<attempt_record> db_read_attempts()
+std::vector<struct attempt_record> db_read_attempts()
 {
-   std::vector<attempt_record> records;
+   std::vector<struct attempt_record> records;
    std::ifstream file(attempts_file);
    if (!file.is_open())
       return records;
 
    std::string line;
    while (std::getline(file, line)) {
-      attempt_record rec{};
+      struct attempt_record rec{};
       if (parse_attempt_line(line, rec)) {
          records.push_back(rec);
       }
@@ -427,7 +431,7 @@ void db_store_attempt(const int lesson_id, unsigned int col_id,
    // bass note (print lowest if multiple)
    if (!col.bass.empty()) {
       std::vector<midi_note> bass_notes(col.bass.begin(), col.bass.end());
-      std::sort(bass_notes.begin(), bass_notes.end());
+      std::ranges::sort(bass_notes);
       ofs << th_midi_to_name(bass_notes.front()) << " ";
    } else {
       ofs << "- ";

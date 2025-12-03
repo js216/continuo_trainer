@@ -7,15 +7,12 @@
  * checking.
  */
 
-#include "RtMidi.h"
 #include "app.h"
 #include "backends/imgui_impl_opengl3.h"
-#include "calc.h"
 #include "imgui.h"
 #include "logic.h"
 #include "midi.h"
 #include "state.h"
-#include "theory.h"
 #include "util.h"
 #include <GL/gl.h>
 #include <GL/glx.h>
@@ -24,12 +21,9 @@
 #include <X11/Xutil.h>
 #include <X11/keysym.h>
 #include <chrono>
-#include <memory>
-#include <ratio>
 #include <string>
 #include <thread>
-#include <unordered_map>
-#include <vector>
+#include <utility>
 
 struct PlatformState {
    // 0-255 safe ASCII storage.
@@ -105,8 +99,8 @@ static bool init_x11_opengl(X11Context *ctx, int width, int height,
       return false;
    }
 
-   int screen  = DefaultScreen(ctx->display);
-   Window root = RootWindow(ctx->display, screen);
+   const int screen  = DefaultScreen(ctx->display);
+   const Window root = RootWindow(ctx->display, screen);
 
    static int visual_attribs[] = {GLX_RGBA, GLX_DEPTH_SIZE, 24,
                                   GLX_DOUBLEBUFFER, None};
@@ -118,7 +112,8 @@ static bool init_x11_opengl(X11Context *ctx, int width, int height,
       return false;
    }
 
-   Colormap cmap = XCreateColormap(ctx->display, root, vi->visual, AllocNone);
+   const Colormap cmap =
+       XCreateColormap(ctx->display, root, vi->visual, AllocNone);
    XSetWindowAttributes swa = {};
    swa.colormap             = cmap;
    swa.event_mask           = ExposureMask | KeyPressMask | KeyReleaseMask |
@@ -190,9 +185,9 @@ static void shutdown_imgui_system()
 static void handle_client_message(const XEvent *xev, bool *running,
                                   X11Context *ctx)
 {
-   long value = xev->xclient.data.l[0];
+   const auto value = xev->xclient.data.l[0];
 
-   if (value == static_cast<long>(ctx->wm_delete_window)) {
+   if (std::cmp_equal(value, ctx->wm_delete_window)) {
       *running = false;
    }
 }
@@ -200,7 +195,7 @@ static void handle_client_message(const XEvent *xev, bool *running,
 static void handle_key_event(const XEvent *xev, PlatformState *pstate,
                              ImGuiIO &io)
 {
-   bool pressed = (xev->type == KeyPress);
+   const bool pressed = (xev->type == KeyPress);
 
    // Create a local mutable copy for Xlib functions
    XKeyEvent key_event = xev->xkey;
@@ -212,7 +207,7 @@ static void handle_key_event(const XEvent *xev, PlatformState *pstate,
       pstate->keys[ks] = pressed;
    }
 
-   ImGuiKey imgui_key = key_map_x11_to_imgui(ks);
+   const ImGuiKey imgui_key = key_map_x11_to_imgui(ks);
    if (imgui_key != ImGuiKey_None) {
       io.AddKeyEvent(imgui_key, pressed);
    }
@@ -224,7 +219,8 @@ static void handle_key_event(const XEvent *xev, PlatformState *pstate,
    if (pressed) {
       char text[32];
       // key_event is already mutable and safe to pass
-      int count = XLookupString(&key_event, text, sizeof(text), &ks, nullptr);
+      const int count =
+          XLookupString(&key_event, text, sizeof(text), &ks, nullptr);
       for (int i = 0; i < count; ++i) {
          io.AddInputCharacter(text[i]);
       }
@@ -234,7 +230,7 @@ static void handle_key_event(const XEvent *xev, PlatformState *pstate,
 static void handle_button_event(const XEvent *xev, PlatformState *pstate,
                                 ImGuiIO &io)
 {
-   int btn = static_cast<int>(xev->xbutton.button) - 1;
+   const int btn = static_cast<int>(xev->xbutton.button) - 1;
    if (btn >= 0 && btn < 3) {
       pstate->mouse_buttons[btn] = (xev->type == ButtonPress);
    }
@@ -276,6 +272,8 @@ static void process_platform_events(X11Context *ctx, PlatformState *pstate,
          case ButtonRelease: handle_button_event(&xev, pstate, io); break;
          case MotionNotify: handle_motion_event(&xev, pstate); break;
          case ConfigureNotify: handle_configure_event(&xev, io); break;
+         default: // ignored
+            break;
       }
    }
 }
@@ -305,9 +303,9 @@ int main()
       auto frame_start = clock::now();
 
       // Calculate DT
-      std::chrono::duration<float> elapsed = frame_start - last_time;
-      last_time                            = frame_start;
-      float dt                             = elapsed.count();
+      const std::chrono::duration<float> elapsed = frame_start - last_time;
+      last_time                                  = frame_start;
+      float dt                                   = elapsed.count();
       if (dt <= 0.0F)
          dt = 0.0001F;
 
@@ -337,8 +335,8 @@ int main()
       glXSwapBuffers(x11_ctx.display, x11_ctx.window);
 
       // Frame Limiter
-      auto frame_end                          = clock::now();
-      std::chrono::duration<double> work_time = frame_end - frame_start;
+      auto frame_end                                = clock::now();
+      const std::chrono::duration<double> work_time = frame_end - frame_start;
       if (work_time < target_frame_time) {
          std::this_thread::sleep_for(target_frame_time - work_time);
       }

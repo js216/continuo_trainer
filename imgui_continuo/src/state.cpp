@@ -12,7 +12,6 @@
 #include "theory.h"
 #include "time_utils.h"
 #include <algorithm>
-#include <iterator>
 #include <string>
 #include <unordered_map>
 #include <unordered_set>
@@ -39,8 +38,7 @@ void state_load_settings(struct settings &set)
 
 void state_clear_lesson(struct state *state)
 {
-   std::fill(std::begin(state->lesson.lesson_title),
-             std::end(state->lesson.lesson_title), '\0');
+   std::ranges::fill(state->lesson.lesson_title, '\0');
    state->lesson.key = KEY_SIG_0;
    state->lesson.chords.clear();
    state->midi.pressed_notes.clear();
@@ -116,14 +114,14 @@ void state_reload_stats(struct state *state)
 
    // 2. Initialize Lesson Cache
    state->stats.lesson_cache.clear();
-   std::vector<int> lessons = db_get_lesson_ids();
+   const std::vector<int> lessons = db_get_lesson_ids();
    for (auto lesson_id : lessons) {
-      std::vector<column> chords = db_load_lesson_chords(lesson_id);
+      const std::vector<column> chords = db_load_lesson_chords(lesson_id);
       calc_create_lesson_meta(state->stats, lesson_id, chords.size());
    }
 
    // 3. Read History
-   std::vector<attempt_record> records = db_read_attempts();
+   const std::vector<attempt_record> records = db_read_attempts();
    if (records.empty())
       return;
 
@@ -143,12 +141,12 @@ void state_reload_stats(struct state *state)
 
 void state_stream_in(struct state *state, struct column &col)
 {
-   double t = time_now();
+   const double t = time_now();
    db_store_attempt(state->lesson.lesson_id, state->ui.active_col, col, t);
 
    col.missed = th_get_missed(col.answer, col.good);
 
-   struct attempt_record r = {
+   const struct attempt_record r = {
        .lesson_id    = state->lesson.lesson_id,
        .col_id       = state->ui.active_col,
        .time         = t,
@@ -163,5 +161,8 @@ void state_stream_in(struct state *state, struct column &col)
 int state_choose_next(struct state *state)
 {
    const std::vector<int> lesson_ids = db_get_lesson_ids();
+   if (!db_lesson_exists(state->lesson.lesson_id))
+      return calc_next(-1, lesson_ids, state->stats);
+
    return calc_next(state->lesson.lesson_id, lesson_ids, state->stats);
 }

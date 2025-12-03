@@ -98,22 +98,22 @@ struct figure {
 };
 
 struct column {
-   std::unordered_set<midi_note> bass;
+   std::unordered_set<enum midi_note> bass;
    std::vector<struct figure> figures;
-   std::unordered_set<midi_note> answer;
-   std::unordered_set<midi_note> good;
-   std::unordered_set<midi_note> bad;
-   std::unordered_set<midi_note> missed;
+   std::unordered_set<enum midi_note> answer;
+   std::unordered_set<enum midi_note> good;
+   std::unordered_set<enum midi_note> bad;
+   std::unordered_set<enum midi_note> missed;
    double time;
 };
 
-enum accidental th_key_sig_accidental(enum key_sig key, midi_note n);
+enum accidental th_key_sig_accidental(enum key_sig key, enum midi_note n);
 int th_note_to_bass(const enum midi_note n, const enum key_sig k);
 int th_note_to_treble(const enum midi_note n, const enum key_sig k);
 int th_key_sig_acc_count(enum key_sig key);
-std::unordered_set<midi_note>
-th_get_missed(const std::unordered_set<midi_note> &answer,
-              const std::unordered_set<midi_note> &good);
+std::unordered_set<enum midi_note>
+th_get_missed(const std::unordered_set<enum midi_note> &answer,
+              const std::unordered_set<enum midi_note> &good);
 
 // convert TO string
 std::string th_key_sig_to_string(enum key_sig);
@@ -123,6 +123,6 @@ std::string th_fig_to_string(const std::vector<figure> &figs);
 // convert FROM string
 key_sig th_parse_key(const std::string &token);
 std::vector<figure> th_parse_figures_from_str(const std::string &token);
-midi_note th_parse_midi_note(const std::string &token);
+enum midi_note th_parse_midi_note(const std::string &token);
 
 #endif /* THEORY_H */

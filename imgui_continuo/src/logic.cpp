@@ -72,8 +72,7 @@ static void process_note(struct state *state, midi_note realization)
 
    struct column &col = state->lesson.chords[state->ui.active_col];
 
-   if (col.good.find(realization) != col.good.end() ||
-       col.bad.find(realization) != col.bad.end())
+   if (col.good.contains(realization) || col.bad.contains(realization))
       return;
 
    if (logic_adjudicate(col, realization))
@@ -160,8 +159,7 @@ static void logic_record(struct state *state)
    struct column &col = state->lesson.chords[state->ui.active_col];
 
    // Determine lowest pressed note
-   unsigned char lowest = *std::min_element(state->midi.pressed_notes.begin(),
-                                            state->midi.pressed_notes.end());
+   unsigned char lowest = *std::ranges::min_element(state->midi.pressed_notes);
 
    // Insert into bass + answer sets
    col.bass.insert(static_cast<midi_note>(lowest));

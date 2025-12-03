@@ -11,6 +11,7 @@
 #include "theory.h"
 #include <algorithm>
 #include <chrono>
+#include <cstddef>
 #include <memory>
 #include <string>
 #include <thread>
@@ -21,7 +22,7 @@ void refresh_midi_devices(struct state *state)
    state->midi.midi_devices.clear();
    try {
       RtMidiIn midi_in;
-      unsigned int n_ports = midi_in.getPortCount();
+      const unsigned int n_ports = midi_in.getPortCount();
 
       for (unsigned int i = 0; i < n_ports; ++i) {
          state->midi.midi_devices.push_back(midi_in.getPortName(i));
@@ -43,10 +44,11 @@ static int midi_to_idx(const std::vector<std::string> &list,
    if (dev_name.empty())
       return -1;
 
-   for (int i = 0; i < (int)list.size(); i++) {
+   for (std::size_t i = 0; i < list.size(); i++) {
       if (list[i] == dev_name)
-         return i;
+         return static_cast<int>(i);
    }
+
    return -1;
 }
 
@@ -120,11 +122,11 @@ void test_midi_out(struct state *state)
    if (!state->midi.midi_out)
       return; // no output connected
 
-   unsigned char note     = NOTES_Cs4;
-   unsigned char velocity = 100;
+   const unsigned char note     = NOTES_Cs4;
+   const unsigned char velocity = 100;
 
    // Note On message: 0x90 = channel 1
-   std::vector<unsigned char> msg_on = {0x90, note, velocity};
+   const std::vector<unsigned char> msg_on = {0x90, note, velocity};
    try {
       state->midi.midi_out->sendMessage(&msg_on);
    } catch (RtMidiError &error) {
@@ -137,7 +139,7 @@ void test_midi_out(struct state *state)
    std::this_thread::sleep_for(std::chrono::milliseconds(250));
 
    // Note Off message: 0x80 = channel 1
-   std::vector<unsigned char> msg_off = {0x80, note, 0};
+   const std::vector<unsigned char> msg_off = {0x80, note, 0};
    try {
       state->midi.midi_out->sendMessage(&msg_off);
    } catch (RtMidiError &error) {
@@ -152,14 +154,14 @@ void test_midi_out(struct state *state)
 void add_pressed_note(struct state *state, unsigned char note)
 {
    auto &notes = state->midi.pressed_notes;
-   if (std::find(notes.begin(), notes.end(), note) == notes.end())
+   if (std::ranges::find(notes, note) == notes.end())
       notes.push_back(note);
 }
 
 void remove_pressed_note(struct state *state, unsigned char note)
 {
    auto &notes = state->midi.pressed_notes;
-   auto it     = std::find(notes.begin(), notes.end(), note);
+   auto it     = std::ranges::find(notes, note);
    if (it != notes.end())
       notes.erase(it);
 }
@@ -188,9 +190,9 @@ void poll_midi(struct state *state)
       if (message.empty())
          continue;
 
-      unsigned char status   = message[0] & 0xF0U;
-      unsigned char note     = message[1];
-      unsigned char velocity = message[2];
+      const unsigned char status   = message[0] & 0xF0U;
+      const unsigned char note     = message[1];
+      const unsigned char velocity = message[2];
 
       // Track pressed/released notes
       if (status == 0x90 && velocity > 0) {
