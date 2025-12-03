@@ -13,6 +13,8 @@
 #include <unordered_map>
 #include <vector>
 
+#define FULL_STREAK 5
+
 struct attempt_record {
    int lesson_id;
    unsigned int col_id;
@@ -77,6 +79,6 @@ void calc_reset_working_state(struct lesson_meta &meta);
 void calc_stats(struct stats &stats, int score_goal,
                 const struct attempt_record &r);
 
-int calc_next(const std::vector<int> &lesson_ids, struct stats &stats);
+int calc_next(int current_lesson, const std::vector<int> &lesson_ids, struct stats &stats);
 
 #endif /* CALC_H */

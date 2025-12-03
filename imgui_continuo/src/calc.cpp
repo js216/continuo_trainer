@@ -16,6 +16,9 @@
 #include <utility>
 #include <cmath>
 
+// TODO: remove this
+#include <iostream>
+
 void calc_create_lesson_meta(struct stats &stats, int lesson_id,
                              std::size_t len)
 {
@@ -110,15 +113,6 @@ static void calc_speed(struct stats &stats, const struct attempt_record &r)
    }
 }
 
-static void apply_mistake_penalty(struct stats &stats, const attempt_record &r)
-{
-   if (r.bad_count > 0)
-      stats.score_today -= static_cast<double>(r.bad_count);
-
-   if (r.missed_count > 0)
-      stats.score_today -= static_cast<double>(r.missed_count);
-}
-
 void calc_reset_working_state(struct lesson_meta &meta)
 {
    meta.working_good     = 0;
@@ -126,20 +120,6 @@ void calc_reset_working_state(struct lesson_meta &meta)
    meta.working_missed   = 0;
    meta.working_duration = 0.0;
    meta.lives_left = std::max(1, static_cast<int>(meta.allowed_mistakes));
-}
-
-static void update_working_state(struct lesson_meta &meta, const attempt_record &r,
-                                 double dt)
-{
-   if ((r.col_id == 0) || (r.col_id == meta.total_columns - 1))
-      calc_reset_working_state(meta);
-
-   meta.working_good += r.good_count;
-   meta.working_bad += r.bad_count;
-   meta.working_missed += r.missed_count;
-   meta.working_duration += dt;
-   meta.lives_left -= meta.working_bad + meta.working_missed;
-   meta.lives_left = std::max(0, meta.lives_left);
 }
 
 static void maybe_apply_completion_bonus(struct stats &stats, lesson_meta &meta)
@@ -173,18 +153,41 @@ static void update_streak(lesson_meta &meta, const attempt_record &r)
    }
 }
 
+static void apply_mistake_penalty(struct stats &stats, const attempt_record &r)
+{
+   if (r.bad_count > 0)
+      stats.score_today -= static_cast<double>(r.bad_count);
+
+   if (r.missed_count > 0)
+      stats.score_today -= static_cast<double>(r.missed_count);
+}
+
+static void update_working_state(struct lesson_meta &meta, const attempt_record &r,
+                                 double dt)
+{
+   if (r.col_id == 0)
+      calc_reset_working_state(meta);
+
+   meta.working_good += r.good_count;
+   meta.working_bad += r.bad_count;
+   meta.working_missed += r.missed_count;
+   meta.working_duration += dt;
+   if (meta.working_bad + meta.working_missed != 0)
+      meta.lives_left -= 1;
+   meta.lives_left = std::max(0, meta.lives_left);
+}
+
 static void calc_score(struct stats &stats, const struct attempt_record &r)
 {
    if (!time_is_today(r.time))
       return; // Only count score from today's attempts
-
-   auto &meta = calc_get_lesson_meta(stats, r.lesson_id);
 
    // (1) Immediate penalties
    apply_mistake_penalty(stats, r);
 
    // (2) Accumulate dt only if progressing
    double dt = 0.0;
+   auto &meta = calc_get_lesson_meta(stats, r.lesson_id);
    if (meta.in_progress && r.col_id > meta.last_col_id) {
       dt = std::min(r.time - meta.last_time, 5.0);
    }
@@ -321,8 +324,9 @@ static double compute_quality(const lesson_meta &meta)
    double pace_score = compute_pace_score(meta.working_max_dt, meta.speed);
 
    // Streak score
-   const double full_streak = 5.0; // streak ≥5 → full credit
-   double streak_score      = std::clamp(meta.streak / full_streak, 0.0, 1.0);
+   double streak_score = std::clamp(
+         static_cast<double>(meta.streak) / static_cast<double>(FULL_STREAK),
+         0.0, 1.0);
 
    // Weighted blend
    const double w_mistake = 0.50;
@@ -382,10 +386,15 @@ static int pick_easier_lesson(const std::vector<int> &lesson_ids, stats &stats,
    return easier_alternatives[idx_dist(rng)];
 }
 
-int calc_next(const std::vector<int> &lesson_ids, struct stats &stats)
+int calc_next(int current_lesson, const std::vector<int> &lesson_ids, struct stats &stats)
 {
    if (lesson_ids.empty())
       return -1;
+
+   // current lesson must have a full streak before choosing the next one
+   const auto &m_cur = calc_get_lesson_meta(stats, current_lesson);
+   if (m_cur.streak < FULL_STREAK)
+      return current_lesson;
 
    int best_candidate     = -1;
    std::time_t lowest_due = std::numeric_limits<std::time_t>::max();
@@ -420,9 +429,9 @@ int calc_next(const std::vector<int> &lesson_ids, struct stats &stats)
 void calc_stats(struct stats &stats, int score_goal,
                 const struct attempt_record &r)
 {
+   calc_score(stats, r);
    calc_duration(stats, r);
    calc_speed(stats, r);
-   calc_score(stats, r);
    calc_practice_streak(stats, r, score_goal);
    calc_schedule(stats, r);
 

@@ -325,7 +325,6 @@ static void app_buttons(struct state *state)
 
 static void draw_streak_boxes(int streak)
 {
-   const int max_boxes = 5;
    const ImVec2 box_size(12, 12);
    const float spacing = 4.0F;
 
@@ -349,7 +348,7 @@ static void draw_streak_boxes(int streak)
    ImDrawList *draw_list = ImGui::GetWindowDrawList();
    ImVec2 p              = ImGui::GetCursorScreenPos();
 
-   for (int i = 0; i < max_boxes; i++) {
+   for (int i = 0; i < FULL_STREAK; i++) {
       ImU32 col = (i < streak) ? fill_col : empty_col;
       draw_list->AddRectFilled(p, ImVec2(p.x + box_size.x, p.y + box_size.y),
                                col);

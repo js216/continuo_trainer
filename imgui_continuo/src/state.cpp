@@ -160,5 +160,5 @@ void state_stream_in(struct state *state, struct column &col)
 int state_choose_next(struct state *state)
 {
    const std::vector<int> lesson_ids = db_get_lesson_ids();
-   return calc_next(lesson_ids, state->stats);
+   return calc_next(state->lesson.lesson_id, lesson_ids, state->stats);
 }
