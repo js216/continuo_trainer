@@ -49,11 +49,14 @@ static bool logic_adjudicate(const struct column &col,
       return realized_pc == (int(n) % 12);
    };
 
-   // replace std::ranges::any_of with manual loop
-   for (auto n : col.answer) {
+   for (auto n : col.bass)
       if (matches_pc(n))
          return true;
-   }
+
+   for (auto n : col.answer)
+      if (matches_pc(n))
+         return true;
+
    return false;
 }
 
