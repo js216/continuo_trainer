@@ -10,6 +10,7 @@
 #define CALC_H
 
 #include <ctime>
+#include <map>
 #include <unordered_map>
 #include <vector>
 
@@ -51,6 +52,11 @@ struct lesson_meta {
    double quality;
 };
 
+struct day_stats {
+   double score;
+   double duration;
+};
+
 struct stats {
    // Today's metrics
    double score_today;
@@ -61,12 +67,13 @@ struct stats {
    std::time_t last_practice_date;
    bool goal_met_today;
 
-   // Global streaming state (to detect lesson switches/abandonment)
+   // Global streaming state
    attempt_record last_record;
    bool has_last_record;
 
-   // Lesson metadata cache
+   // Lesson and practice caches
    std::unordered_map<int, lesson_meta> lesson_cache;
+   std::map<std::time_t, day_stats> history;
 };
 
 void calc_create_lesson_meta(struct stats &stats, int lesson_id,
@@ -79,6 +86,9 @@ void calc_reset_working_state(struct lesson_meta &meta);
 void calc_stats(struct stats &stats, int score_goal,
                 const struct attempt_record &r);
 
-int calc_next(int current_lesson, const std::vector<int> &lesson_ids, struct stats &stats);
+int calc_next(int current_lesson, const std::vector<int> &lesson_ids,
+              struct stats &stats);
+
+void print_history(const stats &stats);
 
 #endif /* CALC_H */

@@ -83,18 +83,3 @@ std::string time_format(double seconds)
 
    return {buf.data()};
 }
-
-std::string time_datestring(double epoch_seconds)
-{
-   // Convert to time_t (integral seconds)
-   auto t = static_cast<std::time_t>(epoch_seconds);
-
-   // Convert to local calendar time
-   std::tm tm_buf = {};
-   localtime_r(&t, &tm_buf);
-
-   // Format: YYYY-MM-DD HH:MM:SS
-   std::ostringstream oss;
-   oss << std::put_time(&tm_buf, "%Y-%m-%d %H:%M:%S");
-   return oss.str();
-}

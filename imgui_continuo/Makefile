@@ -29,7 +29,7 @@ $(TARGET): $(LIB_OBJS) $(OBJS)
 	$(CXX) -o $@ $^ $(LDFLAGS)
 
 rtmidi/RtMidi.o: rtmidi/RtMidi.cpp
-	$(CXX) $(CXXFLAGS) -Wall -D__LINUX_ALSA__ -c $< -o $@
+	$(CXX) $(CXXFLAGS) -D__LINUX_ALSA__ -c $< -o $@
 
 imgui/%.o: imgui/%.cpp
 	$(CXX) $(CPPFLAGS) $(CXXFLAGS) -c $< -o $@

@@ -291,7 +291,7 @@ static void app_buttons(struct state *state)
    bw = ImGui::GetContentRegionAvail().x / 8 - 5.0F;
 
    // green "Next" button when next lesson is available
-   bool next_pressed = false;
+   bool next_pressed     = false;
    const int next_lesson = state_choose_next(state);
    if (state->lesson.lesson_id == next_lesson)
       next_pressed = ImGui::Button("Next", ImVec2(bw, 0));
