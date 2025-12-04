@@ -1,4 +1,4 @@
-title: Handlel No. 8
+title: Handel No. 8
 key: G
 
 E3 - G3,B3,E4
@@ -7,7 +7,7 @@ G3 6 B3,E4
 E3 - G3,B3
 A3 6 C4,F#4
 F#3 - A3,C4
-B3 # D4,F#4
+B3 # D#4,F#4
 G3 6 B3,E4
 A3 - C4,E4
 F#3 6 A3,D4

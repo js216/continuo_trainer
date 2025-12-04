@@ -111,16 +111,22 @@ void calc_reset_working_state(struct lesson_meta &meta)
    meta.lives_left       = std::max(1, static_cast<int>(meta.allowed_mistakes));
 }
 
-static void update_streak(lesson_meta &meta, const attempt_record &r)
+static void update_lesson_streak(lesson_meta &meta, const attempt_record &r)
 {
    if (meta.lives_left < 1) {
       meta.streak = 0;
       return;
    }
 
-   if (r.col_id == meta.total_columns - 1) {
-      meta.streak++;
+   const bool last_end  = (meta.last_col_id == meta.total_columns - 1);
+   const bool first     = (r.col_id == 0);
+   if (first && !last_end) {
+      meta.streak = 0;
+      return;
    }
+
+   if (r.col_id == meta.total_columns - 1)
+      meta.streak++;
 }
 
 static void update_working_state(struct lesson_meta &meta,
@@ -133,7 +139,7 @@ static void update_working_state(struct lesson_meta &meta,
    meta.working_bad += r.bad_count;
    meta.working_missed += r.missed_count;
    meta.working_duration += dt;
-   if (meta.working_bad + meta.working_missed != 0)
+   if (r.bad_count + r.missed_count != 0)
       meta.lives_left -= 1;
    meta.lives_left = std::max(0, meta.lives_left);
 }
@@ -207,7 +213,7 @@ static void calc_score(struct stats &stats, const struct attempt_record &r)
    }
 
    // (4) Update streak based on mistakes
-   update_streak(meta, r);
+   update_lesson_streak(meta, r);
 }
 
 static void calc_practice_streak(struct stats &stats,
