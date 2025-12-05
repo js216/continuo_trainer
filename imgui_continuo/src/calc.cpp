@@ -118,8 +118,8 @@ static void update_lesson_streak(lesson_meta &meta, const attempt_record &r)
       return;
    }
 
-   const bool last_end  = (meta.last_col_id == meta.total_columns - 1);
-   const bool first     = (r.col_id == 0);
+   const bool last_end = (meta.last_col_id == meta.total_columns - 1);
+   const bool first    = (r.col_id == 0);
    if (first && !last_end) {
       meta.streak = 0;
       return;
@@ -222,44 +222,41 @@ static void calc_practice_streak(struct stats &stats,
 {
    const std::time_t day = time_day_start(r.time);
 
-   // Check if we just crossed the goal threshold for this day
-   if (stats.history[day].score >= score_goal) {
-      // For today, use goal_met_today flag to ensure we only count once
-      if (time_is_today(r.time)) {
-         if (!stats.goal_met_today) {
-            stats.goal_met_today = true;
+   /* Recompute the streak from history: count consecutive days
+      ending at 'day' where score >= score_goal. If today does not
+      meet the goal, streak will be 0. */
+   std::time_t cur = day;
+   int streak      = 0;
 
-            const std::time_t today     = day;
-            const std::time_t yesterday = today - 86400;
-
-            // Check continuity
-            if (time_day_start(static_cast<double>(stats.last_practice_date)) ==
-                yesterday) {
-               stats.practice_streak++;
-            } else if (time_day_start(static_cast<double>(
-                           stats.last_practice_date)) == today) {
-               // Already counted
-            } else {
-               // Streak broken or new
-               stats.practice_streak = 1;
-            }
-            stats.last_practice_date = static_cast<std::time_t>(r.time);
-         }
-      } else {
-         // For historical days, check if we haven't already counted this day
-         if (time_day_start(static_cast<double>(stats.last_practice_date)) !=
-             day) {
-            const std::time_t yesterday = day - 86400;
-
-            if (time_day_start(static_cast<double>(stats.last_practice_date)) ==
-                yesterday) {
-               stats.practice_streak++;
-            } else {
-               stats.practice_streak = 1;
-            }
-            stats.last_practice_date = day;
-         }
+   while (true) {
+      auto it = stats.history.find(cur);
+      if (it == stats.history.end()) {
+         break;
       }
+      if (it->second.score >= score_goal) {
+         streak++;
+         cur -= 86400;
+      } else {
+         break;
+      }
+   }
+
+   stats.practice_streak = streak;
+
+   /* goal_met_today should reflect whether today's score meets the goal.
+      (Other code may depend on this flag.) */
+   {
+      auto it_today        = stats.history.find(day);
+      stats.goal_met_today = time_is_today(r.time) &&
+                             it_today != stats.history.end() &&
+                             it_today->second.score >= score_goal;
+   }
+
+   /* Update last_practice_date to the most recent day we have in history
+      (if any), otherwise leave it alone. */
+   if (!stats.history.empty()) {
+      stats.last_practice_date =
+          static_cast<std::time_t>(stats.history.rbegin()->first);
    }
 }
 
