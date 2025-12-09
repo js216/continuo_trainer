@@ -315,6 +315,7 @@ void db_store_lesson_chords(int lesson_id, const std::vector<column> &chords)
       out << th_midi_to_name(bass_notes.front()) << " ";
 
       out << th_fig_to_string(col.figures);
+      out << " ";
 
       std::vector<midi_note> notes(col.answer.begin(), col.answer.end());
       std::ranges::sort(notes);

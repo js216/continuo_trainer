@@ -87,7 +87,6 @@ std::string th_fig_to_string(const std::vector<figure> &figs)
       if (f.num != 0)
          ss << f.num;
    }
-   ss << " "; // keep trailing space as before
    return ss.str();
 }
 
