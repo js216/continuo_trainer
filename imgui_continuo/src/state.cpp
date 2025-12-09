@@ -134,9 +134,6 @@ void state_reload_stats(struct state *state)
 
       calc_stats(state->stats, state->settings.score_goal, r);
    }
-
-   // TODO: remove this
-   print_history(state->stats);
 }
 
 void state_stream_in(struct state *state, struct column &col)

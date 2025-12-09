@@ -19,18 +19,15 @@
 #include <utility>
 #include <vector>
 
-// TODO: remove this
-#include <iostream>
-
 void calc_create_lesson_meta(struct stats &stats, int lesson_id,
                              std::size_t len)
 {
    lesson_meta meta{};
 
-   meta.lesson_id     = lesson_id;
-   meta.total_columns = len;
-   meta.allowed_mistakes =
-       static_cast<std::size_t>(static_cast<double>(meta.total_columns) * 0.1F);
+   meta.lesson_id        = lesson_id;
+   meta.total_columns    = len;
+   meta.allowed_mistakes = static_cast<std::size_t>(
+       static_cast<double>(meta.total_columns) * 0.12F);
 
    meta.streak = 0;
    meta.speed  = 0.0;
@@ -258,26 +255,6 @@ static void calc_practice_streak(struct stats &stats,
       stats.last_practice_date =
           static_cast<std::time_t>(stats.history.rbegin()->first);
    }
-}
-
-void print_history(const struct stats &stats)
-{
-   std::cout << "Practice History:\n";
-   std::cout << "----------------\n";
-
-   for (const auto &entry : stats.history) {
-      const std::time_t day = entry.first;
-      const day_stats &ds   = entry.second;
-
-      char date_str[64];
-      const struct tm *tm_info = std::localtime(&day);
-      std::ignore =
-          std::strftime(date_str, sizeof(date_str), "%Y-%m-%d", tm_info);
-
-      std::cout << "Date: " << date_str << ", Score: " << ds.score
-                << ", Duration: " << ds.duration << "s\n";
-   }
-   std::cout << "----------------\n";
 }
 
 static void update_srs_state(lesson_meta &meta)
