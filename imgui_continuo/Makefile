@@ -1,16 +1,11 @@
 CPPFLAGS = -Iimgui -Irtmidi -Isrc $(shell pkg-config --cflags x11)
-CXXFLAGS  = -Wall -Wextra -std=c++20 -g -fsanitize=address
-LDFLAGS   = -lGL -lX11 -lXext -lpthread -lasound -fsanitize=address
-
-# Files
+CXXFLAGS = -Wall -Wextra -std=c++20 -g -fsanitize=address
+LDFLAGS  = -lGL -lX11 -lXext -lpthread -lasound -fsanitize=address
 
 TARGET  = continuo_trainer
 SRC = $(wildcard src/*.cpp)
 HDRS = $(wildcard src/*.h src/*.hpp)
 OBJS = $(SRC:.cpp=.o)
-
-GRAPH_FILE = inclusions.dot
-PDF_FILE = inclusions.pdf
 
 LIB_OBJS = \
 	rtmidi/RtMidi.o \
@@ -37,9 +32,12 @@ imgui/%.o: imgui/%.cpp
 %.o: %.cpp
 	$(CXX) $(CPPFLAGS) $(CXXFLAGS) -MMD -MF $(@:.o=.d) -c $< -o $@
 
+%: %.o
+	$(CXX) -o $@ $^ $(LDFLAGS)
+
 # Testing and linting
 
-check: format cppcheck tidy inclusions iwyu
+check: format cppcheck tidy inclusions iwyu test
 
 format:
 	clang-format --dry-run -Werror $(SRC)
@@ -54,12 +52,10 @@ cppcheck:
 		--error-exitcode=1 --suppress=missingInclude src
 
 inclusions: $(INC_SRCS) scripts/inclusions.py
-	python3 scripts/inclusions.py $(SRC) $(HDRS) > $(GRAPH_FILE) ; \
+	python3 scripts/inclusions.py $(SRC) $(HDRS) > incl.dot ; \
 	PYTHON_EXIT=$$? ; \
-	dot -Tpdf $(GRAPH_FILE) -o $(PDF_FILE) ; \
+	dot -Tpdf incl.dot -o incl.pdf ; \
 	exit $$PYTHON_EXIT
-
-iwyu:
 
 iwyu:
 	@set -e; \
@@ -70,13 +66,21 @@ iwyu:
 	$$f $(CPPFLAGS); \
 	done
 
+TEST_PROGS = test/test_theory.exe
+
+test: $(TEST_PROGS)
+	test/test_runner.sh $^
+
+test/test_theory: test/test_theory.o src/theory.o src/util.o
+
 # General
 
-.PHONY: all clean check format cppcheck tidy inclusions iwyu
+.PHONY: all clean check format cppcheck tidy inclusions iwyu test
 
 clean:
 	rm -f $(LIB_OBJS) $(OBJS) $(TARGET) compile_commands.json
-	rm -f $(GRAPH_FILE) $(PDF_FILE)
+	rm -f $(TEST_PROGS)
+	rm -f incl.dot incl.pdf
 	rm -f src/*.d
 
 -include $(OBJS:.o=.d)

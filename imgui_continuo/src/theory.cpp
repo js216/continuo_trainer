@@ -17,6 +17,9 @@
 #include <unordered_set>
 #include <vector>
 
+// TODO: remove this
+#include <iostream>
+
 std::string th_key_sig_to_string(const enum key_sig k)
 {
    switch (k) {
@@ -58,11 +61,53 @@ static std::string pitch_class_name(const int pc)
    }
 }
 
-std::string th_midi_to_name(const enum midi_note n)
+std::string th_midi_to_string(const enum midi_note n)
 {
    const int octave = (n / 12) - 1; // n 0 = C-1
    const int note   = n % 12;
    return std::string(pitch_class_name(note)) + std::to_string(octave);
+}
+
+static std::string enharm_pc_name(int pos_in_oct)
+{
+   switch (pos_in_oct) {
+      case 0: return "C";
+      case 1: return "C#";
+      case 2: return "Db";
+      case 3: return "D";
+      case 4: return "D#";
+      case 5: return "Eb";
+      case 6: return "E";
+      case 7: return "Fb";
+      case 8: return "E#";
+      case 9: return "F";
+      case 10: return "F#";
+      case 11: return "Gb";
+      case 12: return "G";
+      case 13: return "G#";
+      case 14: return "Ab";
+      case 15: return "A";
+      case 16: return "A#";
+      case 17: return "Bb";
+      case 18: return "B";
+      case 19: return "Cb";
+      case 20: return "B#";
+      default: return "?";
+   }
+}
+
+std::string th_nn_to_string(const note_name nn)
+{
+   constexpr int NAMES_PER_OCTAVE = 21;
+
+   int idx = static_cast<int>(nn);
+   if (idx < 0 || idx >= static_cast<int>(NN_NUM))
+      return "?";
+
+   const int octave     = idx / NAMES_PER_OCTAVE - 1;
+   const int pos_in_oct = idx % NAMES_PER_OCTAVE;
+
+   return enharm_pc_name(pos_in_oct) + std::to_string(octave);
 }
 
 std::string th_fig_to_string(const std::vector<figure> &figs)
@@ -211,6 +256,89 @@ int th_note_to_treble(const enum midi_note n, const enum key_sig k)
    }
 
    return base + staff_adjust_for_key(n, k);
+}
+
+enum note_name th_preferred_spelling(enum midi_note n, enum key_sig key)
+{
+   const int midi = (int)n;
+   const int pc   = midi % 12; // pitch class 0–11
+   const int oct  = midi / 12; // octave 0–10 (we use 0–8)
+   const int ks   = th_key_sig_acc_count(key);
+
+   const bool prefer_flats = (ks < 0);
+
+   // Each octave block has 21 spellings
+   constexpr int N = 21;
+   const int base  = oct * N;
+
+   // Index within the 21-name octave block
+   int idx = 0;
+
+   switch (pc) {
+      case 0:     // C
+         idx = 0; // NN_Cx
+         break;
+
+      case 1: // C# / Db
+         idx = prefer_flats ? 2 : 1;
+         break;
+
+      case 2: // D
+         idx = 3;
+         break;
+
+      case 3: // D# / Eb
+         idx = prefer_flats ? 5 : 4;
+         break;
+
+      case 4: // E
+         idx = 6;
+         break;
+
+      case 5:         // F (could theoretically be Fb or Es, but we stick to F)
+         idx = 8 + 1; // NN_F0 is 9th? Let's write explicitly:
+         // Let's list indices clearly:
+         //  0 C
+         //  1 Cs
+         //  2 Db
+         //  3 D
+         //  4 Ds
+         //  5 Eb
+         //  6 E
+         //  7 Fb
+         //  8 Es
+         //  9 F   <--- here
+         idx = 9;
+         break;
+
+      case 6: // F# / Gb
+         idx = prefer_flats ? 11 : 10;
+         break;
+
+      case 7: // G
+         idx = 12;
+         break;
+
+      case 8: // G# / Ab
+         idx = prefer_flats ? 14 : 13;
+         break;
+
+      case 9: // A
+         idx = 15;
+         break;
+
+      case 10: // A# / Bb
+         idx = prefer_flats ? 17 : 16;
+         break;
+
+      case 11: // B
+         idx = 18;
+         break;
+
+      default: idx = 0; break;
+   }
+
+   return static_cast<note_name>(base + idx);
 }
 
 int th_key_sig_acc_count(enum key_sig key)

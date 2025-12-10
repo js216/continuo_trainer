@@ -1,0 +1,19 @@
+title: Handel No. 10, bars 9-12
+key: F
+
+D#3 -  G3,A#3
+C3 b C4,D#4,G4
+D3 # D4,F#4,A4
+G2 -  A#3,D4,G4
+D3 4 D4,G4,A4
+D3 # D4,F#4,A4
+G2 -  A#3,D4,G4
+E3 6 C4,E4,G4
+F3 -  C4,F4,A4
+A3 6 C4,F4,A4
+A#3 -  D4,F4
+C3 4 C4,F4,G4
+C3 3 C4,E4,G4
+D3 -  D4,F4,A4
+F3 6 D4,F4,A4
+G3 -  D4,G4,A#4

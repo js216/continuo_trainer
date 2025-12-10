@@ -312,7 +312,7 @@ void db_store_lesson_chords(int lesson_id, const std::vector<column> &chords)
 
       std::vector<midi_note> bass_notes(col.bass.begin(), col.bass.end());
       std::ranges::sort(bass_notes);
-      out << th_midi_to_name(bass_notes.front()) << " ";
+      out << th_midi_to_string(bass_notes.front()) << " ";
 
       out << th_fig_to_string(col.figures);
       out << " ";
@@ -322,7 +322,7 @@ void db_store_lesson_chords(int lesson_id, const std::vector<column> &chords)
       for (size_t i = 0; i < notes.size(); ++i) {
          if (i > 0)
             out << ",";
-         out << th_midi_to_name(notes[i]);
+         out << th_midi_to_string(notes[i]);
       }
 
       out << "\n";
@@ -433,7 +433,7 @@ void db_store_attempt(const int lesson_id, unsigned int col_id,
    if (!col.bass.empty()) {
       std::vector<midi_note> bass_notes(col.bass.begin(), col.bass.end());
       std::ranges::sort(bass_notes);
-      ofs << th_midi_to_name(bass_notes.front()) << " ";
+      ofs << th_midi_to_string(bass_notes.front()) << " ";
    } else {
       ofs << "- ";
    }
@@ -444,7 +444,7 @@ void db_store_attempt(const int lesson_id, unsigned int col_id,
       for (auto n : container) {
          if (!first)
             ofs << ",";
-         ofs << th_midi_to_name(n);
+         ofs << th_midi_to_string(n);
          first = false;
       }
       if (container.empty())

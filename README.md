@@ -88,6 +88,8 @@ practice.
 - support for time signatures and different note durations
 - add melody instruments that play in "Karaoke" mode
 - use Emscripten to make a web app
+- load stats in the main loop, after the window is drawn, so as to display a
+  progress bar instead of just being slow to load
 
 #### Gamification
 
