@@ -61,11 +61,20 @@ static std::string pitch_class_name(const int pc)
    }
 }
 
+static int midi_octave(const enum midi_note n)
+{
+   return (n / 12) - 1; // n 0 = C-1
+}
+
+static int midi_pc(const enum midi_note n)
+{
+   return n % 12;
+}
+
 std::string th_midi_to_string(const enum midi_note n)
 {
-   const int octave = (n / 12) - 1; // n 0 = C-1
-   const int note   = n % 12;
-   return std::string(pitch_class_name(note)) + std::to_string(octave);
+   return std::string(pitch_class_name(midi_pc(n))) +
+          std::to_string(midi_octave(n));
 }
 
 static std::string enharm_pc_name(int pos_in_oct)
@@ -135,28 +144,28 @@ std::string th_fig_to_string(const std::vector<figure> &figs)
    return ss.str();
 }
 
-enum accidental th_key_sig_accidental(enum key_sig key, enum midi_note n)
+enum accidental th_key_sig_accidental(enum key_sig key, enum note_name nn)
 {
-   static const int8_t table[KEY_NUM][12] = {
-       // C  C# D  D# E  F  F# G  G# A  A# B
-       {0, 1, 0, 1, 0, 0, 1, 0, 1, 0, 1, 0}, // C Major
-       {0, 1, 0, 1, 0, 3, 0, 0, 1, 0, 1, 0}, // G Major
-       {3, 0, 0, 1, 0, 3, 0, 0, 1, 0, 1, 0}, // D Major
-       {3, 0, 0, 1, 0, 3, 0, 3, 0, 0, 1, 0}, // A Major
-       {3, 0, 3, 0, 0, 3, 0, 3, 0, 0, 1, 0}, // E Major
-       {3, 0, 3, 0, 0, 3, 0, 3, 0, 3, 0, 0}, // B Major
-       {0, 0, 3, 0, 3, 0, 0, 3, 0, 3, 0, 3}, // F# Major
-       {0, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 3}, // C# Major
-       {0, 1, 0, 1, 0, 0, 1, 0, 1, 0, 0, 3}, // F Major
-       {0, 1, 0, 0, 3, 0, 1, 0, 1, 0, 0, 3}, // Bb Major
-       {0, 1, 0, 0, 3, 0, 1, 0, 0, 3, 0, 3}, // Eb Major
-       {3, 0, 3, 0, 3, 0, 1, 0, 0, 3, 0, 3}, // Ab Major
-       {3, 0, 3, 0, 3, 0, 0, 3, 0, 3, 0, 3}, // Db Major
-       {3, 0, 3, 0, 3, 0, 0, 3, 0, 3, 0, 0}, // Gb Major
-       {3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3}, // Cb Major
+   static const int8_t table[KEY_NUM][21] = {
+       // C C# Db D  D# Eb E  Fb E# F  F# Gb G  G# Ab A  A# Bb B  Cb B#
+       {0, 1, 2, 0, 1, 2, 0, 2, 1, 0, 1, 2, 0, 1, 2, 0, 1, 2, 0, 2, 1}, // C
+       {0, 1, 2, 0, 1, 2, 0, 2, 1, 3, 0, 2, 0, 1, 2, 0, 1, 2, 0, 2, 1}, // G
+       {3, 0, 2, 0, 1, 2, 0, 2, 1, 3, 0, 2, 0, 1, 2, 0, 1, 2, 0, 2, 1}, // D
+       {3, 0, 2, 0, 1, 2, 0, 2, 1, 3, 0, 2, 3, 0, 2, 0, 1, 2, 0, 2, 1}, // A
+       {3, 0, 2, 3, 0, 2, 0, 2, 1, 3, 0, 2, 3, 0, 2, 0, 1, 2, 0, 2, 1}, // E
+       {3, 0, 2, 3, 0, 2, 0, 2, 1, 3, 0, 2, 3, 0, 2, 3, 0, 2, 0, 2, 1}, // B
+       {3, 0, 2, 3, 0, 2, 3, 2, 0, 3, 0, 2, 3, 0, 2, 3, 0, 2, 0, 2, 1}, // F#
+       {3, 0, 2, 3, 0, 2, 3, 2, 0, 3, 0, 2, 3, 0, 2, 3, 0, 2, 3, 2, 0}, // C#
+       {0, 1, 2, 0, 1, 2, 0, 2, 1, 0, 1, 2, 0, 1, 2, 0, 1, 0, 3, 2, 1}, // F
+       {0, 1, 2, 0, 1, 0, 3, 2, 1, 0, 1, 2, 0, 1, 2, 0, 1, 0, 3, 2, 1}, // Bb
+       {0, 1, 2, 0, 1, 0, 3, 2, 1, 0, 1, 2, 0, 1, 0, 3, 1, 0, 3, 2, 1}, // Eb
+       {0, 1, 0, 3, 1, 0, 3, 2, 1, 0, 1, 2, 0, 1, 0, 3, 1, 0, 3, 2, 1}, // Ab
+       {0, 1, 0, 3, 1, 0, 3, 2, 1, 0, 1, 0, 3, 1, 0, 3, 1, 0, 3, 2, 1}, // Db
+       {3, 1, 0, 3, 1, 0, 3, 2, 1, 0, 1, 0, 3, 1, 0, 3, 1, 0, 3, 0, 1}, // Gb
+       {3, 1, 0, 3, 1, 0, 3, 0, 1, 3, 1, 0, 3, 1, 0, 3, 1, 0, 3, 0, 1}, // Cb
    };
 
-   const int8_t ks = table[key][n % 12];
+   const int8_t ks = table[key][nn % 21];
 
    if (ks == 1)
       return ACC_SHARP;
@@ -168,8 +177,9 @@ enum accidental th_key_sig_accidental(enum key_sig key, enum midi_note n)
    return ACC_NONE;
 }
 
-static int staff_adjust_for_key(enum midi_note n, enum key_sig k)
+static int staff_adjust_for_key(enum note_name nn, enum key_sig key)
 {
+   return 0; // TODO: remove this
    static const int flat_key_pc_adjust[7][12] = {
        {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0}, // Bb
        {0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 1, 0}, // Eb
@@ -180,165 +190,166 @@ static int staff_adjust_for_key(enum midi_note n, enum key_sig k)
        {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0}  // F
    };
 
-   if (k >= KEY_SIG_1_FLAT && k <= KEY_SIG_7_FLAT) {
-      const int pc = n % 12;
-      return flat_key_pc_adjust[k - KEY_SIG_1_FLAT][pc];
+   // Map 21-note-per-octave note_name to pitch class 0..11
+   static const int note_pc[21] = {0, 1, 1, 2, 3, 3,  4,  4,  5, 5, 6,
+                                   6, 7, 8, 8, 9, 10, 10, 11, 0, 0};
+
+   int adj = 0;
+   if (key >= KEY_SIG_1_FLAT && key <= KEY_SIG_7_FLAT) {
+      int pc = note_pc[nn % 21]; // pitch class within octave
+      adj    = flat_key_pc_adjust[key - KEY_SIG_1_FLAT][pc];
    }
 
-   // Sharp keys and C major need no adjustment
-   return 0;
+   return adj; // sharp keys and C major
 }
 
-int th_note_to_bass(const enum midi_note n, const enum key_sig k)
+int th_note_to_bass(const enum note_name nn, const enum key_sig key)
 {
    int base = 0;
-
-   switch (n) {
-      case NOTES_D2:
-      case NOTES_Ds2: base = -3; break;
-      case NOTES_E2: base = -2; break;
-      case NOTES_F2:
-      case NOTES_Fs2: base = -1; break;
-      case NOTES_G2:
-      case NOTES_Gs2: base = 0; break;
-      case NOTES_A2:
-      case NOTES_As2: base = 1; break;
-      case NOTES_B2: base = 2; break;
-      case NOTES_C3:
-      case NOTES_Cs3: base = 3; break;
-      case NOTES_D3:
-      case NOTES_Ds3: base = 4; break;
-      case NOTES_E3: base = 5; break;
-      case NOTES_F3:
-      case NOTES_Fs3: base = 6; break;
-      case NOTES_G3:
-      case NOTES_Gs3: base = 7; break;
-      case NOTES_A3:
-      case NOTES_As3: base = 8; break;
-      case NOTES_B3: base = 9; break;
-      case NOTES_C4:
-      case NOTES_Cs4: base = 10; break;
-      case NOTES_D4:
-      case NOTES_Ds4: base = 11; break;
+   switch (nn) {
+      case NN_Cb1: base = -4; break;
+      case NN_C2: base = -4; break;
+      case NN_Cs2: base = -4; break;
+      case NN_Db2: base = -3; break;
+      case NN_D2: base = -3; break;
+      case NN_Ds2: base = -3; break;
+      case NN_Eb2: base = -2; break;
+      case NN_E2: base = -2; break;
+      case NN_Fb2: base = -1; break;
+      case NN_Es2: base = -2; break;
+      case NN_F2: base = -1; break;
+      case NN_Fs2: base = -1; break;
+      case NN_Gb2: base = 0; break;
+      case NN_G2: base = 0; break;
+      case NN_Gs2: base = 0; break;
+      case NN_Ab2: base = 1; break;
+      case NN_A2: base = 1; break;
+      case NN_As2: base = 1; break;
+      case NN_Bb2: base = 2; break;
+      case NN_B2: base = 2; break;
+      case NN_Cb2: base = 3; break;
+      case NN_Bs2: base = 2; break;
+      case NN_C3: base = 3; break;
+      case NN_Cs3: base = 3; break;
+      case NN_Db3: base = 4; break;
+      case NN_D3: base = 4; break;
+      case NN_Ds3: base = 4; break;
+      case NN_Eb3: base = 5; break;
+      case NN_E3: base = 5; break;
+      case NN_Fb3: base = 6; break;
+      case NN_Es3: base = 6; break;
+      case NN_F3: base = 6; break;
+      case NN_Fs3: base = 6; break;
+      case NN_Gb3: base = 7; break;
+      case NN_G3: base = 7; break;
+      case NN_Gs3: base = 7; break;
+      case NN_Ab3: base = 8; break;
+      case NN_A3: base = 8; break;
+      case NN_As3: base = 8; break;
+      case NN_Bb3: base = 9; break;
+      case NN_B3: base = 9; break;
+      case NN_Cb3: base = 10; break;
+      case NN_Bs3: base = 9; break;
+      case NN_C4: base = 10; break;
+      case NN_Cs4: base = 10; break;
       default: return NOTES_OUT_OF_RANGE;
    }
 
-   return base + staff_adjust_for_key(n, k);
+   return base + staff_adjust_for_key(nn, key);
 }
 
-int th_note_to_treble(const enum midi_note n, const enum key_sig k)
+int th_note_to_treble(const enum note_name nn, const enum key_sig key)
 {
    int base = 0;
 
-   switch (n) {
-      case NOTES_D4:
-      case NOTES_Ds4: base = -1; break;
-      case NOTES_E4: base = 0; break;
-      case NOTES_F4:
-      case NOTES_Fs4: base = 1; break;
-      case NOTES_G4:
-      case NOTES_Gs4: base = 2; break;
-      case NOTES_A4:
-      case NOTES_As4: base = 3; break;
-      case NOTES_B4: base = 4; break;
-      case NOTES_C5:
-      case NOTES_Cs5: base = 5; break;
-      case NOTES_D5:
-      case NOTES_Ds5: base = 6; break;
-      case NOTES_E5: base = 7; break;
-      case NOTES_F5:
-      case NOTES_Fs5: base = 8; break;
-      case NOTES_G5:
-      case NOTES_Gs5: base = 9; break;
-      case NOTES_A5:
-      case NOTES_As5: base = 10; break;
+   switch (nn) {
+      case NN_Db4: base = -1; break;
+      case NN_D4: base = -1; break;
+      case NN_Ds4: base = -1; break;
+      case NN_Eb4: base = 0; break;
+      case NN_E4: base = 0; break;
+      case NN_Fb4: base = 1; break;
+      case NN_Es4: base = 0; break;
+      case NN_F4: base = 1; break;
+      case NN_Fs4: base = 1; break;
+      case NN_Gb4: base = 2; break;
+      case NN_G4: base = 2; break;
+      case NN_Gs4: base = 2; break;
+      case NN_Ab4: base = 3; break;
+      case NN_A4: base = 3; break;
+      case NN_As4: base = 3; break;
+      case NN_Bb4: base = 4; break;
+      case NN_B4: base = 4; break;
+      case NN_Cb4: base = 5; break;
+      case NN_Bs4: base = 4; break;
+      case NN_C5: base = 5; break;
+      case NN_Cs5: base = 5; break;
+      case NN_Db5: base = 6; break;
+      case NN_D5: base = 6; break;
+      case NN_Ds5: base = 6; break;
+      case NN_Eb5: base = 7; break;
+      case NN_E5: base = 7; break;
+      case NN_Fb5: base = 8; break;
+      case NN_Es5: base = 7; break;
+      case NN_F5: base = 8; break;
+      case NN_Fs5: base = 8; break;
+      case NN_Gb5: base = 9; break;
+      case NN_G5: base = 9; break;
+      case NN_Gs5: base = 9; break;
+      case NN_Ab5: base = 10; break;
+      case NN_A5: base = 10; break;
+      case NN_As5: base = 10; break;
+      case NN_Bb5: base = 11; break;
       default: return NOTES_OUT_OF_RANGE;
    }
 
-   return base + staff_adjust_for_key(n, k);
+   return base + staff_adjust_for_key(nn, key);
+}
+
+static int octave_start_nn(const enum midi_note n)
+{
+   switch (midi_octave(n)) {
+      case -1: return NN_C_1;
+      case 0: return NN_C0;
+      case 1: return NN_C1;
+      case 2: return NN_C2;
+      case 3: return NN_C3;
+      case 4: return NN_C4;
+      case 5: return NN_C5;
+      case 6: return NN_C6;
+      case 7: return NN_C7;
+      case 8: return NN_C8;
+      case 9: return NN_C9;
+      default: return NN_C0; // fallback
+   }
 }
 
 enum note_name th_preferred_spelling(enum midi_note n, enum key_sig key)
 {
-   const int midi = (int)n;
-   const int pc   = midi % 12; // pitch class 0–11
-   const int oct  = midi / 12; // octave 0–10 (we use 0–8)
-   const int ks   = th_key_sig_acc_count(key);
-
+   const int ks            = th_key_sig_acc_count(key);
    const bool prefer_flats = (ks < 0);
+   const int base          = octave_start_nn(n); // start of 21-note block
 
-   // Each octave block has 21 spellings
-   constexpr int N = 21;
-   const int base  = oct * N;
-
-   // Index within the 21-name octave block
    int idx = 0;
 
-   switch (pc) {
-      case 0:     // C
-         idx = 0; // NN_Cx
-         break;
-
-      case 1: // C# / Db
-         idx = prefer_flats ? 2 : 1;
-         break;
-
-      case 2: // D
-         idx = 3;
-         break;
-
-      case 3: // D# / Eb
-         idx = prefer_flats ? 5 : 4;
-         break;
-
-      case 4: // E
-         idx = 6;
-         break;
-
-      case 5:         // F (could theoretically be Fb or Es, but we stick to F)
-         idx = 8 + 1; // NN_F0 is 9th? Let's write explicitly:
-         // Let's list indices clearly:
-         //  0 C
-         //  1 Cs
-         //  2 Db
-         //  3 D
-         //  4 Ds
-         //  5 Eb
-         //  6 E
-         //  7 Fb
-         //  8 Es
-         //  9 F   <--- here
-         idx = 9;
-         break;
-
-      case 6: // F# / Gb
-         idx = prefer_flats ? 11 : 10;
-         break;
-
-      case 7: // G
-         idx = 12;
-         break;
-
-      case 8: // G# / Ab
-         idx = prefer_flats ? 14 : 13;
-         break;
-
-      case 9: // A
-         idx = 15;
-         break;
-
-      case 10: // A# / Bb
-         idx = prefer_flats ? 17 : 16;
-         break;
-
-      case 11: // B
-         idx = 18;
-         break;
-
+   switch (midi_pc(n)) {
+      case 0: idx = 0; break;                       // C
+      case 1: idx = prefer_flats ? 2 : 1; break;    // C#/Db
+      case 2: idx = 3; break;                       // D
+      case 3: idx = prefer_flats ? 5 : 4; break;    // D#/Eb
+      case 4: idx = 6; break;                       // E
+      case 5: idx = 9; break;                       // F
+      case 6: idx = prefer_flats ? 11 : 10; break;  // F#/Gb
+      case 7: idx = 12; break;                      // G
+      case 8: idx = prefer_flats ? 14 : 13; break;  // G#/Ab
+      case 9: idx = 15; break;                      // A
+      case 10: idx = prefer_flats ? 17 : 16; break; // A#/Bb
+      case 11: idx = 18; break;                     // B
       default: idx = 0; break;
    }
 
-   return static_cast<note_name>(base + idx);
+   auto nn = static_cast<note_name>(base + idx);
+   return nn;
 }
 
 int th_key_sig_acc_count(enum key_sig key)
@@ -508,14 +519,13 @@ th_get_missed(const std::unordered_set<enum midi_note> &answer,
    // Build a set of pitch classes that were played correctly
    std::unordered_set<int> good_pc;
    for (auto n : good) {
-      good_pc.insert(static_cast<int>(n) % 12);
+      good_pc.insert(midi_pc(n));
    }
 
    // Collect missed notes from answer
    std::unordered_set<enum midi_note> missed;
    for (auto n : answer) {
-      const int pc = static_cast<int>(n) % 12;
-      if (!good_pc.contains(pc))
+      if (!good_pc.contains(midi_pc(n)))
          missed.insert(n);
    }
 

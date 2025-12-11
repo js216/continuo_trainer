@@ -144,10 +144,6 @@ enum midi_note {
    NOTES_F9,
    NOTES_Fs9,
    NOTES_G9,
-   NOTES_Gs9,
-   NOTES_A9,
-   NOTES_As9,
-   NOTES_B9,
    NOTES_NUM
 };
 
@@ -172,6 +168,7 @@ enum note_name {
    NN_Bb_1,
    NN_B_1,
    NN_Cb_1,
+   NN_Bs_1,
    NN_C0,
    NN_Cs0,
    NN_Db0,
@@ -192,6 +189,7 @@ enum note_name {
    NN_Bb0,
    NN_B0,
    NN_Cb0,
+   NN_Bs0,
    NN_C1,
    NN_Cs1,
    NN_Db1,
@@ -212,6 +210,7 @@ enum note_name {
    NN_Bb1,
    NN_B1,
    NN_Cb1,
+   NN_Bs1,
    NN_C2,
    NN_Cs2,
    NN_Db2,
@@ -232,6 +231,7 @@ enum note_name {
    NN_Bb2,
    NN_B2,
    NN_Cb2,
+   NN_Bs2,
    NN_C3,
    NN_Cs3,
    NN_Db3,
@@ -252,6 +252,7 @@ enum note_name {
    NN_Bb3,
    NN_B3,
    NN_Cb3,
+   NN_Bs3,
    NN_C4,
    NN_Cs4,
    NN_Db4,
@@ -272,6 +273,7 @@ enum note_name {
    NN_Bb4,
    NN_B4,
    NN_Cb4,
+   NN_Bs4,
    NN_C5,
    NN_Cs5,
    NN_Db5,
@@ -292,6 +294,7 @@ enum note_name {
    NN_Bb5,
    NN_B5,
    NN_Cb5,
+   NN_Bs5,
    NN_C6,
    NN_Cs6,
    NN_Db6,
@@ -312,6 +315,7 @@ enum note_name {
    NN_Bb6,
    NN_B6,
    NN_Cb6,
+   NN_Bs6,
    NN_C7,
    NN_Cs7,
    NN_Db7,
@@ -332,6 +336,7 @@ enum note_name {
    NN_Bb7,
    NN_B7,
    NN_Cb7,
+   NN_Bs7,
    NN_C8,
    NN_Cs8,
    NN_Db8,
@@ -352,6 +357,7 @@ enum note_name {
    NN_Bb8,
    NN_B8,
    NN_Cb8,
+   NN_Bs8,
    NN_C9,
    NN_Cs9,
    NN_Db9,
@@ -365,33 +371,6 @@ enum note_name {
    NN_Fs9,
    NN_Gb9,
    NN_G9,
-   NN_Gs9,
-   NN_Ab9,
-   NN_A9,
-   NN_As9,
-   NN_Bb9,
-   NN_B9,
-   NN_Cb9,
-   NN_C10,
-   NN_Cs10,
-   NN_Db10,
-   NN_D10,
-   NN_Ds10,
-   NN_Eb10,
-   NN_E10,
-   NN_Fb10,
-   NN_Es10,
-   NN_F10,
-   NN_Fs10,
-   NN_Gb10,
-   NN_G10,
-   NN_Gs10,
-   NN_Ab10,
-   NN_A10,
-   NN_As10,
-   NN_Bb10,
-   NN_B10,
-   NN_Cb10,
    NN_NUM
 };
 
@@ -439,12 +418,12 @@ struct column {
 };
 
 // placement
-int th_note_to_bass(const enum midi_note n, const enum key_sig k);
-int th_note_to_treble(const enum midi_note n, const enum key_sig k);
+int th_note_to_bass(const enum note_name nn, const enum key_sig key);
+int th_note_to_treble(const enum note_name nn, const enum key_sig key);
 enum note_name th_preferred_spelling(enum midi_note n, enum key_sig key);
 
 // accidentals
-enum accidental th_key_sig_accidental(enum key_sig key, enum midi_note n);
+enum accidental th_key_sig_accidental(enum key_sig key, enum note_name nn);
 int th_key_sig_acc_count(enum key_sig key);
 
 // judging

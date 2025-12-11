@@ -66,7 +66,7 @@ static float calc_x(const int x_idx, const enum key_sig key)
    return p.x + x_offs + (((float)x_idx + 1) * chord_sep);
 }
 
-static float calc_y(const enum midi_note n, enum key_sig key)
+static float calc_y(const enum note_name nn, enum key_sig key)
 {
    const ImVec2 p        = ImGui::GetCursorScreenPos();
    const float spacing   = 15.0F;
@@ -75,8 +75,8 @@ static float calc_y(const enum midi_note n, enum key_sig key)
    const float staff_gap = spacing * 2.0F;
 
    // treble staff
-   if (n >= NOTES_D4) {
-      const int nb = th_note_to_treble(n, key);
+   if (nn >= NN_Db4) {
+      const int nb = th_note_to_treble(nn, key);
       if (nb == NOTES_OUT_OF_RANGE)
          return NOTES_OUT_OF_RANGE;
 
@@ -87,7 +87,7 @@ static float calc_y(const enum midi_note n, enum key_sig key)
 
    // bass staff
    {
-      const int nb = th_note_to_bass(n, key);
+      const int nb = th_note_to_bass(nn, key);
       if (nb == NOTES_OUT_OF_RANGE)
          return NOTES_OUT_OF_RANGE;
 
@@ -97,7 +97,7 @@ static float calc_y(const enum midi_note n, enum key_sig key)
 
 static float staff_space(void)
 {
-   return fabsf(calc_y(NOTES_A3, KEY_SIG_0) - calc_y(NOTES_C4, KEY_SIG_0));
+   return fabsf(calc_y(NN_A3, KEY_SIG_0) - calc_y(NN_C4, KEY_SIG_0));
 }
 
 static void draw_clefs(ImVec2 origin)
@@ -114,12 +114,12 @@ static void draw_clefs(ImVec2 origin)
                             .anchor_color = 0};
 
    // --- TREBLE CLEF ---
-   const float g_line   = calc_y(NOTES_G4, KEY_SIG_0);
+   const float g_line   = calc_y(NN_G4, KEY_SIG_0);
    const float y_treble = g_line - (fs * 0.8F);
    style_text("\uE050", x, y_treble, &cfg);
 
    // --- BASS CLEF ---
-   const float f_line = calc_y(NOTES_F3, KEY_SIG_0);
+   const float f_line = calc_y(NN_F3, KEY_SIG_0);
    const float y_bass = f_line - (fs * 0.8F);
    style_text("\uE062", x, y_bass, &cfg);
 }
@@ -129,14 +129,14 @@ static void draw_key_sig(struct state *state, ImVec2 origin, bool treble)
    const float fs = 1.5F * staff_space();
    const float x  = origin.x + (fs * 2.4F);
 
-   static const std::array<midi_note, 7> treble_sharps = {
-       NOTES_F5, NOTES_C5, NOTES_G5, NOTES_D5, NOTES_A4, NOTES_E5, NOTES_B4};
-   static const std::array<midi_note, 7> bass_sharps = {
-       NOTES_F3, NOTES_C3, NOTES_G3, NOTES_D3, NOTES_A2, NOTES_E3, NOTES_B2};
-   static const std::array<midi_note, 7> treble_flats = {
-       NOTES_B4, NOTES_E5, NOTES_A4, NOTES_D5, NOTES_G4, NOTES_C5, NOTES_F4};
-   static const std::array<midi_note, 7> bass_flats = {
-       NOTES_B2, NOTES_E3, NOTES_A2, NOTES_D3, NOTES_G2, NOTES_C3, NOTES_F2};
+   static const std::array<note_name, 7> treble_sharps = {
+       NN_F5, NN_C5, NN_G5, NN_D5, NN_A4, NN_E5, NN_B4};
+   static const std::array<note_name, 7> bass_sharps = {
+       NN_F3, NN_C3, NN_G3, NN_D3, NN_A2, NN_E3, NN_B2};
+   static const std::array<note_name, 7> treble_flats = {
+       NN_B4, NN_E5, NN_A4, NN_D5, NN_G4, NN_C5, NN_F4};
+   static const std::array<note_name, 7> bass_flats = {
+       NN_B2, NN_E3, NN_A2, NN_D3, NN_G2, NN_C3, NN_F2};
 
    const int acc_count = th_key_sig_acc_count(state->lesson.key);
 
@@ -175,9 +175,8 @@ void notes_staff(struct state *state)
    const ImVec2 p        = ImGui::GetCursorScreenPos();
    const ImVec2 size     = ImGui::GetContentRegionAvail();
 
-   static const std::array<midi_note, 10> staff_lines = {
-       NOTES_G2, NOTES_B2, NOTES_D3, NOTES_F3, NOTES_A3,
-       NOTES_E4, NOTES_G4, NOTES_B4, NOTES_D5, NOTES_F5};
+   static const std::array<note_name, 10> staff_lines = {
+       NN_G2, NN_B2, NN_D3, NN_F3, NN_A3, NN_E4, NN_G4, NN_B4, NN_D5, NN_F5};
 
    for (const auto &line : staff_lines) {
       const float y = calc_y(line, KEY_SIG_0);
@@ -195,27 +194,45 @@ void notes_staff(struct state *state)
    ImGui::EndChild();
 }
 
-static void draw_ledger_lines(float x, enum midi_note n, float note_radius,
+static bool need_ledger(const enum note_name nn, enum key_sig key)
+{
+   int pos = th_note_to_bass(nn, key);
+
+   // bass
+   if (pos != NOTES_OUT_OF_RANGE) {
+      if (pos <= -2 || pos > 8)
+         if (pos % 2 == 0)
+            return true;
+   }
+
+   // treble
+   else {
+      pos = th_note_to_treble(nn, key);
+      if (pos != NOTES_OUT_OF_RANGE)
+         if (pos < 0 || pos >= 10)
+            if (pos % 2 == 0)
+               return true;
+   }
+
+   return false;
+}
+
+static void draw_ledger_lines(float x, enum note_name nn, float note_radius,
                               enum key_sig key)
 {
    const float ledger_width = 4.0F * note_radius;
 
-   // Normalize special cases: D2 and D#2 use E2’s ledger line
-   if (n == NOTES_D2 || n == NOTES_Ds2)
-      n = NOTES_E2;
+   // Normalize special cases: D2, Db2, and D#2 use E2's ledger line
+   if (nn == NN_D2 || nn == NN_Ds2 || nn == NN_Db2)
+      nn = NN_E2;
 
    // Convert note to staff position
-   const float y = calc_y(n, key);
+   const float y = calc_y(nn, key);
    if (y == NOTES_OUT_OF_RANGE)
       return;
 
-   // Out of staff range? Staff is 0..8
-   const int pos = th_note_to_bass(n, key);
-   if (pos >= 0 && pos <= 8)
-      return;
-
-   // Ledger lines only occur on LINE positions (even pos)
-   if (pos % 2 != 0) // odd = space → no line
+   // Do we need ledger lines at all?
+   if (!need_ledger(nn, key))
       return;
 
    // Draw the ledger line through the note
@@ -225,7 +242,7 @@ static void draw_ledger_lines(float x, enum midi_note n, float note_radius,
                       STYLE_LINE_THICKNESS);
 }
 
-static void draw_accidental(float x, enum midi_note n, float note_radius,
+static void draw_accidental(float x, enum note_name nn, float note_radius,
                             uint32_t color, enum accidental acc,
                             enum key_sig key)
 {
@@ -241,7 +258,7 @@ static void draw_accidental(float x, enum midi_note n, float note_radius,
    };
 
    const float offset_x = x - (0.6F * note_radius);
-   const float y        = calc_y(n, key) - (0.76F * note_radius);
+   const float y        = calc_y(nn, key) - (0.76F * note_radius);
    if (y == NOTES_OUT_OF_RANGE)
       return;
 
@@ -252,16 +269,16 @@ static void notes_dot(enum key_sig key, enum midi_note n, int x_idx,
                       uint32_t color)
 {
    const float note_radius = 0.44F * staff_space();
+   const float x           = calc_x(x_idx, key);
 
-   const float x = calc_x(x_idx, key);
-
-   draw_accidental(x, n, note_radius, color, th_key_sig_accidental(key, n),
-                   key);
-   draw_ledger_lines(x, n, note_radius, key);
-
-   const float y = calc_y(n, key);
+   const enum note_name nn = th_preferred_spelling(n, key);
+   const float y           = calc_y(nn, key);
    if (y == NOTES_OUT_OF_RANGE)
       return;
+
+   draw_accidental(x, nn, note_radius, color, th_key_sig_accidental(key, nn),
+                   key);
+   draw_ledger_lines(x, nn, note_radius, key);
 
    ImDrawList *draw_list = ImGui::GetWindowDrawList();
    draw_list->AddCircleFilled(ImVec2(x, y), note_radius, color);
@@ -401,8 +418,8 @@ static void draw_final_barline(int screen_idx, const enum key_sig key)
    ImDrawList *dl = ImGui::GetWindowDrawList();
    const float x  = calc_x(screen_idx + 1, key);
 
-   const float y_top    = calc_y(NOTES_F5, KEY_SIG_0);
-   const float y_bottom = calc_y(NOTES_G2, KEY_SIG_0);
+   const float y_top    = calc_y(NN_F5, KEY_SIG_0);
+   const float y_bottom = calc_y(NN_G2, KEY_SIG_0);
 
    const float thin  = 1.0F;
    const float thick = 3.50F;
@@ -464,7 +481,9 @@ void notes_draw(struct state *state)
 
       if (!col.bass.empty()) {
          const float x = calc_x(idx, state->lesson.key);
-         const float y = calc_y(*col.bass.begin(), state->lesson.key);
+         const float y =
+             calc_y(th_preferred_spelling(*col.bass.begin(), state->lesson.key),
+                    state->lesson.key);
          if (y != NOTES_OUT_OF_RANGE) {
             const float fs = 1.7F * staff_space();
             draw_chord_figures(fs, x, y, col.figures, STYLE_WHITE);
