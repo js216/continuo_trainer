@@ -79,6 +79,7 @@ practice.
 
 ### Todo
 
+- add insights from the Molly Gebrian book into the algorithm
 - add the entire Couperin, and the next few Handel lessons
 - implement proper gauge widgets in a separate file
 - generate lots of intro lessons in Python, and also targeted ones

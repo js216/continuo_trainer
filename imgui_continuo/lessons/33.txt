@@ -1,0 +1,18 @@
+title: Handel No. 11, bars 5-8
+key: Bb
+
+A2 6 C4,F4,A4
+A#2 -  D4,F4,A#4
+G2 b6 A#3,D#4,G4
+F2 -  A3,C4,F4
+C3 4,6 F3,A3,C4
+C3 n,5 E3,G3,C4,E4
+F3 -  C4,F4,A4
+D3 6 A#3,D4,F4
+A#2 -  D4,F4,A#4
+C3 -  C4,D#4,G4
+D#3 6 C4,D#4,G4
+D3 4,6 G3,A#3,D4,G4
+D3 #,5 D4,F#4,A4
+G2 -  D4,G4,A#4
+G3 n D4,G4,B4
