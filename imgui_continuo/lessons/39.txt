@@ -1,0 +1,15 @@
+title: Handel No. 12, bars 11-13
+key: F
+
+A3 4 D4,E4,A4
+C3 6 C4,E4,A4
+E3 4,6 E4,A4,C5
+E3 -  E4,G4,A#4
+C3 6 C4,E4,A4
+A3 6 F4,A4,C5
+F3 5,6 C4,D4,F4,A4
+G3 -  D4,G4,A#4
+E3 5,6 G3,A#3,C4
+F3 -  C4,F4,A4
+D3 5,n6 F4,A4,B4
+E3 -  E4,G4,A#4

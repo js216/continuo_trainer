@@ -77,45 +77,6 @@ In short: it's a compulsively playable musical "skill machine" that turns the
 addictive mechanics of modern media into rapid, focused, and creative music
 practice.
 
-### Todo
-
-- add insights from the Molly Gebrian book into the algorithm
-- add the entire Couperin, and the next few Handel lessons
-- implement proper gauge widgets in a separate file
-- generate lots of intro lessons in Python, and also targeted ones
-- add voice leading to scoring
-- add time pressure via "Challenge" mode, where notes fly in from the right and
-  you have to hit to chord in the central green region (or yellow around it, &c)
-- support for time signatures and different note durations
-- add melody instruments that play in "Karaoke" mode
-- use Emscripten to make a web app
-- load stats in the main loop, after the window is drawn, so as to display a
-  progress bar instead of just being slow to load
-
-#### Gamification
-
-- more rewards and complexity
-    - Unlock slightly more complex figures for jackpots
-    - Introduce rare collectible items (ornaments, timbres, historical figures)
-    - Unlock new rewards based on streaks and performance
-    - Full progression system visible: points, streaks, ranks, collectibles
-    - Audio/visual reward variety expansion
-    - More complex audio/visual flourishes for jackpot hits
-    - Phase-based progression to keep “one more challenge” loop compelling
-- social and competitive features
-    - Add leaderboard placeholders (local for MVP)
-    - Implement leaderboards (global/friends)
-    - Show streaks, ranks, and relative performance notifications
-    - Optional social comparison features (avatars, status badges)
-    - Limited-time weekly/daily challenges
-    - Unlock rare musical content for top performers
-- Identity & Engagement Optimization
-    - Experiment with fantasy identity framing (Virtuoso, Scholar, Assassin)
-    - Adjust audio/visual reward metaphors per identity
-    - Collect engagement data for identity A/B testing
-    - Tune reward probabilities, jackpot intensity, and pacing based on metrics
-    - Implement hybrid rewards (music + social + collectibles)
-
 ### Author
 
 Jakob Kastelic
