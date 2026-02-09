@@ -2,7 +2,7 @@
 
 /**
  * @file notes.h
- * @brief Note manupulation routines.
+ * @brief Note drawing and manipulation.
  * @author Jakob Kastelic
  */
 

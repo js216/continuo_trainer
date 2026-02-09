@@ -2,7 +2,7 @@
 
 /**
  * @file notes.cpp
- * @brief Note manipulation routines.
+ * @brief Note drawing and manipulation.
  * @author Jakob Kastelic
  */
 

@@ -8,6 +8,10 @@ style while adapting exercises through spaced repetition and gamified learning.
 
 ### Getting Started
 
+Build prerequisites:
+
+    sudo apt-get install pkg-config libgl1-mesa-dev libasound2-dev
+
 To build, just clone project and call make, and then run the program:
 
     $ git clone git@github.com:js216/continuo_trainer.git

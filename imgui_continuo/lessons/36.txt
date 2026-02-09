@@ -2,7 +2,6 @@ title: Handel No. 12, bars 1-4
 key: F
 
 D4 -  F4,A4,D5
-C4 -  E4,G4,C5
 A#3 5,6 D4,F4,G4
 C4 3 E4,G4,C5
 A3 5,6 C4,E4,F4

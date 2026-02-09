@@ -2,9 +2,7 @@
 
 /**
  * @file main.cpp
- * @brief Reliable "C-style" Modern C++ integration.
- * @details No classes, no RAII, manual memory management, strict bounds
- * checking.
+ * @brief Application entry point for X11.
  */
 
 #include "app.h"

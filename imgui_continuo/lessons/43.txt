@@ -1,0 +1,14 @@
+title: Purcell bars 11-15
+key: G
+
+G3 -  D4,G4,B4
+E3 6 G4,C5
+F#3 6 D4,A4
+D3 -  F#4,B4
+E3 -  E4,G4,B4
+C3 7 E4,G4,B4
+D3 -  D4,F#4,A4
+B2 6 D4,G4
+C3 6 E4,A4
+D3 4 D4,G4,A4
+D3 3 D4,F#4,A4
