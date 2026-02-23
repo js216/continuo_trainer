@@ -1,3 +1,6 @@
 [submodule "imgui"]
 	path = imgui_continuo/imgui
 	url = https://github.com/ocornut/imgui.git
+[submodule "imgui_continuo/rtmidi"]
+	path = imgui_continuo/rtmidi
+	url = https://github.com/thestk/rtmidi.git
