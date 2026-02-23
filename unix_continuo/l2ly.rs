@@ -39,6 +39,25 @@ fn main() {
   title = "{title}"
 }}
 
+%% Solidus glyph for passing notes in figured bass.
+%% A simple diagonal stroke, sized and sloped to match the figure column.
+passingNoteSolidus = \markup
+  \override #'(thickness . 1.4)
+  \draw-line #'(0.55 . 1.4)
+
+#(define-public (continuo-format-bass-figure figure event context)
+   (let ((slash (eq? #t (ly:event-property event 'augmented-slash))))
+     (if (and slash (not (number? figure)))
+         passingNoteSolidus
+         (format-bass-figure figure event context))))
+
+\layout {{
+  \context {{
+    \Score
+    figuredBassFormatter = #continuo-format-bass-figure
+  }}
+}}
+
 \score {{
   <<
     \new Staff = "melody" {{
@@ -63,13 +82,12 @@ fn main() {
       >>
     }}
   >>
-  \layout {{ }}
 }}"#,
         title   = title,
         key_ly  = key_ly,
         time    = time,
         melody  = melody_to_ly(&melody),
-        bassline = melody_to_ly(&bassline),
+        bassline = bassline_to_ly(&bassline),
         figures  = figures_to_ly(&figures, &bassline),
     );
 
@@ -96,24 +114,38 @@ fn extract_block(content: &str, block_name: &str) -> String {
     rest[start_brace..end_brace].trim().replace('\n', " ")
 }
 
-// Naive pass-through for melody / bassline notation
+// Naive pass-through for melody notation
 fn melody_to_ly(input: &str) -> String {
     input
         .replace("~ ", "~ ")   // normalise ties (idempotent)
         .replace("~",  "~ ")
 }
 
+// Like melody_to_ly but also strips trailing 'p' passing-note markers from
+// each token so LilyPond sees clean note names (e.g. "fis2p" → "fis2").
+fn bassline_to_ly(input: &str) -> String {
+    let cleaned: Vec<&str> = input
+        .split_whitespace()
+        .map(|tok| if is_passing(tok) { tok.trim_end_matches('p') } else { tok })
+        .collect();
+    cleaned.join(" ")
+}
+
 // Extract the duration suffix from a bassline note token (e.g. "g2" → "2",
-// "fis4." → "4.", "r8" → "8").  Scans past the pitch/accidental/octave
-// characters and returns whatever digit-and-dot tail remains.
+// "fis4." → "4.", "fis2p" → "2").  Strips any trailing passing-note marker
+// before scanning past pitch/accidental/octave characters.
 fn note_duration(token: &str) -> &str {
-    // Skip leading pitch letter (a-g or r for rest)
-    let s = token.trim_start_matches(|c: char| c.is_alphabetic());
-    // Skip accidentals written as 'is'/'es' sequences (still alphabetic,
-    // already consumed above).  Now skip octave marks ' and ,
-    let s = s.trim_start_matches(|c: char| c == '\'' || c == ',');
-    // What remains should be the duration digits and optional dot(s)
+    let token = token.trim_end_matches('p'); // strip passing-note marker if present
+    let s = token.trim_start_matches(|c: char| c.is_alphabetic()); // pitch letter + is/es
+    let s = s.trim_start_matches(|c: char| c == '\'' || c == ','); // octave marks
     s
+}
+
+fn is_passing(token: &str) -> bool {
+    let b = token.as_bytes();
+    b.last() == Some(&b'p')
+        && b.len() > 1
+        && (b[b.len() - 2].is_ascii_digit() || b[b.len() - 2] == b'.')
 }
 
 // Convert the figures block into \figuremode tokens, attaching the duration
@@ -121,12 +153,16 @@ fn note_duration(token: &str) -> &str {
 // can lay them out correctly even without a simultaneous voice to borrow from.
 //
 // Input figure tokens:
-//   0          → <_>    (no figure on this note)
+//   0          → <_>      (no figure on this note)
 //   6          → <6>
-//   #6         → <6+>   (raised sixth)
-//   b6         → <6->   (lowered sixth)
-//   #          → <_+>   (raised third, figured-bass convention)
-//   2/#4/6     → <2 4+ 6>  (stacked, / as separator)
+//   #6         → <6+>     (raised sixth)
+//   b6         → <6->     (lowered sixth)
+//   #          → <_+>     (raised third, figured-bass convention)
+//   2/#4/6     → <2 4+ 6> (stacked, / as separator)
+//
+// Bassline notes marked with a trailing 'p' (e.g. fis2p) are passing notes:
+// their figure is overridden with <_\\> (backward slash, traditional passing note mark)
+// of what the figures block says for that beat.
 fn figures_to_ly(figures: &str, bassline: &str) -> String {
     // Collect bassline tokens that carry a duration (skip ties ~ and barlines |)
     let bass_tokens: Vec<&str> = bassline
@@ -139,7 +175,7 @@ fn figures_to_ly(figures: &str, bassline: &str) -> String {
         .zip(bass_tokens.iter())
         .map(|(fig, bass)| {
             let dur = note_duration(bass);
-            let group = parse_figure(fig);
+            let group = if is_passing(bass) { r"<_\\>".to_string() } else { parse_figure(fig) };
             format!("{}{}", group, dur)
         })
         .collect::<Vec<_>>()
