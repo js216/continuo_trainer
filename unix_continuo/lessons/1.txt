@@ -1,13 +1,13 @@
 title: Purcell bars 48-52
 key: G
-time: 3/4
+time: 3/2
 
 bassline = {
-  g2 f2 e2 b2
+  g2 fis2 e2 b2
   a2 g2 a2 g2
-  f2 g2 f2 e2
-  f2 e2 d2 e2
-  f2 f2 g2 f2 e2
+  fis2 g2 fis2 e2
+  fis2 e2 d2 e2
+  fis2 fis2 g2 fis2 e2
 }
 
 figures = {
@@ -19,9 +19,10 @@ figures = {
 }
 
 melody = {
-  g'2. b'4 b'4 cis''4 d''2 ~ d''1
-  dis''2. cis''4 d''2 e''4. f''8
-  c''4. d''8 cis''4 b'8 r8
-  ais'1 f''2 e''4 d''4 cis''2.
+  g'2. b'4 b'4 cis''4
+  d''1.
+  dis''2. cis''4 dis''2
+  e''4. fis''8 e''4. d''8 cis''4. b'8
+  ais'1 fis''2 e''4 d''4 cis''2.
   b'4 b'1 cis''4. d''8
 }
