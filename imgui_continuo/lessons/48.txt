@@ -1,0 +1,14 @@
+title: Purcell bars 38-42
+key: G
+
+D3 -  D4,F#4,A4
+B2 6 D4,G4
+C#3 6 E4,A4
+A2 6 C4,F#4
+B2 -  D4,F#4,B4
+G2 6 B3,E4
+A2 # C#4,E4,A4
+F#2 6 A3,D4
+G2 -  D4,G4,B4
+A2 4 D4,E4
+A2 # C#4,E4
