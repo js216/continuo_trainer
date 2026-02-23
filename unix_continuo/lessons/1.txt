@@ -1,0 +1,27 @@
+title: Purcell bars 48-52
+key: G
+time: 3/4
+
+bassline = {
+  g2 f2 e2 b2
+  a2 g2 a2 g2
+  f2 g2 f2 e2
+  f2 e2 d2 e2
+  f2 f2 g2 f2 e2
+}
+
+figures = {
+  0 0 #6 0
+  0 0 2/#4/6 0
+  #6 6 0 #6
+  # 0 6 0
+  4 3 0 0 #6
+}
+
+melody = {
+  g'2. b'4 b'4 cis''4 d''2 ~ d''1
+  dis''2. cis''4 d''2 e''4. f''8
+  c''4. d''8 cis''4 b'8 r8
+  ais'1 f''2 e''4 d''4 cis''2.
+  b'4 b'1 cis''4. d''8
+}

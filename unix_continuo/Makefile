@@ -1,18 +1,25 @@
 CFLAGS = -Wall -Wextra -std=c99 -fsanitize=address
 
-PROG = analyzer chunker driver grouper gui hint loader midi \
-       realizer recorder rules scorer stats
+PROGS = analyzer chunker driver grouper gui hint loader midi \
+        realizer recorder rules scorer stats
 
-all: $(PROG)
+BUILD_PROGS = $(addprefix build/,$(PROGS))
 
-%: %.c
-	$(CC) $(CFLAGS) $^ -o $@
+.PHONY: all clean test
 
-%: %.rs
-	rustc $^ -o $@
+all: $(BUILD_PROGS)
+
+build/%: %.c | build
+	$(CC) $(CFLAGS) $< -o $@
+
+build/%: %.rs | build
+	rustc $< -o $@
+
+build:
+	mkdir -p build
 
 clean:
-	rm $(PROG)
+	rm -rf build
 
-test: $(PROG)
-	echo "LESSON_FILE ../imgui_continuo/lessons/2.txt" | ./loader
+test: build/loader
+	echo "LOAD_LESSON 1" | build/loader

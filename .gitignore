@@ -15,3 +15,5 @@ imgui_continuo/test/*
 !imgui_continuo/test/*.c
 !imgui_continuo/test/*.cpp
 !imgui_continuo/test/*.txt
+
+build
