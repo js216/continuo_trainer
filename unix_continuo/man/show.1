@@ -1,0 +1,272 @@
+.TH SHOW 1
+.SH NAME
+show \- display a score primitive stream in an X11 window
+.SH SYNOPSIS
+.B show
+.SH DESCRIPTION
+.B show
+reads the ASCII drawing-primitive stream produced by
+.IR draw (1)
+from standard input, parses all commands into an in-memory list,
+then opens an X11 window and renders the score as a static bitmap.
+.PP
+All input is consumed before the window is opened, so the window is
+created at exactly the right size on the first frame.
+The score is rendered once into an off-screen pixmap; subsequent
+expose events and window resizes blit from that pixmap without
+re-executing any drawing commands.
+.SH USAGE
+.PP
+Typical pipeline:
+.RS
+.EX
+render < score.ly | draw | show
+.EE
+.RE
+.PP
+Build:
+.RS
+.EX
+cc -std=c99 -O2 -o bin/show src/show.c -lX11
+.EE
+.RE
+.SH INPUT FORMAT
+.B show
+reads the output of
+.IR draw (1),
+one command per line.
+Lines beginning with
+.B #
+are treated as comments and ignored, with one exception: a line of the
+form
+.PP
+.RS
+.B # canvas
+.I W H
+.RE
+.PP
+sets the score canvas size to
+.I W
+by
+.I H
+pixels.
+This line must appear before any drawing commands; it is emitted
+automatically by
+.IR draw (1)
+as the second output line.
+.PP
+Empty lines are ignored.
+Unrecognised keywords are silently skipped.
+.SS Drawing commands
+All coordinates and sizes are integer pixels.
+Colours are three decimal integers
+.IR r ,
+.IR g ,
+.IR b
+in the range 0\(en255.
+.TP
+.B stroke_line \fIx0\fR \fIy0\fR \fIx1\fR \fIy1\fR \fIthickness\fR \fIr\fR \fIg\fR \fIb\fR
+Draw a solid line from
+.RI ( x0 , y0 )
+to
+.RI ( x1 , y1 )
+with the given pixel thickness.
+Line ends use round caps; joins use round joins.
+.TP
+.B fill_circle \fIx\fR \fIy\fR \fIw\fR \fIh\fR \fIr\fR \fIg\fR \fIb\fR
+Fill an ellipse whose bounding box has its top-left corner at
+.RI ( x , y )
+with width
+.I w
+and height
+.IR h .
+.TP
+.B stroke_circle \fIx\fR \fIy\fR \fIw\fR \fIh\fR \fIthickness\fR \fIr\fR \fIg\fR \fIb\fR
+Stroke the outline of an ellipse with the same bounding-box convention
+as
+.BR fill_circle .
+.TP
+.B stroke_arc \fIcx\fR \fIcy\fR \fIradius\fR \fIa_min\fR \fIa_max\fR \fIthickness\fR \fIr\fR \fIg\fR \fIb\fR
+Stroke a circular arc centred at
+.RI ( cx , cy )
+with the given radius.
+.I a_min
+and
+.I a_max
+are in whole degrees; 0 is the 3\~o'clock position and angles increase
+counter-clockwise, matching the X11 convention.
+The arc runs from
+.I a_min
+to
+.I a_max
+(extent =
+.IR a_max \- a_min ).
+.TP
+.B fill_arc \fIcx\fR \fIcy\fR \fIradius\fR \fIa_min\fR \fIa_max\fR \fIr\fR \fIg\fR \fIb\fR
+Fill a circular arc sector with the same parameters as
+.BR stroke_arc .
+.TP
+.B fill_triangle \fIx0\fR \fIy0\fR \fIx1\fR \fIy1\fR \fIx2\fR \fIy2\fR \fIr\fR \fIg\fR \fIb\fR
+Fill a triangle with the three given vertices.
+.TP
+.B stroke_curve \fIx0\fR \fIy0\fR \fIcx0\fR \fIcy0\fR \fIcx1\fR \fIcy1\fR \fIx1\fR \fIy1\fR \fIthickness\fR \fIr\fR \fIg\fR \fIb\fR
+Stroke a cubic Bezier curve from
+.RI ( x0 , y0 )
+to
+.RI ( x1 , y1 )
+with control points
+.RI ( cx0 , cy0 )
+and
+.RI ( cx1 , cy1 ).
+The curve is tessellated into 24 line segments using the standard
+de\~Casteljau weights, matching the algorithm in
+.IR nuklear_xlib (3).
+Line ends use round caps.
+.TP
+.B fill_rect \fIx\fR \fIy\fR \fIw\fR \fIh\fR \fIr\fR \fIg\fR \fIb\fR
+Fill the rectangle with top-left corner at
+.RI ( x , y ),
+width
+.I w
+and height
+.IR h .
+.TP
+.B draw_text \fIx\fR \fIy\fR "\fItext\fR" \fIr\fR \fIg\fR \fIb\fR
+Draw the string
+.I text
+at
+.RI ( x , y ).
+The string must be enclosed in double quotes; it may contain spaces.
+.B show
+shifts the y coordinate down by 12 pixels to convert from the
+top-of-glyph origin used by
+.IR draw (1)
+to the baseline origin required by
+.IR XDrawString (3).
+If the red component
+.I r
+is greater than 80 (indicating the grey colour used for figured-bass
+notation), the smaller font is used instead of the normal font.
+.SH WINDOW BEHAVIOUR
+The window opens at the score's natural pixel size as given by the
+.B # canvas
+line.
+If no such line is present the window defaults to 800\(mu600 pixels.
+.PP
+The window title is set to
+.BR Score .
+.PP
+The window can be freely resized.
+When the window is larger than the score, the score is centred and the
+surrounding area is filled with white.
+When the window is smaller than the score, the top-left portion of the
+score is shown and the rest is clipped.
+No scaling is applied; the score is always rendered at 1:1 pixel
+resolution.
+.PP
+The following keys close the window:
+.RS
+.TP
+.B q
+.TQ
+.B Q
+.TQ
+.B Escape
+Quit immediately.
+.RE
+.PP
+Clicking the window manager's close button also exits cleanly.
+.SH FONTS
+Two X11 core fonts are used:
+.TP
+.B FONT_NAME
+.B -\(*-fixed-medium-r-\(*-\(*-14-\(*-\(*-\(*-\(*-\(*-iso8859-\(*
+Used for all text except figured-bass numbers.
+.TP
+.B FONT_SMALL
+.B -\(*-fixed-medium-r-\(*-\(*-11-\(*-\(*-\(*-\(*-\(*-iso8859-\(*
+Used when the draw colour is grey (r > 80), signalling figured-bass text.
+.PP
+If the preferred 14-pixel XLFD pattern is not available,
+.B show
+falls back to the X11 guaranteed font
+.BR fixed .
+If
+.B FONT_SMALL
+is not available, the normal font is used for figured-bass text as well.
+.PP
+These are core X11 bitmap fonts loaded with
+.IR XLoadQueryFont (3).
+To use an outline or system font, the font name constants in the source
+must be changed and
+.IR XftDrawStringUtf8 (3)
+substituted for
+.IR XDrawString (3).
+.SH IMPLEMENTATION NOTES
+.SS Double buffering
+The score is drawn once into an off-screen
+.IR Pixmap (3)
+immediately after the GC is created.
+On every
+.B Expose
+event (and after every
+.B ConfigureNotify
+resize event)
+.IR XCopyArea (3)
+blits from this pixmap to the window.
+Because the pixmap is fixed, repaints are instant and flicker-free.
+.SS Colour allocation
+Colours are allocated with
+.IR XAllocColor (3)
+on the default colormap.
+This works correctly on both 8-bit pseudocolor and 24-bit truecolor
+displays, unlike a direct pixel pack which only works on truecolor.
+.SS Arc angles
+X11 arc functions take angles in 64ths of a degree.
+.B show
+multiplies the integer degree values from
+.IR draw (1)
+by 64 before passing them to
+.IR XDrawArc (3)
+and
+.IR XFillArc (3).
+The extent is computed as
+.RI ( a_max \- a_min )\(mu64.
+.SH DIAGNOSTICS
+.TP
+.B show: cannot open display
+.IR XOpenDisplay (3)
+returned NULL.
+The
+.B DISPLAY
+environment variable is not set or the X server is not reachable.
+.TP
+.B show: cannot load font
+Neither the preferred XLFD pattern nor the fallback
+.B fixed
+font could be loaded.
+.TP
+.B show: too many commands (max 65536)
+The input stream contained more than 65536 drawing commands.
+The constant
+.B MAX_CMDS
+in the source must be increased.
+.SH EXIT STATUS
+.B show
+exits with status 0 in all normal cases, including keyboard or
+window-manager quit.
+It calls
+.IR exit (3)
+with status 1 if
+.I strdup
+fails during input parsing.
+.SH SEE ALSO
+.IR draw (1),
+.IR render (1),
+.IR loader (1),
+.IR XDrawLine (3),
+.IR XFillArc (3),
+.IR XDrawString (3),
+.IR XCopyArea (3)
+.SH AUTHOR
+Written by Jakob Kastelic (2026).
