@@ -20,5 +20,9 @@ build/%: %.rs | build
 build:
 	mkdir -p build
 
+format:
+	clang-format -i *.c
+	rustfmt *.rs
+
 clean:
 	rm -rf build lessons/*.pdf
