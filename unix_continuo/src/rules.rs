@@ -36,10 +36,14 @@ fn pitch_to_semitone(p: &str) -> Option<i32> {
     let p = p.trim_end_matches(|c: char| c.is_ascii_digit() || c == '.');
 
     // Find the end of the note name + accidental
-    let note_chars: &[char] = &['a','b','c','d','e','f','g'];
-    if p.is_empty() { return None; }
+    let note_chars: &[char] = &['a', 'b', 'c', 'd', 'e', 'f', 'g'];
+    if p.is_empty() {
+        return None;
+    }
     let first = p.chars().next()?.to_ascii_lowercase();
-    if !note_chars.contains(&first) { return None; }
+    if !note_chars.contains(&first) {
+        return None;
+    }
 
     // Collect accidental part (es/is/s/flat/sharp variants in LilyPond)
     let rest = &p[1..];
@@ -60,11 +64,14 @@ fn pitch_to_semitone(p: &str) -> Option<i32> {
     };
 
     // Count octave modifiers
-    let octave_delta: i32 = after_acc.chars().map(|c| match c {
-        '\'' => 12,
-        ','  => -12,
-        _    => 0,
-    }).sum();
+    let octave_delta: i32 = after_acc
+        .chars()
+        .map(|c| match c {
+            '\'' => 12,
+            ',' => -12,
+            _ => 0,
+        })
+        .sum();
 
     // Base semitone in octave 0 (c=0)
     let base = match first {
@@ -75,7 +82,7 @@ fn pitch_to_semitone(p: &str) -> Option<i32> {
         'g' => 7,
         'a' => 9,
         'b' => 11,
-        _   => return None,
+        _ => return None,
     };
 
     // LilyPond's default octave for undecorated notes puts middle C (c') at MIDI 60.
@@ -112,10 +119,14 @@ fn current_is_passing(window: &[Group]) -> bool {
 
 /// Parallel fifths / octaves between any two voice pairs across consecutive non-passing groups.
 fn rule_no_parallel_fifths(window: &[Group]) -> Result<(), String> {
-    if window.len() < 2 { return Ok(()); }
+    if window.len() < 2 {
+        return Ok(());
+    }
     let prev = &window[window.len() - 2];
     let curr = &window[window.len() - 1];
-    if curr.passing || prev.passing { return Ok(()); }
+    if curr.passing || prev.passing {
+        return Ok(());
+    }
 
     // Collect voices: bass_actual + realization (lowest to highest by semitone)
     let mut prev_voices: Vec<&str> = std::iter::once(prev.bass_actual.as_str())
@@ -139,26 +150,49 @@ fn rule_no_parallel_fifths(window: &[Group]) -> Result<(), String> {
             if pv_i.is_empty() || pv_j.is_empty() || cv_i.is_empty() || cv_j.is_empty() {
                 continue;
             }
-            let prev_int = match interval_semitones(pv_i, pv_j) { Some(v) => v, None => continue };
-            let curr_int = match interval_semitones(cv_i, cv_j) { Some(v) => v, None => continue };
+            let prev_int = match interval_semitones(pv_i, pv_j) {
+                Some(v) => v,
+                None => continue,
+            };
+            let curr_int = match interval_semitones(cv_i, cv_j) {
+                Some(v) => v,
+                None => continue,
+            };
 
             // Both are perfect fifth or octave and voices move in the same direction → parallel
-            let is_parallel_fifth  = is_perfect_fifth(prev_int) && is_perfect_fifth(curr_int);
-            let is_parallel_octave = is_perfect_unison_or_octave(prev_int) && is_perfect_unison_or_octave(curr_int);
+            let is_parallel_fifth = is_perfect_fifth(prev_int) && is_perfect_fifth(curr_int);
+            let is_parallel_octave =
+                is_perfect_unison_or_octave(prev_int) && is_perfect_unison_or_octave(curr_int);
 
             if is_parallel_fifth || is_parallel_octave {
                 // Check same direction of motion
-                let psi = match pitch_to_semitone(pv_i) { Some(v) => v, None => continue };
-                let csi = match pitch_to_semitone(cv_i) { Some(v) => v, None => continue };
-                let psj = match pitch_to_semitone(pv_j) { Some(v) => v, None => continue };
-                let csj = match pitch_to_semitone(cv_j) { Some(v) => v, None => continue };
+                let psi = match pitch_to_semitone(pv_i) {
+                    Some(v) => v,
+                    None => continue,
+                };
+                let csi = match pitch_to_semitone(cv_i) {
+                    Some(v) => v,
+                    None => continue,
+                };
+                let psj = match pitch_to_semitone(pv_j) {
+                    Some(v) => v,
+                    None => continue,
+                };
+                let csj = match pitch_to_semitone(cv_j) {
+                    Some(v) => v,
+                    None => continue,
+                };
 
                 let dir_i = (csi - psi).signum();
                 let dir_j = (csj - psj).signum();
 
                 // Parallel motion into perfect consonance (same direction, non-zero)
                 if dir_i == dir_j && dir_i != 0 {
-                    let kind = if is_parallel_fifth { "fifths" } else { "octaves" };
+                    let kind = if is_parallel_fifth {
+                        "fifths"
+                    } else {
+                        "octaves"
+                    };
                     return Err(format!(
                         "Parallel {} between voice {} ({}->{}) and voice {} ({}->{})",
                         kind, i, pv_i, cv_i, j, pv_j, cv_j
@@ -172,14 +206,24 @@ fn rule_no_parallel_fifths(window: &[Group]) -> Result<(), String> {
 
 /// Rule: melody should not leap by more than a major sixth (9 semitones) in a single step.
 fn rule_melody_no_large_leap(window: &[Group]) -> Result<(), String> {
-    if window.len() < 2 { return Ok(()); }
+    if window.len() < 2 {
+        return Ok(());
+    }
     let prev = &window[window.len() - 2];
     let curr = &window[window.len() - 1];
-    if curr.passing { return Ok(()); }
+    if curr.passing {
+        return Ok(());
+    }
 
     // Take last note of previous melody and first note of current melody
-    let prev_last = match prev.melody_notes.last() { Some(n) => n, None => return Ok(()) };
-    let curr_first = match curr.melody_notes.first() { Some(n) => n, None => return Ok(()) };
+    let prev_last = match prev.melody_notes.last() {
+        Some(n) => n,
+        None => return Ok(()),
+    };
+    let curr_first = match curr.melody_notes.first() {
+        Some(n) => n,
+        None => return Ok(()),
+    };
 
     if let Some(iv) = interval_semitones(prev_last, curr_first) {
         if iv > 9 {
@@ -194,10 +238,14 @@ fn rule_melody_no_large_leap(window: &[Group]) -> Result<(), String> {
 
 /// Rule: the bass should not move by a diminished interval (tritone = 6 semitones).
 fn rule_no_tritone_bass_leap(window: &[Group]) -> Result<(), String> {
-    if window.len() < 2 { return Ok(()); }
+    if window.len() < 2 {
+        return Ok(());
+    }
     let prev = &window[window.len() - 2];
     let curr = &window[window.len() - 1];
-    if curr.passing { return Ok(()); }
+    if curr.passing {
+        return Ok(());
+    }
 
     if let Some(iv) = interval_semitones(&prev.bass_actual, &curr.bass_actual) {
         if iv % 12 == 6 {
@@ -248,7 +296,9 @@ const RULES: &[RuleFn] = &[
 
 fn parse_group(line: &str) -> Option<Group> {
     // GROUP ID:0 passing BASS:g2 FIGURES:0 MELODY:g'2. BASS_ACTUAL:g TIME:4531 REALIZATION:b'/g'/d'
-    if !line.starts_with("GROUP ") { return None; }
+    if !line.starts_with("GROUP ") {
+        return None;
+    }
 
     let mut id = 0usize;
     let mut passing = false;
@@ -292,7 +342,9 @@ fn parse_group(line: &str) -> Option<Group> {
         if token.starts_with("MELODY:") {
             in_melody = true;
             let after = &token["MELODY:".len()..];
-            if !after.is_empty() { melody_notes.push(after.to_string()); }
+            if !after.is_empty() {
+                melody_notes.push(after.to_string());
+            }
         } else if in_melody {
             // Stop when we hit another KEY: token
             if token.contains(':') {
@@ -303,7 +355,16 @@ fn parse_group(line: &str) -> Option<Group> {
         }
     }
 
-    Some(Group { id, passing, bass, figures, melody_notes, bass_actual, time, realization })
+    Some(Group {
+        id,
+        passing,
+        bass,
+        figures,
+        melody_notes,
+        bass_actual,
+        time,
+        realization,
+    })
 }
 
 // ---------------------------------------------------------------------------
@@ -318,7 +379,10 @@ fn main() {
     for line in stdin.lock().lines() {
         let line = match line {
             Ok(l) => l,
-            Err(e) => { eprintln!("Error reading input: {}", e); break; }
+            Err(e) => {
+                eprintln!("Error reading input: {}", e);
+                break;
+            }
         };
         let line = line.trim();
 
@@ -353,7 +417,7 @@ fn main() {
         }
 
         match result {
-            Ok(())   => println!("RESULT {} OK", id),
+            Ok(()) => println!("RESULT {} OK", id),
             Err(msg) => println!("RESULT {} FAIL {}", id, msg),
         }
     }

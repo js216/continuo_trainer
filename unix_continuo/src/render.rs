@@ -14,18 +14,27 @@ use std::io::{self, Read};
 /// backslash.  Quoted strings are kept as one token including the quotes.
 /// Scheme expressions beginning with # are absorbed as a single opaque token.
 fn tokenise(src: &str) -> Vec<String> {
-    let mut out   = Vec::new();
+    let mut out = Vec::new();
     let mut chars = src.chars().peekable();
 
     while let Some(&ch) = chars.peek() {
         match ch {
-            '%' => { // line comment
+            '%' => {
+                // line comment
                 while chars.next().map(|c| c != '\n').unwrap_or(false) {}
             }
-            c if c.is_whitespace() => { chars.next(); }
-            '{' | '}' | '|' => { out.push(ch.to_string()); chars.next(); }
+            c if c.is_whitespace() => {
+                chars.next();
+            }
+            '{' | '}' | '|' => {
+                out.push(ch.to_string());
+                chars.next();
+            }
             // angle bracket: could be < in a chord/figure group or standalone >
-            '<' | '>' => { out.push(ch.to_string()); chars.next(); }
+            '<' | '>' => {
+                out.push(ch.to_string());
+                chars.next();
+            }
             '\\' => {
                 chars.next();
                 if chars.peek() == Some(&'\\') {
@@ -34,10 +43,13 @@ fn tokenise(src: &str) -> Vec<String> {
                     out.push("\\\\".to_string());
                 } else {
                     let mut w = String::from("\\");
-                    while chars.peek()
+                    while chars
+                        .peek()
                         .map(|&c| c.is_alphanumeric() || c == '-' || c == '_')
                         .unwrap_or(false)
-                    { w.push(chars.next().unwrap()); }
+                    {
+                        w.push(chars.next().unwrap());
+                    }
                     out.push(w);
                 }
             }
@@ -45,7 +57,9 @@ fn tokenise(src: &str) -> Vec<String> {
                 chars.next();
                 let mut s = String::from("\"");
                 for c in chars.by_ref() {
-                    if c == '"' { break; }
+                    if c == '"' {
+                        break;
+                    }
                     s.push(c);
                 }
                 s.push('"');
@@ -54,16 +68,29 @@ fn tokenise(src: &str) -> Vec<String> {
             '#' => {
                 // Scheme expression: absorb to end of balanced parens or EOL
                 chars.next();
-                let mut tok   = String::from("#");
+                let mut tok = String::from("#");
                 let mut depth = 0i32;
                 loop {
                     match chars.peek() {
-                        None                          => break,
-                        Some(&'(')                    => { depth += 1; tok.push('('); chars.next(); }
-                        Some(&')')                    => { tok.push(')'); chars.next(); depth -= 1;
-                                                          if depth <= 0 { break; } }
-                        Some(&'\n') if depth == 0     => break,
-                        Some(&c)                      => { tok.push(c); chars.next(); }
+                        None => break,
+                        Some(&'(') => {
+                            depth += 1;
+                            tok.push('(');
+                            chars.next();
+                        }
+                        Some(&')') => {
+                            tok.push(')');
+                            chars.next();
+                            depth -= 1;
+                            if depth <= 0 {
+                                break;
+                            }
+                        }
+                        Some(&'\n') if depth == 0 => break,
+                        Some(&c) => {
+                            tok.push(c);
+                            chars.next();
+                        }
                     }
                 }
                 out.push(tok);
@@ -71,12 +98,18 @@ fn tokenise(src: &str) -> Vec<String> {
             _ => {
                 let mut w = String::new();
                 while let Some(&c) = chars.peek() {
-                    if c.is_whitespace() || "{}|%\"<>".contains(c) { break; }
-                    if c == '\\' { break; }
+                    if c.is_whitespace() || "{}|%\"<>".contains(c) {
+                        break;
+                    }
+                    if c == '\\' {
+                        break;
+                    }
                     w.push(c);
                     chars.next();
                 }
-                if !w.is_empty() { out.push(w); }
+                if !w.is_empty() {
+                    out.push(w);
+                }
             }
         }
     }
@@ -95,20 +128,30 @@ fn parse_note_token(tok: &str) -> Option<(&str, &str, &str, bool, bool)> {
     let bytes = tok.as_bytes();
     // pitch name: alphabetic
     let mut i = 0;
-    while i < bytes.len() && bytes[i].is_ascii_alphabetic() { i += 1; }
-    if i == 0 { return None; }
+    while i < bytes.len() && bytes[i].is_ascii_alphabetic() {
+        i += 1;
+    }
+    if i == 0 {
+        return None;
+    }
     let name = &tok[..i];
     // octave marks
     let oct_start = i;
-    while i < bytes.len() && (bytes[i] == b'\'' || bytes[i] == b',') { i += 1; }
+    while i < bytes.len() && (bytes[i] == b'\'' || bytes[i] == b',') {
+        i += 1;
+    }
     let oct = &tok[oct_start..i];
     // duration digit
     let dur_start = i;
-    while i < bytes.len() && bytes[i].is_ascii_digit() { i += 1; }
+    while i < bytes.len() && bytes[i].is_ascii_digit() {
+        i += 1;
+    }
     let dur = &tok[dur_start..i];
     // dot
     let dotted = i < bytes.len() && bytes[i] == b'.';
-    if dotted { i += 1; }
+    if dotted {
+        i += 1;
+    }
     // tie
     let tied = i < bytes.len() && bytes[i] == b'~';
     Some((name, oct, dur, dotted, tied))
@@ -123,7 +166,7 @@ fn dur_to_slots(dur: &str, dotted: bool) -> Option<f64> {
         "4" => 1.0,
         "8" => 0.5,
         "16" => 0.25,
-        _   => return None,
+        _ => return None,
     };
     Some(if dotted { base * 1.5 } else { base })
 }
@@ -132,22 +175,40 @@ fn dur_to_slots(dur: &str, dotted: bool) -> Option<f64> {
 fn diatonic_index(name: &str) -> Option<i32> {
     // name may have is/es suffix; only first char matters for step
     match name.chars().next()? {
-        'c' => Some(0), 'd' => Some(1), 'e' => Some(2), 'f' => Some(3),
-        'g' => Some(4), 'a' => Some(5), 'b' => Some(6),
-        _   => None,
+        'c' => Some(0),
+        'd' => Some(1),
+        'e' => Some(2),
+        'f' => Some(3),
+        'g' => Some(4),
+        'a' => Some(5),
+        'b' => Some(6),
+        _ => None,
     }
 }
 
 /// True if the pitch name implies an accidental.
 fn accidental_semitones(name: &str) -> i32 {
-    if name.ends_with("is") { 1 } else if name.ends_with("es") || name.ends_with("as") { -1 } else { 0 }
+    if name.ends_with("is") {
+        1
+    } else if name.ends_with("es") || name.ends_with("as") {
+        -1
+    } else {
+        0
+    }
 }
 
 /// Parse octave marks ('', ', ,,) into an integer offset from LilyPond
 /// "default" octave.  LilyPond starts at octave 3 for bare note names;
 /// each ' adds 1, each , subtracts 1.
 fn octave_offset(marks: &str) -> i32 {
-    marks.chars().map(|c| match c { '\'' => 1, ',' => -1, _ => 0 }).sum()
+    marks
+        .chars()
+        .map(|c| match c {
+            '\'' => 1,
+            ',' => -1,
+            _ => 0,
+        })
+        .sum()
 }
 
 /// Convert a LilyPond pitch to an absolute MIDI-style octave number.
@@ -168,11 +229,11 @@ fn ly_octave(oct_marks: &str) -> i32 {
 ///   half_sp = (octave - 2)*14 + (diatonic - 4)
 ///   G2=0, A2=1, B2=2, C3=3, D3=4(middle), E3=5, F3=6, G3=7, A3=8(top line)
 fn staff_halfsp(name: &str, oct_marks: &str, clef: &Clef) -> i32 {
-    let d   = diatonic_index(name).unwrap_or(0);
+    let d = diatonic_index(name).unwrap_or(0);
     let oct = ly_octave(oct_marks);
     match clef {
         Clef::Treble => (oct - 4) * 14 + (d - 2),
-        Clef::Bass   => (oct - 2) * 14 + (d - 4),
+        Clef::Bass => (oct - 2) * 14 + (d - 4),
     }
 }
 
@@ -188,17 +249,20 @@ fn halfsp_to_y(halfsp: i32) -> f64 {
 // ============================================================
 
 #[derive(Debug, Clone, PartialEq)]
-enum Clef { Treble, Bass }
+enum Clef {
+    Treble,
+    Bass,
+}
 
 /// A parsed music event at a specific time position.
 #[derive(Debug, Clone)]
 struct Event {
     /// Beat position within the staff (in slots from the beginning)
-    slot:   f64,
+    slot: f64,
     /// Duration in slots
-    dur:    f64,
+    dur: f64,
     /// The event kind
-    kind:   EventKind,
+    kind: EventKind,
 }
 
 #[derive(Debug, Clone)]
@@ -206,9 +270,9 @@ enum EventKind {
     Note {
         /// All pitches in the notehead (len > 1 = chord)
         pitches: Vec<Pitch>,
-        filled:  bool,   // quarter/eighth = filled; half = open; whole handled separately
-        whole:   bool,
-        tied:    bool,   // this note ties into the next
+        filled: bool, // quarter/eighth = filled; half = open; whole handled separately
+        whole: bool,
+        tied: bool, // this note ties into the next
     },
     Rest,
     Spacer,
@@ -222,37 +286,37 @@ enum EventKind {
 #[derive(Debug, Clone)]
 struct Pitch {
     #[allow(dead_code)]
-    name:    String,   // "g", "cis", "fis", ...
+    name: String, // "g", "cis", "fis", ...
     #[allow(dead_code)]
-    oct:     String,   // octave marks
-    halfsp:  i32,      // precomputed staff half-space position
-    acc:     i32,      // accidental semitones: -1 flat, 0 natural, 1 sharp
+    oct: String, // octave marks
+    halfsp: i32, // precomputed staff half-space position
+    acc: i32,    // accidental semitones: -1 flat, 0 natural, 1 sharp
 }
 
 #[derive(Debug, Clone)]
 enum FigSym {
-    Blank,            // _
-    Slash,            // passing-note solidus
-    Num(u8),          // plain digit
-    NumSharp(u8),     // digit+
-    NumFlat(u8),      // digit-
+    Blank,        // _
+    Slash,        // passing-note solidus
+    Num(u8),      // plain digit
+    NumSharp(u8), // digit+
+    NumFlat(u8),  // digit-
 }
 
 /// One fully-parsed staff.
 #[derive(Debug)]
 struct Staff {
-    clef:    Clef,
-    sharps:  i32,      // key signature: positive = sharps, negative = flats
+    clef: Clef,
+    sharps: i32, // key signature: positive = sharps, negative = flats
     timesig: (u32, u32),
     /// Primary voice events
-    voice1:  Vec<Event>,
+    voice1: Vec<Event>,
     /// Second voice events (only for "real-bass" staff)
-    voice2:  Vec<Event>,
+    voice2: Vec<Event>,
     /// Figured bass events (only for "bass" staff)
     figures: Vec<Event>,
     /// Name as declared in the LilyPond source
     #[allow(dead_code)]
-    name:    String,
+    name: String,
 }
 
 // ============================================================
@@ -261,13 +325,17 @@ struct Staff {
 
 struct Parser {
     tokens: Vec<String>,
-    pos:    usize,
+    pos: usize,
 }
 
 impl Parser {
-    fn new(tokens: Vec<String>) -> Self { Parser { tokens, pos: 0 } }
+    fn new(tokens: Vec<String>) -> Self {
+        Parser { tokens, pos: 0 }
+    }
 
-    fn peek(&self) -> Option<&str> { self.tokens.get(self.pos).map(|s| s.as_str()) }
+    fn peek(&self) -> Option<&str> {
+        self.tokens.get(self.pos).map(|s| s.as_str())
+    }
 
     fn next(&mut self) -> Option<&str> {
         let t = self.tokens.get(self.pos).map(|s| s.as_str());
@@ -277,7 +345,9 @@ impl Parser {
 
     fn expect(&mut self, s: &str) {
         let t = self.next().unwrap_or("");
-        if t != s { eprintln!("warn: expected {:?} got {:?}", s, t); }
+        if t != s {
+            eprintln!("warn: expected {:?} got {:?}", s, t);
+        }
     }
 
     /// Skip tokens until we find the matching `}`.  Handles nesting.
@@ -285,7 +355,16 @@ impl Parser {
         self.expect("{");
         let mut depth = 1;
         while let Some(t) = self.next() {
-            match t { "{" => depth += 1, "}" => { depth -= 1; if depth == 0 { break; } } _ => {} }
+            match t {
+                "{" => depth += 1,
+                "}" => {
+                    depth -= 1;
+                    if depth == 0 {
+                        break;
+                    }
+                }
+                _ => {}
+            }
         }
     }
 
@@ -296,9 +375,20 @@ impl Parser {
         let mut out = Vec::new();
         while let Some(t) = self.next() {
             match t {
-                "{" => { depth += 1; out.push("{".into()); }
-                "}" => { depth -= 1; if depth == 0 { break; } out.push("}".into()); }
-                s   => { out.push(s.to_string()); }
+                "{" => {
+                    depth += 1;
+                    out.push("{".into());
+                }
+                "}" => {
+                    depth -= 1;
+                    if depth == 0 {
+                        break;
+                    }
+                    out.push("}".into());
+                }
+                s => {
+                    out.push(s.to_string());
+                }
             }
         }
         out
@@ -306,19 +396,34 @@ impl Parser {
 
     /// Parse the top-level document; return a list of staves.
     fn parse_document(&mut self) -> (String, Vec<Staff>) {
-        let mut title  = String::from("Untitled");
+        let mut title = String::from("Untitled");
         let mut staves = Vec::new();
 
         while let Some(tok) = self.peek() {
             match tok {
-                "\\version" => { self.next(); self.next(); /* quoted string */ }
-                "\\header"  => { title = self.parse_header(); }
+                "\\version" => {
+                    self.next();
+                    self.next(); /* quoted string */
+                }
+                "\\header" => {
+                    title = self.parse_header();
+                }
                 // Skip Scheme lines and \layout entirely
-                t if t.starts_with('#') => { self.next(); }
-                "\\layout"  => { self.next(); self.skip_braced_block(); }
+                t if t.starts_with('#') => {
+                    self.next();
+                }
+                "\\layout" => {
+                    self.next();
+                    self.skip_braced_block();
+                }
                 // passingNoteSolidus = \markup ... — skip bare identifiers before =
-                "\\score"   => { self.next(); staves = self.parse_score(); }
-                _           => { self.next(); /* skip unknown */ }
+                "\\score" => {
+                    self.next();
+                    staves = self.parse_score();
+                }
+                _ => {
+                    self.next(); /* skip unknown */
+                }
             }
         }
         (title, staves)
@@ -329,9 +434,11 @@ impl Parser {
         let block = self.collect_braced_block();
         // Look for title = "..."
         for i in 0..block.len().saturating_sub(2) {
-            if block[i] == "title" && block[i+1] == "=" {
-                let s = &block[i+2];
-                if s.starts_with('"') { return s[1..s.len()-1].to_string(); }
+            if block[i] == "title" && block[i + 1] == "=" {
+                let s = &block[i + 2];
+                if s.starts_with('"') {
+                    return s[1..s.len() - 1].to_string();
+                }
             }
         }
         "Untitled".to_string()
@@ -357,18 +464,26 @@ impl Parser {
 
     /// Consume `<<` represented as two consecutive `<` tokens.
     fn skip_double_angle_open(&mut self) {
-        if self.peek() == Some("<") { self.next(); }
-        if self.peek() == Some("<") { self.next(); }
+        if self.peek() == Some("<") {
+            self.next();
+        }
+        if self.peek() == Some("<") {
+            self.next();
+        }
     }
 
     fn skip_double_angle_close(&mut self) {
-        if self.peek() == Some(">") { self.next(); }
-        if self.peek() == Some(">") { self.next(); }
+        if self.peek() == Some(">") {
+            self.next();
+        }
+        if self.peek() == Some(">") {
+            self.next();
+        }
     }
 
     fn at_double_close(&self) -> bool {
-        self.tokens.get(self.pos)     == Some(&">".to_string()) &&
-        self.tokens.get(self.pos + 1) == Some(&">".to_string())
+        self.tokens.get(self.pos) == Some(&">".to_string())
+            && self.tokens.get(self.pos + 1) == Some(&">".to_string())
     }
 
     /// Parse a `\new Staff = "name" { ... }` or `\new Voice ...` etc.
@@ -395,7 +510,9 @@ impl Parser {
                     self.skip_braced_block();
                 } else if self.peek() == Some("<") {
                     self.skip_double_angle_open();
-                    while !self.at_double_close() && self.peek().is_some() { self.next(); }
+                    while !self.at_double_close() && self.peek().is_some() {
+                        self.next();
+                    }
                     self.skip_double_angle_close();
                 }
                 None
@@ -406,11 +523,11 @@ impl Parser {
     /// Parse the body of a Staff block (already de-braced).
     fn parse_staff_block(&self, name: String, block: Vec<String>) -> Staff {
         let mut p = Parser::new(block);
-        let mut clef    = Clef::Treble;
-        let mut sharps  = 0i32;
+        let mut clef = Clef::Treble;
+        let mut sharps = 0i32;
         let mut timesig = (4u32, 4u32);
-        let mut voice1  = Vec::new();
-        let mut voice2  = Vec::new();
+        let mut voice1 = Vec::new();
+        let mut voice2 = Vec::new();
         let mut figures = Vec::new();
 
         while let Some(tok) = p.peek() {
@@ -419,7 +536,7 @@ impl Parser {
                     p.next();
                     clef = match p.next().unwrap_or("treble") {
                         "bass" => Clef::Bass,
-                        _      => Clef::Treble,
+                        _ => Clef::Treble,
                     };
                 }
                 "\\key" => {
@@ -443,7 +560,9 @@ impl Parser {
                     let voice_name = if p.peek() == Some("=") {
                         p.next();
                         p.next().unwrap_or("\"\"").trim_matches('"').to_string()
-                    } else { String::new() };
+                    } else {
+                        String::new()
+                    };
 
                     match kind.as_str() {
                         "Voice" => {
@@ -462,7 +581,9 @@ impl Parser {
                             figures = parse_figured_bass_block(fblock, timesig);
                         }
                         _ => {
-                            if p.peek() == Some("{") { p.skip_braced_block(); }
+                            if p.peek() == Some("{") {
+                                p.skip_braced_block();
+                            }
                         }
                     }
                 }
@@ -470,9 +591,15 @@ impl Parser {
                     // Opening << : one '<' already consumed by the match.
                     // Consume the second '<' if present, then let the outer
                     // loop handle the inner \new Voice tokens.
-                    if p.peek() == Some("<") { p.next(); }
+                    if p.peek() == Some("<") {
+                        p.next();
+                    }
                 }
-                ">" => { if p.peek() == Some(">") { p.next(); } }
+                ">" => {
+                    if p.peek() == Some(">") {
+                        p.next();
+                    }
+                }
                 _ => {
                     // bare music tokens at staff level (single-voice staff)
                     let music = collect_music_tokens(&mut p);
@@ -481,7 +608,15 @@ impl Parser {
             }
         }
 
-        Staff { clef, sharps, timesig, voice1, voice2, figures, name }
+        Staff {
+            clef,
+            sharps,
+            timesig,
+            voice1,
+            voice2,
+            figures,
+            name,
+        }
     }
 }
 
@@ -494,19 +629,25 @@ fn collect_music_tokens(p: &mut Parser) -> Vec<String> {
     let mut out = Vec::new();
     loop {
         match p.peek() {
-            None | Some("\\new") | Some("\\clef") | Some("\\key")
-            | Some("\\time") | Some("}") => break,
+            None | Some("\\new") | Some("\\clef") | Some("\\key") | Some("\\time") | Some("}") => {
+                break
+            }
             // Stop at << (two consecutive '<') or >> (two consecutive '>')
             Some(">") if p.at_double_close() => break,
             Some(t) if t.starts_with('\\') && !is_music_keyword(t) => break,
-            _ => { out.push(p.next().unwrap().to_string()); }
+            _ => {
+                out.push(p.next().unwrap().to_string());
+            }
         }
     }
     out
 }
 
 fn is_music_keyword(s: &str) -> bool {
-    matches!(s, "\\voiceOne" | "\\voiceTwo" | "\\stemUp" | "\\stemDown" | "\\stemNeutral")
+    matches!(
+        s,
+        "\\voiceOne" | "\\voiceTwo" | "\\stemUp" | "\\stemDown" | "\\stemNeutral"
+    )
 }
 
 /// Parse a \new Voice block (already de-braced) into events.
@@ -524,7 +665,7 @@ fn parse_voice_block(block: Vec<String>, clef: &Clef, timesig: (u32, u32)) -> Ve
 fn parse_music_tokens(tokens: Vec<String>, clef: &Clef, timesig: (u32, u32)) -> Vec<Event> {
     let measure_slots = timesig.0 as f64 * 4.0 / timesig.1 as f64;
     let mut events = Vec::new();
-    let mut slot   = 0.0f64;
+    let mut slot = 0.0f64;
     let mut last_dur = "4".to_string();
     let mut last_dotted = false;
     let mut i = 0;
@@ -534,10 +675,16 @@ fn parse_music_tokens(tokens: Vec<String>, clef: &Clef, timesig: (u32, u32)) -> 
         i += 1;
 
         if tok == "|" {
-            events.push(Event { slot, dur: 0.0, kind: EventKind::Barline });
+            events.push(Event {
+                slot,
+                dur: 0.0,
+                kind: EventKind::Barline,
+            });
             continue;
         }
-        if tok == "~" { continue; } // ties are handled at the note level
+        if tok == "~" {
+            continue;
+        } // ties are handled at the note level
 
         // Chord: < pitch+ >dur
         if tok == "<" {
@@ -546,7 +693,9 @@ fn parse_music_tokens(tokens: Vec<String>, clef: &Clef, timesig: (u32, u32)) -> 
                 pitches_raw.push(tokens[i].clone());
                 i += 1;
             }
-            if i < tokens.len() { i += 1; } // consume >
+            if i < tokens.len() {
+                i += 1;
+            } // consume >
 
             // duration comes right after >
             let (dur_s, dotted, tied) = if i < tokens.len() {
@@ -554,43 +703,69 @@ fn parse_music_tokens(tokens: Vec<String>, clef: &Clef, timesig: (u32, u32)) -> 
                 if d.starts_with(|c: char| c.is_ascii_digit()) || d.ends_with('~') {
                     let (ds, dot, tie) = split_dur_dot_tie(d);
                     i += 1;
-                    last_dur    = ds.to_string();
+                    last_dur = ds.to_string();
                     last_dotted = dot;
                     (last_dur.clone(), dot, tie)
                 } else {
                     (last_dur.clone(), last_dotted, false)
                 }
-            } else { (last_dur.clone(), last_dotted, false) };
+            } else {
+                (last_dur.clone(), last_dotted, false)
+            };
 
             let dur = dur_to_slots(&dur_s, dotted).unwrap_or(1.0);
             let pitches = pitches_raw.iter().map(|p| parse_pitch(p, clef)).collect();
             let whole = dur_s == "1";
             let filled = dur_s == "4" || dur_s == "8";
-            events.push(Event { slot, dur, kind: EventKind::Note { pitches, filled, whole, tied } });
+            events.push(Event {
+                slot,
+                dur,
+                kind: EventKind::Note {
+                    pitches,
+                    filled,
+                    whole,
+                    tied,
+                },
+            });
             slot += dur;
             continue;
         }
 
         // Note, rest, spacer
         if let Some((name, oct, dur_raw, dotted, tied)) = parse_note_token(tok) {
-            let dur_s = if dur_raw.is_empty() { last_dur.clone() } else {
-                last_dur    = dur_raw.to_string();
+            let dur_s = if dur_raw.is_empty() {
+                last_dur.clone()
+            } else {
+                last_dur = dur_raw.to_string();
                 last_dotted = dotted;
                 dur_raw.to_string()
             };
-            let dot = if dur_raw.is_empty() { last_dotted } else { dotted };
+            let dot = if dur_raw.is_empty() {
+                last_dotted
+            } else {
+                dotted
+            };
             // check for trailing ~
-            let tied = tied || (i < tokens.len() && tokens[i] == "~" && { i += 1; true });
+            let tied = tied
+                || (i < tokens.len() && tokens[i] == "~" && {
+                    i += 1;
+                    true
+                });
 
             let dur = dur_to_slots(&dur_s, dot).unwrap_or(1.0);
             let kind = match name {
                 "s" => EventKind::Spacer,
                 "r" => EventKind::Rest,
-                _   => {
+                _ => {
                     let pitch = parse_pitch_parts(name, oct, clef);
-                    let whole  = dur_s == "1";
+                    let whole = dur_s == "1";
                     let filled = dur_s == "4" || dur_s == "8";
-                    EventKind::Note { pitches: vec![pitch], filled, whole, tied }
+                    EventKind::Note {
+                        pitches: vec![pitch],
+                        filled,
+                        whole,
+                        tied,
+                    }
                 }
             };
             events.push(Event { slot, dur, kind });
@@ -606,14 +781,22 @@ fn parse_music_tokens(tokens: Vec<String>, clef: &Clef, timesig: (u32, u32)) -> 
 fn insert_implicit_barlines(mut events: Vec<Event>, measure: f64) -> Vec<Event> {
     // Collect existing barline positions
     let has_explicit = events.iter().any(|e| matches!(e.kind, EventKind::Barline));
-    if has_explicit { return events; }
-    if measure <= 0.0 { return events; }
+    if has_explicit {
+        return events;
+    }
+    if measure <= 0.0 {
+        return events;
+    }
 
     let total = events.last().map(|e| e.slot + e.dur).unwrap_or(0.0);
     let mut barlines = Vec::new();
     let mut bar_slot = measure;
     while bar_slot < total - 0.001 {
-        barlines.push(Event { slot: bar_slot, dur: 0.0, kind: EventKind::Barline });
+        barlines.push(Event {
+            slot: bar_slot,
+            dur: 0.0,
+            kind: EventKind::Barline,
+        });
         bar_slot += measure;
     }
     events.extend(barlines);
@@ -623,9 +806,9 @@ fn insert_implicit_barlines(mut events: Vec<Event>, measure: f64) -> Vec<Event> 
 
 fn split_dur_dot_tie(s: &str) -> (&str, bool, bool) {
     let tied = s.ends_with('~');
-    let s = if tied { &s[..s.len()-1] } else { s };
+    let s = if tied { &s[..s.len() - 1] } else { s };
     let dotted = s.ends_with('.');
-    let s = if dotted { &s[..s.len()-1] } else { s };
+    let s = if dotted { &s[..s.len() - 1] } else { s };
     (s, dotted, tied)
 }
 
@@ -633,14 +816,24 @@ fn parse_pitch(tok: &str, clef: &Clef) -> Pitch {
     if let Some((name, oct, _, _, _)) = parse_note_token(tok) {
         parse_pitch_parts(name, oct, clef)
     } else {
-        Pitch { name: "c".into(), oct: String::new(), halfsp: 0, acc: 0 }
+        Pitch {
+            name: "c".into(),
+            oct: String::new(),
+            halfsp: 0,
+            acc: 0,
+        }
     }
 }
 
 fn parse_pitch_parts(name: &str, oct: &str, clef: &Clef) -> Pitch {
     let halfsp = staff_halfsp(name, oct, clef);
-    let acc    = accidental_semitones(name);
-    Pitch { name: name.to_string(), oct: oct.to_string(), halfsp, acc }
+    let acc = accidental_semitones(name);
+    Pitch {
+        name: name.to_string(),
+        oct: oct.to_string(),
+        halfsp,
+        acc,
+    }
 }
 
 // ============================================================
@@ -650,15 +843,17 @@ fn parse_pitch_parts(name: &str, oct: &str, clef: &Clef) -> Pitch {
 fn parse_figured_bass_block(block: Vec<String>, timesig: (u32, u32)) -> Vec<Event> {
     let mut p = Parser::new(block);
     // skip \figuremode
-    if p.peek() == Some("\\figuremode") { p.next(); }
+    if p.peek() == Some("\\figuremode") {
+        p.next();
+    }
     let inner = p.collect_braced_block();
     parse_figure_tokens(inner, timesig)
 }
 
 fn parse_figure_tokens(tokens: Vec<String>, _timesig: (u32, u32)) -> Vec<Event> {
     let mut events = Vec::new();
-    let mut slot   = 0.0f64;
-    let mut last_dur    = "2".to_string();
+    let mut slot = 0.0f64;
+    let mut last_dur = "2".to_string();
     let mut last_dotted = false;
     let mut i = 0;
 
@@ -666,8 +861,12 @@ fn parse_figure_tokens(tokens: Vec<String>, _timesig: (u32, u32)) -> Vec<Event> 
         let tok = &tokens[i];
         i += 1;
 
-        if tok == "|" { continue; }
-        if tok != "<" { continue; }
+        if tok == "|" {
+            continue;
+        }
+        if tok != "<" {
+            continue;
+        }
 
         // collect interval tokens until >
         let mut syms = Vec::new();
@@ -675,20 +874,30 @@ fn parse_figure_tokens(tokens: Vec<String>, _timesig: (u32, u32)) -> Vec<Event> 
             syms.push(parse_fig_sym(&tokens[i]));
             i += 1;
         }
-        if i < tokens.len() { i += 1; } // >
+        if i < tokens.len() {
+            i += 1;
+        } // >
 
         // duration
-        let (dur_s, dotted) = if i < tokens.len() && tokens[i].starts_with(|c: char| c.is_ascii_digit()) {
-            let d = &tokens[i]; i += 1;
-            let dot = d.ends_with('.');
-            let s = if dot { &d[..d.len()-1] } else { d.as_str() };
-            last_dur    = s.to_string();
-            last_dotted = dot;
-            (last_dur.clone(), dot)
-        } else { (last_dur.clone(), last_dotted) };
+        let (dur_s, dotted) =
+            if i < tokens.len() && tokens[i].starts_with(|c: char| c.is_ascii_digit()) {
+                let d = &tokens[i];
+                i += 1;
+                let dot = d.ends_with('.');
+                let s = if dot { &d[..d.len() - 1] } else { d.as_str() };
+                last_dur = s.to_string();
+                last_dotted = dot;
+                (last_dur.clone(), dot)
+            } else {
+                (last_dur.clone(), last_dotted)
+            };
 
         let dur = dur_to_slots(&dur_s, dotted).unwrap_or(1.0);
-        events.push(Event { slot, dur, kind: EventKind::Figure { symbols: syms } });
+        events.push(Event {
+            slot,
+            dur,
+            kind: EventKind::Figure { symbols: syms },
+        });
         slot += dur;
     }
     events
@@ -696,19 +905,30 @@ fn parse_figure_tokens(tokens: Vec<String>, _timesig: (u32, u32)) -> Vec<Event> 
 
 fn parse_fig_sym(tok: &str) -> FigSym {
     match tok {
-        "_"  => FigSym::Blank,
+        "_" => FigSym::Blank,
         "\\\\" => FigSym::Slash,
         s if s.ends_with('+') => {
-            let n = s[..s.len()-1].parse().unwrap_or(0);
-            if n == 0 { FigSym::Blank } else { FigSym::NumSharp(n) }
+            let n = s[..s.len() - 1].parse().unwrap_or(0);
+            if n == 0 {
+                FigSym::Blank
+            } else {
+                FigSym::NumSharp(n)
+            }
         }
         s if s.ends_with('-') => {
-            let n = s[..s.len()-1].parse().unwrap_or(0);
-            if n == 0 { FigSym::Blank } else { FigSym::NumFlat(n) }
+            let n = s[..s.len() - 1].parse().unwrap_or(0);
+            if n == 0 {
+                FigSym::Blank
+            } else {
+                FigSym::NumFlat(n)
+            }
         }
         s => {
-            if let Ok(n) = s.parse::<u8>() { FigSym::Num(n) }
-            else { FigSym::Blank }
+            if let Ok(n) = s.parse::<u8>() {
+                FigSym::Num(n)
+            } else {
+                FigSym::Blank
+            }
         }
     }
 }
@@ -721,22 +941,22 @@ fn parse_fig_sym(tok: &str) -> FigSym {
 fn key_sharps(pitch: &str) -> i32 {
     // pitch is the tonic note name as LilyPond writes it (without octave)
     match pitch {
-        "c"   =>  0,
-        "g"   =>  1,
-        "d"   =>  2,
-        "a"   =>  3,
-        "e"   =>  4,
-        "b"   =>  5,
-        "fis" =>  6,
-        "cis" =>  7,
-        "f"   => -1,
+        "c" => 0,
+        "g" => 1,
+        "d" => 2,
+        "a" => 3,
+        "e" => 4,
+        "b" => 5,
+        "fis" => 6,
+        "cis" => 7,
+        "f" => -1,
         "bes" => -2,
         "ees" => -3,
         "aes" => -4,
         "des" => -5,
         "ges" => -6,
         "ces" => -7,
-        _     =>  0,
+        _ => 0,
     }
 }
 
@@ -745,13 +965,13 @@ fn key_sharps(pitch: &str) -> i32 {
 // ============================================================
 
 /// Layout constants.
-const CLEF_WIDTH:    f64 = 2.0;   // slots reserved for clef
-const KEYSIG_WIDTH:  f64 = 1.0;   // per accidental
-const TIMESIG_WIDTH: f64 = 1.0;   // slots for time signature
-const LEFT_MARGIN:   f64 = 0.5;   // before clef
-const RIGHT_MARGIN:  f64 = 1.0;
-const STAFF_GAP:     f64 = 7.0;   // staff-spaces between top lines of adjacent staves
-const NOTE_X_OFFSET: f64 = 0.0;   // nudge notehead right from beat grid x
+const CLEF_WIDTH: f64 = 2.0; // slots reserved for clef
+const KEYSIG_WIDTH: f64 = 1.0; // per accidental
+const TIMESIG_WIDTH: f64 = 1.0; // slots for time signature
+const LEFT_MARGIN: f64 = 0.5; // before clef
+const RIGHT_MARGIN: f64 = 1.0;
+const STAFF_GAP: f64 = 7.0; // staff-spaces between top lines of adjacent staves
+const NOTE_X_OFFSET: f64 = 0.0; // nudge notehead right from beat grid x
 
 // ============================================================
 // Primitive emission
@@ -762,7 +982,13 @@ fn emit_line(x1: f64, y1: f64, x2: f64, y2: f64, t: f64) {
 }
 
 fn emit_notehead(x: f64, y: f64, filled: bool, halfsp: i32) {
-    println!("NOTEHEAD {:.4} {:.4} {} {}", x, y, if filled { 1 } else { 0 }, halfsp);
+    println!(
+        "NOTEHEAD {:.4} {:.4} {} {}",
+        x,
+        y,
+        if filled { 1 } else { 0 },
+        halfsp
+    );
 }
 
 fn emit_whole(x: f64, y: f64, halfsp: i32) {
@@ -782,7 +1008,13 @@ fn emit_dot(x: f64, y: f64) {
 }
 
 fn emit_tie(x1: f64, y: f64, x2: f64, up: bool) {
-    println!("TIE {:.4} {:.4} {:.4} {}", x1, y, x2, if up { 1 } else { 0 });
+    println!(
+        "TIE {:.4} {:.4} {:.4} {}",
+        x1,
+        y,
+        x2,
+        if up { 1 } else { 0 }
+    );
 }
 
 fn emit_rest(x: f64, y: f64, dur: u8) {
@@ -794,7 +1026,15 @@ fn emit_barline(x: f64, y_top: f64, y_bot: f64) {
 }
 
 fn emit_clef(x: f64, y: f64, kind: &Clef) {
-    println!("CLEF {:.4} {:.4} {}", x, y, match kind { Clef::Treble => "treble", Clef::Bass => "bass" });
+    println!(
+        "CLEF {:.4} {:.4} {}",
+        x,
+        y,
+        match kind {
+            Clef::Treble => "treble",
+            Clef::Bass => "bass",
+        }
+    );
 }
 
 fn emit_timesig(x: f64, y: f64, num: u32, den: u32) {
@@ -807,18 +1047,21 @@ fn emit_keysig(x: f64, y: f64, sharps: i32) {
 
 fn emit_figure(x: f64, y: f64, sym: &FigSym) {
     let text = match sym {
-        FigSym::Blank       => return,   // nothing to draw
-        FigSym::Slash       => "/".to_string(),
-        FigSym::Num(n)      => format!("{}", n),
+        FigSym::Blank => return, // nothing to draw
+        FigSym::Slash => "/".to_string(),
+        FigSym::Num(n) => format!("{}", n),
         FigSym::NumSharp(n) => format!("{}+", n),
-        FigSym::NumFlat(n)  => format!("{}-", n),
+        FigSym::NumFlat(n) => format!("{}-", n),
     };
     println!("FIGURE {:.4} {:.4} {}", x, y, text);
 }
 
 fn emit_title(x: f64, y: f64, title: &str) {
     // Replace spaces with underscores so the line stays one token
-    let safe: String = title.chars().map(|c| if c == ' ' { '_' } else { c }).collect();
+    let safe: String = title
+        .chars()
+        .map(|c| if c == ' ' { '_' } else { c })
+        .collect();
     println!("TITLE {:.4} {:.4} \"{}\"", x, y, safe);
 }
 
@@ -829,16 +1072,19 @@ fn emit_title(x: f64, y: f64, title: &str) {
 /// Render a single staff, given its Y origin (top line, in staff-spaces
 /// from the system top) and a function mapping slot → x coordinate.
 fn render_staff(
-    staff:    &Staff,
-    staff_y:  f64,         // y of this staff's top line
+    staff: &Staff,
+    staff_y: f64, // y of this staff's top line
     slot_to_x: impl Fn(f64) -> f64,
-    voice:    &[Event],    // which voice to render (voice1 or voice2)
-    v2:       bool,        // is this voice 2 (affects stem direction)
+    voice: &[Event], // which voice to render (voice1 or voice2)
+    v2: bool,        // is this voice 2 (affects stem direction)
 ) {
     // Draw the five staff lines (once per staff, on the primary voice call)
     if !v2 {
         let x0 = slot_to_x(0.0) - LEFT_MARGIN * 0.5;
-        let last_slot = voice.iter().chain(staff.voice2.iter()).chain(staff.figures.iter())
+        let last_slot = voice
+            .iter()
+            .chain(staff.voice2.iter())
+            .chain(staff.figures.iter())
             .map(|e| e.slot + e.dur)
             .fold(0.0f64, f64::max);
         let x1 = slot_to_x(last_slot) + RIGHT_MARGIN * 0.5;
@@ -869,9 +1115,14 @@ fn render_staff(
 
             EventKind::Figure { .. } => { /* handled separately */ }
 
-            EventKind::Note { pitches, filled, whole, tied } => {
+            EventKind::Note {
+                pitches,
+                filled,
+                whole,
+                tied,
+            } => {
                 for pitch in pitches {
-                    let hy    = staff_y + halfsp_to_y(pitch.halfsp);
+                    let hy = staff_y + halfsp_to_y(pitch.halfsp);
                     let above_mid = pitch.halfsp >= 4;
                     // Stem direction: voice 2 always stems up; voice 1 uses pitch
                     let stem_up = if v2 { true } else { !above_mid };
@@ -881,7 +1132,9 @@ fn render_staff(
                         if *hsp == pitch.halfsp {
                             emit_tie(*tx, *ty, x, *tup);
                             false
-                        } else { true }
+                        } else {
+                            true
+                        }
                     });
 
                     // Draw accidental if needed
@@ -896,9 +1149,13 @@ fn render_staff(
                     } else {
                         emit_notehead(x, hy, *filled, pitch.halfsp);
                         // Draw stem (not for whole notes)
-                        let stem_x   = if stem_up { x + 0.28 } else { x - 0.28 };
+                        let stem_x = if stem_up { x + 0.28 } else { x - 0.28 };
                         let stem_len = 3.5; // in half-spaces = 1.75 staff-spaces
-                        let y_tip = if stem_up { hy - stem_len * 0.5 } else { hy + stem_len * 0.5 };
+                        let y_tip = if stem_up {
+                            hy - stem_len * 0.5
+                        } else {
+                            hy + stem_len * 0.5
+                        };
                         emit_stem(stem_x, hy, y_tip);
                     }
 
@@ -950,7 +1207,7 @@ fn slots_to_dur_tag(slots: f64) -> u8 {
         _ if (base - 4.0).abs() < 0.01 => 1,
         _ if (base - 2.0).abs() < 0.01 => 2,
         _ if (base - 0.5).abs() < 0.01 => 8,
-        _                               => 4,
+        _ => 4,
     }
 }
 
@@ -962,7 +1219,8 @@ fn render_figures(staff: &Staff, staff_y: f64, slot_to_x: impl Fn(f64) -> f64) {
     for event in &staff.figures {
         let x = slot_to_x(event.slot);
         if let EventKind::Figure { symbols } = &event.kind {
-            let non_blank: Vec<&FigSym> = symbols.iter()
+            let non_blank: Vec<&FigSym> = symbols
+                .iter()
                 .filter(|s| !matches!(s, FigSym::Blank))
                 .collect();
             // Draw bottom-to-top (lowest interval first in continuo convention)
@@ -978,10 +1236,13 @@ fn render_figures(staff: &Staff, staff_y: f64, slot_to_x: impl Fn(f64) -> f64) {
 // ============================================================
 
 fn render(title: &str, staves: &[Staff]) {
-    if staves.is_empty() { return; }
+    if staves.is_empty() {
+        return;
+    }
 
     let timesig = staves[0].timesig;
-    let total_slots = staves.iter()
+    let total_slots = staves
+        .iter()
         .flat_map(|s| s.voice1.iter().chain(s.voice2.iter()))
         .map(|e| e.slot + e.dur)
         .fold(0.0f64, f64::max);
@@ -999,8 +1260,10 @@ fn render(title: &str, staves: &[Staff]) {
     // Score header line
     println!(
         "SCORE staves={} slots={:.4} timesig={}/{} title=\"{}\"",
-        staves.len(), total_slots,
-        timesig.0, timesig.1,
+        staves.len(),
+        total_slots,
+        timesig.0,
+        timesig.1,
         title.replace(' ', "_")
     );
     println!("EXTENT {:.4} {:.4}", total_x, total_y);
@@ -1040,7 +1303,9 @@ fn render(title: &str, staves: &[Staff]) {
     let y_top = 0.0;
     let y_bot = (staves.len() as f64 - 1.0) * STAFF_GAP + 4.0;
     // Collect barline x positions from voice1 of the first staff
-    let barline_slots: Vec<f64> = staves[0].voice1.iter()
+    let barline_slots: Vec<f64> = staves[0]
+        .voice1
+        .iter()
         .filter(|e| matches!(e.kind, EventKind::Barline))
         .map(|e| e.slot)
         .collect();
