@@ -97,15 +97,14 @@ typedef struct {
 /* Utility                                                             */
 /* ------------------------------------------------------------------ */
 
-static int64_t now_ms(void)
+int64_t now_ms(void)
 {
-   static int64_t base = -1;
    struct timespec ts;
-   clock_gettime(CLOCK_MONOTONIC, &ts);
-   int64_t ms = (int64_t)ts.tv_sec * 1000 + ts.tv_nsec / 1000000;
-   if (base < 0)
-      base = ms;
-   return ms - base;
+
+   clock_gettime(CLOCK_REALTIME, &ts);
+
+   return (int64_t)ts.tv_sec * 1000
+        + (int64_t)ts.tv_nsec / 1000000;
 }
 
 /* Convert MIDI note to LilyPond absolute pitch, e.g. 60 -> "c'", 74 -> "d''" */
@@ -521,7 +520,6 @@ int main(void)
    s.running = 1;
 
    setbuf(stdout, NULL);
-   (void)now_ms(); /* prime the clock */
 
    /* Self-pipe: midi_callback (background thread) writes here to wake
       the main poll() without busy-waiting */
