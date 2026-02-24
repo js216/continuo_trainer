@@ -1,0 +1,84 @@
+.TH RULES 1
+.SH NAME
+rules - evaluate harmonic correctness of realized continuo chords
+
+.SH SYNOPSIS
+.B rules
+
+.SH DESCRIPTION
+.I rules
+is a filter that reads a stream of realized musical groups from standard input and evaluates them against a set of voice-leading and harmonic rules. It uses a sliding window of size 4 to check transitions between consecutive chords.
+
+For each input group, the program outputs a result line indicating whether the group passes (OK) or fails (FAIL) the validation suite.
+
+.SH INPUT FORMAT
+The program expects "group" lines, typically produced by a realization engine. A group line must start with the token
+.B GROUP
+and contain the following space-separated fields:
+
+.TP
+.B ID:\fIn\fR
+The decimal integer identifier for the group.
+.TP
+.B passing
+(Optional) If present, marks the group as a passing chord.
+.TP
+.B BASS:\fIpitch\fR
+The LilyPond-style pitch of the bass note (e.g., \fIg2\fR).
+.TP
+.B FIGURES:\fIfig\fR
+The figured bass symbols associated with the note.
+.TP
+.B MELODY:\fIpitch\fR
+One or more LilyPond-style pitches representing the melody notes.
+.TP
+.B BASS_ACTUAL:\fIpitch\fR
+The simplified pitch name used for interval calculations.
+.TP
+.B TIME:\fIn\fR
+The rhythmic timestamp of the group.
+.TP
+.B REALIZATION:\fIp1/p2/...\fR
+Slash-separated LilyPond pitches representing the inner voices.
+
+Lines starting with
+.B LESSON
+,
+.B //
+, or empty lines are echoed to standard output unchanged.
+
+.SH VALIDATION RULES
+The following rules are applied to each non-passing group:
+
+.IP \(bu 4
+.B Parallel Fifths and Octaves:
+Checks for parallel motion into perfect fifths or perfect octaves between any two voices (including bass and realization) across consecutive non-passing groups.
+.IP \(bu 4
+.B Melody Leap Limit:
+The interval between the last note of the previous melody and the first note of the current melody must not exceed a major sixth (9 semitones).
+.IP \(bu 4
+.B Bass Tritone:
+The bass may not move by a diminished fifth or augmented fourth (6 semitones mod 12).
+.IP \(bu 4
+.B Empty Realization:
+Every non-passing group must contain at least one inner voice in the realization field.
+.IP \(bu 4
+.B Melody Presence:
+Every non-passing group must have at least one melody note.
+
+.SH OUTPUT FORMAT
+For every processed group, the program prints a single line to standard output:
+
+.B RESULT \fIID\fR OK
+.br
+if all rules pass.
+
+.B RESULT \fIID\fR FAIL \fImessage\fR
+.br
+if a rule is violated, where \fImessage\fR describes the specific error (e.g., "Parallel fifths between voice 0 (c->d) and voice 1 (g'->a')").
+
+.SH EXIT STATUS
+The program returns 0 on successful processing of the input stream. It may print errors to standard error if the input cannot be read.
+
+.SH AUTHOR
+Written by Jakob Kastelic (2026).
