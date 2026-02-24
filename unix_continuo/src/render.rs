@@ -1,135 +1,6 @@
-/* render.rs — parse the LilyPond subset produced by g2ly and emit
- * a stream of drawing primitive commands.
- *
- * ============================================================
- * LILYPOND SUBSET HANDLED
- * ============================================================
- * Only the constructs that g2ly actually emits are handled:
- *
- *   \version "..."
- *   \header  { title = "..." }
- *   Scheme / \layout blocks  — skipped entirely
- *
- *   \new Staff = "name" {
- *     \clef treble|bass
- *     \key <pitch> \major
- *     \time <n>/<d>
- *     <music>
- *   }
- *   \new Voice = "name" { \voiceOne|\voiceTwo  <music> }
- *   \new FiguredBass { \figuremode { <fig-tokens> } }
- *
- * Music tokens inside a Voice or Staff:
- *   note        pitch [octave] [duration] [dot] [~]
- *                 pitch    = c d e f g a b, with optional is/es suffix
- *                 octave   = one or more ' (up) or , (down) from LilyPond default
- *                 duration = 1 2 4 8 (whole half quarter eighth)
- *                 dot      = . after duration
- *                 ~        = tie to next note of same pitch
- *   chord       < pitch+ > duration [dot] [~]
- *   spacer rest s duration [dot]
- *   rest        r duration [dot]   (rendered as a rest symbol)
- *   barline     |                  (explicit; also inferred from beat count)
- *
- * Figure tokens inside \figuremode:
- *   < intervals > duration [dot]
- *   intervals   = space-separated, each one of:
- *     _         no figure (empty slot)
- *     _\\       passing-note solidus
- *     N         plain number  (2 3 4 5 6 7)
- *     N+        raised        (sharp)
- *     N-        lowered       (flat)
- *
- * The four staves g2ly produces, in order top-to-bottom:
- *   "melody"      treble, single voice
- *   "real-treble" treble, single voice  (high realization)
- *   "real-bass"   bass,   two voices    (bass-actual v1, low realization v2)
- *   "bass"        bass,   single voice + FiguredBass
- *
- * ============================================================
- * OUTPUT FORMAT
- * ============================================================
- * One command per line on stdout.  All coordinates are floating-point
- * in abstract "staff-space" units and "slot" units (see below).
- * The downstream renderer is responsible for mapping these to pixels.
- *
- * Unit definitions
- *   staff-space  The distance between two adjacent staff lines.
- *                A five-line staff is 4 staff-spaces tall.
- *   slot         Horizontal unit equal to one beat of the time-signature
- *                denominator.  A half note in 3/2 occupies 1 slot; a
- *                quarter note in 4/4 also occupies 1 slot; a dotted half
- *                in 3/2 occupies 1.5 slots.
- *
- * Coordinate origin
- *   (0, 0) = top-left corner of the topmost staff's top line.
- *   X increases rightward (in slots).
- *   Y increases downward (in staff-spaces).
- *   Each staff is laid out at a fixed Y offset; staves do not share a
- *   coordinate origin — all Y values are relative to the whole system top.
- *
- * Header line (always first):
- *   SCORE  staves=<n>  beats=<f>  timesig=<n>/<d>  title="<escaped>"
- *     staves   number of staves
- *     beats    total length in slots
- *     timesig  time signature string
- *     title    piece title, spaces replaced by _
- *
- * Primitive commands:
- *
- *   LINE  x1 y1  x2 y2  t
- *     Straight line from (x1,y1) to (x2,y2), thickness t (staff-spaces).
- *     Used for: staff lines, stems, ledger lines, barlines.
- *
- *   NOTEHEAD  x y  filled  sp
- *     Notehead ellipse centred at (x,y).
- *     filled = 1 (quarter / eighth), 0 (half / whole).
- *     sp = staff position (integer half-spaces from bottom line of its staff,
- *          0 = bottom line, 2 = second line, 4 = middle line, 8 = top line)
- *          used by the renderer to choose stem direction and ledger count.
- *
- *   WHOLE  x y  sp
- *     Whole-note head (open oval, wider than a half-note head).
- *
- *   STEM  x y_base  y_tip
- *     Vertical stem; x is the stem attachment x, y_base is the notehead end,
- *     y_tip is the free end.  Thickness is assumed standard (0.1 staff-space).
- *
- *   LEDGER  x y  half_width
- *     Ledger line centred at (x,y), extending ±half_width slots.
- *
- *   DOT  x y
- *     Augmentation dot, small filled circle at (x,y).
- *
- *   TIE  x1 y  x2  up
- *     Tie arc from x1 to x2 at staff-space height y.
- *     up=1 curves upward, up=0 curves downward.
- *
- *   REST  x y  dur
- *     Rest symbol at (x,y).  dur = 1 2 4 (whole half quarter).
- *
- *   BARLINE  x  y_top  y_bot
- *     Vertical barline at x, from y_top to y_bot (spanning all staves).
- *
- *   CLEF  x y  kind
- *     Clef glyph.  kind = treble | bass.
- *     (x,y) = top-left reference point of the glyph.
- *
- *   TIMESIG  x y  num  den
- *     Time-signature numerals stacked at (x,y) (top of staff).
- *
- *   KEYSIG  x y  sharps
- *     Key signature.  sharps > 0: that many sharps.  sharps < 0: flats.
- *     (x,y) = top of staff; renderer draws accidentals at standard positions.
- *
- *   FIGURE  x y  text
- *     Figured-bass symbol at (x,y), below the bottom line of staff 4.
- *     text is one token: a plain digit (2–7), a digit followed by + or -,
- *     the literal _ for a blank, or / for a passing-note solidus.
- *
- *   TITLE  x y  "text"
- *     Title string; (x,y) is above the top staff, centred.
- */
+// SPDX-License-Identifier: MIT
+// render.rs --- render the LilyPond subset produced by g2ly
+// Copyright (c) 2026 Jakob Kastelic
 
 use std::io::{self, Read};
 
@@ -350,7 +221,9 @@ enum EventKind {
 
 #[derive(Debug, Clone)]
 struct Pitch {
+    #[allow(dead_code)]
     name:    String,   // "g", "cis", "fis", ...
+    #[allow(dead_code)]
     oct:     String,   // octave marks
     halfsp:  i32,      // precomputed staff half-space position
     acc:     i32,      // accidental semitones: -1 flat, 0 natural, 1 sharp
@@ -378,6 +251,7 @@ struct Staff {
     /// Figured bass events (only for "bass" staff)
     figures: Vec<Event>,
     /// Name as declared in the LilyPond source
+    #[allow(dead_code)]
     name:    String,
 }
 
@@ -441,7 +315,7 @@ impl Parser {
                 "\\header"  => { title = self.parse_header(); }
                 // Skip Scheme lines and \layout entirely
                 t if t.starts_with('#') => { self.next(); }
-                "\\layout"  => { self.skip_braced_block(); }
+                "\\layout"  => { self.next(); self.skip_braced_block(); }
                 // passingNoteSolidus = \markup ... — skip bare identifiers before =
                 "\\score"   => { self.next(); staves = self.parse_score(); }
                 _           => { self.next(); /* skip unknown */ }
@@ -781,7 +655,7 @@ fn parse_figured_bass_block(block: Vec<String>, timesig: (u32, u32)) -> Vec<Even
     parse_figure_tokens(inner, timesig)
 }
 
-fn parse_figure_tokens(tokens: Vec<String>, timesig: (u32, u32)) -> Vec<Event> {
+fn parse_figure_tokens(tokens: Vec<String>, _timesig: (u32, u32)) -> Vec<Event> {
     let mut events = Vec::new();
     let mut slot   = 0.0f64;
     let mut last_dur    = "2".to_string();

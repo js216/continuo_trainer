@@ -1,0 +1,363 @@
+.TH RENDER 1
+.SH NAME
+render \- parse a LilyPond score and emit a stream of drawing primitives
+
+.SH SYNOPSIS
+.B render
+
+.SH DESCRIPTION
+.I render
+reads a LilyPond source file from standard input, parses the subset
+of LilyPond syntax produced by
+.IR g2ly ,
+and writes a sequence of drawing primitive commands to standard output.
+The output describes all graphical elements of the score \(em staff lines,
+noteheads, stems, rests, barlines, clefs, key signatures, time signatures,
+figured-bass symbols, and ties \(em in abstract coordinate units independent
+of any output device.  A downstream program is responsible for mapping these
+units to pixels or another physical medium.
+
+.SH INPUT FORMAT
+.I render
+reads LilyPond source from standard input.  Only the subset of LilyPond
+that
+.I g2ly
+emits is recognised; other constructs are silently skipped.
+
+Recognised top-level constructs:
+
+.TP
+.B \eversion "\fIstring\fR"
+Consumed and ignored.
+.TP
+.B \eheader { title = "\fItext\fR" }
+Sets the piece title.  All other header fields are ignored.
+.TP
+.B \elayout { ... }
+Consumed and ignored.
+.TP
+.B \escore { << \fIstaves\fR >> }
+The main musical content.  Contains one or more
+.B \enew Staff
+blocks.
+
+.SH LILYPOND SUBSET
+Within a Staff block the following directives are recognised:
+
+.TP
+.B \eclef treble\fR|\fBbass
+Sets the clef for the staff.
+.TP
+.B \ekey \fIpitch\fB \emajor
+Sets the key signature.  Only major keys are supported.
+.TP
+.B \etime \fIn\fB/\fId
+Sets the time signature.
+
+Music is contained in
+.B \enew Voice
+sub-blocks or written directly at staff level for single-voice staves.
+Figured bass is contained in a
+.B \enew FiguredBass
+block enclosing a
+.B \efiguremode
+block.
+
+.SH MUSIC TOKENS
+Inside a Voice or Staff, the following music tokens are recognised:
+
+.TP
+.I pitch\fR[\fIoctave\fR][\fIduration\fR][\fB.\fR][\fB~\fR]
+A single note.
+.I pitch
+is one of
+.B c d e f g a b
+with an optional
+.B is
+(sharp) or
+.B es
+/
+.B as
+(flat) suffix.
+.I octave
+is zero or more apostrophes
+.RB ( ' )
+to raise or commas
+.RB ( , )
+to lower from the LilyPond default octave.
+.I duration
+is
+.BR 1 ,
+.BR 2 ,
+.BR 4 ,
+or
+.B 8
+for whole, half, quarter, or eighth.
+A trailing
+.B .
+produces a dotted duration.
+A trailing
+.B ~
+ties the note to the next note of the same pitch.
+If the duration is omitted, the most recently specified duration is inherited.
+.TP
+.B r\fIduration\fR[\fB.\fR]
+A rest.
+.TP
+.B s\fIduration\fR[\fB.\fR]
+A spacer rest (produces no visible symbol).
+.TP
+.B < \fIpitch\fR... \fB>\fIduration\fR[\fB.\fR][\fB~\fR]
+A chord; one or more pitches enclosed in angle brackets share a single duration.
+.TP
+.B |
+An explicit barline.  Barlines are also inserted implicitly at measure
+boundaries if none are present in the source.
+
+.SH FIGURE TOKENS
+Inside a
+.B \efiguremode
+block, figured-bass groups are written as:
+
+.RS
+.B < \fIsymbols\fR > \fIduration\fR[\fB.\fR]
+.RE
+
+Each
+.I symbol
+within the angle brackets is one of:
+
+.TP
+.B _
+A blank slot (no figure printed).
+.TP
+.B \e\e
+A passing-note solidus.
+.TP
+.I N
+A plain interval digit (2 through 7).
+.TP
+.IB N +
+The interval
+.I N
+raised (sharp).
+.TP
+.IB N -
+The interval
+.I N
+lowered (flat).
+
+Multiple symbols within one group are stacked vertically in the output,
+lowest interval first.
+
+.SH STAVES
+.I g2ly
+produces four staves in top-to-bottom order.
+.I render
+assigns them the following roles:
+
+.TP
+.B melody
+Treble clef, single voice.
+.TP
+.B real-treble
+Treble clef, single voice (high realization).
+.TP
+.B real-bass
+Bass clef, two voices: bass actual (voice 1) and low realization (voice 2).
+.TP
+.B bass
+Bass clef, single voice with an attached FiguredBass staff.
+
+.SH OUTPUT FORMAT
+Output is written to standard output, one command per line.
+All coordinates are floating-point.
+Horizontal positions are in
+.I slots
+and vertical positions are in
+.IR staff-spaces .
+
+.SS Coordinate System
+The origin (0,\~0) is the top-left corner of the topmost staff's top line.
+X increases rightward in slots; Y increases downward in staff-spaces.
+All Y values are relative to the top of the whole system.
+
+.SS Units
+
+.TP
+.B staff-space
+The distance between two adjacent staff lines.  A five-line staff spans
+4 staff-spaces.
+.TP
+.B slot
+One beat of the time-signature denominator.  A quarter note in 4/4 occupies
+1 slot; a dotted half note occupies 1.5 slots.
+
+.SS Header Line
+The first output line is always:
+
+.RS
+SCORE staves=\fIn\fR slots=\fIf\fR timesig=\fInum\fR/\fIden\fR title="\fItext\fR"
+.RE
+
+Fields:
+
+.TP
+.B staves
+Number of staves in the system.
+.TP
+.B slots
+Total score length in slots.
+.TP
+.B timesig
+Time signature of the first staff.
+.TP
+.B title
+Piece title; spaces replaced by underscores.
+
+The header is immediately followed by:
+
+.RS
+EXTENT \fItotal_x\fR \fItotal_y\fR
+.RE
+
+giving the bounding width and height of the entire system.
+
+.SS Primitive Commands
+
+.TP
+LINE \fIx1\fR \fIy1\fR \fIx2\fR \fIy2\fR \fIt\fR
+Straight line from (\fIx1\fR,\fIy1\fR) to (\fIx2\fR,\fIy2\fR) with thickness
+.I t
+in staff-spaces.  Used for staff lines, stems, ledger lines, and barlines.
+
+.TP
+NOTEHEAD \fIx\fR \fIy\fR \fIfilled\fR \fIsp\fR
+Notehead ellipse centred at (\fIx\fR,\fIy\fR).
+.I filled
+is 1 for quarter and shorter notes, 0 for half notes.
+.I sp
+is the staff position in half-spaces above the bottom line of the staff
+(0\~=\~bottom line, 8\~=\~top line); used by the renderer to determine
+stem direction and ledger-line count.
+
+.TP
+WHOLE \fIx\fR \fIy\fR \fIsp\fR
+Whole-note head (open oval, wider than a half-note head) centred at
+(\fIx\fR,\fIy\fR).
+
+.TP
+STEM \fIx\fR \fIy_base\fR \fIy_tip\fR
+Vertical stem at horizontal position
+.IR x ,
+from
+.I y_base
+(the notehead end) to
+.I y_tip
+(the free end).  Standard thickness is 0.1 staff-space.
+
+.TP
+LEDGER \fIx\fR \fIy\fR \fIhalf_width\fR
+Ledger line centred at (\fIx\fR,\fIy\fR) extending \fIhalf_width\fR slots
+in each direction.
+
+.TP
+DOT \fIx\fR \fIy\fR
+Augmentation dot; small filled circle at (\fIx\fR,\fIy\fR).
+
+.TP
+TIE \fIx1\fR \fIy\fR \fIx2\fR \fIup\fR
+Tie arc from \fIx1\fR to \fIx2\fR at staff-space height \fIy\fR.
+.I up
+is 1 if the arc curves upward, 0 if it curves downward.
+
+.TP
+REST \fIx\fR \fIy\fR \fIdur\fR
+Rest symbol at (\fIx\fR,\fIy\fR).
+.I dur
+is 1 (whole), 2 (half), or 4 (quarter).
+
+.TP
+BARLINE \fIx\fR \fIy_top\fR \fIy_bot\fR
+Vertical barline at horizontal position
+.IR x ,
+spanning from
+.I y_top
+to
+.IR y_bot .
+Full-height barlines span all staves.
+
+.TP
+CLEF \fIx\fR \fIy\fR \fIkind\fR
+Clef glyph whose top-left reference point is (\fIx\fR,\fIy\fR).
+.I kind
+is
+.B treble
+or
+.BR bass .
+
+.TP
+TIMESIG \fIx\fR \fIy\fR \fInum\fR \fIden\fR
+Time-signature numerals stacked at (\fIx\fR,\fIy\fR) (top of staff).
+
+.TP
+KEYSIG \fIx\fR \fIy\fR \fIsharps\fR
+Key signature at (\fIx\fR,\fIy\fR) (top of staff).
+.I sharps
+is positive for sharps, negative for flats.  The renderer draws
+accidentals at the standard staff positions for the given clef.
+
+.TP
+FIGURE \fIx\fR \fIy\fR \fItext\fR
+Figured-bass symbol at (\fIx\fR,\fIy\fR), below the bottom line of the
+bass staff.
+.I text
+is one of: a plain digit (2\(en7), a digit followed by
+.B +
+(raised) or
+.B \-
+(lowered), the literal
+.B _
+for a blank, or
+.B /
+for a passing-note solidus.
+Multiple symbols at the same rhythmic position are emitted as separate
+FIGURE commands at successive vertical positions.
+
+.TP
+GLYPH \fIx\fR \fIy\fR \fIscale\fR \fIname\fR
+Accidental glyph at (\fIx\fR,\fIy\fR) scaled by
+.IR scale .
+.I name
+is
+.B sharp
+or
+.BR flat .
+
+.TP
+TITLE \fIx\fR \fIy\fR "\fItext\fR"
+Title string centred at (\fIx\fR,\fIy\fR), above the top staff.
+
+.SH DIAGNOSTICS
+Warnings are written to standard error for:
+
+.TP
+\(bu
+An unexpected token where a specific token was required (for example,
+a missing brace).
+
+Non-fatal parse errors do not halt execution; the affected construct is
+skipped and parsing continues.  No error is produced for unknown or
+unsupported LilyPond constructs, which are silently consumed.
+
+.SH EXIT STATUS
+The program always exits with status 0.  Diagnostic warnings, if any,
+are written to standard error.
+
+.SH AUTHOR
+Written by Jakob Kastelic (2026).
+
+.SH SEE ALSO
+.IR loader (1),
+.IR lilypond (1),
+.IR g2ly (1)
