@@ -1,5 +1,5 @@
 PROGS = analyzer chunker driver grouper gui hint loader midi \
-        realizer recorder rules scorer stats l2ly
+        realizer recorder rules scorer stats l2ly g2ly
 
 all: $(addprefix build/,$(PROGS))
 
