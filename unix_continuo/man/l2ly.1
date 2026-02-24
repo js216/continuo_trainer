@@ -1,0 +1,68 @@
+.TH L2LY 1
+.SH NAME
+l2ly \- convert lesson file into a minimal LilyPond grand staff
+
+.SH SYNOPSIS
+.B l2ly
+
+.SH DESCRIPTION
+.I l2ly
+reads a lesson file from standard input and generates a LilyPond (.ly) document on standard output. It produces a minimal grand staff configuration featuring a melody in the treble clef and a bassline with figured bass in the bass clef.
+
+.SH INPUT FORMAT
+The program expects a lesson file containing metadata fields and brace-delimited blocks.
+
+.SS Metadata Fields
+Fields are defined as a label followed by a colon:
+.TP
+.B title:
+The title of the lesson.
+.TP
+.B key:
+The key signature (e.g., G).
+.TP
+.B time:
+The time signature (e.g., 4/4).
+
+.SS Musical Blocks
+Blocks are defined as \fIname\fR = { \fIcontent\fR }.
+.TP
+.B bassline
+Musical tokens for the bass voice.
+.TP
+.B figures
+Continuo figures corresponding to the bassline.
+.TP
+.B melody
+Musical tokens for the treble voice.
+
+.SH PASSING NOTES
+Bass tokens marked with a trailing `p` (e.g., \fIfis2p\fR) are treated as passing notes. The program automatically:
+.IP 1. 4
+Strips the `p` marker so LilyPond receives valid note names.
+.IP 2. 4
+Overrides any provided figure for that note with a passing-note solidus symbol (\fI<_\\>\fR).
+
+.SH FIGURED BASS TRANSLATION
+Figures are converted into LilyPond \fI\\figuremode\fR syntax. Duration information is automatically inherited from the corresponding bassline note.
+.TP
+.B 0
+Renders as an empty figure (\fI<_>\fR).
+.TP
+.B # / b
+A bare accidental renders as a raised or lowered third (\fI<_+>\fR or \fI<_->\fR).
+.TP
+.B #6 / b6
+Numerical figures with accidentals render with LilyPond suffixes (\fI<6+>\fR or \fI<6->\fR).
+.TP
+.B 2/#4/6
+Stacked figures separated by slashes are converted into space-separated groups (\fI<2 4+ 6>\fR).
+
+.SH DIAGNOSTICS
+The program exits with an error message if the lesson file cannot be read from standard input.
+
+.SH AUTHOR
+Written by Jakob Kastelic (2026).
+
+.SH SEE ALSO
+loader(1), g2ly(1), lilypond(1)

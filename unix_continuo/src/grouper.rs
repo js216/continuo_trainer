@@ -1,49 +1,6 @@
-/* grouper.rs --- align MIDI notes to lesson bassline, figures, and melody
- *
- * Receives MIDI note-on/off events and lesson data from a loader (via stdin). Groups each lesson
- * entry — bass note, figures, and melody — together with the corresponding MIDI performance data:
- * the played bass note and the full continuo realization chord. A group is considered complete when
- * all currently held notes have been released.
- *
- * Some bass notes are marked "passing", meaning the harmony from the previous bass note is still
- * active. When a passing bass note is detected, the grouper emits the previous group immediately,
- * without waiting for the harmony notes to be released.
- *
- * MIDI uses only 12 pitch classes per octave, collapsing enharmonic equivalents. The grouper uses
- * the lesson's key signature to spell MIDI note numbers correctly (e.g. F# vs Gb) when formatting
- * output.
- *
- * A LESSON command resets all internal state in preparation for a new sequence of BASSNOTE,
- * FIGURES, and MELODY commands followed by NOTE_ON/NOTE_OFF pairs.
- *
- * Output group format:
- *   GROUP ID:<id> [passing] BASS:<expected> FIGURES:<fig> MELODY:<mel> BASS_ACTUAL:<note> TIME:<t> REALIZATION:<chord>
- *
- * Passing groups carry the word "passing" immediately after the ID field.
- * REALIZATION lists upper voices only (bass excluded), highest to lowest, slash-separated.
- * Passing groups inherit the previous group's realization (same harmony, new bass).
- *
- * Example input:
- *   LESSON 1 G 3/2 Purcell bars 48-52
- *   BASSNOTE 0: g2
- *   FIGURES 0: 0
- *   MELODY 0: g'2.
- *   BASSNOTE 1: fis2 passing
- *   FIGURES 1: 0
- *   MELODY 1: b'4
- *   BASSNOTE 2: e2
- *   FIGURES 2: #6
- *   MELODY 2: b'4 cis''4
- *   NOTE_ON g, VELOCITY:79 TIME:6059
- *   NOTE_ON d' VELOCITY:79 TIME:21858
- *   NOTE_ON b VELOCITY:83 TIME:21858
- *   NOTE_OFF g, TIME:22858
- *   NOTE_OFF b TIME:22860
- *   NOTE_OFF d' TIME:22861
- *
- * Example output:
- *   GROUP ID:0 BASS:g2 FIGURES:0 MELODY:g'2. BASS_ACTUAL:g, TIME:6059 REALIZATION:d'/b
- */
+// SPDX-License-Identifier: MIT
+// grouper.rs --- align MIDI notes to lesson bassline, figures, and melody
+// Copyright (c) 2026 Jakob Kastelic
 
 use std::collections::{BTreeMap, HashMap};
 use std::io::{self, BufRead};
@@ -58,14 +15,18 @@ use std::io::{self, BufRead};
 fn spelling_for_key(key: &str) -> [&'static str; 12] {
     // Pitch classes 0..11 = C C#/Db D D#/Eb E F F#/Gb G G#/Ab A A#/Bb B
     let sharp_keys = ["C", "G", "D", "A", "E", "B", "F#", "C#"];
-    let flat_keys  = ["C", "F", "Bb", "Eb", "Ab", "Db", "Gb", "Cb"];
+    let flat_keys = ["C", "F", "Bb", "Eb", "Ab", "Db", "Gb", "Cb"];
 
     let use_sharps = sharp_keys.contains(&key);
     // For ambiguous C we default to sharps
     if use_sharps || !flat_keys.contains(&key) {
-        ["c", "cis", "d", "dis", "e", "f", "fis", "g", "gis", "a", "ais", "b"]
+        [
+            "c", "cis", "d", "dis", "e", "f", "fis", "g", "gis", "a", "ais", "b",
+        ]
     } else {
-        ["c", "des", "d", "ees", "e", "f", "ges", "g", "aes", "a", "bes", "b"]
+        [
+            "c", "des", "d", "ees", "e", "f", "ges", "g", "aes", "a", "bes", "b",
+        ]
     }
 }
 
@@ -77,7 +38,7 @@ fn lilypond_to_midi(note: &str) -> Option<u8> {
     let note = note.split_whitespace().next().unwrap_or(note);
     // Find where pitch name ends and octave modifiers begin
     let name_end = note
-        .find(|c: char| c == '\'' || c == ',' )
+        .find(|c: char| c == '\'' || c == ',')
         .unwrap_or(note.len());
 
     // Strip trailing duration digits/dots from the pitch portion
@@ -87,28 +48,31 @@ fn lilypond_to_midi(note: &str) -> Option<u8> {
     let octave_str = &note[name_end..];
 
     let pc: i32 = match raw_name {
-        "c"   | "bis"  => 0,
-        "cis" | "des"  => 1,
-        "d"            => 2,
-        "dis" | "ees"  => 3,
-        "e"   | "fes"  => 4,
-        "f"   | "eis"  => 5,
-        "fis" | "ges"  => 6,
-        "g"            => 7,
-        "gis" | "aes"  => 8,
-        "a"            => 9,
-        "ais" | "bes"  => 10,
-        "b"   | "ces"  => 11,
+        "c" | "bis" => 0,
+        "cis" | "des" => 1,
+        "d" => 2,
+        "dis" | "ees" => 3,
+        "e" | "fes" => 4,
+        "f" | "eis" => 5,
+        "fis" | "ges" => 6,
+        "g" => 7,
+        "gis" | "aes" => 8,
+        "a" => 9,
+        "ais" | "bes" => 10,
+        "b" | "ces" => 11,
         _ => return None,
     };
 
     // Base octave in LilyPond unmodified = octave 3 (C3 = MIDI 48; c' = middle C = MIDI 60)
     let base_octave: i32 = 3;
-    let octave_offset: i32 = octave_str.chars().map(|c| match c {
-        '\'' => 1,
-        ','  => -1,
-        _    => 0,
-    }).sum();
+    let octave_offset: i32 = octave_str
+        .chars()
+        .map(|c| match c {
+            '\'' => 1,
+            ',' => -1,
+            _ => 0,
+        })
+        .sum();
 
     let midi = (base_octave + octave_offset + 1) * 12 + pc;
     if midi >= 0 && midi <= 127 {
@@ -142,28 +106,28 @@ fn midi_to_lilypond(midi: u8, spelling: &[&'static str; 12]) -> String {
 
 #[derive(Debug, Clone)]
 struct LessonEntry {
-    bassnote: String,    // e.g. "g2"
-    figures:  String,    // e.g. "0", "#6"
-    melody:   String,    // e.g. "g'2."
-    passing:  bool,
+    bassnote: String, // e.g. "g2"
+    figures: String,  // e.g. "0", "#6"
+    melody: String,   // e.g. "g'2."
+    passing: bool,
 }
 
 #[derive(Debug, Default)]
 struct Grouper {
-    key:      String,
-    entries:  HashMap<usize, LessonEntry>,
+    key: String,
+    entries: HashMap<usize, LessonEntry>,
 
     /// Notes currently held: midi -> count (to handle repeated note-ons)
     held: BTreeMap<u8, u32>,
 
     /// The group currently being collected
-    current_group_id:  usize,
+    current_group_id: usize,
     /// Bass note of the current group (lowest NOTE_ON received since last group boundary)
-    current_bass:      Option<u8>,
+    current_bass: Option<u8>,
     /// MIDI timestamp when current_bass was first played
     current_bass_time: u64,
     /// All notes pressed in the current group (sorted highest→lowest for chord output)
-    current_chord:     Vec<u8>,
+    current_chord: Vec<u8>,
 
     /// Pending output for the previous group when we hit a passing note mid-flight
     pending_output: Option<String>,
@@ -171,43 +135,49 @@ struct Grouper {
 
 impl Grouper {
     fn reset(&mut self, key: String) {
-        self.key            = key;
-        self.entries        = HashMap::new();
-        self.held           = BTreeMap::new();
+        self.key = key;
+        self.entries = HashMap::new();
+        self.held = BTreeMap::new();
         self.current_group_id = 0;
-        self.current_bass   = None;
+        self.current_bass = None;
         self.current_bass_time = 0;
-        self.current_chord  = Vec::new();
+        self.current_chord = Vec::new();
         self.pending_output = None;
     }
 
     fn set_bassnote(&mut self, id: usize, note: &str, passing: bool) {
         let entry = self.entries.entry(id).or_insert_with(|| LessonEntry {
             bassnote: String::new(),
-            figures:  String::new(),
-            melody:   String::new(),
+            figures: String::new(),
+            melody: String::new(),
             passing,
         });
         entry.bassnote = note.to_string();
-        entry.passing  = passing;
+        entry.passing = passing;
     }
 
     fn set_figures(&mut self, id: usize, figures: &str) {
-        self.entries.entry(id).or_insert_with(|| LessonEntry {
-            bassnote: String::new(),
-            figures:  String::new(),
-            melody:   String::new(),
-            passing:  false,
-        }).figures = figures.to_string();
+        self.entries
+            .entry(id)
+            .or_insert_with(|| LessonEntry {
+                bassnote: String::new(),
+                figures: String::new(),
+                melody: String::new(),
+                passing: false,
+            })
+            .figures = figures.to_string();
     }
 
     fn set_melody(&mut self, id: usize, melody: &str) {
-        self.entries.entry(id).or_insert_with(|| LessonEntry {
-            bassnote: String::new(),
-            figures:  String::new(),
-            melody:   String::new(),
-            passing:  false,
-        }).melody = melody.to_string();
+        self.entries
+            .entry(id)
+            .or_insert_with(|| LessonEntry {
+                bassnote: String::new(),
+                figures: String::new(),
+                melody: String::new(),
+                passing: false,
+            })
+            .melody = melody.to_string();
     }
 
     fn spelling(&self) -> [&'static str; 12] {
@@ -219,9 +189,9 @@ impl Grouper {
         let spelling = self.spelling();
         let entry = self.entries.get(&group_id);
         let expected_bass = entry.map(|e| e.bassnote.as_str()).unwrap_or("?");
-        let figures        = entry.map(|e| e.figures.as_str()).unwrap_or("?");
-        let melody         = entry.map(|e| e.melody.as_str()).unwrap_or("?");
-        let is_passing     = entry.map(|e| e.passing).unwrap_or(false);
+        let figures = entry.map(|e| e.figures.as_str()).unwrap_or("?");
+        let melody = entry.map(|e| e.melody.as_str()).unwrap_or("?");
+        let is_passing = entry.map(|e| e.passing).unwrap_or(false);
 
         let actual_bass = midi_to_lilypond(bass_midi, &spelling);
 
@@ -242,8 +212,13 @@ impl Grouper {
         } else {
             format!(
                 "GROUP ID:{} BASS:{} FIGURES:{} MELODY:{} BASS_ACTUAL:{} TIME:{} REALIZATION:{}",
-                group_id, expected_bass, figures, melody,
-                actual_bass, bass_time, realization.join("/")
+                group_id,
+                expected_bass,
+                figures,
+                melody,
+                actual_bass,
+                bass_time,
+                realization.join("/")
             )
         }
     }
@@ -403,7 +378,10 @@ fn main() {
     for raw_line in stdin.lock().lines() {
         let line = match raw_line {
             Ok(l) => l,
-            Err(e) => { eprintln!("Read error: {}", e); break; }
+            Err(e) => {
+                eprintln!("Read error: {}", e);
+                break;
+            }
         };
         let line = line.trim();
         if line.is_empty() || line.starts_with('#') {
@@ -413,28 +391,24 @@ fn main() {
         if line.starts_with("LESSON ") {
             let key = parse_lesson_key(line).unwrap_or_else(|| "C".to_string());
             grouper.reset(key);
-
         } else if line.starts_with("BASSNOTE ") {
             if let Some((id, note, passing)) = parse_bassnote(line) {
                 grouper.set_bassnote(id, &note, passing);
             } else {
                 eprintln!("Warning: could not parse BASSNOTE line: {}", line);
             }
-
         } else if line.starts_with("FIGURES ") {
             if let Some((id, figures)) = parse_figures(line) {
                 grouper.set_figures(id, &figures);
             } else {
                 eprintln!("Warning: could not parse FIGURES line: {}", line);
             }
-
         } else if line.starts_with("MELODY ") {
             if let Some((id, melody)) = parse_melody(line) {
                 grouper.set_melody(id, &melody);
             } else {
                 eprintln!("Warning: could not parse MELODY line: {}", line);
             }
-
         } else if line.starts_with("NOTE_ON ") {
             if let Some((midi, time)) = parse_note_on(line) {
                 if let Some(output) = grouper.note_on(midi, time) {
@@ -443,7 +417,6 @@ fn main() {
             } else {
                 eprintln!("Warning: could not parse NOTE_ON line: {}", line);
             }
-
         } else if line.starts_with("NOTE_OFF ") {
             if let Some(midi) = parse_note_off(line) {
                 if let Some(output) = grouper.note_off(midi) {
@@ -452,7 +425,6 @@ fn main() {
             } else {
                 eprintln!("Warning: could not parse NOTE_OFF line: {}", line);
             }
-
         } else {
             eprintln!("Warning: unrecognised command: {}", line);
         }
@@ -474,8 +446,8 @@ mod tests {
         // g, = G2 = MIDI 43
         assert_eq!(lilypond_to_midi("g,"), Some(43));
         // fis2 — "2" is a duration suffix, should still parse pitch
-        assert_eq!(lilypond_to_midi("fis2"), Some(54));  // f#3 = 54
-        // d' = MIDI 62
+        assert_eq!(lilypond_to_midi("fis2"), Some(54)); // f#3 = 54
+                                                        // d' = MIDI 62
         assert_eq!(lilypond_to_midi("d'"), Some(62));
         // b = MIDI 59
         assert_eq!(lilypond_to_midi("b"), Some(59));
@@ -508,7 +480,7 @@ mod tests {
         g.set_melody(0, "g'2.");
 
         // Three notes: g, (43) at t=100, b (59), d' (62)
-        assert!(g.note_on(43, 100).is_none());  // bass first
+        assert!(g.note_on(43, 100).is_none()); // bass first
         assert!(g.note_on(62, 101).is_none());
         assert!(g.note_on(59, 102).is_none());
 
@@ -524,7 +496,11 @@ mod tests {
         assert!(out.contains("REALIZATION:d'/b"), "got: {}", out);
         // bass g, must NOT appear in REALIZATION
         let real_part = out.split("REALIZATION:").nth(1).unwrap_or("");
-        assert!(!real_part.contains("g,"), "bass must not be in realization: {}", out);
+        assert!(
+            !real_part.contains("g,"),
+            "bass must not be in realization: {}",
+            out
+        );
     }
 
     #[test]
@@ -534,7 +510,7 @@ mod tests {
         g.set_bassnote(0, "g2", false);
         g.set_figures(0, "0");
         g.set_melody(0, "g'2.");
-        g.set_bassnote(1, "fis2", true);   // passing
+        g.set_bassnote(1, "fis2", true); // passing
         g.set_figures(1, "0");
         g.set_melody(1, "b'4");
 
@@ -544,23 +520,43 @@ mod tests {
         g.note_on(62, 12);
 
         // Play the passing bass note fis (MIDI 42) — should emit group 0 immediately
-        let out0 = g.note_on(42, 20).expect("passing note should emit previous group");
+        let out0 = g
+            .note_on(42, 20)
+            .expect("passing note should emit previous group");
         assert!(out0.contains("ID:0"), "got: {}", out0);
-        assert!(!out0.contains("passing"), "group 0 is not passing: {}", out0);
+        assert!(
+            !out0.contains("passing"),
+            "group 0 is not passing: {}",
+            out0
+        );
         assert!(out0.contains("TIME:10"), "group 0 bass time: {}", out0);
 
         // Release all notes; group 1 (passing) should emit on final release
         g.note_off(43);
         g.note_off(59);
         g.note_off(62);
-        let out1 = g.note_off(42).expect("passing group should emit on final release");
+        let out1 = g
+            .note_off(42)
+            .expect("passing group should emit on final release");
         assert!(out1.contains("ID:1"), "got: {}", out1);
-        assert!(out1.contains("passing"), "group 1 should be marked passing: {}", out1);
+        assert!(
+            out1.contains("passing"),
+            "group 1 should be marked passing: {}",
+            out1
+        );
         assert!(out1.contains("TIME:20"), "passing bass time: {}", out1);
         // Passing group inherits the previous chord (d'/b), fis not in realization
         let real1 = out1.split("REALIZATION:").nth(1).unwrap_or("");
-        assert!(real1.contains("d'") && real1.contains("b"), "inherited chord: {}", out1);
-        assert!(!real1.contains("fis"), "bass must not be in realization: {}", out1);
+        assert!(
+            real1.contains("d'") && real1.contains("b"),
+            "inherited chord: {}",
+            out1
+        );
+        assert!(
+            !real1.contains("fis"),
+            "bass must not be in realization: {}",
+            out1
+        );
     }
 
     #[test]
@@ -573,7 +569,13 @@ mod tests {
 
     #[test]
     fn test_parse_note_on() {
-        assert_eq!(parse_note_on("NOTE_ON g, VELOCITY:79 TIME:6059"), Some((43, 6059)));
-        assert_eq!(parse_note_on("NOTE_ON d' VELOCITY:79 TIME:21858"), Some((62, 21858)));
+        assert_eq!(
+            parse_note_on("NOTE_ON g, VELOCITY:79 TIME:6059"),
+            Some((43, 6059))
+        );
+        assert_eq!(
+            parse_note_on("NOTE_ON d' VELOCITY:79 TIME:21858"),
+            Some((62, 21858))
+        );
     }
 }

@@ -1,0 +1,101 @@
+.TH G2LY 1
+.SH NAME
+g2ly \- convert grouper output into a four-staff LilyPond score
+
+.SH SYNOPSIS
+.B g2ly
+
+.SH DESCRIPTION
+.I g2ly
+reads processed lesson data (the output of the grouper utility) from standard input and generates a complete LilyPond (.ly) document on standard output.
+.PP
+The resulting score is organized into four distinct staves, providing a full realization of the continuo exercise, including melody, realized accompaniment, and figured bass.
+
+.SH INPUT FORMAT
+The program expects a stream of lines beginning with either a 
+.B LESSON
+header or a
+.B GROUP
+entry.
+
+.SS LESSON Header
+The header provides metadata for the score:
+.IP
+LESSON \fIkey\fR \fItime\fR \fItitle...\fR
+.PP
+The \fIkey\fR and \fItime\fR are applied to all staves, while the \fItitle\fR is placed in the LilyPond header block.
+
+.SS GROUP Entries
+Each group represents a discrete musical event associated with a bass note. Fields are labeled and space-separated:
+.TP
+.B ID:
+Numerical identifier for the group.
+.TP
+.B passing
+Optional flag indicating the group is a passing motion.
+.TP
+.B BASS:
+The written bass note and duration (e.g., g2).
+.TP
+.B FIGURES:
+The figured bass symbols (e.g., #6, 2/#4/6).
+.TP
+.B MELODY:
+Melody tokens or a hyphen "-" for spacer rests.
+.TP
+.B BASS_ACTUAL:
+The literal pitch played by the bass voice.
+.TP
+.B REALIZATION:
+Slash-separated pitches for the realization (e.g., b'/g'/d').
+
+.SH STAFF ORGANIZATION
+The output score consists of four staves, ordered top to bottom:
+
+.IP 1. 4
+.B Melody:
+Treble clef. Contains the verbatim tokens from the \fBMELODY\fR field.
+.IP 2. 4
+.B Realization (Treble):
+Treble clef. Contains realization pitches at or above middle C (MIDI note 60 or higher).
+.IP 3. 4
+.B Realization (Bass):
+Bass clef. This staff contains two voices. Voice 1 is the 
+.B BASS_ACTUAL
+pitch. Voice 2 contains realization pitches below middle C (MIDI notes lower than 60).
+.IP 4. 4
+.B Bass:
+Bass clef. Displays the 
+.B BASS
+(written/expected) note with a \fBFiguredBass\fR context rendered below it.
+
+.SH FIGURED BASS
+The 
+.B FIGURES
+field is translated into LilyPond \fI\figuremode\fR syntax:
+.TP
+\(bu
+"0" becomes <_> (an empty figure).
+.TP
+\(bu
+"#" or "b" becomes <_+> or <_-> (accidental-only third).
+.TP
+\(bu
+Prefixes like "#6" or "b6" become <6+> or <6->.
+.TP
+\(bu
+Passing groups (marked with the \fBpassing\fR flag) ignore the figures field and emit a solidus <_\\> to mark the motion.
+
+.SH TIES
+Realization notes are tied across passing groups to ensure harmonic continuity. If group \fIN+1\fR is marked as passing, any pitch appearing in the realization of both group \fIN\fR and group \fIN+1\fR will receive a tie ("~") in the LilyPond output.
+
+.SH DIAGNOSTICS
+The program writes a warning to standard error if it encounters a 
+.B GROUP
+line that cannot be parsed, but it will attempt to continue processing the remaining input.
+
+.SH AUTHOR
+Written by Jakob Kastelic (2026).
+
+.SH SEE ALSO
+loader(1), lilypond(1)

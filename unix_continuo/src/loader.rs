@@ -1,30 +1,13 @@
-/* loader.rs --- load lesson data and metadata from disk into pipeline
- *
- * Example input:
- *   LOAD_LESSON 3
- *
- * Example output:
- *   LESSON 3 G 3/4 Purcell bars 48-52
- *   BASSNOTE 0: g2
- *   FIGURES 0: 6/4
- *   MELODY 0: g'2
- *   BASSNOTE 1: fis2 passing
- *   FIGURES 1: #3
- *   MELODY 1: b'4
- *   BASSNOTE 2: e2
- *   FIGURES 2: -
- *   MELODY 2: b'4 cis''4
- *
- * Passing notes are marked in lesson files with a trailing 'p' on the bass duration, e.g. fis2p.
- * These need no continuo realization but still consume rhythmic time for grouping.
- */
+// SPDX-License-Identifier: MIT
+// loader.rs --- load and normalize continuo lesson data
+// Copyright (c) 2026 Jakob Kastelic
 
 use std::fs;
 use std::io;
 
 fn skip_pitch_name(s: &str) -> &str {
     let s = s.trim_start_matches(|c: char| c.is_ascii_alphabetic()); // note letter + is/es
-    let s = s.trim_start_matches(|c: char| c == '\'' || c == ',');   // octave marks
+    let s = s.trim_start_matches(|c: char| c == '\'' || c == ','); // octave marks
     s
 }
 
@@ -59,9 +42,13 @@ fn apply_dots(base: u32, dots: u32) -> u32 {
 fn parse_duration(token: &str) -> Option<u32> {
     let after_pitch = skip_pitch_name(token);
     let (digits, rest) = after_pitch.split_at(
-        after_pitch.find(|c: char| !c.is_ascii_digit()).unwrap_or(after_pitch.len())
+        after_pitch
+            .find(|c: char| !c.is_ascii_digit())
+            .unwrap_or(after_pitch.len()),
     );
-    if digits.is_empty() { return None; }
+    if digits.is_empty() {
+        return None;
+    }
     let base_dur: u32 = digits.parse().ok()?;
     let rest = rest.trim_end_matches('p'); // strip our passing-note marker before dots
     let (_, dots) = parse_dots(rest);
@@ -80,11 +67,11 @@ fn is_passing(token: &str) -> bool {
 
 struct Lesson {
     title: String,
-    key:   String,
-    time:  String,
-    bass:    Vec<String>,
+    key: String,
+    time: String,
+    bass: Vec<String>,
     figures: Vec<String>,
-    melody:  Vec<String>,
+    melody: Vec<String>,
 }
 
 fn read_lesson_number() -> Option<usize> {
@@ -97,34 +84,71 @@ fn read_lesson_number() -> Option<usize> {
     }
     match parts.next().and_then(|x| x.parse().ok()) {
         Some(n) => Some(n),
-        None    => { eprintln!("Invalid lesson number"); None }
+        None => {
+            eprintln!("Invalid lesson number");
+            None
+        }
     }
 }
 
 fn parse_lesson(content: &str) -> Lesson {
-    let mut title = String::new(); let mut key = String::new(); let mut time = String::new();
-    let mut bass = Vec::new(); let mut figures = Vec::new(); let mut melody = Vec::new();
+    let mut title = String::new();
+    let mut key = String::new();
+    let mut time = String::new();
+    let mut bass = Vec::new();
+    let mut figures = Vec::new();
+    let mut melody = Vec::new();
     let mut mode = "";
 
     for line in content.lines() {
         let l = line.trim();
-        if l.is_empty() { continue }
-        if l.starts_with("title:")   { title = l[6..].trim().to_string(); continue }
-        if l.starts_with("key:")     { key   = l[4..].trim().to_string(); continue }
-        if l.starts_with("time:")    { time  = l[5..].trim().to_string(); continue }
-        if l.starts_with("bassline") { mode = "bass"; continue }
-        if l.starts_with("figures")  { mode = "fig";  continue }
-        if l.starts_with("melody")   { mode = "mel";  continue }
-        if l.starts_with('}')        { mode = "";     continue }
+        if l.is_empty() {
+            continue;
+        }
+        if l.starts_with("title:") {
+            title = l[6..].trim().to_string();
+            continue;
+        }
+        if l.starts_with("key:") {
+            key = l[4..].trim().to_string();
+            continue;
+        }
+        if l.starts_with("time:") {
+            time = l[5..].trim().to_string();
+            continue;
+        }
+        if l.starts_with("bassline") {
+            mode = "bass";
+            continue;
+        }
+        if l.starts_with("figures") {
+            mode = "fig";
+            continue;
+        }
+        if l.starts_with("melody") {
+            mode = "mel";
+            continue;
+        }
+        if l.starts_with('}') {
+            mode = "";
+            continue;
+        }
 
         match mode {
             "bass" => bass.extend(l.split_whitespace().map(str::to_string)),
-            "fig"  => figures.extend(l.split_whitespace().map(str::to_string)),
-            "mel"  => melody.extend(l.split_whitespace().map(str::to_string)),
+            "fig" => figures.extend(l.split_whitespace().map(str::to_string)),
+            "mel" => melody.extend(l.split_whitespace().map(str::to_string)),
             _ => {}
         }
     }
-    Lesson { title, key, time, bass, figures, melody }
+    Lesson {
+        title,
+        key,
+        time,
+        bass,
+        figures,
+        melody,
+    }
 }
 
 /// Groups melody tokens so that melody_groups[i] contains all melody tokens
@@ -132,12 +156,16 @@ fn parse_lesson(content: &str) -> Lesson {
 /// a held note from the previous group.
 fn group_melody(bass: &[String], melody: &[String]) -> Vec<String> {
     let mut last_dur = 4u32;
-    let bass_durs: Vec<u32> = bass.iter().map(|tok| {
-        match parse_duration(tok) {
-            Some(d) => { last_dur = d; d }
-            None    => last_dur,
-        }
-    }).collect();
+    let bass_durs: Vec<u32> = bass
+        .iter()
+        .map(|tok| match parse_duration(tok) {
+            Some(d) => {
+                last_dur = d;
+                d
+            }
+            None => last_dur,
+        })
+        .collect();
 
     let mut groups: Vec<String> = vec![String::new(); bass.len()];
     let mut mel_idx = 0usize;
@@ -150,10 +178,15 @@ fn group_melody(bass: &[String], melody: &[String]) -> Vec<String> {
         while mel_total < bass_total && mel_idx < melody.len() {
             let tok = &melody[mel_idx];
             let d = match parse_duration(tok) {
-                Some(d) => { last_mel_dur = d; d }
-                None    => last_mel_dur,
+                Some(d) => {
+                    last_mel_dur = d;
+                    d
+                }
+                None => last_mel_dur,
             };
-            if !groups[bi].is_empty() { groups[bi].push(' '); }
+            if !groups[bi].is_empty() {
+                groups[bi].push(' ');
+            }
             groups[bi].push_str(tok);
             mel_total += d;
             mel_idx += 1;
@@ -163,7 +196,10 @@ fn group_melody(bass: &[String], melody: &[String]) -> Vec<String> {
 }
 
 fn emit(n: usize, lesson: &Lesson, melody_groups: &[String]) {
-    println!("LESSON {} {} {} {}", n, lesson.key, lesson.time, lesson.title);
+    println!(
+        "LESSON {} {} {} {}",
+        n, lesson.key, lesson.time, lesson.title
+    );
     for i in 0..lesson.bass.len() {
         let (tok, passing) = if is_passing(&lesson.bass[i]) {
             (lesson.bass[i].trim_end_matches('p'), true)
@@ -176,23 +212,40 @@ fn emit(n: usize, lesson: &Lesson, melody_groups: &[String]) {
             println!("BASSNOTE {}: {}", i, tok);
         }
         println!("FIGURES {}: {}", i, lesson.figures[i]);
-        println!("MELODY {}: {}", i,
-            if melody_groups[i].is_empty() { "-" } else { &melody_groups[i] });
+        println!(
+            "MELODY {}: {}",
+            i,
+            if melody_groups[i].is_empty() {
+                "-"
+            } else {
+                &melody_groups[i]
+            }
+        );
     }
 }
 
 fn main() {
-    let n = match read_lesson_number() { Some(n) => n, None => return };
+    let n = match read_lesson_number() {
+        Some(n) => n,
+        None => return,
+    };
 
-    let file = format!("lessons/{}.txt", n);
+    let file = format!("seq/{}.txt", n);
     let content = match fs::read_to_string(&file) {
         Ok(c) => c,
-        Err(e) => { eprintln!("Cannot read {}: {}", file, e); return; }
+        Err(e) => {
+            eprintln!("Cannot read {}: {}", file, e);
+            return;
+        }
     };
 
     let lesson = parse_lesson(&content);
     if lesson.bass.len() != lesson.figures.len() {
-        eprintln!("Length mismatch: bass={} figures={}", lesson.bass.len(), lesson.figures.len());
+        eprintln!(
+            "Length mismatch: bass={} figures={}",
+            lesson.bass.len(),
+            lesson.figures.len()
+        );
         return;
     }
 

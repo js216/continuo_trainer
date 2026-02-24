@@ -1,0 +1,133 @@
+.TH GROUPER 1
+.SH NAME
+grouper \- align MIDI notes to lesson bassline, figures, and melody
+
+.SH SYNOPSIS
+.B grouper
+
+.SH DESCRIPTION
+.I grouper
+receives MIDI note-on/off events and lesson data from a loader via standard input.
+It groups each lesson entry — bass note, figures, and melody — together with the
+corresponding MIDI performance data. A group is considered complete when all
+currently held notes have been released.
+
+Some bass notes are marked "passing", meaning the harmony from the previous
+bass note is still active. Passing groups inherit the previous group's realization
+(chord), and the grouper emits the previous group immediately when a passing bass
+note is detected.
+
+MIDI uses 12 pitch classes per octave, collapsing enharmonic equivalents. The
+grouper uses the lesson's key signature to spell MIDI note numbers correctly
+(e.g., F# vs Gb) when formatting output.
+
+A
+.B LESSON
+command resets all internal state in preparation for a new sequence of
+.B BASSNOTE,
+.B FIGURES,
+and
+.B MELODY
+commands, followed by
+.B NOTE_ON
+and
+.B NOTE_OFF
+pairs.
+
+.SH INPUT FORMAT
+The program expects lines on standard input of the following types:
+
+.TP
+.B LESSON <num> <key> <time_sig> <title...>
+Reset internal state and prepare for a new lesson sequence.
+
+.TP
+.B BASSNOTE <id>: <note> [passing]
+Define a bass note for group <id>. If "passing" is specified, the group inherits
+the previous chord.
+
+.TP
+.B FIGURES <id>: <figures>
+Define the figured bass symbols for group <id>.
+
+.TP
+.B MELODY <id>: <melody>
+Define the melody notes for group <id>.
+
+.TP
+.B NOTE_ON <note> VELOCITY:<v> TIME:<t>
+Register a MIDI note-on event at the given timestamp.
+
+.TP
+.B NOTE_OFF <note> TIME:<t>
+Register a MIDI note-off event at the given timestamp.
+
+.SH OUTPUT FORMAT
+Output lines are written to standard output in the following format:
+
+.PP
+    GROUP ID:<id> [passing] BASS:<expected> FIGURES:<fig> MELODY:<mel> BASS_ACTUAL:<note> TIME:<t> REALIZATION:<chord>
+
+.TP
+.B passing
+If the group is marked as passing, the word "passing" appears immediately after
+the ID field.
+
+.TP
+.B REALIZATION
+Lists upper voices only (bass excluded), highest to lowest, slash-separated.
+Passing groups inherit the previous group's realization.
+
+.SH EXAMPLE INPUT
+.nf
+LESSON 1 G 3/2 Purcell bars 48-52
+BASSNOTE 0: g2
+FIGURES 0: 0
+MELODY 0: g'2.
+BASSNOTE 1: fis2 passing
+FIGURES 1: 0
+MELODY 1: b'4
+BASSNOTE 2: e2
+FIGURES 2: #6
+MELODY 2: b'4 cis''4
+NOTE_ON g, VELOCITY:79 TIME:6059
+NOTE_ON d' VELOCITY:79 TIME:21858
+NOTE_ON b VELOCITY:83 TIME:21858
+NOTE_OFF g, TIME:22858
+NOTE_OFF b TIME:22860
+NOTE_OFF d' TIME:22861
+.fi
+
+.SH EXAMPLE OUTPUT
+.PP
+GROUP ID:0 BASS:g2 FIGURES:0 MELODY:g'2. BASS_ACTUAL:g, TIME:6059 REALIZATION:d'/b
+
+.SH DIAGNOSTICS
+Error messages are written to standard error for:
+
+.TP
+\(bu
+Malformed input lines.
+
+.TP
+\(bu
+Invalid MIDI events.
+
+.TP
+\(bu
+Missing or out-of-range lesson entries.
+
+.TP
+\(bu
+Other unexpected conditions during group assembly.
+
+.SH EXIT STATUS
+The program exits silently on success.
+On error, a diagnostic is written to standard error and the program terminates
+without producing normal output.
+
+.SH AUTHOR
+Written by Jakob Kastelic (2026).
+
+.SH SEE ALSO
+loader(1), lilypond(1)

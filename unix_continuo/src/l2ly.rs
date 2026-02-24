@@ -1,33 +1,23 @@
-/* l2ly.rs --- convert lesson file from stdin into minimal LilyPond grand staff
- *
- * Input: lesson file via stdin (title, key, time, bassline, figures, melody)
- * Output: LilyPond document on stdout (grand staff, figures above bassline)
- *
- * Usage:
- *   build/l2ly < lessons/1.txt > lessons/1.ly
- *
- * Features:
- *   - Melody in treble clef
- *   - Bassline in bass clef with figured bass below
- *   - Continuo figures converted to proper LilyPond \figuremode
- *   - Fully Unix-style: stdin/stdout
- */
+// SPDX-License-Identifier: MIT
+// l2ly.rs --- convert lesson file from stdin into minimal LilyPond grand staff
+// Copyright (c) 2026 Jakob Kastelic
 
 use std::io::{self, Read};
 
 fn main() {
     // Read entire lesson from stdin
     let mut content = String::new();
-    io::stdin().read_to_string(&mut content)
+    io::stdin()
+        .read_to_string(&mut content)
         .expect("Cannot read lesson file from stdin");
 
     // Extract fields
-    let title  = extract_field(&content, "title");
-    let key    = extract_field(&content, "key");
-    let time   = extract_field(&content, "time");
+    let title = extract_field(&content, "title");
+    let key = extract_field(&content, "key");
+    let time = extract_field(&content, "time");
     let bassline = extract_block(&content, "bassline");
-    let figures  = extract_block(&content, "figures");
-    let melody   = extract_block(&content, "melody");
+    let figures = extract_block(&content, "figures");
+    let melody = extract_block(&content, "melody");
 
     // LilyPond requires lowercase pitch names for \key
     let key_ly = key.to_lowercase();
@@ -83,12 +73,12 @@ passingNoteSolidus = \markup
     }}
   >>
 }}"#,
-        title   = title,
-        key_ly  = key_ly,
-        time    = time,
-        melody  = melody_to_ly(&melody),
+        title = title,
+        key_ly = key_ly,
+        time = time,
+        melody = melody_to_ly(&melody),
         bassline = bassline_to_ly(&bassline),
-        figures  = figures_to_ly(&figures, &bassline),
+        figures = figures_to_ly(&figures, &bassline),
     );
 
     // Write to stdout
@@ -107,18 +97,18 @@ fn extract_field(content: &str, field: &str) -> String {
 // Extract the body of a named block:  name = { ... }
 fn extract_block(content: &str, block_name: &str) -> String {
     let marker = format!("{} = {{", block_name);
-    let start  = content.find(&marker).unwrap();
-    let rest   = &content[start..];
+    let start = content.find(&marker).unwrap();
+    let rest = &content[start..];
     let start_brace = rest.find('{').unwrap() + 1;
-    let end_brace   = rest.find('}').unwrap();
+    let end_brace = rest.find('}').unwrap();
     rest[start_brace..end_brace].trim().replace('\n', " ")
 }
 
 // Naive pass-through for melody notation
 fn melody_to_ly(input: &str) -> String {
     input
-        .replace("~ ", "~ ")   // normalise ties (idempotent)
-        .replace("~",  "~ ")
+        .replace("~ ", "~ ") // normalise ties (idempotent)
+        .replace("~", "~ ")
 }
 
 // Like melody_to_ly but also strips trailing 'p' passing-note markers from
@@ -126,7 +116,13 @@ fn melody_to_ly(input: &str) -> String {
 fn bassline_to_ly(input: &str) -> String {
     let cleaned: Vec<&str> = input
         .split_whitespace()
-        .map(|tok| if is_passing(tok) { tok.trim_end_matches('p') } else { tok })
+        .map(|tok| {
+            if is_passing(tok) {
+                tok.trim_end_matches('p')
+            } else {
+                tok
+            }
+        })
         .collect();
     cleaned.join(" ")
 }
@@ -175,7 +171,11 @@ fn figures_to_ly(figures: &str, bassline: &str) -> String {
         .zip(bass_tokens.iter())
         .map(|(fig, bass)| {
             let dur = note_duration(bass);
-            let group = if is_passing(bass) { r"<_\\>".to_string() } else { parse_figure(fig) };
+            let group = if is_passing(bass) {
+                r"<_\\>".to_string()
+            } else {
+                parse_figure(fig)
+            };
             format!("{}{}", group, dur)
         })
         .collect::<Vec<_>>()

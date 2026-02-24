@@ -1,0 +1,79 @@
+.\" midi.1 --- read MIDI input and output timed events
+.TH MIDI 1 "2026-02-24" "midi.c" "MIDI Input/Output Utility"
+.SH NAME
+midi \- read MIDI input from device and output timed events
+.SH SYNOPSIS
+.nf
+midi
+.fi
+.SH DESCRIPTION
+This program reads incoming MIDI messages from connected devices and
+outputs text events with timestamp and channel info suitable for
+downstream programs.
+
+Commands may be sent via \fBstdin\fR to select input/output devices
+and optionally forward input to output (hardware synth). On startup,
+the program reports available MIDI devices. Settings (connected
+devices, forwarding) are saved on every change and restored
+automatically on startup.
+
+.SH COMMANDS
+.nf
+MIDI IN <n>       Open MIDI input device number n
+MIDI OUT <n>      Open MIDI output device number n
+MIDI FORWARD ON   Enable forwarding of input to output
+MIDI FORWARD OFF  Disable forwarding
+MIDI DEVICES      Re-enumerate and print available devices
+MIDI TEST         Send a test note (C#4) to the output
+.fi
+
+.SH EVENTS (stdout)
+.nf
+DEVICE_AVAIL <n> <devicename>
+NOTE_ON <lily> VELOCITY:<v> TIME:<ms>
+NOTE_OFF <lily> TIME:<ms>
+STATUS <message>
+.fi
+
+.SH NOTES
+LilyPond absolute pitch examples: c' = middle C, fis'' = F#5, bes = Bb3
+
+All MIDI message handling occurs in a background callback. The
+self-pipe mechanism is used to wake the main thread without
+busy-waiting.
+
+Settings are saved in "log/midi.log" in the format:
+.nf
+IN <device name>
+OUT <device name>
+FORWARD <0|1>
+.fi
+
+.SH EXAMPLE INPUT
+.nf
+MIDI DEVICES
+MIDI IN 0
+MIDI OUT 1
+MIDI FORWARD ON
+MIDI TEST
+.fi
+
+.SH EXAMPLE OUTPUT
+.nf
+DEVICE_AVAIL 0 USB Midi Keyboard
+DEVICE_AVAIL 1 Virtual Synth
+STATUS MIDI input opened: USB Midi Keyboard
+STATUS MIDI output opened: Virtual Synth
+STATUS Forwarding enabled
+STATUS MIDI test sent: C#4
+NOTE_ON cis' VELOCITY:100 TIME:6059
+NOTE_OFF cis' TIME:6309
+.fi
+
+.SH FILES
+.nf
+log/midi.log    Stores saved device names and forward flag
+.fi
+
+.SH AUTHOR
+Written by Jakob Kastelic (2026).

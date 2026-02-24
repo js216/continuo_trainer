@@ -1,30 +1,6 @@
-/* midi.c --- read MIDI input from device and output timed events
- *
- * Reads incoming MIDI messages from connected devices. Outputs text
- * events with timestamp and channel info suitable for downstream
- * programs. Accepts commands via stdin to select input/output device
- * and optionally forward input to output (hardware synth). On startup
- * reports available MIDI devices.
- *
- * Settings (connected devices, forwarding) are saved to midi.log on
- * every change and restored automatically on startup.
- *
- * Commands (stdin):
- *   MIDI IN <n>      -- open MIDI input device number n
- *   MIDI OUT <n>     -- open MIDI output device number n
- *   MIDI FORWARD ON  -- enable forwarding of input to output
- *   MIDI FORWARD OFF -- disable forwarding
- *   MIDI DEVICES     -- re-enumerate and print available devices
- *   MIDI TEST        -- send a test note (C#4) to the output
- *
- * Events (stdout):
- *   DEVICE_AVAIL <n> <devicename>
- *   NOTE_ON <lily> VELOCITY:<v> TIME:<ms>
- *   NOTE_OFF <lily>
- *   STATUS <message>
- *
- * LilyPond absolute pitch examples: c' = middle C, fis'' = F#5, bes = Bb3
- */
+// SPDX-License-Identifier: MIT
+// midi.c --- read MIDI input from device and output timed events
+// Copyright (c) 2026 Jakob Kastelic
 
 /* Required for: pipe, clock_gettime, struct timespec, poll */
 #define _POSIX_C_SOURCE 200809L
@@ -49,7 +25,7 @@
 #define MAX_NAME_LEN 256
 #define MAX_PRESSED 128
 #define CMD_BUF_SZ 512
-#define LOG_PATH "midi.log"
+#define LOG_PATH "log/midi.log"
 
 /* LilyPond absolute pitch note names (chromatic scale, no flats) */
 static const char *const NOTE_NAMES[12] = {

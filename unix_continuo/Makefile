@@ -1,28 +1,30 @@
+CFLAGS = -Wall -Wextra -std=c99 -fsanitize=address -lrtmidi
+
 PROGS = analyzer chunker driver grouper gui hint loader midi \
-        realizer recorder rules scorer stats l2ly g2ly
+        realizer recorder rules scorer stats l2ly g2ly render
 
-all: $(addprefix build/,$(PROGS))
+all: $(addprefix bin/,$(PROGS))
 
-pdfs: $(patsubst %.txt,%.pdf,$(wildcard lessons/*.txt))
+pdfs: $(patsubst %.txt,%.pdf,$(wildcard seq/*.txt))
 
-build/%: %.c | build
-	$(CC) $< -o $@ -Wall -Wextra -std=c99 -fsanitize=address -lrtmidi
+bin/%: src/%.c | bin
+	$(CC) $(CFLAGS) $< -o $@
 
-build/%: %.rs | build
+bin/%: src/%.rs | bin
 	rustc $< -o $@
 
 %.pdf: %.ly
 	lilypond -o $(@:.pdf=) $^
 
-%.ly: %.txt build/l2ly
-	build/l2ly < $< > $@
+%.ly: %.txt bin/l2ly
+	bin/l2ly < $< > $@
 
-build:
-	mkdir -p build
+bin:
+	mkdir -p bin
 
 format:
-	clang-format -i *.c
-	rustfmt *.rs
+	clang-format -i src/*.c
+	rustfmt src/*.rs
 
 clean:
-	rm -rf build lessons/*.pdf
+	rm -rf bin seq/*.pdf
