@@ -1,0 +1,449 @@
+.TH DRAW 1
+.SH NAME
+draw \- translate render output into Nuklear/Xlib drawing primitives
+
+.SH SYNOPSIS
+.B draw
+
+.SH DESCRIPTION
+.I draw
+reads the abstract score description produced by
+.IR render (1)
+from standard input and writes a sequence of Nuklear/Xlib drawing
+primitive commands to standard output.
+Each input command is translated into one or more output primitives
+that a downstream Nuklear/Xlib application can execute directly to
+paint the score on screen.
+
+All input coordinates are floating-point values in abstract musical
+units (slots and staff-spaces).
+All output coordinates are integer pixel values, derived by applying
+fixed scale factors and margins.
+
+.SH INPUT FORMAT
+.I draw
+reads the output of
+.IR render (1),
+one command per line.
+Lines beginning with
+.B #
+and empty lines are ignored.
+Unrecognised commands are passed through as comments.
+
+.SS Coordinate Units
+Input coordinates use two abstract units:
+
+.TP
+.B slot
+Horizontal unit equal to one beat of the time-signature denominator.
+A quarter note in 4/4 occupies one slot; a dotted half note occupies
+1.5 slots.
+
+.TP
+.B staff-space
+Vertical unit equal to the distance between two adjacent staff lines.
+A five-line staff spans four staff-spaces.
+
+.SS Input Commands
+
+.TP
+.B SCORE staves=\fIn\fR slots=\fIf\fR timesig=\fInum\fR/\fIden\fR title="\fItext\fR"
+Score metadata.
+.I staves
+is the number of staves,
+.I slots
+is the total score length,
+.I timesig
+is the time signature, and
+.I title
+is the piece title.
+This command produces no drawing output; it is emitted as a comment.
+
+.TP
+.B EXTENT \fItotal_x\fR \fItotal_y\fR
+Total score dimensions in abstract units.
+.I draw
+uses this to compute the canvas size in pixels and emits a white
+background rectangle followed by a
+.B # canvas
+comment giving the pixel dimensions.
+
+.TP
+.B LINE \fIx1\fR \fIy1\fR \fIx2\fR \fIy2\fR \fIt\fR
+Straight line from (\fIx1\fR,\fIy1\fR) to (\fIx2\fR,\fIy2\fR) with
+thickness \fIt\fR in staff-spaces.
+Used by
+.IR render (1)
+for staff lines, stems, ledger lines, and barlines.
+
+.TP
+.B NOTEHEAD \fIx\fR \fIy\fR \fIfilled\fR \fIsp\fR
+Notehead ellipse centred at (\fIx\fR,\fIy\fR).
+.I filled
+is 1 for quarter and shorter notes, 0 for half notes.
+.I sp
+is the staff position in half-spaces; it is carried in the stream
+for informational use by the renderer and is not used by
+.IR draw .
+
+.TP
+.B WHOLE \fIx\fR \fIy\fR \fIsp\fR
+Whole-note head centred at (\fIx\fR,\fIy\fR).
+Drawn as a wider oval than a half-note head.
+
+.TP
+.B STEM \fIx\fR \fIy_base\fR \fIy_tip\fR
+Vertical stem at horizontal position \fIx\fR, from \fIy_base\fR
+(the notehead end) to \fIy_tip\fR (the free end).
+
+.TP
+.B LEDGER \fIx\fR \fIy\fR \fIhalf_width\fR
+Ledger line centred at (\fIx\fR,\fIy\fR), extending
+\fIhalf_width\fR slots in each direction.
+
+.TP
+.B DOT \fIx\fR \fIy\fR
+Augmentation dot centred at (\fIx\fR,\fIy\fR).
+
+.TP
+.B TIE \fIx1\fR \fIy\fR \fIx2\fR \fIup\fR
+Tie arc from \fIx1\fR to \fIx2\fR at vertical position \fIy\fR.
+.I up
+is 1 if the arc curves upward, 0 if it curves downward.
+
+.TP
+.B REST \fIx\fR \fIy\fR \fIdur\fR
+Rest symbol at horizontal position \fIx\fR.
+.I y
+is the middle line of the staff (staff_y\~+\~2 staff-spaces).
+.I dur
+is 1 (whole), 2 (half), or 4 (quarter).
+
+.TP
+.B BARLINE \fIx\fR \fIy_top\fR \fIy_bot\fR
+Vertical barline at horizontal position \fIx\fR, spanning from
+\fIy_top\fR to \fIy_bot\fR.
+
+.TP
+.B CLEF \fIx\fR \fIy\fR \fIkind\fR
+Clef glyph at (\fIx\fR,\fIy\fR).
+.I kind
+is
+.B treble
+or
+.BR bass .
+The current clef is remembered by
+.I draw
+and used to position key-signature accidentals.
+
+.TP
+.B TIMESIG \fIx\fR \fIy\fR \fInum\fR \fIden\fR
+Time signature at (\fIx\fR,\fIy\fR) (top of staff).
+Numerator and denominator are stacked vertically.
+
+.TP
+.B KEYSIG \fIx\fR \fIy\fR \fIsharps\fR
+Key signature at (\fIx\fR,\fIy\fR) (top of staff).
+.I sharps
+is positive for sharps, negative for flats, zero for C major / A minor
+(produces no output).
+Accidentals are placed at the standard staff positions for the clef
+most recently seen in the stream.
+
+.TP
+.B FIGURE \fIx\fR \fIy\fR \fItext\fR
+Figured-bass symbol at (\fIx\fR,\fIy\fR).
+.I text
+is one of: a plain digit (2\(en7), a digit followed by
+.B +
+(raised) or
+.B \-
+(lowered),
+.B /
+for a passing-note solidus, or
+.B _
+for a blank (which
+.IR render (1)
+does not emit).
+
+.TP
+.B GLYPH \fIx\fR \fIy\fR \fIscale\fR \fIname\fR
+Accidental glyph at (\fIx\fR,\fIy\fR).
+.I scale
+is carried for informational use and is ignored by
+.IR draw ,
+which draws all accidentals at a fixed engraving size.
+.I name
+is
+.B sharp
+or
+.BR flat .
+
+.TP
+.B TITLE \fIx\fR \fIy\fR "\fItext\fR"
+Title string centred at (\fIx\fR,\fIy\fR), above the top staff.
+Underscores in
+.I text
+are converted to spaces before output.
+
+.SH OUTPUT FORMAT
+Output is written to standard output, one primitive command per line.
+All coordinates are integer pixels.
+Colours are given as three decimal integers \fIr\fR \fIg\fR \fIb\fR
+in the range 0\(en255.
+
+Lines beginning with
+.B #
+are comments and carry no drawing instruction.
+
+.SS Coordinate System
+The origin (0,\~0) is the top-left corner of the canvas.
+X increases rightward; Y increases downward.
+The score origin within the canvas is offset by a fixed left margin
+of 20\~px and a top margin of 60\~px.
+
+.SS Scale Factors
+Abstract units are converted to pixels by two constants:
+
+.TP
+.B PX_PER_SLOT
+60 pixels per slot (horizontal).
+
+.TP
+.B PX_PER_SP
+14 pixels per staff-space (vertical).
+
+Line thicknesses from
+.IR render (1)
+are given in staff-spaces and are converted to integer pixels by the
+same factor, with a minimum of 1\~px.
+
+.SS Output Primitives
+
+.TP
+.B stroke_line \fIx0\fR \fIy0\fR \fIx1\fR \fIy1\fR \fIthickness\fR \fIr\fR \fIg\fR \fIb\fR
+Straight line from (\fIx0\fR,\fIy0\fR) to (\fIx1\fR,\fIy1\fR) with
+the given pixel thickness and colour.
+Used for staff lines, stems, ledger lines, barlines, and the strokes
+that compose sharp and flat glyphs.
+
+.TP
+.B fill_circle \fIx\fR \fIy\fR \fIw\fR \fIh\fR \fIr\fR \fIg\fR \fIb\fR
+Filled ellipse whose bounding box has its top-left corner at
+(\fIx\fR,\fIy\fR) with width \fIw\fR and height \fIh\fR (Nuklear
+bounding-box convention).
+Used for filled noteheads (1.4\~sp wide, 1.0\~sp tall), augmentation
+dots, and interior white fills that hollow out half and whole noteheads.
+
+.TP
+.B stroke_circle \fIx\fR \fIy\fR \fIw\fR \fIh\fR \fIthickness\fR \fIr\fR \fIg\fR \fIb\fR
+Stroked ellipse, same bounding-box convention as
+.BR fill_circle .
+Used for the outer ring of half noteheads (1.4\~sp wide, 1.0\~sp tall)
+and whole noteheads (1.7\~sp wide, 1.1\~sp tall).
+
+.TP
+.B stroke_arc \fIcx\fR \fIcy\fR \fIradius\fR \fIa_min\fR \fIa_max\fR \fIthickness\fR \fIr\fR \fIg\fR \fIb\fR
+Stroked circular arc centred at (\fIcx\fR,\fIcy\fR).
+Angles are in degrees; 0 is the 3 o'clock position, increasing
+counter-clockwise (Nuklear/X11 convention).
+Defined in the source but not currently emitted; reserved for future use.
+
+.TP
+.B fill_arc \fIcx\fR \fIcy\fR \fIradius\fR \fIa_min\fR \fIa_max\fR \fIr\fR \fIg\fR \fIb\fR
+Filled circular arc sector, same angle convention as
+.BR stroke_arc .
+Used to draw the belly of flat glyphs (270\(de to 90\(de).
+
+.TP
+.B fill_triangle \fIx0\fR \fIy0\fR \fIx1\fR \fIy1\fR \fIx2\fR \fIy2\fR \fIr\fR \fIg\fR \fIb\fR
+Filled triangle with the given three vertices.
+Defined in the source but not currently emitted; reserved for future use.
+
+.TP
+.B stroke_curve \fIx0\fR \fIy0\fR \fIcx0\fR \fIcy0\fR \fIcx1\fR \fIcy1\fR \fIx1\fR \fIy1\fR \fIthickness\fR \fIr\fR \fIg\fR \fIb\fR
+Cubic Bezier curve from (\fIx0\fR,\fIy0\fR) to (\fIx1\fR,\fIy1\fR)
+with control points (\fIcx0\fR,\fIcy0\fR) and (\fIcx1\fR,\fIcy1\fR).
+Used for ties and slurs.
+The control points are placed at one-third and two-thirds of the
+horizontal span, offset vertically by 0.8\~staff-spaces in the
+direction indicated by the TIE command's
+.I up
+flag.
+
+.TP
+.B fill_rect \fIx\fR \fIy\fR \fIw\fR \fIh\fR \fIr\fR \fIg\fR \fIb\fR
+Filled rectangle with top-left corner at (\fIx\fR,\fIy\fR), width
+.I w
+and height
+.IR h .
+Used for the canvas background (white), whole rests (1.6\~sp wide,
+0.5\~sp tall, hanging below the second-from-top staff line), and half
+rests (same dimensions, sitting on the middle staff line).
+
+.TP
+.B draw_text \fIx\fR \fIy\fR "\fItext\fR" \fIr\fR \fIg\fR \fIb\fR
+Text string at (\fIx\fR,\fIy\fR).
+Used for clef labels (the letter
+.B G
+for treble,
+.B F
+for bass), stacked time-signature digits, figured-bass numbers and
+symbols, accidental names for unrecognised glyphs, and the score title.
+Figured-bass text is emitted in a muted grey (120\~120\~120) rather
+than black; all other text is near-black (20\~20\~20).
+The downstream renderer is expected to substitute an appropriate music
+font for clef labels and to honour a smaller font size for
+figured-bass text.
+
+.SS Musical Shape Rendering
+
+.TP
+Filled notehead (quarter, eighth)
+One
+.B fill_circle
+with bounding box 20\~px wide by 14\~px tall (1.4 by 1.0 staff-spaces).
+
+.TP
+Open notehead (half note)
+One
+.B stroke_circle
+(2\~px thick) followed by a smaller white
+.B fill_circle
+(60\~% by 55\~% of the head dimensions) to leave an open centre.
+
+.TP
+Whole note
+One
+.B stroke_circle
+(2\~px thick, 1.7 by 1.1 staff-spaces) followed by a smaller white
+.B fill_circle
+(55\~% by 50\~%) for the interior hole.
+
+.TP
+Stem
+One
+.B stroke_line
+(1\~px thick) between the notehead attachment point and the free tip.
+
+.TP
+Ledger line
+One
+.B stroke_line
+extending the given half-width in each direction from the note x position.
+
+.TP
+Augmentation dot
+One
+.B fill_circle
+of diameter 4\~px (0.15 staff-spaces, minimum 2\~px radius).
+
+.TP
+Tie / slur
+One
+.B stroke_curve
+(1\~px thick).
+The arc bulges 0.8\~staff-spaces above the note for an upward tie,
+below for a downward tie.
+
+.TP
+Whole rest
+One
+.B fill_rect
+22\~px wide by 7\~px tall, hanging below the second-from-top staff
+line (1.0 staff-space from the top line).
+
+.TP
+Half rest
+One
+.B fill_rect
+22\~px wide by 7\~px tall, sitting on the middle staff line
+(2.0 staff-spaces from the top line).
+
+.TP
+Quarter rest
+Three
+.B stroke_line
+segments forming a zigzag between staff-space offsets 1.0, 2.0,
+and 3.0 from the top line.
+
+.TP
+Sharp glyph
+Four
+.B stroke_line
+segments: two vertical strokes 1.2\~staff-spaces tall, and two
+horizontal bars 0.55\~staff-spaces wide spaced 0.5\~staff-spaces apart.
+
+.TP
+Flat glyph
+One
+.B stroke_line
+(vertical, 1.6\~staff-spaces tall), one
+.B fill_arc
+forming the belly (270\(de to 90\(de), and a smaller white
+.B fill_arc
+cutout to leave the belly open.
+
+.TP
+Key signature
+Accidentals are drawn at the standard staff positions for the active
+clef (treble or bass) using the sharp or flat glyph routines above.
+The order of sharps is F C G D A E B; the order of flats is
+B E A D G C F.
+Accidentals are spaced 0.7\~staff-spaces apart horizontally.
+
+.TP
+Treble clef
+.B draw_text
+emitting the letter
+.BR G .
+
+.TP
+Bass clef
+.B draw_text
+emitting the letter
+.B F
+followed by two small
+.B fill_circle
+dots to its right, placed at 0.5 and 1.5 staff-spaces below the
+reference y position.
+
+.TP
+Time signature
+Two
+.B draw_text
+calls: the numerator at 0.5 staff-spaces below the top of the staff,
+and the denominator at 2.5 staff-spaces below.
+
+.SH DIAGNOSTICS
+.I draw
+does not write diagnostics to standard error.
+Unrecognised input commands are passed through to standard output as
+comment lines of the form:
+
+.RS
+# unknown: \fIoriginal line\fR
+.RE
+
+.SH EXIT STATUS
+The program always exits with status 0.
+
+.SH NOTES
+Clef and flat position tables encode only the conventional placements
+for major keys (up to seven sharps or seven flats).
+Key signatures with more than seven accidentals are silently truncated
+to seven.
+
+The canvas
+.B # canvas
+comment line gives the total pixel dimensions of the output and must
+appear before any drawing commands; the downstream renderer should use
+it to allocate a pixmap or window of the correct size.
+
+.SH SEE ALSO
+.IR render (1),
+.IR loader (1),
+.IR lilypond (1)
+
+.SH AUTHOR
+Written by Jakob Kastelic (2026).

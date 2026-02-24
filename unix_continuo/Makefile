@@ -1,7 +1,8 @@
 CFLAGS = -Wall -Wextra -std=c99 -fsanitize=address -lrtmidi
 
 PROGS = analyzer chunker driver grouper gui hint loader midi \
-        realizer recorder rules scorer stats l2ly g2ly render
+        realizer recorder rules scorer stats l2ly g2ly render \
+        draw
 
 all: $(addprefix bin/,$(PROGS))
 
