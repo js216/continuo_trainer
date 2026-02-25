@@ -3,7 +3,7 @@ key: C
 time: 4/4
 
 bassline = {
-  c c
+  c2 c2
 }
 
 figures = {
@@ -11,6 +11,6 @@ figures = {
 }
 
 melody = {
-  a ais
+  a2 ais2
 }
 

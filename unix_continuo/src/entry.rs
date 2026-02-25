@@ -9,12 +9,18 @@ use std::io::{self, BufRead, Write};
 use std::path::Path;
 
 fn get_note_value(note: &str) -> i32 {
-    match note {
+    let base_name: String = note.chars().take_while(|c| c.is_alphabetic()).collect();
+    let mut value = match base_name.as_str() {
         "c" => 0, "cis" | "des" => 1, "d" => 2, "dis" | "ees" => 3,
         "e" => 4, "f" => 5, "fis" | "ges" => 6, "g" => 7,
         "gis" | "aes" => 8, "a" => 9, "ais" | "bes" => 10, "b" => 11,
         _ => 0,
+    };
+    for c in note.chars() {
+        if c == '\'' { value += 12; }
+        if c == ',' { value -= 12; }
     }
+    value
 }
 
 fn spell_note(note: &str, key: &str) -> String {
@@ -33,6 +39,7 @@ fn main() -> io::Result<()> {
     let mut key = "C".to_string();
     let mut time = "4/4".to_string();
     let mut title = "Untitled".to_string();
+    let mut duration = "2".to_string();
     let mut outdir: Option<String> = None;
 
     let mut i = 1;
@@ -40,6 +47,7 @@ fn main() -> io::Result<()> {
         match args[i].as_str() {
             "--key" => { key = args[i+1].clone(); i += 2; }
             "--time" => { time = args[i+1].clone(); i += 2; }
+            "--duration" => { duration = args[i+1].clone(); i += 2; }
             "--outdir" => { outdir = Some(args[i+1].clone()); i += 2; }
             "--title" => {
                 let mut t = Vec::new();
@@ -57,12 +65,8 @@ fn main() -> io::Result<()> {
     let output_path = if let Some(ref dir) = outdir {
         let _ = fs::create_dir_all(dir);
         let mut n = 1;
-        let mut p = format!("{}/{}.txt", dir, n);
-        while Path::new(&p).exists() {
-            n += 1;
-            p = format!("{}/{}.txt", dir, n);
-        }
-        Some(p)
+        while Path::new(&format!("{}/{}.txt", dir, n)).exists() { n += 1; }
+        Some(format!("{}/{}.txt", dir, n))
     } else {
         None
     };
@@ -93,42 +97,71 @@ fn main() -> io::Result<()> {
                 current_chord.clear();
                 pressed = false;
                 if let Some(ref path) = output_path {
-                    write_data(fs::File::create(path)?, &key, &time, &title, &history)?;
+                    write_data(fs::File::create(path)?, &key, &time, &title, &history, &duration)?;
                 }
             }
         }
     }
 
     if outdir.is_none() {
-        write_data(io::stdout(), &key, &time, &title, &history)?;
+        write_data(io::stdout(), &key, &time, &title, &history, &duration)?;
     }
     Ok(())
 }
 
-fn write_data<W: Write>(mut w: W, key: &str, time: &str, title: &str, hist: &Vec<Vec<String>>) -> io::Result<()> {
-    // Add \n after time: to create the empty line
+fn write_data<W: Write>(
+    mut w: W,
+    key: &str,
+    time: &str,
+    title: &str,
+    hist: &Vec<Vec<String>>,
+    dur_str: &str,
+) -> io::Result<()> {
     writeln!(w, "title: {}\nkey: {}\ntime: {}\n", title, key, time)?;
 
-    let mut v: HashMap<String, Vec<String>> = HashMap::new();
-    let names = vec!["bassline", "melody", "figures"];
-    for n in &names { v.insert(n.to_string(), Vec::new()); }
+    let parts: Vec<&str> = time.split('/').collect();
+    let beats_per_bar = parts[0].parse::<f32>().unwrap_or(4.0);
+    let beat_unit = parts.get(1).and_then(|s| s.parse::<f32>().ok()).unwrap_or(4.0);
+    let is_dotted = dur_str.contains('.');
+    let dur_val = dur_str.trim_matches('.').parse::<f32>().unwrap_or(2.0);
+    let dur_in_beats =
+        (beat_unit / dur_val) * (if is_dotted { 1.5 } else { 1.0 });
+    let n_per_bar = (beats_per_bar / dur_in_beats).round() as usize;
 
-    for chord in hist {
-        let sc: Vec<String> = chord.iter().map(|n| spell_note(n, key)).collect();
-        if sc.len() == 1 {
-            v.get_mut("bassline").unwrap().push(sc[0].clone());
-            v.get_mut("melody").unwrap().push("r".to_string());
-        } else {
-            v.get_mut("bassline").unwrap().push(sc[0].clone());
-            v.get_mut("melody").unwrap().push(sc.last().unwrap().clone());
-            for (idx, note) in sc.iter().enumerate().skip(1).take(sc.len() - 2) {
-                v.entry(format!("melody_{}", idx + 1)).or_default().push(note.clone());
-            }
-        }
-        v.get_mut("figures").unwrap().push("0".to_string());
+    let mut voices: HashMap<String, Vec<String>> = HashMap::new();
+    for n in &["bassline", "melody", "figures"] {
+        voices.insert(n.to_string(), Vec::new());
     }
 
-    let mut ks: Vec<_> = v.keys().collect();
+    for (i, chord) in hist.iter().enumerate() {
+        let sc: Vec<String> =
+            chord.iter().map(|n| spell_note(n, key)).collect();
+        let fmt = |s: &str| format!("{}{}", s, dur_str);
+
+        let mut assign = vec![
+            ("bassline".to_string(), fmt(&sc[0])),
+            ("figures".to_string(), "0".to_string()), // ← FIXED
+        ];
+
+        if sc.len() == 1 {
+            assign.push(("melody".to_string(), fmt("r")));
+        } else {
+            assign.push(("melody".to_string(), fmt(sc.last().unwrap())));
+            for (idx, note) in sc.iter().enumerate().skip(1).take(sc.len() - 2) {
+                assign.push((format!("melody_{}", idx + 1), fmt(note)));
+            }
+        }
+
+        for (v_name, val) in assign {
+            let v = voices.entry(v_name).or_default();
+            v.push(val);
+            if (i + 1) % n_per_bar == 0 && i != hist.len() - 1 {
+                v.push("\n".to_string());
+            }
+        }
+    }
+
+    let mut ks: Vec<_> = voices.keys().collect();
     ks.sort_by(|a, b| match (a.as_str(), b.as_str()) {
         ("bassline", _) => std::cmp::Ordering::Less,
         (_, "bassline") => std::cmp::Ordering::Greater,
@@ -138,8 +171,18 @@ fn write_data<W: Write>(mut w: W, key: &str, time: &str, title: &str, hist: &Vec
     });
 
     for k in ks {
-        // Add \n after the closing brace to create space between blocks
-        writeln!(w, "{} = {{\n  {}\n}}\n", k, v.get(k).unwrap().join(" "))?;
+        let raw = voices.get(k).unwrap().join(" ");
+        let lines: Vec<&str> = raw.split('\n').collect();
+
+        writeln!(w, "{} = {{", k)?;
+        for line in lines {
+            let trimmed = line.trim();
+            if !trimmed.is_empty() {
+                writeln!(w, "  {}", trimmed)?;
+            }
+        }
+        writeln!(w, "}}\n")?;
     }
+
     Ok(())
 }

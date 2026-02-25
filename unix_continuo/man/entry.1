@@ -46,6 +46,37 @@ Title metadata. Consumes following words until another flag.
 Enables live mode. Echoes stdin and saves output to
 .I DIR/n.txt
 incrementally. Selects the first unused integer for the filename.
+.TP
+.BI \-\-duration " DUR"
+Sets the default note duration using Lilypond notation.
+Common values include:
+.B 1
+(whole),
+.B 2
+(half),
+.B 4
+(quarter),
+.B 8
+(eighth),
+.B 16
+(sixteenth), etc.
+Appending a dot (e.g.,
+.B 2.
+) creates a dotted note. If omitted,
+defaults to
+.B 2
+(half note).
+.SH OUTPUT FORMATTING
+The program calculates bar lines based on the
+.B \-\-time
+and
+.B \-\-duration
+arguments. For instance, with
+.B \-\-time 3/2
+and
+.B \-\-duration 2,
+the output will wrap every three notes, ensuring the text file represents
+one musical measure per line within the curly braces.
 .SH EXAMPLES
 Convert a file and print the result:
 .IP

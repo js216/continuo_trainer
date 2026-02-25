@@ -1,4 +1,4 @@
-title: Purcell bars 48-52
+title: Purcell bars 31-37
 key: G
 time: 3/2
 
