@@ -109,23 +109,6 @@ fn rule_no_parallels(window: &[Group]) -> Result<(), String> {
     Ok(())
 }
 
-/// Rule: Voices must not cross (Bass < Inner < Melody).
-fn rule_no_crossing(window: &[Group]) -> Result<(), String> {
-    let curr = window.last().unwrap();
-    if curr.passing {
-        return Ok(());
-    }
-
-    let mut last_p = curr.bass;
-    for &p in curr.inner.iter().chain(curr.melody.iter()) {
-        if p < last_p {
-            return Err(format!("Voice crossing: {} fell below {}", p, last_p));
-        }
-        last_p = p;
-    }
-    Ok(())
-}
-
 /// Rule: Bass should not leap by a tritone (6 semitones).
 fn rule_bass_leap(window: &[Group]) -> Result<(), String> {
     if window.len() < 2 {
@@ -138,7 +121,7 @@ fn rule_bass_leap(window: &[Group]) -> Result<(), String> {
     Ok(())
 }
 
-const RULES: &[RuleFn] = &[rule_no_parallels, rule_no_crossing, rule_bass_leap];
+const RULES: &[RuleFn] = &[rule_no_parallels, rule_bass_leap];
 
 // --- Main Pipeline ---
 

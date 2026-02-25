@@ -389,6 +389,7 @@ fn main() {
         }
 
         if line.starts_with("LESSON ") {
+            println!("{}", line);
             let key = parse_lesson_key(line).unwrap_or_else(|| "C".to_string());
             grouper.reset(key);
         } else if line.starts_with("BASSNOTE ") {
@@ -426,7 +427,7 @@ fn main() {
                 eprintln!("Warning: could not parse NOTE_OFF line: {}", line);
             }
         } else {
-            eprintln!("Warning: unrecognised command: {}", line);
+            // ignore all other commands
         }
     }
 }

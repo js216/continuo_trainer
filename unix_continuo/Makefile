@@ -23,9 +23,18 @@ bin/%: src/%.rs | bin
 bin:
 	mkdir -p bin
 
+.PHONY: format play test clean
+
 format:
 	clang-format -i src/*.c
 	rustfmt src/*.rs
+
+play:
+	echo LOAD_LESSON 1 | bin/loader > test/pipe.log
+	bin/midi >> test/pipe.log
+
+test:
+	cd test && sh run_tests.sh
 
 clean:
 	rm -rf bin seq/*.pdf
