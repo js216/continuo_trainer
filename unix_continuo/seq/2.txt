@@ -3,26 +3,26 @@ key: G
 time: 3/2
 
 bassline = {
-  d2 cis2 b,2
-  cis2 b,2 a,2
-  b,2 a,2 g,2
-  a,2 g,2 fis,2
-  g,2 a,2 a,2
+  d2 cis2p b,2
+  cis2 b,2p a,2
+  b,2 a,2p g,2
+  a,2 g,2p fis,2
+  g,2 a,2p a,2
 }
 
 figures = {
-  0 0 0
-  0 0 0
-  0 0 0
-  0 0 0
-  0 0 0
+  0 0 6
+  6 0 6
+  0 0 6
+  # 0 6
+  6 4 #
 }
 
 melody = {
-  fis'2 r2 r2
-  a'2 g'2 fis'2
-  d'2 r2 b'2
+  fis'1 r2
+  a'2. g'4 fis'2
+  d'1 b'2
   b'2 e'2 a'2
-  g'2 e'2 d'2
+  g'4 fis'4 e'2. d'4
 }
 
