@@ -1,0 +1,16 @@
+title: Untitled
+key: C
+time: 4/4
+
+bassline = {
+  c c
+}
+
+figures = {
+  0 0
+}
+
+melody = {
+  a ais
+}
+

@@ -1,3 +1,4 @@
+entry --- MIDI text stream to Lilypond-style chord sequencer
 draw --- translate render.rs output into Nuklear/Xlib drawing primitives
 g2ly --- convert grouper output into a four-staff LilyPond score
 grouper --- align MIDI notes to lesson bassline, figures, and melody

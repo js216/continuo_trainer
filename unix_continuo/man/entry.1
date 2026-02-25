@@ -1,0 +1,58 @@
+.TH ENTRY 1 "25 February 2026" "1.0" "User Commands"
+.SH NAME
+entry.rs \- MIDI text stream to Lilypond-style chord sequencer
+.SH SYNOPSIS
+.B ./entry.rs
+.B \-\-key
+.I KEY
+.B \-\-time
+.I TIME
+.B \-\-title
+.I TITLE...
+[
+.B \-\-outdir
+.I DIR
+]
+.SH DESCRIPTION
+.B entry.rs
+processes a MIDI-to-text stream. By default, it reads from stdin and, upon
+EOF, prints a formatted Lilypond-style sequence to stdout.
+.PP
+If
+.B \-\-outdir
+is specified, the program switches to "live" mode: it echoes stdin to
+stdout immediately and incrementally writes sequence files (1.txt, 2.txt...)
+to the chosen directory whenever all keys are released.
+.PP
+Notes are grouped into chords. The lowest note is the
+.B bassline,
+the highest is the
+.B melody
+(or 'r' if solo), and middle notes populate
+.B melody_n
+blocks. Spelling is key-aware; in F, "ais" becomes "bes".
+.SH OPTIONS
+.TP
+.BI \-\-key " KEY"
+Musical key for enharmonic spelling (e.g., F, C).
+.TP
+.BI \-\-time " TIME"
+Time signature metadata string.
+.TP
+.BI \-\-title " TITLE"
+Title metadata. Consumes following words until another flag.
+.TP
+.BI \-\-outdir " DIR"
+Enables live mode. Echoes stdin and saves output to
+.I DIR/n.txt
+incrementally. Selects the first unused integer for the filename.
+.SH EXAMPLES
+Convert a file and print the result:
+.IP
+cat raw_midi.log | ./entry.rs --key F --title "My Piece"
+.PP
+Live recording to a directory:
+.IP
+tail -f midi.log | ./entry.rs --key F --outdir seq --title "Session 1"
+.SH AUTHOR
+Written by Jakob Kastelic (2026).
