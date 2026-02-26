@@ -30,7 +30,7 @@ format:
 	rustfmt src/*.rs
 
 play:
-	echo LOAD_LESSON 1 | bin/loader > test/pipe.log
+	echo LOAD_LESSON 2 | bin/loader > test/pipe.log
 	bin/midi >> test/pipe.log
 
 test:

@@ -7,7 +7,7 @@ bassline = {
   cis2 b,2p a,2
   b,2 a,2p g,2
   a,2 g,2p fis,2
-  g,2 a,2p a,2
+  g,2 a,2 a,2
 }
 
 figures = {
