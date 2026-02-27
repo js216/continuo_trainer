@@ -1,6 +1,6 @@
 CFLAGS = -Wall -Wextra -std=c98 -fsanitize=address -lrtmidi -lX11
 
-PROGS = analyzer chunker driver grouper gui hint loader midi \
+PROGS = analyzer chunker play grouper gui hint loader midi \
         realizer recorder rules scorer stats l2ly g2ly render \
         draw show entry
 
@@ -34,13 +34,3 @@ test:
 
 clean:
 	rm -rf bin seq/*.pdf
-
-# R&D only
-
-play1:
-	rm -f tmp/pipe.log
-	echo LOAD_LESSON 2 | bin/loader > tmp/pipe.log
-	tail -f tmp/pipe.log | bin/grouper | bin/rules
-
-play2:
-	bin/midi >> tmp/pipe.log
