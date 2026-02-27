@@ -1,4 +1,4 @@
-CFLAGS = -Wall -Wextra -std=c99 -fsanitize=address -lrtmidi -lX11
+CFLAGS = -Wall -Wextra -std=c98 -fsanitize=address -lrtmidi -lX11
 
 PROGS = analyzer chunker driver grouper gui hint loader midi \
         realizer recorder rules scorer stats l2ly g2ly render \
@@ -23,18 +23,24 @@ bin/%: src/%.rs | bin
 bin:
 	mkdir -p bin
 
-.PHONY: format play test clean
+.PHONY: format test clean
 
 format:
 	clang-format -i src/*.c
 	rustfmt src/*.rs
 
-play:
-	echo LOAD_LESSON 2 | bin/loader > test/pipe.log
-	bin/midi >> test/pipe.log
-
 test:
-	cd test && sh run_tests.sh
+	cd tst && sh run_tests.sh
 
 clean:
 	rm -rf bin seq/*.pdf
+
+# R&D only
+
+play1:
+	rm -f tmp/pipe.log
+	echo LOAD_LESSON 2 | bin/loader > tmp/pipe.log
+	tail -f tmp/pipe.log | bin/grouper | bin/rules
+
+play2:
+	bin/midi >> tmp/pipe.log

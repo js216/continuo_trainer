@@ -472,8 +472,8 @@ fn main() {
             };
 
             match RULES.iter().try_for_each(|rule| rule(&ctx)) {
-                Ok(_) => println!("RESULT {} OK", id),
-                Err(e) => println!("RESULT {} FAIL {}", id, e),
+                Ok(_)  => println!("RESULT {} \x1b[32mOK\x1b[0m", id),
+                Err(e) => println!("RESULT {} \x1b[31mFAIL\x1b[0m {}", id, e),
             }
         }
     }
