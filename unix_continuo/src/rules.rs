@@ -220,6 +220,12 @@ fn parse_figures(s: &str) -> Vec<Figure> {
         figs.push(Figure { deg: 8, acc: 0 });
     }
 
+    // If only the 4th is specified, imply a 4/5/8 chord.
+    if figs.len() == 1 && figs[0].deg == 4 {
+        figs.push(Figure { deg: 5, acc: 0 });
+        figs.push(Figure { deg: 8, acc: 0 });
+    }
+
     if figs.len() == 1 && figs[0].deg == 6 {
         figs.insert(0, Figure { deg: 3, acc: 0 });
     }
@@ -365,7 +371,7 @@ fn rule_check_realization(ctx: &Context) -> Result<(), String> {
         let pc = note.rem_euclid(12);
         if !allowed.contains(&pc) {
             return Err(format!(
-                "Incorrect realization of implied {} figure: {}",
+                "Incorrect realization of figure {}: {}",
                 fig_label,
                 pc_name(note),
             ));
