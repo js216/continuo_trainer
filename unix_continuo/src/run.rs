@@ -25,17 +25,26 @@ fn open_pty() -> Option<(std::os::fd::OwnedFd, std::os::fd::OwnedFd)> {
     use std::os::fd::FromRawFd;
     extern "C" {
         fn openpty(
-            amaster: *mut i32, aslave: *mut i32,
-            name: *mut i8, termp: *const u8, winp: *const u8,
+            amaster: *mut i32,
+            aslave: *mut i32,
+            name: *mut i8,
+            termp: *const u8,
+            winp: *const u8,
         ) -> i32;
     }
     unsafe {
         let mut master: i32 = -1;
-        let mut slave:  i32 = -1;
+        let mut slave: i32 = -1;
         if openpty(
-            &mut master, &mut slave,
-            std::ptr::null_mut(), std::ptr::null(), std::ptr::null(),
-        ) != 0 { return None; }
+            &mut master,
+            &mut slave,
+            std::ptr::null_mut(),
+            std::ptr::null(),
+            std::ptr::null(),
+        ) != 0
+        {
+            return None;
+        }
         Some((
             std::os::fd::OwnedFd::from_raw_fd(master),
             std::os::fd::OwnedFd::from_raw_fd(slave),
@@ -62,9 +71,9 @@ enum Node {
 impl Node {
     fn from_str(s: &str) -> Node {
         match s {
-            "STDIN"  => Node::Stdin,
+            "STDIN" => Node::Stdin,
             "STDOUT" => Node::Stdout,
-            _        => Node::Prog(s.to_owned()),
+            _ => Node::Prog(s.to_owned()),
         }
     }
 }
@@ -78,7 +87,10 @@ fn strip_comments(src: &str) -> String {
                 Some('/') => {
                     chars.next();
                     for c2 in chars.by_ref() {
-                        if c2 == '\n' { out.push('\n'); break; }
+                        if c2 == '\n' {
+                            out.push('\n');
+                            break;
+                        }
                     }
                 }
                 Some('*') => {
@@ -86,7 +98,10 @@ fn strip_comments(src: &str) -> String {
                     loop {
                         match chars.next() {
                             None => break,
-                            Some('*') if chars.peek() == Some(&'/') => { chars.next(); break; }
+                            Some('*') if chars.peek() == Some(&'/') => {
+                                chars.next();
+                                break;
+                            }
                             Some('\n') => out.push('\n'),
                             _ => {}
                         }
@@ -109,14 +124,18 @@ fn parse(src: &str) -> Vec<(Node, Node)> {
 
     for (i, stmt) in raw_stmts.iter().enumerate() {
         let trimmed = stmt.trim();
-        if trimmed.is_empty() { continue; }
+        if trimmed.is_empty() {
+            continue;
+        }
         if i == raw_stmts.len() - 1 {
             red_error(&format!("statement not terminated with ';': `{trimmed}`"));
         }
 
         let parts = split_arrow(trimmed);
         if parts.len() < 2 {
-            red_error(&format!("expected at least two nodes separated by '->': `{trimmed}`"));
+            red_error(&format!(
+                "expected at least two nodes separated by '->': `{trimmed}`"
+            ));
         }
         for window in parts.windows(2) {
             let a = Node::from_str(window[0].trim());
@@ -159,14 +178,22 @@ fn make_pipe() -> (LineSender, LineReceiver) {
 }
 
 #[derive(Clone)]
-struct LineSender { tx: std::sync::mpsc::Sender<String> }
-struct LineReceiver { rx: std::sync::mpsc::Receiver<String> }
+struct LineSender {
+    tx: std::sync::mpsc::Sender<String>,
+}
+struct LineReceiver {
+    rx: std::sync::mpsc::Receiver<String>,
+}
 
 impl LineSender {
-    fn send_line(&self, line: String) -> bool { self.tx.send(line).is_ok() }
+    fn send_line(&self, line: String) -> bool {
+        self.tx.send(line).is_ok()
+    }
 }
 impl LineReceiver {
-    fn recv_line(&self) -> Option<String> { self.rx.recv().ok() }
+    fn recv_line(&self) -> Option<String> {
+        self.rx.recv().ok()
+    }
 }
 
 // --------------------------------------------------------------------------
@@ -189,7 +216,9 @@ fn parse_argv(cmd: &str) -> Vec<String> {
             _ => current.push(c),
         }
     }
-    if !current.is_empty() { args.push(current); }
+    if !current.is_empty() {
+        args.push(current);
+    }
     args
 }
 
@@ -200,21 +229,23 @@ fn parse_argv(cmd: &str) -> Vec<String> {
 type ChildHandle = Arc<Mutex<Child>>;
 
 struct Shared {
-    error_flag:  Arc<Mutex<bool>>,
-    children:    Arc<Mutex<Vec<ChildHandle>>>,
+    error_flag: Arc<Mutex<bool>>,
+    children: Arc<Mutex<Vec<ChildHandle>>>,
     stderr_lock: Arc<Mutex<()>>,
 }
 
 impl Shared {
     fn new() -> Arc<Self> {
         Arc::new(Shared {
-            error_flag:  Arc::new(Mutex::new(false)),
-            children:    Arc::new(Mutex::new(Vec::new())),
+            error_flag: Arc::new(Mutex::new(false)),
+            children: Arc::new(Mutex::new(Vec::new())),
             stderr_lock: Arc::new(Mutex::new(())),
         })
     }
 
-    fn is_failed(&self) -> bool { *self.error_flag.lock().unwrap() }
+    fn is_failed(&self) -> bool {
+        *self.error_flag.lock().unwrap()
+    }
 
     /// Sets the error flag, kills all children, and immediately exits the process.
     fn fail(&self) -> ! {
@@ -256,12 +287,16 @@ impl Shared {
 fn run(edges: &[(Node, Node)]) {
     let mut all_nodes: Vec<Node> = Vec::new();
     for (a, b) in edges {
-        if !all_nodes.contains(a) { all_nodes.push(a.clone()); }
-        if !all_nodes.contains(b) { all_nodes.push(b.clone()); }
+        if !all_nodes.contains(a) {
+            all_nodes.push(a.clone());
+        }
+        if !all_nodes.contains(b) {
+            all_nodes.push(b.clone());
+        }
     }
 
-    let mut senders:   Vec<LineSender>           = Vec::new();
-    let mut receivers: Vec<Option<LineReceiver>>  = Vec::new();
+    let mut senders: Vec<LineSender> = Vec::new();
+    let mut receivers: Vec<Option<LineReceiver>> = Vec::new();
     for _ in edges {
         let (s, r) = make_pipe();
         senders.push(s);
@@ -269,7 +304,7 @@ fn run(edges: &[(Node, Node)]) {
     }
 
     let mut node_out: HashMap<Node, Vec<usize>> = HashMap::new();
-    let mut node_in:  HashMap<Node, Vec<usize>> = HashMap::new();
+    let mut node_in: HashMap<Node, Vec<usize>> = HashMap::new();
     for (i, (a, b)) in edges.iter().enumerate() {
         node_out.entry(a.clone()).or_default().push(i);
         node_in.entry(b.clone()).or_default().push(i);
@@ -280,21 +315,30 @@ fn run(edges: &[(Node, Node)]) {
 
     // -- STDIN node ----------------------------------------------------------
     if let Some(out_indices) = node_out.get(&Node::Stdin) {
-        let out_senders: Vec<LineSender> = out_indices.iter().map(|&i| senders[i].clone()).collect();
+        let out_senders: Vec<LineSender> =
+            out_indices.iter().map(|&i| senders[i].clone()).collect();
         let sh = Arc::clone(&shared);
         handles.push(thread::spawn(move || {
             let stdin = io::stdin();
             for line in stdin.lock().lines() {
-                if sh.is_failed() { return; }
+                if sh.is_failed() {
+                    return;
+                }
                 match line {
                     Ok(l) => {
                         let mut alive = false;
                         for s in &out_senders {
-                            if s.send_line(l.clone()) { alive = true; }
+                            if s.send_line(l.clone()) {
+                                alive = true;
+                            }
                         }
-                        if !alive { return; } // No more consumers
+                        if !alive {
+                            return;
+                        } // No more consumers
                     }
-                    Err(_) => { sh.fail(); }
+                    Err(_) => {
+                        sh.fail();
+                    }
                 }
             }
         }));
@@ -310,10 +354,14 @@ fn run(edges: &[(Node, Node)]) {
             handles.push(thread::spawn(move || {
                 let stdout = io::stdout();
                 while let Some(line) = receiver.recv_line() {
-                    if sh.is_failed() { return; }
+                    if sh.is_failed() {
+                        return;
+                    }
                     let _guard = lock.lock().unwrap();
                     let mut out = stdout.lock();
-                    if writeln!(out, "{line}").is_err() { return; }
+                    if writeln!(out, "{line}").is_err() {
+                        return;
+                    }
                 }
             }));
         }
@@ -327,12 +375,18 @@ fn run(edges: &[(Node, Node)]) {
         };
 
         let argv = parse_argv(&cmd_str);
-        if argv.is_empty() { red_error("empty command in graph"); }
+        if argv.is_empty() {
+            red_error("empty command in graph");
+        }
 
         let out_indices = node_out.get(node).cloned().unwrap_or_default();
-        let in_indices  = node_in.get(node).cloned().unwrap_or_default();
-        let out_senders: Vec<LineSender> = out_indices.iter().map(|&i| senders[i].clone()).collect();
-        let in_receivers: Vec<LineReceiver> = in_indices.iter().map(|&ri| receivers[ri].take().expect("consumed")).collect();
+        let in_indices = node_in.get(node).cloned().unwrap_or_default();
+        let out_senders: Vec<LineSender> =
+            out_indices.iter().map(|&i| senders[i].clone()).collect();
+        let in_receivers: Vec<LineReceiver> = in_indices
+            .iter()
+            .map(|&ri| receivers[ri].take().expect("consumed"))
+            .collect();
 
         let sh = Arc::clone(&shared);
 
@@ -340,7 +394,11 @@ fn run(edges: &[(Node, Node)]) {
             #[cfg(unix)]
             use std::os::unix::io::{FromRawFd, IntoRawFd};
 
-            let stdin_p = if in_receivers.is_empty() { Stdio::null() } else { Stdio::piped() };
+            let stdin_p = if in_receivers.is_empty() {
+                Stdio::null()
+            } else {
+                Stdio::piped()
+            };
 
             // Use a PTY for stdout so the child uses line buffering
             // (it thinks it's writing to a terminal).  Fall back to a pipe
@@ -359,7 +417,9 @@ fn run(edges: &[(Node, Node)]) {
 
             let mut child = match Command::new(&argv[0])
                 .args(&argv[1..])
-                .stdin(stdin_p).stdout(stdout_p).stderr(Stdio::piped())
+                .stdin(stdin_p)
+                .stdout(stdout_p)
+                .stderr(Stdio::piped())
                 .spawn()
             {
                 Ok(c) => c,
@@ -369,12 +429,18 @@ fn run(edges: &[(Node, Node)]) {
                 }
             };
 
-            let child_in  = child.stdin.take();
+            let child_in = child.stdin.take();
             // For PTY: read from master fd; for pipe: read from child.stdout
-            let child_out: Option<Box<dyn std::io::Read + Send>> = if let Some(master) = pty_master {
-                Some(Box::new(unsafe { std::fs::File::from_raw_fd(master.into_raw_fd()) }))
+            let child_out: Option<Box<dyn std::io::Read + Send>> = if let Some(master) = pty_master
+            {
+                Some(Box::new(unsafe {
+                    std::fs::File::from_raw_fd(master.into_raw_fd())
+                }))
             } else {
-                child.stdout.take().map(|s| Box::new(s) as Box<dyn std::io::Read + Send>)
+                child
+                    .stdout
+                    .take()
+                    .map(|s| Box::new(s) as Box<dyn std::io::Read + Send>)
             };
             let child_err = child.stderr.take();
 
@@ -393,14 +459,20 @@ fn run(edges: &[(Node, Node)]) {
                     let sh_sub = Arc::clone(&sh_stdin);
                     subs.push(thread::spawn(move || {
                         while let Some(line) = rx.recv_line() {
-                            if sh_sub.is_failed() { return; }
+                            if sh_sub.is_failed() {
+                                return;
+                            }
                             let mut w = cin.lock().unwrap();
-                            if writeln!(w, "{line}").is_err() { return; }
+                            if writeln!(w, "{line}").is_err() {
+                                return;
+                            }
                         }
                     }));
                 }
                 thread::spawn(move || {
-                    for h in subs { let _ = h.join(); }
+                    for h in subs {
+                        let _ = h.join();
+                    }
                     // All sub-threads done: drop cin so the child's stdin
                     // fd is closed (EOF) even if upstream is still open.
                     drop(cin);
@@ -425,10 +497,16 @@ fn run(edges: &[(Node, Node)]) {
                 thread::spawn(move || {
                     let reader = BufReader::new(co);
                     for line in reader.lines() {
-                        if sh_out.is_failed() { break; }
+                        if sh_out.is_failed() {
+                            break;
+                        }
                         match line {
                             Ok(l) => {
-                                for s in &out_senders { if !s.send_line(l.clone()) { return; } }
+                                for s in &out_senders {
+                                    if !s.send_line(l.clone()) {
+                                        return;
+                                    }
+                                }
                             }
                             // PTY master returns EIO when the slave side closes (child exited).
                             // Treat it as clean EOF rather than an error.
@@ -451,17 +529,26 @@ fn run(edges: &[(Node, Node)]) {
                     }
                 };
                 if !status.success() {
-                    eprintln!("\x1b[31mError:\x1b[0m `{}` exited status {}",
-                        argv_wait[0], status.code().unwrap_or(-1));
+                    eprintln!(
+                        "\x1b[31mError:\x1b[0m `{}` exited status {}",
+                        argv_wait[0],
+                        status.code().unwrap_or(-1)
+                    );
                     sh_wait.fail();
                 }
             });
 
             // Drain output first, then wait, then tear down stdin.
-            if let Some(t) = stdout_thread { let _ = t.join(); }
-            if let Some(t) = stderr_thread { let _ = t.join(); }
+            if let Some(t) = stdout_thread {
+                let _ = t.join();
+            }
+            if let Some(t) = stderr_thread {
+                let _ = t.join();
+            }
             let _ = wait_thread.join();
-            if let Some(t) = stdin_thread  { let _ = t.join(); }
+            if let Some(t) = stdin_thread {
+                let _ = t.join();
+            }
         }));
     }
 
@@ -471,7 +558,9 @@ fn run(edges: &[(Node, Node)]) {
     drop(senders);
     drop(receivers);
 
-    for h in handles { let _ = h.join(); }
+    for h in handles {
+        let _ = h.join();
+    }
 }
 
 fn main() {
@@ -484,5 +573,7 @@ fn main() {
         red_error(&format!("cannot read `{}`: {e}", args[1]));
     });
     let edges = parse(&src);
-    if !edges.is_empty() { run(&edges); }
+    if !edges.is_empty() {
+        run(&edges);
+    }
 }

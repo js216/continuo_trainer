@@ -547,7 +547,8 @@ int main(void)
 
 		if (fds[0].revents & POLLIN) {
 			if (!fgets(line, sizeof(line), stdin)) {
-				/* EOF on stdin: stop watching it but keep running */
+				/* EOF on stdin: stop watching it but keep
+				 * running */
 				fds[0].fd = -1;
 			} else {
 				handle_command(&s, line);

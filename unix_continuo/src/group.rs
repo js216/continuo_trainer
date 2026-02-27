@@ -181,8 +181,14 @@ impl Group {
         let prefix = if is_passing { "passing " } else { "" };
         format!(
             "GROUP ID:{} {}BASS:{} FIGURES:{} MELODY:{} BASS_ACTUAL:{} TIME:{} REALIZATION:{}",
-            group_id, prefix, expected_bass, figures, melody,
-            actual_bass, bass_time, realization.join("/")
+            group_id,
+            prefix,
+            expected_bass,
+            figures,
+            melody,
+            actual_bass,
+            bass_time,
+            realization.join("/")
         )
     }
 

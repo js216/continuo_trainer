@@ -11,14 +11,27 @@ use std::path::Path;
 fn get_note_value(note: &str) -> i32 {
     let base_name: String = note.chars().take_while(|c| c.is_alphabetic()).collect();
     let mut value = match base_name.as_str() {
-        "c" => 0, "cis" | "des" => 1, "d" => 2, "dis" | "ees" => 3,
-        "e" => 4, "f" => 5, "fis" | "ges" => 6, "g" => 7,
-        "gis" | "aes" => 8, "a" => 9, "ais" | "bes" => 10, "b" => 11,
+        "c" => 0,
+        "cis" | "des" => 1,
+        "d" => 2,
+        "dis" | "ees" => 3,
+        "e" => 4,
+        "f" => 5,
+        "fis" | "ges" => 6,
+        "g" => 7,
+        "gis" | "aes" => 8,
+        "a" => 9,
+        "ais" | "bes" => 10,
+        "b" => 11,
         _ => 0,
     };
     for c in note.chars() {
-        if c == '\'' { value += 12; }
-        if c == ',' { value -= 12; }
+        if c == '\'' {
+            value += 12;
+        }
+        if c == ',' {
+            value -= 12;
+        }
     }
     value
 }
@@ -45,10 +58,22 @@ fn main() -> io::Result<()> {
     let mut i = 1;
     while i < args.len() {
         match args[i].as_str() {
-            "--key" => { key = args[i+1].clone(); i += 2; }
-            "--time" => { time = args[i+1].clone(); i += 2; }
-            "--duration" => { duration = args[i+1].clone(); i += 2; }
-            "--outdir" => { outdir = Some(args[i+1].clone()); i += 2; }
+            "--key" => {
+                key = args[i + 1].clone();
+                i += 2;
+            }
+            "--time" => {
+                time = args[i + 1].clone();
+                i += 2;
+            }
+            "--duration" => {
+                duration = args[i + 1].clone();
+                i += 2;
+            }
+            "--outdir" => {
+                outdir = Some(args[i + 1].clone());
+                i += 2;
+            }
             "--title" => {
                 let mut t = Vec::new();
                 i += 1;
@@ -65,7 +90,9 @@ fn main() -> io::Result<()> {
     let output_path = if let Some(ref dir) = outdir {
         let _ = fs::create_dir_all(dir);
         let mut n = 1;
-        while Path::new(&format!("{}/{}.txt", dir, n)).exists() { n += 1; }
+        while Path::new(&format!("{}/{}.txt", dir, n)).exists() {
+            n += 1;
+        }
         Some(format!("{}/{}.txt", dir, n))
     } else {
         None
@@ -79,15 +106,21 @@ fn main() -> io::Result<()> {
 
     for line in stdin.lock().lines() {
         let line = line?;
-        if outdir.is_some() { println!("{}", line); }
+        if outdir.is_some() {
+            println!("{}", line);
+        }
 
         let p: Vec<&str> = line.split_whitespace().collect();
-        if p.is_empty() { continue; }
+        if p.is_empty() {
+            continue;
+        }
 
         if p[0] == "NOTE_ON" {
             let note = p[1].to_string();
             active_notes.insert(note.clone());
-            if !current_chord.contains(&note) { current_chord.push(note); }
+            if !current_chord.contains(&note) {
+                current_chord.push(note);
+            }
             pressed = true;
         } else if p[0] == "NOTE_OFF" {
             active_notes.remove(p[1]);
@@ -97,7 +130,14 @@ fn main() -> io::Result<()> {
                 current_chord.clear();
                 pressed = false;
                 if let Some(ref path) = output_path {
-                    write_data(fs::File::create(path)?, &key, &time, &title, &history, &duration)?;
+                    write_data(
+                        fs::File::create(path)?,
+                        &key,
+                        &time,
+                        &title,
+                        &history,
+                        &duration,
+                    )?;
                 }
             }
         }
@@ -121,11 +161,13 @@ fn write_data<W: Write>(
 
     let parts: Vec<&str> = time.split('/').collect();
     let beats_per_bar = parts[0].parse::<f32>().unwrap_or(4.0);
-    let beat_unit = parts.get(1).and_then(|s| s.parse::<f32>().ok()).unwrap_or(4.0);
+    let beat_unit = parts
+        .get(1)
+        .and_then(|s| s.parse::<f32>().ok())
+        .unwrap_or(4.0);
     let is_dotted = dur_str.contains('.');
     let dur_val = dur_str.trim_matches('.').parse::<f32>().unwrap_or(2.0);
-    let dur_in_beats =
-        (beat_unit / dur_val) * (if is_dotted { 1.5 } else { 1.0 });
+    let dur_in_beats = (beat_unit / dur_val) * (if is_dotted { 1.5 } else { 1.0 });
     let n_per_bar = (beats_per_bar / dur_in_beats).round() as usize;
 
     let mut voices: HashMap<String, Vec<String>> = HashMap::new();
@@ -134,8 +176,7 @@ fn write_data<W: Write>(
     }
 
     for (i, chord) in hist.iter().enumerate() {
-        let sc: Vec<String> =
-            chord.iter().map(|n| spell_note(n, key)).collect();
+        let sc: Vec<String> = chord.iter().map(|n| spell_note(n, key)).collect();
         let fmt = |s: &str| format!("{}{}", s, dur_str);
 
         let mut assign = vec![

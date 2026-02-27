@@ -396,7 +396,12 @@ fn rule_bass_in_key(ctx: &Context) -> Result<(), String> {
     Ok(())
 }
 
-const RULES: &[RuleFn] = &[rule_no_parallels, rule_bass_leap, rule_check_realization, rule_bass_in_key];
+const RULES: &[RuleFn] = &[
+    rule_no_parallels,
+    rule_bass_leap,
+    rule_check_realization,
+    rule_bass_in_key,
+];
 
 // ---------------------------------------------------------------------------
 // Parsing
@@ -487,7 +492,7 @@ fn main() {
             };
 
             match RULES.iter().try_for_each(|rule| rule(&ctx)) {
-                Ok(_)  => println!("RESULT {} \x1b[32mOK\x1b[0m", id),
+                Ok(_) => println!("RESULT {} \x1b[32mOK\x1b[0m", id),
                 Err(e) => println!("RESULT {} \x1b[31mFAIL\x1b[0m {}", id, e),
             }
         }
