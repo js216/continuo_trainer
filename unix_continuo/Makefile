@@ -1,7 +1,7 @@
 CFLAGS = -Wall -Wextra -std=c99 -fsanitize=address -lrtmidi -lX11
 
-PROGS = chunk play group gui hint load midi realize record rules stats \
-        l2ly g2ly render draw show entry
+PROGS = chunk group gui hint load midi realize record rules stats \
+        l2ly g2ly render draw show entry run
 
 all: $(addprefix bin/,$(PROGS))
 
@@ -22,7 +22,11 @@ bin/%: src/%.rs | bin
 bin:
 	mkdir -p bin
 
-.PHONY: format test clean
+.PHONY: format test clean dot
+
+dot:
+	python3 src/run2dot.py < src/play.dot > tmp/play.dot
+	dot -Tpdf tmp/play.dot -o tmp/play.pdf
 
 format:
 	clang-format -i src/*.c

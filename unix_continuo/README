@@ -7,4 +7,5 @@ load --- load and normalize continuo lesson data
 midi --- read MIDI input from device and output timed events
 render --- render the LilyPond subset produced by g2ly
 rules --- elegant voice-leading validation for figured bass
+run --- execute a graph of interconnected processes
 show --- display the primitive stream from draw in an X11 window

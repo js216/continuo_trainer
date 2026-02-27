@@ -547,10 +547,11 @@ int main(void)
 
 		if (fds[0].revents & POLLIN) {
 			if (!fgets(line, sizeof(line), stdin)) {
-				s.running = 0; /* EOF */
-				break;
+				/* EOF on stdin: stop watching it but keep running */
+				fds[0].fd = -1;
+			} else {
+				handle_command(&s, line);
 			}
-			handle_command(&s, line);
 		}
 
 		/* Drain the wake bytes written by midi_callback; the actual

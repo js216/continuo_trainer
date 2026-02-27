@@ -1,0 +1,15 @@
+title: Simple Example
+key: G
+time: 3/2
+
+bassline = {
+  d2 cis2p b,2
+}
+
+figures = {
+  0 0 6
+}
+
+melody = {
+  fis'1 r2
+}
