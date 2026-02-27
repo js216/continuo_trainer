@@ -28,10 +28,23 @@ struct Figure {
 struct Group {
     id: usize,
     passing: bool,
+    /// The performed bass pitch (semitones, from BASS_ACTUAL:).
     bass: i32,
+    /// The notated/intended bass pitch (semitones, from BASS:).
+    /// Equals `bass` when the field is absent.
+    bass_notated: i32,
+    /// Raw BASS: token string, preserved for rules that need spelling
+    /// (e.g. to distinguish cis from des).
+    bass_notated_raw: String,
     figures: Vec<Figure>,
+    /// Raw FIGURES: token string, before expansion.
+    figures_raw: String,
     inner: Vec<i32>,  // semitone pitches of realization (inner voices)
     melody: Vec<i32>, // semitone pitches of melody
+    /// Raw MELODY: token string(s), space-joined.
+    melody_raw: String,
+    /// Timestamp from TIME: field (milliseconds), 0 if absent.
+    time: u64,
 }
 
 /// Everything a rule needs: the sliding window plus the current key.
@@ -381,17 +394,44 @@ fn rule_check_realization(ctx: &Context) -> Result<(), String> {
     Ok(())
 }
 
+/// Check that the performed bass is diatonic to the key, unless the composer
+/// explicitly notated a chromatic bass (i.e. BASS: and BASS_ACTUAL: agree).
+///
+/// Logic:
+///   - If `bass_notated == bass` the performer played exactly what was written.
+///     Whatever the composer wrote is intentional, so we accept it without
+///     comment — even if it is chromatic.
+///   - If they differ and the actual pitch is not diatonic, the performer
+///     played a wrong accidental.
+///   - Passing notes are skipped (they are routinely chromatic).
 fn rule_bass_in_key(ctx: &Context) -> Result<(), String> {
     let g = &ctx.window[ctx.window.len() - 1];
     if g.passing {
         return Ok(());
     }
     let bass_pc = g.bass.rem_euclid(12);
+    let notated_pc = g.bass_notated.rem_euclid(12);
+
+    // Performer played what was written — trust the composer.
+    if notated_pc == bass_pc {
+        return Ok(());
+    }
+
+    // The notated and performed pitches differ; flag if the actual is not diatonic.
     if !ctx.key.scale_pcs.contains(&bass_pc) {
         return Err(format!(
             "Bass note {} is not diatonic to the key",
             pc_name(g.bass),
         ));
+    }
+
+    Ok(())
+}
+
+fn rule_not_past_end(ctx: &Context) -> Result<(), String> {
+    let g = &ctx.window[ctx.window.len() - 1];
+    if g.bass_notated_raw == "?" {
+        return Err("Group is past the end of the lesson".into());
     }
     Ok(())
 }
@@ -401,6 +441,7 @@ const RULES: &[RuleFn] = &[
     rule_bass_leap,
     rule_check_realization,
     rule_bass_in_key,
+    rule_not_past_end,
 ];
 
 // ---------------------------------------------------------------------------
@@ -420,9 +461,13 @@ fn parse_group(line: &str) -> Option<Group> {
     let mut id = 0usize;
     let passing = line.contains("passing");
     let mut bass = 0i32;
+    let mut bass_notated_raw = String::new();
     let mut figures = parse_figures("0");
+    let mut figures_raw = String::new();
     let mut inner: Vec<i32> = Vec::new();
     let mut melody: Vec<i32> = Vec::new();
+    let mut melody_raw_parts: Vec<String> = Vec::new();
+    let mut time = 0u64;
 
     let tokens: Vec<&str> = line.split_whitespace().collect();
     let mut i = 0;
@@ -430,32 +475,56 @@ fn parse_group(line: &str) -> Option<Group> {
         let t = tokens[i];
         if let Some(v) = t.strip_prefix("ID:") {
             id = v.parse().unwrap_or(0);
+        } else if let Some(v) = t.strip_prefix("BASS:") {
+            // Notated (intended) bass — may differ from BASS_ACTUAL.
+            bass_notated_raw = v.to_string();
         } else if let Some(v) = t.strip_prefix("BASS_ACTUAL:") {
             bass = to_semitone(v).unwrap_or(0);
         } else if let Some(v) = t.strip_prefix("FIGURES:") {
+            figures_raw = v.to_string();
             figures = parse_figures(v);
         } else if let Some(v) = t.strip_prefix("REALIZATION:") {
             inner = v.split('/').filter_map(to_semitone).collect();
             inner.sort();
         } else if let Some(v) = t.strip_prefix("MELODY:") {
             if !v.is_empty() {
+                melody_raw_parts.push(v.to_string());
                 melody.push(to_semitone(v).unwrap_or(0));
             }
             while i + 1 < tokens.len() && !tokens[i + 1].contains(':') {
                 i += 1;
+                melody_raw_parts.push(tokens[i].to_string());
                 melody.push(to_semitone(tokens[i]).unwrap_or(0));
             }
+        } else if let Some(v) = t.strip_prefix("TIME:") {
+            time = v.parse().unwrap_or(0);
         }
         i += 1;
     }
+
+    // Derive the notated bass semitone from the raw string.
+    // Fall back to the performed bass so that rules comparing the two fields
+    // do not fire spuriously when BASS: was absent from the input.
+    let bass_notated = if bass_notated_raw.is_empty() {
+        bass
+    } else {
+        to_semitone(&bass_notated_raw).unwrap_or(bass)
+    };
+
+    let melody_raw = melody_raw_parts.join(" ");
 
     Some(Group {
         id,
         passing,
         bass,
+        bass_notated,
+        bass_notated_raw,
         figures,
+        figures_raw,
         inner,
         melody,
+        melody_raw,
+        time,
     })
 }
 

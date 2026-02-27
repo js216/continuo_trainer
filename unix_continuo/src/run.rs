@@ -14,9 +14,9 @@ use std::time::Duration;
 // helpers
 // --------------------------------------------------------------------------
 
-/// Open a PTY pair. Returns (master_fd, slave_fd).
-/// We use this for child stdout so the child sees a TTY and uses
-/// line buffering rather than block buffering.
+// Open a PTY pair. Returns (master_fd, slave_fd).
+// We use this for child stdout so the child sees a TTY and uses
+// line buffering rather than block buffering.
 #[cfg_attr(target_os = "linux", link(name = "util"))]
 extern "C" {}
 
