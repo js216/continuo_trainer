@@ -14,12 +14,12 @@ passingNoteSolidus = \markup \override #'(thickness . 1.4) \draw-line #'(0.55 . 
 \score {
   <<
     \new Staff = "melody" { \clef treble \key g \major \time 3/2 fis'1 r2 a'2. g'4 fis'2 d'1 b'2 b'2 e'2 a'2 g'4 fis'4 e'2. d'4 }
-    \new Staff = "real-treble" { \clef treble \key g \major \time 3/2 <d'' a' fis'>2~ <d'' a' fis'>2 <g' d'>2 e'2~ e'2 <fis' cis'>2 <fis' d'>2~ <fis' d'>2 <e' g'>2 <e' cis'>2~ <e' cis'>2 d'2 e'2 <e' d'>2 <e' cis'>2 }
+    \new Staff = "real-treble" { \clef treble \key g \major \time 3/2 <d'' a' fis'>2~ <d'' a' fis'>2 <g' d'>2 e'2~ e'2 <fis' cis'>2 <fis' d'>2~ <fis' d'>2 e'2 <e' cis'>2~ <e' cis'>2 d'2 e'2 <e' d'>2 <e' cis'>2 }
     \new Staff = "real-bass" {
       \clef bass \key g \major \time 3/2
       <<
         \new Voice = "bass-actual" { \voiceOne d2 cis2 b,2 cis2 b,2 a,2 b,2 a,2 g,2 a,2 g,2 fis,2 g,2 a,2 a,2 }
-        \new Voice = "real-bass-notes" { \voiceTwo s2 s2 s2 a2~ a2 s2 b2 s2 b2 a2 s2 a2 b2 a2 a2 }
+        \new Voice = "real-bass-notes" { \voiceTwo s2 s2 s2 a2~ a2 s2 b2~ b2 b2 a2~ a2 a2 b2 a2 a2 }
       >>
     }
     \new Staff = "bass" {
