@@ -3,7 +3,7 @@
 // Copyright (c) 2026 Jakob Kastelic
 
 use std::fs;
-use std::io;
+use std::io::{self, BufRead};
 use std::process;
 
 /// Helper macro to print a formatted error message in red to stderr and exit with code 1.
@@ -82,21 +82,6 @@ struct Lesson {
     bass: Vec<String>,
     figures: Vec<String>,
     melody: Vec<String>,
-}
-
-fn read_lesson_number() -> usize {
-    let mut input = String::new();
-    io::stdin().read_line(&mut input).unwrap();
-    let mut parts = input.split_whitespace();
-    if parts.next() != Some("LOAD_LESSON") {
-        die!("Expected LOAD_LESSON <number>");
-    }
-    match parts.next().and_then(|x| x.parse().ok()) {
-        Some(n) => n,
-        None => {
-            die!("Invalid lesson number");
-        }
-    }
 }
 
 fn parse_lesson(content: &str) -> Lesson {
@@ -232,9 +217,7 @@ fn emit(n: usize, lesson: &Lesson, melody_groups: &[String]) {
     }
 }
 
-fn main() {
-    let n = read_lesson_number();
-
+fn load_and_emit(n: usize) {
     let file = format!("seq/{}.txt", n);
     let content = match fs::read_to_string(&file) {
         Ok(c) => c,
@@ -254,4 +237,29 @@ fn main() {
 
     let melody_groups = group_melody(&lesson.bass, &lesson.melody);
     emit(n, &lesson, &melody_groups);
+}
+
+fn main() {
+    let stdin = io::stdin();
+    let mut line = String::new();
+
+    loop {
+        line.clear();
+        match stdin.lock().read_line(&mut line) {
+            Ok(0) => break, // EOF
+            Ok(_) => {}
+            Err(e) => die!("stdin read error: {}", e),
+        }
+
+        let mut parts = line.split_whitespace();
+        match parts.next() {
+            None => continue, // blank line
+            Some("LOAD_LESSON") => match parts.next().and_then(|x| x.parse::<usize>().ok()) {
+                Some(n) => load_and_emit(n),
+                None => die!("LOAD_LESSON requires a valid lesson number"),
+            },
+            Some("QUIT") => break,
+            Some(cmd) => die!("Unknown command: {}", cmd),
+        }
+    }
 }
