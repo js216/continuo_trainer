@@ -584,8 +584,6 @@ fn main() {
     let stdin = io::stdin();
 
     for line in stdin.lock().lines().map_while(Result::ok) {
-        println!("{}", line);
-
         if line.starts_with("LESSON") {
             if let Some(k) = parse_lesson_key(&line) {
                 key = k;

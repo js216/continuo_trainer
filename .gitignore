@@ -2,7 +2,6 @@
 *.o
 *.swp
 *.pdf
-*.dot
 *.log
 *.db
 *.ini
