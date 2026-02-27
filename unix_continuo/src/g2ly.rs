@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// g2ly.rs --- convert grouper output into a four-staff LilyPond score
+// g2ly.rs --- convert group output into a four-staff LilyPond score
 // Copyright (c) 2026 Jakob Kastelic
 
 use std::io::{self, BufRead};

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// loader.rs --- load and normalize continuo lesson data
+// load.rs --- load and normalize continuo lesson data
 // Copyright (c) 2026 Jakob Kastelic
 
 use std::fs;

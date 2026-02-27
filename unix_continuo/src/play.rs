@@ -22,39 +22,39 @@ fn main() {
 
         /* ---------- Process Setup ---------- */
 
-        let mut grouper = Command::new("bin/grouper")
+        let mut group = Command::new("bin/group")
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
             .spawn()
-            .expect("Failed to start grouper");
+            .expect("Failed to start group");
 
         let mut rules = Command::new("bin/rules")
-            .stdin(grouper.stdout.take().unwrap())
+            .stdin(group.stdout.take().unwrap())
             .stdout(Stdio::piped())
             .spawn()
             .expect("Failed to start rules");
 
-        let mut grouper_stdin = grouper.stdin.take().unwrap();
+        let mut group_stdin = group.stdin.take().unwrap();
         let rules_stdout = rules.stdout.take().unwrap();
 
-        /* ---------- LOADER ---------- */
+        /* ---------- LOAD ---------- */
 
-        let mut loader = Command::new("bin/loader")
+        let mut load = Command::new("bin/load")
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
             .spawn()
-            .expect("Failed to start loader");
+            .expect("Failed to start load");
 
         {
-            let mut loader_stdin = loader.stdin.take().unwrap();
-            let _ = writeln!(loader_stdin, "LOAD_LESSON {}", lesson_num);
-        } // EOF to loader
+            let mut load_stdin = load.stdin.take().unwrap();
+            let _ = writeln!(load_stdin, "LOAD_LESSON {}", lesson_num);
+        } // EOF to load
 
-        // Parse loader output to find the end of the lesson (max_id)
+        // Parse load output to find the end of the lesson (max_id)
         let mut max_id = -1;
-        let mut loader_reader = BufReader::new(loader.stdout.take().unwrap());
+        let mut load_reader = BufReader::new(load.stdout.take().unwrap());
         let mut line = String::new();
-        while loader_reader.read_line(&mut line).unwrap() > 0 {
+        while load_reader.read_line(&mut line).unwrap() > 0 {
             let _ = std::io::stdout().flush();
 
             if line.starts_with("BASSNOTE") {
@@ -64,16 +64,16 @@ fn main() {
                     }
                 }
             }
-            let _ = grouper_stdin.write_all(line.as_bytes());
-            let _ = grouper_stdin.flush();
+            let _ = group_stdin.write_all(line.as_bytes());
+            let _ = group_stdin.flush();
             line.clear();
         }
 
-        // 4. If loader returns nonzero, quit immediately
-        let loader_status = loader.wait().unwrap();
-        if !loader_status.success() {
-            eprintln!("Loader failed. Quitting.");
-            std::process::exit(loader_status.code().unwrap_or(1));
+        // 4. If load returns nonzero, quit immediately
+        let load_status = load.wait().unwrap();
+        if !load_status.success() {
+            eprintln!("Load failed. Quitting.");
+            std::process::exit(load_status.code().unwrap_or(1));
         }
 
         /* ---------- MIDI & MONITORING ---------- */
@@ -96,7 +96,7 @@ fn main() {
 
             for line_res in reader.lines() {
                 if let Ok(l) = line_res {
-                    // rules forwards grouper, so this catches all relevant output
+                    // rules forwards group, so this catches all relevant output
                     println!("{}", l);
 
                     if l.contains("FAIL") {
@@ -117,7 +117,7 @@ fn main() {
             }
         });
 
-        // Forward midi output to grouper (blocks until midi is killed or finishes)
+        // Forward midi output to group (blocks until midi is killed or finishes)
         let midi_stdout = {
             let mut lock = midi_arc.lock().unwrap();
             lock.as_mut().and_then(|m| m.stdout.take())
@@ -128,18 +128,18 @@ fn main() {
             let mut m_line = String::new();
             while midi_reader.read_line(&mut m_line).unwrap() > 0 {
                 let _ = std::io::stdout().flush();
-                let _ = grouper_stdin.write_all(m_line.as_bytes());
-                let _ = grouper_stdin.flush();
+                let _ = group_stdin.write_all(m_line.as_bytes());
+                let _ = group_stdin.flush();
                 m_line.clear();
             }
         }
 
         /* ---------- CLEANUP & RESTART ---------- */
 
-        drop(grouper_stdin); // Allow grouper and rules to finish
+        drop(group_stdin); // Allow group and rules to finish
         let _ = rules_thread.join();
         let _ = rules.wait();
-        let _ = grouper.wait();
+        let _ = group.wait();
 
         // 2. Print summary
         if *has_failed.lock().unwrap() {

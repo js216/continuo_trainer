@@ -1,6 +1,6 @@
 /* stats.c --- provide per-lesson and per-user aggregate statistics
  *
- * Reads scorer logs or queries scorer state on request. Supports multiple
+ * Reads score logs or queries score state on request. Supports multiple
  * kinds of queries:
  *   - Per-lesson totals
  *   - Per-user totals

@@ -1,6 +1,6 @@
-/* chunker.c --- split long lessons into mini-lessons based on difficulty
+/* chunk.c --- split long lessons into mini-lessons based on difficulty
  *
- * Consumes lesson data and scorer step stats to identify hard sections.
+ * Consumes lesson data and scor step stats to identify hard sections.
  * Generates separate mini-lessons and writes them directly as new lesson
  * files with metadata linking to the parent lesson.
  *

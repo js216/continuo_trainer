@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// grouper.rs --- align MIDI notes to lesson bassline, figures, and melody
+// group.rs --- align MIDI notes to lesson bassline, figures, and melody
 // Copyright (c) 2026 Jakob Kastelic
 
 use std::collections::{BTreeMap, HashMap};
@@ -101,7 +101,7 @@ struct LessonEntry {
 }
 
 #[derive(Debug, Default)]
-struct Grouper {
+struct Group {
     key: String,
     entries: HashMap<usize, LessonEntry>,
     held: BTreeMap<u8, u32>,
@@ -111,7 +111,7 @@ struct Grouper {
     current_chord: Vec<u8>,
 }
 
-impl Grouper {
+impl Group {
     fn reset(&mut self, key: String) {
         self.key = key;
         self.entries = HashMap::new();
@@ -320,7 +320,7 @@ fn parse_lesson_key(line: &str) -> Option<String> {
 
 fn main() {
     let stdin = io::stdin();
-    let mut grouper = Grouper::default();
+    let mut group = Group::default();
 
     for raw_line in stdin.lock().lines() {
         let line = match raw_line {
@@ -335,28 +335,28 @@ fn main() {
         if line.starts_with("LESSON ") {
             println!("{}", line);
             let key = parse_lesson_key(line).unwrap_or_else(|| "C".to_string());
-            grouper.reset(key);
+            group.reset(key);
         } else if line.starts_with("BASSNOTE ") {
             if let Some((id, note, passing)) = parse_bassnote(line) {
-                grouper.set_bassnote(id, &note, passing);
+                group.set_bassnote(id, &note, passing);
             }
         } else if line.starts_with("FIGURES ") {
             if let Some((id, figures)) = parse_figures(line) {
-                grouper.set_figures(id, &figures);
+                group.set_figures(id, &figures);
             }
         } else if line.starts_with("MELODY ") {
             if let Some((id, melody)) = parse_melody(line) {
-                grouper.set_melody(id, &melody);
+                group.set_melody(id, &melody);
             }
         } else if line.starts_with("NOTE_ON ") {
             if let Some((midi, time)) = parse_note_on(line) {
-                if let Some(output) = grouper.note_on(midi, time) {
+                if let Some(output) = group.note_on(midi, time) {
                     println!("{}", output);
                 }
             }
         } else if line.starts_with("NOTE_OFF ") {
             if let Some(midi) = parse_note_off(line) {
-                if let Some(output) = grouper.note_off(midi) {
+                if let Some(output) = group.note_off(midi) {
                     println!("{}", output);
                 }
             }

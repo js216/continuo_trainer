@@ -1,8 +1,7 @@
-CFLAGS = -Wall -Wextra -std=c98 -fsanitize=address -lrtmidi -lX11
+CFLAGS = -Wall -Wextra -std=c99 -fsanitize=address -lrtmidi -lX11
 
-PROGS = analyzer chunker play grouper gui hint loader midi \
-        realizer recorder rules scorer stats l2ly g2ly render \
-        draw show entry
+PROGS = chunk play group gui hint load midi realize record rules stats \
+        l2ly g2ly render draw show entry
 
 all: $(addprefix bin/,$(PROGS))
 

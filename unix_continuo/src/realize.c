@@ -1,4 +1,4 @@
-/* realizer.c --- generate candidate realizations of a bassline
+/* realize.c --- generate candidate realizations of a bassline
  *
  * Enumerates all possible realizations for the current lesson step,
  * within note range and interval constraints. Passes candidates through
