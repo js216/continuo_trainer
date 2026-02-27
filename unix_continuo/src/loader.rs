@@ -4,6 +4,16 @@
 
 use std::fs;
 use std::io;
+use std::process;
+
+/// Helper macro to print a formatted error message in red to stderr and exit with code 1.
+macro_rules! die {
+    ($($arg:tt)*) => {{
+        eprint!("\x1b[31mError:\x1b[0m ");
+        eprintln!($($arg)*);
+        process::exit(1);
+    }}
+}
 
 fn skip_pitch_name(s: &str) -> &str {
     let s = s.trim_start_matches(|c: char| c.is_ascii_alphabetic()); // note letter + is/es
@@ -74,19 +84,17 @@ struct Lesson {
     melody: Vec<String>,
 }
 
-fn read_lesson_number() -> Option<usize> {
+fn read_lesson_number() -> usize {
     let mut input = String::new();
     io::stdin().read_line(&mut input).unwrap();
     let mut parts = input.split_whitespace();
     if parts.next() != Some("LOAD_LESSON") {
-        eprintln!("Expected LOAD_LESSON <number>");
-        return None;
+        die!("Expected LOAD_LESSON <number>");
     }
     match parts.next().and_then(|x| x.parse().ok()) {
-        Some(n) => Some(n),
+        Some(n) => n,
         None => {
-            eprintln!("Invalid lesson number");
-            None
+            die!("Invalid lesson number");
         }
     }
 }
@@ -225,28 +233,23 @@ fn emit(n: usize, lesson: &Lesson, melody_groups: &[String]) {
 }
 
 fn main() {
-    let n = match read_lesson_number() {
-        Some(n) => n,
-        None => return,
-    };
+    let n = read_lesson_number();
 
     let file = format!("seq/{}.txt", n);
     let content = match fs::read_to_string(&file) {
         Ok(c) => c,
         Err(e) => {
-            eprintln!("Cannot read {}: {}", file, e);
-            return;
+            die!("Cannot read {}: {}", file, e);
         }
     };
 
     let lesson = parse_lesson(&content);
     if lesson.bass.len() != lesson.figures.len() {
-        eprintln!(
+        die!(
             "Length mismatch: bass={} figures={}",
             lesson.bass.len(),
             lesson.figures.len()
         );
-        return;
     }
 
     let melody_groups = group_melody(&lesson.bass, &lesson.melody);
