@@ -436,12 +436,58 @@ fn rule_not_past_end(ctx: &Context) -> Result<(), String> {
     Ok(())
 }
 
+fn rule_realization_not_empty(ctx: &Context) -> Result<(), String> {
+    let g = &ctx.window[ctx.window.len() - 1];
+    if g.passing {
+        return Ok(());
+    }
+    if g.inner.is_empty() {
+        return Err("No realization provided (inner voices are empty)".into());
+    }
+    Ok(())
+}
+
+fn rule_realization_complete(ctx: &Context) -> Result<(), String> {
+    let g = &ctx.window[ctx.window.len() - 1];
+    if g.passing {
+        return Ok(());
+    }
+    let key = ctx.key;
+    let bass_pc = g.bass.rem_euclid(12);
+
+    let present: HashSet<i32> = g
+        .inner
+        .iter()
+        .chain(g.melody.iter())
+        .map(|&n| n.rem_euclid(12))
+        .chain(std::iter::once(bass_pc))
+        .collect();
+
+    for fig in &g.figures {
+        match figure_to_pc(fig, bass_pc, key) {
+            None => return Ok(()), // can't compute — skip
+            Some(required_pc) => {
+                if !present.contains(&required_pc) {
+                    return Err(format!(
+                        "Figure {} ({}) is missing from the realization",
+                        fig.deg,
+                        pc_name(required_pc),
+                    ));
+                }
+            }
+        }
+    }
+    Ok(())
+}
+
 const RULES: &[RuleFn] = &[
     rule_no_parallels,
     rule_bass_leap,
     rule_check_realization,
     rule_bass_in_key,
     rule_not_past_end,
+    rule_realization_not_empty,
+    rule_realization_complete,
 ];
 
 // ---------------------------------------------------------------------------
