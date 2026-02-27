@@ -1,15 +1,11 @@
 title: Simple Example
-key: G
+key: C
 time: 3/2
 
 bassline = {
-  d2 cis2p b,2
+  c2 d2p e2
 }
 
 figures = {
-  0 0 6
-}
-
-melody = {
-  fis'1 r2
+  0 0 0
 }

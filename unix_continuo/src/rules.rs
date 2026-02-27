@@ -381,7 +381,22 @@ fn rule_check_realization(ctx: &Context) -> Result<(), String> {
     Ok(())
 }
 
-const RULES: &[RuleFn] = &[rule_no_parallels, rule_bass_leap, rule_check_realization];
+fn rule_bass_in_key(ctx: &Context) -> Result<(), String> {
+    let g = &ctx.window[ctx.window.len() - 1];
+    if g.passing {
+        return Ok(());
+    }
+    let bass_pc = g.bass.rem_euclid(12);
+    if !ctx.key.scale_pcs.contains(&bass_pc) {
+        return Err(format!(
+            "Bass note {} is not diatonic to the key",
+            pc_name(g.bass),
+        ));
+    }
+    Ok(())
+}
+
+const RULES: &[RuleFn] = &[rule_no_parallels, rule_bass_leap, rule_check_realization, rule_bass_in_key];
 
 // ---------------------------------------------------------------------------
 // Parsing
