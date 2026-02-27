@@ -1,155 +1,151 @@
-// play.rs
-// Written by Jakob Kastelic (2026).
+// SPDX-License-Identifier: MIT
+// play.rs --- run programs and pipe data around
+// Copyright (c) 2026 Jakob Kastelic
 
 use std::env;
 use std::io::{BufRead, BufReader, Write};
 use std::process::{Command, Stdio};
+use std::sync::{Arc, Mutex};
+use std::thread;
 
-const GREEN: &str = "\x1b[32m";
-const RED: &str   = "\x1b[31m";
-const RESET: &str = "\x1b[0m";
-
-fn usage() -> !
-{
-    eprintln!("usage: play <lesson-number>");
-    std::process::exit(1);
-}
-
-fn forward<R: BufRead>(
-    mut reader: R,
-    dst: &mut std::process::ChildStdin,
-)
-{
-    let mut line = String::new();
-
-    while reader.read_line(&mut line).unwrap() > 0
-    {
-        dst.write_all(line.as_bytes()).unwrap();
-        dst.flush().unwrap();
-        line.clear();
-    }
-}
-
-fn run_lesson(lesson: &str)
-{
-    /* ---------- grouper | rules ---------- */
-
-    let mut grouper = Command::new("bin/grouper")
-        .stdin(Stdio::piped())
-        .stdout(Stdio::piped())
-        .spawn()
-        .unwrap();
-
-    let mut rules = Command::new("bin/rules")
-        .stdin(grouper.stdout.take().unwrap())
-        .stdout(Stdio::piped())
-        .spawn()
-        .unwrap();
-
-    let mut grouper_stdin =
-        grouper.stdin.take().unwrap();
-
-    /* ---------- LOADER ---------- */
-
-    let mut loader = Command::new("bin/loader")
-        .stdin(Stdio::piped())
-        .stdout(Stdio::piped())
-        .stderr(Stdio::inherit())   // show loader errors
-        .spawn()
-        .unwrap();
-
-    {
-        let mut loader_stdin =
-            loader.stdin.take().unwrap();
-
-        let cmd = format!("LOAD_LESSON {}\n", lesson);
-        loader_stdin.write_all(cmd.as_bytes()).unwrap();
-        drop(loader_stdin);
-    }
-
-    {
-        let stdout = loader.stdout.take().unwrap();
-        let reader = BufReader::new(stdout);
-        forward(reader, &mut grouper_stdin);
-    }
-
-    let status = loader.wait().unwrap();
-
-    if !status.success()
-    {
-        // Stop pipeline immediately
-        drop(grouper_stdin);
-        let _ = grouper.kill();
-        let _ = rules.kill();
+fn main() {
+    // 1. Demand lesson number from command line
+    let args: Vec<String> = env::args().collect();
+    if args.len() != 2 {
+        eprintln!("Usage: {} <lesson_number>", args[0]);
         std::process::exit(1);
     }
+    let lesson_num = args[1].clone();
 
-    /* ---------- MIDI ---------- */
+    loop {
+        println!("\n\x1b[37m--- Starting Lesson {} ---\x1b[0m", lesson_num);
 
-    let mut midi = Command::new("bin/midi")
-        .stdout(Stdio::piped())
-        .spawn()
-        .unwrap();
+        /* ---------- Process Setup ---------- */
 
-    {
-        let stdout = midi.stdout.take().unwrap();
-        let reader = BufReader::new(stdout);
-        forward(reader, &mut grouper_stdin);
-    }
+        let mut grouper = Command::new("bin/grouper")
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .spawn()
+            .expect("Failed to start grouper");
 
-    midi.wait().unwrap();
+        let mut rules = Command::new("bin/rules")
+            .stdin(grouper.stdout.take().unwrap())
+            .stdout(Stdio::piped())
+            .spawn()
+            .expect("Failed to start rules");
 
-    drop(grouper_stdin);
+        let mut grouper_stdin = grouper.stdin.take().unwrap();
+        let rules_stdout = rules.stdout.take().unwrap();
 
-    /* ---------- CAPTURE RULES OUTPUT ---------- */
+        /* ---------- LOADER ---------- */
 
-    let rules_stdout =
-        rules.stdout.take().unwrap();
+        let mut loader = Command::new("bin/loader")
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .spawn()
+            .expect("Failed to start loader");
 
-    let reader = BufReader::new(rules_stdout);
-
-    let mut any_fail = false;
-
-    for line in reader.lines()
-    {
-        let line = line.unwrap();
-        println!("{}", line);
-
-        if line.starts_with("RESULT")
-            && line.contains("FAIL")
         {
-            any_fail = true;
+            let mut loader_stdin = loader.stdin.take().unwrap();
+            let _ = writeln!(loader_stdin, "LOAD_LESSON {}", lesson_num);
+        } // EOF to loader
+
+        // Parse loader output to find the end of the lesson (max_id)
+        let mut max_id = -1;
+        let mut loader_reader = BufReader::new(loader.stdout.take().unwrap());
+        let mut line = String::new();
+        while loader_reader.read_line(&mut line).unwrap() > 0 {
+            let _ = std::io::stdout().flush();
+
+            if line.starts_with("BASSNOTE") {
+                if let Some(id_part) = line.split_whitespace().nth(1) {
+                    if let Ok(id) = id_part.trim_end_matches(':').parse::<i32>() {
+                        if id > max_id { max_id = id; }
+                    }
+                }
+            }
+            let _ = grouper_stdin.write_all(line.as_bytes());
+            let _ = grouper_stdin.flush();
+            line.clear();
         }
-    }
 
-    grouper.wait().unwrap();
-    rules.wait().unwrap();
+        // 4. If loader returns nonzero, quit immediately
+        let loader_status = loader.wait().unwrap();
+        if !loader_status.success() {
+            eprintln!("Loader failed. Quitting.");
+            std::process::exit(loader_status.code().unwrap_or(1));
+        }
 
-    /* ---------- LESSON SUMMARY ---------- */
+        /* ---------- MIDI & MONITORING ---------- */
 
-    if any_fail
-    {
-        println!("{RED}LESSON FAIL{RESET}");
-    }
-    else
-    {
-        println!("{GREEN}LESSON ALL OK{RESET}");
-    }
-}
+        let midi = Command::new("bin/midi")
+            .stdout(Stdio::piped())
+            .spawn()
+            .expect("Failed to start midi");
 
-fn main()
-{
-    let args: Vec<String> = env::args().collect();
+        // Wrap midi in a Mutex so the rules thread can kill it when the lesson ends
+        let midi_arc = Arc::new(Mutex::new(Some(midi)));
+        let midi_arc_thread = Arc::clone(&midi_arc);
+        let has_failed = Arc::new(Mutex::new(false));
+        let has_failed_thread = Arc::clone(&has_failed);
 
-    if args.len() != 2
-    {
-        usage();
-    }
+        let rules_thread = thread::spawn(move || {
+            let reader = BufReader::new(rules_stdout);
+            let mut failed = false;
+            let end_marker = format!("RESULT {}", max_id);
 
-    let lesson = &args[1];
+            for line_res in reader.lines() {
+                if let Ok(l) = line_res {
+                    // rules forwards grouper, so this catches all relevant output
+                    println!("{}", l);
 
-    loop
-    {
-        run_lesson(lesson);
+                    if l.contains("FAIL") {
+                        failed = true;
+                    }
+
+                    // Check if we just processed the last note of the lesson
+                    if l.contains(&end_marker) {
+                        let mut lock = midi_arc_thread.lock().unwrap();
+                        if let Some(mut m) = lock.take() {
+                            let _ = m.kill(); // Stop midi input immediately
+                        }
+                    }
+                }
+            }
+            if failed {
+                *has_failed_thread.lock().unwrap() = true;
+            }
+        });
+
+        // Forward midi output to grouper (blocks until midi is killed or finishes)
+        let midi_stdout = {
+            let mut lock = midi_arc.lock().unwrap();
+            lock.as_mut().and_then(|m| m.stdout.take())
+        };
+
+        if let Some(stdout) = midi_stdout {
+            let mut midi_reader = BufReader::new(stdout);
+            let mut m_line = String::new();
+            while midi_reader.read_line(&mut m_line).unwrap() > 0 {
+                let _ = std::io::stdout().flush();
+                let _ = grouper_stdin.write_all(m_line.as_bytes());
+                let _ = grouper_stdin.flush();
+                m_line.clear();
+            }
+        }
+
+        /* ---------- CLEANUP & RESTART ---------- */
+
+        drop(grouper_stdin); // Allow grouper and rules to finish
+        let _ = rules_thread.join();
+        let _ = rules.wait();
+        let _ = grouper.wait();
+
+        // 2. Print summary
+        if *has_failed.lock().unwrap() {
+            println!("\x1b[31m=== LESSON FAIL ===\x1b[0m");
+        } else {
+            println!("\x1b[32m=== LESSON ALL OK ===\x1b[0m");
+        }
     }
 }
