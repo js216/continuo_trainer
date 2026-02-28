@@ -1,6 +1,6 @@
 CFLAGS = -Wall -Wextra -std=c99 -fsanitize=address -lrtmidi -lX11
 
-PROGS = chunk group gui hint load midi realize record rules stats \
+PROGS = chunk group gui hint load midi realize record stats \
         l2ly g2ly render draw show entry run
 
 all: $(addprefix bin/,$(PROGS))
@@ -33,7 +33,7 @@ format:
 	rustfmt src/*.rs
 
 test:
-	lua src/tst.lua tst bin
+	lua src/tst.lua tst bin src
 
 clean:
 	rm -rf bin seq/*.pdf
