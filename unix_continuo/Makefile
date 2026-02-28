@@ -1,4 +1,5 @@
-CFLAGS = -Wall -Wextra -std=c99 -fsanitize=address -lrtmidi -lX11
+CFLAGS = -Wall -Wextra -std=c99 -fsanitize=address
+LDLIBS = -lpthread -lutil -lrtmidi -lX11
 
 PROGS = chunk group gui hint load midi realize record stats \
         l2ly g2ly render draw show entry run
@@ -8,7 +9,7 @@ all: $(addprefix bin/,$(PROGS))
 pdfs: $(patsubst %.txt,%.pdf,$(wildcard seq/*.txt))
 
 bin/%: src/%.c | bin
-	$(CC) $(CFLAGS) $< -o $@
+	$(CC) $(CFLAGS) $(LDLIBS) $< -o $@
 
 bin/%: src/%.rs | bin
 	rustc $< -o $@

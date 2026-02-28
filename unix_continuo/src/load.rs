@@ -2,6 +2,81 @@
 // load.rs --- load and normalize continuo lesson data
 // Copyright (c) 2026 Jakob Kastelic
 
+// DESCRIPTION
+//     load reads lesson requests from standard input in a loop, loads the
+//     corresponding lesson file from disk for each request, and writes a
+//     normalized, fully expanded representation to standard output.  It
+//     keeps running until EOF or a QUIT command; multiple lessons may be
+//     loaded in a single session.
+//
+//     Error messages are printed in red to standard error via ANSI escape
+//     codes and the program immediately exits with code 1.
+//
+// COMMANDS (stdin)
+//     LOAD_LESSON <n>
+//         Load and emit lesson number <n>.  <n> must be a non-negative
+//         decimal integer.  Any unrecognized command (including a malformed
+//         LOAD_LESSON line) is fatal.
+//
+//     QUIT
+//         Exit cleanly.
+//
+//     Blank lines are silently ignored.
+//
+// FILES
+//     For lesson number <n> the program reads seq/<n>.txt.  Failure to
+//     open or read the file is fatal.
+//
+// LESSON FILE FORMAT
+//     Plain text.  Metadata fields appear as "key: value" lines; section
+//     headers introduce token blocks terminated by a line starting with '}'.
+//
+//     Metadata:
+//         title: <text>     Lesson title (free text).
+//         key:   <text>     Key signature.
+//         time:  <text>     Time signature.
+//
+//     Sections (whitespace-separated tokens, one or more lines each):
+//         bassline { ... }  Bass note tokens.
+//         figures  { ... }  Figured-bass annotation tokens.
+//         melody   { ... }  Melody note tokens.
+//
+//     The bass and figures sections must contain the same number of tokens;
+//     a mismatch is fatal.
+//
+// PASSING NOTES
+//     A bass token is marked passing by appending 'p' after its duration
+//     and any dots, e.g. "fis2p" or "g4.p".  The 'p' is stripped before
+//     output and "passing" is appended to the BASSNOTE line instead.
+//
+// DURATION HANDLING
+//     Durations follow LilyPond numeric notation: 1 whole, 2 half, 4
+//     quarter, 8 eighth, 16 sixteenth.  One or more trailing dots are
+//     supported (each adds half the preceding value).  A token with no
+//     duration digit inherits the most recent duration in its voice;
+//     the initial default is a quarter note (4).
+//
+// MELODY GROUPING
+//     Melody tokens are distributed across bass notes by comparing
+//     cumulative durations.  All melody tokens whose rhythmic position
+//     falls within a bass note's span are assigned to that group.  If a
+//     bass note is covered entirely by a melody note begun in an earlier
+//     group, its melody group is empty and "-" is emitted.
+//
+// OUTPUT FORMAT
+//     LESSON <n> <key> <time> <title>
+//
+//     For each bass index i (0-based):
+//         BASSNOTE i: <token> [passing]
+//         FIGURES  i: <token>
+//         MELODY   i: <tokens|-|>
+//
+// DIAGNOSTICS AND EXIT STATUS
+//     On any error (unreadable file, unknown command, bass/figures length
+//     mismatch, stdin read failure) a red-highlighted message is written
+//     to standard error and the program exits with code 1.  On clean
+//     termination (EOF or QUIT) it exits with code 0.
+
 use std::fs;
 use std::io::{self, BufRead};
 use std::process;

@@ -2,6 +2,79 @@
 // midi.c --- read MIDI input from device and output timed events
 // Copyright (c) 2026 Jakob Kastelic
 
+/* DESCRIPTION
+ *     midi reads incoming MIDI messages from a connected device and writes
+ *     text events to standard output with timestamps, suitable for piping
+ *     to downstream programs.  All MIDI message handling occurs in a
+ *     background RtMidi callback; a self-pipe wakes the main poll() loop
+ *     without busy-waiting.
+ *
+ *     Commands sent via stdin select input/output devices and control
+ *     forwarding.  Lines not beginning with "MIDI" are silently ignored,
+ *     making it safe to embed midi in a pipeline that carries other
+ *     traffic on stdin.  EOF on stdin is also handled gracefully: the
+ *     program stops reading stdin but continues running and processing
+ *     MIDI events.
+ *
+ *     On startup the program enumerates available MIDI devices, emitting
+ *     one DEVICE_AVAIL line per device, then restores the last-used input
+ *     device, output device, and forwarding flag from the settings log.
+ *     Settings are saved to the log on every change.
+ *
+ *     Note names in output use LilyPond absolute pitch with sharps only:
+ *     c' = middle C (MIDI 60), cis' = C#4 (MIDI 61), ais = Bb3, and so on.
+ *     Octave marks: ' raises by one octave, , lowers by one.
+ *
+ * COMMANDS (stdin)
+ *     MIDI IN <n>        Open MIDI input device number n.
+ *     MIDI OUT <n>       Open MIDI output device number n.
+ *     MIDI FORWARD ON    Forward raw MIDI input bytes to the output port.
+ *     MIDI FORWARD OFF   Disable forwarding.
+ *     MIDI DEVICES       Re-enumerate devices and emit DEVICE_AVAIL lines.
+ *     MIDI TEST          Send a C#4 note-on/note-off (250 ms) to the output.
+ *
+ * EVENTS (stdout)
+ *     DEVICE_AVAIL <n> <name>
+ *         Emitted for each device during enumeration.  If no devices are
+ *         found, one line with the synthetic name "(no MIDI devices)" is
+ *         emitted.
+ *
+ *     NOTE_ON <lily> VELOCITY:<v> TIME:<ms>
+ *         MIDI note-on with velocity > 0.  <lily> is the LilyPond pitch
+ *         name; <ms> is milliseconds since the Unix epoch (CLOCK_REALTIME).
+ *
+ *     NOTE_OFF <lily> TIME:<ms>
+ *         MIDI note-off, or note-on with velocity 0.
+ *
+ *     STATUS <message>
+ *         Informational message, e.g. device open/close confirmation,
+ *         forwarding state change, test result, or error description.
+ *
+ * FILES
+ *     log/midi.log    Persists the last-used device names and forward flag.
+ *                     Format (device names, not indices, to survive hotplug):
+ *                         IN <device name>
+ *                         OUT <device name>
+ *                         FORWARD <0|1>
+ *
+ * EXAMPLE INPUT
+ *     MIDI DEVICES
+ *     MIDI IN 0
+ *     MIDI OUT 1
+ *     MIDI FORWARD ON
+ *     MIDI TEST
+ *
+ * EXAMPLE OUTPUT
+ *     DEVICE_AVAIL 0 USB Midi Keyboard
+ *     DEVICE_AVAIL 1 Virtual Synth
+ *     STATUS MIDI input opened: USB Midi Keyboard
+ *     STATUS MIDI output opened: Virtual Synth
+ *     STATUS Forwarding enabled
+ *     STATUS MIDI test sent: C#4
+ *     NOTE_ON cis' VELOCITY:100 TIME:1740000000000
+ *     NOTE_OFF cis' TIME:1740000000250
+ */
+
 /* Required for: pipe, clock_gettime, struct timespec, poll */
 #define _POSIX_C_SOURCE 200809L
 

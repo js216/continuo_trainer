@@ -2,6 +2,101 @@
 // group.rs --- align MIDI notes to lesson bassline, figures, and melody
 // Copyright (c) 2026 Jakob Kastelic
 
+// DESCRIPTION
+//     group aligns MIDI note events with lesson data (bassline, figures,
+//     melody) read from standard input.  A group is considered complete when
+//     all currently held notes are released; at that point a GROUP line is
+//     written to standard output.
+//
+//     Bass notes may be marked "passing".  When a note-on event matches the
+//     expected pitch of an upcoming passing group, the current (non-passing)
+//     group is emitted immediately, before all notes are released, and the
+//     accumulator advances to the passing group.
+//
+//     The lesson's key signature is used to choose enharmonic spellings when
+//     converting MIDI note numbers back to LilyPond names (e.g. F# vs Gb).
+//     Recognised key strings are the standard Western key names in their
+//     letter-and-accidental form: C G D A E B F# C# for sharp keys and
+//     F Bb Eb Ab Db Gb Cb for flat keys.  Any unrecognised key defaults to
+//     sharp spellings.
+//
+//     A LESSON command resets all internal state.  BASSNOTE, FIGURES, and
+//     MELODY commands that follow populate a lookup table indexed by group
+//     ID; NOTE_ON / NOTE_OFF events then drive group assembly.
+//
+//     Malformed or unrecognised input lines are silently ignored.
+//
+// INPUT FORMAT
+//     LESSON <num> <key> [...]
+//         Echo the line unchanged to standard output and reset all internal
+//         state.  <key> is the only field that is parsed; any further tokens
+//         (time signature, title, etc.) are ignored.
+//
+//     BASSNOTE <id>: <note> [passing]
+//         Set the expected bass note for group <id>.  <note> is a LilyPond
+//         pitch.  The optional bare keyword "passing" marks the group as a
+//         passing chord.
+//
+//     FIGURES <id>: <figures>
+//         Set the figured-bass annotation string for group <id>.
+//
+//     MELODY <id>: <melody>
+//         Set the melody string for group <id>.
+//
+//     NOTE_ON <note> [VELOCITY:<v>] TIME:<t>
+//         Register a note-on event.  <note> is a LilyPond pitch.  <t> is
+//         the onset time in milliseconds and is recorded as the group's
+//         timestamp.  Any VELOCITY field is accepted but ignored.
+//
+//     NOTE_OFF <note> [...]
+//         Register a note-off event.  Only the pitch token is read;
+//         everything else on the line (including any TIME field) is ignored.
+//         When this release causes the held-note count to reach zero, the
+//         current group is emitted.
+//
+//     Empty lines and lines beginning with '#' are silently ignored.
+//
+// OUTPUT FORMAT
+//     Each completed group produces one line:
+//
+//         GROUP ID:<id> [passing] BASS:<note> FIGURES:<fig> \
+//               MELODY:<mel> BASS_ACTUAL:<note> TIME:<t> \
+//               REALIZATION:<p1>/<p2>/...
+//
+//     BASS        The notated bass pitch from the lesson definition, or "?"
+//                 if the group ID has no entry.
+//     BASS_ACTUAL The lowest MIDI pitch played, spelled using the current
+//                 key's enharmonic convention.
+//     REALIZATION Upper voices only (bass pitch excluded), slash-separated,
+//                 highest to lowest.  For a passing group this reflects
+//                 whatever notes were held when the passing bass arrived,
+//                 minus the outgoing bass pitch.
+//     TIME        Onset time in milliseconds of the bass note-on event.
+//     passing     Present immediately after the ID field when the group is
+//                 marked passing.
+//
+//     LESSON lines are echoed verbatim before the reset takes effect.
+//
+// EXAMPLE INPUT
+//     LESSON 1 G 3/2 Purcell bars 48-52
+//     BASSNOTE 0: g2
+//     FIGURES 0: 0
+//     MELODY 0: g'2.
+//     BASSNOTE 1: fis2 passing
+//     FIGURES 1: 0
+//     MELODY 1: b'4
+//     NOTE_ON g, TIME:6059
+//     NOTE_ON d' TIME:21858
+//     NOTE_ON b  TIME:21858
+//     NOTE_OFF g,
+//     NOTE_OFF b
+//     NOTE_OFF d'
+//
+// EXAMPLE OUTPUT
+//     LESSON 1 G 3/2 Purcell bars 48-52
+//     GROUP ID:0 BASS:g2 FIGURES:0 MELODY:g'2. BASS_ACTUAL:g, \
+//           TIME:6059 REALIZATION:d'/b
+
 use std::collections::{BTreeMap, HashMap};
 use std::io::{self, BufRead};
 
