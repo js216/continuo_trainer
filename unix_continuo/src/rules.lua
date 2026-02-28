@@ -7,7 +7,7 @@
 -- Pitch helpers
 -- ---------------------------------------------------------------------------
 
-function to_semitone(p)
+local function to_semitone(p)
     if not p then return nil end
     -- strip trailing digits and dots
     p = p:match("^(.-)%s*$")
@@ -46,13 +46,13 @@ end
 
 local PC_NAMES = {"c","cis","d","dis","e","f","fis","g","gis","a","ais","b"}
 
-function pc_name(semitone)
+local function pc_name(semitone)
     local idx = semitone % 12
     if idx < 0 then idx = idx + 12 end
     return PC_NAMES[idx + 1] or "?"
 end
 
-function rem_euclid(a, b)
+local function rem_euclid(a, b)
     local r = a % b
     if r < 0 then r = r + b end
     return r
@@ -65,7 +65,7 @@ end
 local MAJOR_STEPS = {0, 2, 4, 5, 7, 9, 11}
 local MINOR_STEPS = {0, 2, 3, 5, 7, 8, 10}
 
-function parse_key(token)
+local function parse_key(token)
     if not token or token == "" then return {scale_pcs = {}} end
 
     local first = token:sub(1,1)
@@ -94,7 +94,7 @@ end
 -- Figure parsing
 -- ---------------------------------------------------------------------------
 
-function parse_one_figure(t)
+local function parse_one_figure(t)
     t = t:match("^%s*(.-)%s*$")
     if t == "" then return nil end
 
@@ -131,11 +131,11 @@ function parse_one_figure(t)
     return {deg = deg, acc = acc}
 end
 
-function default_triad()
+local function default_triad()
     return {{deg=3,acc=0},{deg=5,acc=0},{deg=8,acc=0}}
 end
 
-function parse_figures(s)
+local function parse_figures(s)
     s = s and s:match("^%s*(.-)%s*$") or ""
     if s == "" or s == "0" then
         return default_triad()
@@ -175,7 +175,7 @@ function parse_figures(s)
     return deduped
 end
 
-function figure_to_pc(fig, bass_pc, key)
+local function figure_to_pc(fig, bass_pc, key)
     local deg = ((fig.deg - 1) % 7) + 1
     local bass_deg = nil
     for i, pc in ipairs(key.scale_pcs) do
@@ -191,27 +191,27 @@ end
 -- Set helpers
 -- ---------------------------------------------------------------------------
 
-function set_new(t)
+local function set_new(t)
     local s = {}
     if t then for _, v in ipairs(t) do s[v] = true end end
     return s
 end
 
-function set_contains(s, v) return s[v] == true end
-function set_insert(s, v) s[v] = true end
+local function set_contains(s, v) return s[v] == true end
+local function set_insert(s, v) s[v] = true end
 
 -- ---------------------------------------------------------------------------
 -- Rules
 -- ---------------------------------------------------------------------------
 
-function rule_no_parallels(ctx)
+local function rule_no_parallels(ctx)
     local window = ctx.window
     if #window < 2 then return true, nil end
     local prev = window[#window - 1]
     local curr = window[#window]
     if curr.passing or prev.passing then return true, nil end
 
-    function flatten(g)
+    local function flatten(g)
         local v = {g.bass}
         local mel = g.melody[1]
         local b_pc = g.bass % 12
@@ -240,7 +240,7 @@ function rule_no_parallels(ctx)
             if (p_int == 7 and c_int == 7) or (p_int == 0 and c_int == 0) then
                 local motion_i = c_voices[i] - p_voices[i]
                 local motion_j = c_voices[j] - p_voices[j]
-                function signum(x)
+                local function signum(x)
                     if x > 0 then return 1 elseif x < 0 then return -1 else return 0 end
                 end
                 if signum(motion_i) == signum(motion_j) and motion_i ~= 0 then
@@ -254,7 +254,7 @@ function rule_no_parallels(ctx)
     return true, nil
 end
 
-function rule_bass_leap(ctx)
+local function rule_bass_leap(ctx)
     local window = ctx.window
     if #window < 2 then return true, nil end
     local p = window[#window - 1]
@@ -265,7 +265,7 @@ function rule_bass_leap(ctx)
     return true, nil
 end
 
-function rule_check_realization(ctx)
+local function rule_check_realization(ctx)
     local g = ctx.window[#ctx.window]
     if g.passing then return true, nil end
     local key = ctx.key
@@ -310,7 +310,7 @@ function rule_check_realization(ctx)
     return true, nil
 end
 
-function rule_bass_in_key(ctx)
+local function rule_bass_in_key(ctx)
     local g = ctx.window[#ctx.window]
     if g.passing then return true, nil end
     local bass_pc    = g.bass % 12
@@ -329,7 +329,7 @@ function rule_bass_in_key(ctx)
     return true, nil
 end
 
-function rule_not_past_end(ctx)
+local function rule_not_past_end(ctx)
     local g = ctx.window[#ctx.window]
     if g.bass_notated_raw == "?" then
         return false, "Group is past the end of the lesson"
@@ -337,7 +337,7 @@ function rule_not_past_end(ctx)
     return true, nil
 end
 
-function rule_realization_not_empty(ctx)
+local function rule_realization_not_empty(ctx)
     local g = ctx.window[#ctx.window]
     if g.passing then return true, nil end
     if #g.inner == 0 then
@@ -346,7 +346,7 @@ function rule_realization_not_empty(ctx)
     return true, nil
 end
 
-function rule_realization_complete(ctx)
+local function rule_realization_complete(ctx)
     local g = ctx.window[#ctx.window]
     if g.passing then return true, nil end
     local key = ctx.key
@@ -382,14 +382,14 @@ local RULES = {
 -- Parsing
 -- ---------------------------------------------------------------------------
 
-function parse_lesson_key(line)
+local function parse_lesson_key(line)
     local tokens = {}
     for t in line:gmatch("%S+") do tokens[#tokens+1] = t end
     if tokens[3] then return parse_key(tokens[3]) end
     return nil
 end
 
-function parse_group(line)
+local function parse_group(line)
     if not line:match("^GROUP") then return nil end
 
     local id             = 0

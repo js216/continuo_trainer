@@ -34,33 +34,33 @@
 -- The script returns nonzero if any test fails or if a malformed test
 -- filename is encountered.
 
-RED   = "\27[31m"
-GREEN = "\27[32m"
-RESET = "\27[0m"
+local RED   = "\27[31m"
+local GREEN = "\27[32m"
+local RESET = "\27[0m"
 
-status = 0
+local status = 0
 
-function usage()
+local function usage()
    die("Usage: lua tst.lua TST_DIR BIN_DIR SRC_DIR")
 end
 
-function die(msg)
+local function die(msg)
    io.stderr:write(msg .. "\n")
    os.exit(1)
 end
 
-function file_exists(path)
+local function file_exists(path)
    local f = io.open(path, "r")
    if f then f:close() return true end
    return false
 end
 
-function extract_number(prog, name)
+local function extract_number(prog, name)
    local num = name:match("^" .. prog:gsub("%-", "%%-") .. "_(%d+)_in%.txt$")
    return num
 end
 
-function collect_cases()
+local function collect_cases()
    local cases = {}
    local handle = io.popen("ls -1 " .. TST_DIR)
    if not handle then die("Cannot list test directory: " .. TST_DIR) end
@@ -86,7 +86,7 @@ function collect_cases()
    return cases
 end
 
-function run_case(prog, num_str)
+local function run_case(prog, num_str)
    local in_file  = TST_DIR .. "/" .. prog .. "_" .. num_str .. "_in.txt"
    local out_file = TST_DIR .. "/" .. prog .. "_" .. num_str .. "_out.txt"
    local label    = prog .. "_" .. num_str
@@ -127,7 +127,7 @@ function run_case(prog, num_str)
    end
 end
 
-function main()
+local function main()
    TST_DIR = arg[1] or usage()
    BIN_DIR = arg[2] or usage()
    SRC_DIR = arg[3] or usage()
