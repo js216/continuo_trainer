@@ -33,7 +33,7 @@ format:
 	rustfmt src/*.rs
 
 test:
-	cd tst && sh run_tests.sh
+	lua src/tst.lua tst bin
 
 clean:
 	rm -rf bin seq/*.pdf
