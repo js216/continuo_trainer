@@ -2,4 +2,6 @@ STDIN -> sed "s/^/LOAD_LESSON /" -> bin/load;
 bin/load -> bin/group;
 bin/midi -> bin/group;
 bin/group -> lua src/rules.lua -> STDOUT;
+
+//bin/midi -> STDOUT;
 //bin/group -> STDOUT;
