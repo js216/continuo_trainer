@@ -2,37 +2,39 @@
 -- tst.lua --- run regression tests for unix_continuo
 -- Copyright (c) 2026 Jakob Kastelic
 
--- This script discovers and runs program regression tests located in
--- the same directory as the script.  A valid test consists of a pair:
---
---     progname_N_in.txt
---     progname_N_out.txt
---
--- where:
---   - progname matches an executable in ../bin/
---   - N is a positive integer test number
---
--- For each valid test, the script feeds the _in.txt file to
--- ../bin/progname via stdin and compares stdout with the corresponding
--- _out.txt file using diff.
---
--- Tests are executed in deterministic order:
---   1. Alphabetically by program name
---   2. Numerically by test number
---
--- If output matches, the script prints:
---     OK progname_N     (in green)
---
--- If output differs, it prints:
---     FAIL progname_N   (in red)
---
--- Files that do not begin with the name of an executable in ../bin/
--- are ignored.  If a file begins with a valid program name but does
--- not follow the required naming convention, the script exits with an
--- error.
---
--- The script returns nonzero if any test fails or if a malformed test
--- filename is encountered.
+--[[
+This script discovers and runs program regression tests located in
+the same directory as the script.  A valid test consists of a pair:
+
+    progname_N_in.txt
+    progname_N_out.txt
+
+where:
+  - progname matches an executable in ../bin/
+  - N is a positive integer test number
+
+For each valid test, the script feeds the _in.txt file to
+../bin/progname via stdin and compares stdout with the corresponding
+_out.txt file using diff.
+
+Tests are executed in deterministic order:
+  1. Alphabetically by program name
+  2. Numerically by test number
+
+If output matches, the script prints:
+    OK progname_N     (in green)
+
+If output differs, it prints:
+    FAIL progname_N   (in red)
+
+Files that do not begin with the name of an executable in ../bin/
+are ignored.  If a file begins with a valid program name but does
+not follow the required naming convention, the script exits with an
+error.
+
+The script returns nonzero if any test fails or if a malformed test
+filename is encountered.
+]]
 
 local RED = "\27[31m"
 local GREEN = "\27[32m"
