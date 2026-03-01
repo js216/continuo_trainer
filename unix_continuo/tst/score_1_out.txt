@@ -1,0 +1,2 @@
+SCORE lesson=3 accuracy=100 score=14.32 slowest=0.218 fastest=0.185 average=0.202
+SCORE lesson=3 accuracy=66.7 score=0.00 slowest=0.218 fastest=0.185 average=0.202
