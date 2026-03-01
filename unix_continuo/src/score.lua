@@ -2,45 +2,44 @@
 -- score.lua --- performance analytics for figured bass exercises
 -- Copyright (c) 2026 Jakob Kastelic
 
---[[
-DESCRIPTION
-     score.lua is a post-processor that reads a stream of lesson data and
-     validation results from standard input. It calculates a performance
-     score based on accuracy and the latency between chord realizations.
-
-INPUT FORMAT
-     The program expects three types of lines, typically piped from a
-     validation tool:
-
-     LESSON <id> <key> <signature> <description>
-         Resets the internal counters and sets the current lesson ID.
-
-     BASSNOTE <id>: <pitch> [comment]
-         Used to determine the total length of the exercise. The highest
-         <id> encountered defines the expected "last" result.
-
-     RESULT <id> TIME:<ms> <STATUS>
-         The evaluation result. <ms> is Unix time in milliseconds.
-         <STATUS> contains "OK" or "FAIL" (may include ANSI color codes).
-
-OUTPUT FORMAT
-     Once the result for the final BASSNOTE ID is received, a single line
-     is written to stdout:
-
-     SCORE time=<time> lesson=<id> accuracy=<n> score=<n.nn> slowest=<s.sss> fastest=<s.sss> average=<s.sss>
-
-     - accuracy: Percentage of "OK" results.
-     - score: 0 if accuracy < 100%, otherwise (correct_groups * speed_factor).
-     - speed_factor: 1.0 (slow) to 5.0 (fast) based on the slowest transition.
-     - slowest/fastest/average: Latency between consecutive results in seconds.
-
-ERROR HANDLING
-     - Non-sequential IDs: The program waits until all IDs from 0 to the
-       maximum BASSNOTE ID have been received before calculating.
-     - Missing LESSON: If results arrive before a LESSON line, they are
-       ignored as the context is unknown.
-     - Accuracy < 100%: The score is automatically set to 0 regardless of speed.
-]]
+-- DESCRIPTION
+--      score.lua is a post-processor that reads a stream of lesson data and
+--      validation results from standard input. It calculates a performance
+--      score based on accuracy and the latency between chord realizations.
+--
+-- INPUT FORMAT
+--      The program expects three types of lines, typically piped from a
+--      validation tool:
+--
+--      LESSON <id> <key> <signature> <description>
+--          Resets the internal counters and sets the current lesson ID.
+--
+--      BASSNOTE <id>: <pitch> [comment]
+--          Used to determine the total length of the exercise. The highest
+--          <id> encountered defines the expected "last" result.
+--
+--      RESULT <id> TIME:<ms> <STATUS>
+--          The evaluation result. <ms> is Unix time in milliseconds.
+--          <STATUS> contains "OK" or "FAIL" (may include ANSI color codes).
+--
+-- OUTPUT FORMAT
+--      Once the result for the final BASSNOTE ID is received, a single line
+--      is written to stdout:
+--
+--      SCORE time=<time> lesson=<id> accuracy=<n> score=<n.nn> slowest=<s.sss> fastest=<s.sss> average=<s.sss>
+--
+--      - time: Unix time in milliseconds of the first group played in this lesson.
+--      - accuracy: Percentage of "OK" results.
+--      - score: 0 if accuracy < 100%, otherwise (correct_groups * speed_factor).
+--      - speed_factor: 1.0 (slow) to 5.0 (fast) based on the slowest transition.
+--      - slowest/fastest/average: Latency between consecutive results in seconds.
+--
+-- ERROR HANDLING
+--      - Non-sequential IDs: The program waits until all IDs from 0 to the
+--        maximum BASSNOTE ID have been received before calculating.
+--      - Missing LESSON: If results arrive before a LESSON line, they are
+--        ignored as the context is unknown.
+--      - Accuracy < 100%: The score is automatically set to 0 regardless of speed.
 
 local lesson_id = nil
 local max_bass_id = -1

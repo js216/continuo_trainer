@@ -5,12 +5,14 @@ bin/midi          -> bin/group;
 bin/group         -> lua src/rules.lua;
 lua src/rules.lua -> lua src/score.lua;
 lua src/score.lua -> lua src/stats.lua;
+lua src/score.lua -> lua src/sched.lua;
 
 bin/load          -> tee log/load.log
 bin/midi          -> tee log/midi.log
 bin/group         -> tee log/rules.log;
 lua src/rules.lua -> tee log/score.log;
 lua src/score.lua -> tee log/stats.log;
+lua src/sched.lua -> tee log/sched.log;
 
 //bin/midi -> STDOUT;
 //bin/group -> STDOUT;
