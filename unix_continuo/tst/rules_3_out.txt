@@ -1,4 +1,4 @@
-RESULT 0 [31mFAIL[0m Bass note cis is not diatonic to the key
-RESULT 1 [32mOK[0m
-RESULT 2 [31mFAIL[0m Bass note cis is not diatonic to the key
-RESULT 3 [31mFAIL[0m Group is past the end of the lesson
+RESULT 0 TIME:1772227710513 [31mFAIL[0m Bass note cis is not diatonic to the key
+RESULT 1 TIME:1772227710731 [32mOK[0m
+RESULT 2 TIME:1772227710916 [31mFAIL[0m Bass note cis is not diatonic to the key
+RESULT 3 TIME:1772227711807 [31mFAIL[0m Group is past the end of the lesson

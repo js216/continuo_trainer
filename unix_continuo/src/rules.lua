@@ -59,7 +59,7 @@
 --             may follow as separate tokens until the next "key:value" token.
 --
 --         TIME:<ms>
---             Onset time in milliseconds (parsed but not used by any rule).
+--             Onset time in milliseconds.
 --
 -- PITCH SYNTAX
 --     All pitches use LilyPond notation: note letter (c d e f g a b),
@@ -611,10 +611,9 @@ for line in io.lines() do
             key = k
             window = {}
         end
-    else
+    elseif line:match("^GROUP") then
         local g = parse_group(line)
         if g then
-            local id = g.id
             window[#window+1] = g
             if #window > 4 then table.remove(window, 1) end
 
@@ -630,9 +629,11 @@ for line in io.lines() do
             end
 
             if ok then
-                io.write(string.format("RESULT %d \27[32mOK\27[0m\n", id))
+                io.write(string.format("RESULT %d TIME:%d \27[32mOK\27[0m\n",
+                    g.id, g.time))
             else
-                io.write(string.format("RESULT %d \27[31mFAIL\27[0m %s\n", id, err))
+                io.write(string.format("RESULT %d TIME:%d \27[31mFAIL\27[0m %s\n",
+                    g.id, g.time, err))
             end
         end
     end
