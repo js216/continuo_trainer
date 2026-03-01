@@ -32,6 +32,7 @@ dot:
 format:
 	clang-format -i src/*.c
 	rustfmt src/*.rs
+	stylua src/*.lua
 
 test:
 	lua src/tst.lua tst bin src
