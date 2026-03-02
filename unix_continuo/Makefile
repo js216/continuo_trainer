@@ -26,6 +26,7 @@ bin:
 .PHONY: format test clean dot
 
 dot:
+	@mkdir -p tmp
 	python3 src/run2dot.py < src/play.dot > tmp/play.dot
 	dot -Tpdf tmp/play.dot -o tmp/play.pdf
 

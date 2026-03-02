@@ -8,12 +8,12 @@ lua src/rules.lua -> lua src/score.lua;
 lua src/score.lua -> lua src/stats.lua log/stats.log;
 lua src/score.lua -> lua src/sched.lua -> bin/load;
 
-//bin/load          -> tee log/load.log
-//bin/midi          -> tee log/midi_notes.log
-//bin/group         -> tee log/group.log;
-//lua src/rules.lua -> tee log/rules.log;
-//lua src/score.lua -> tee log/score.log;
-//lua src/sched.lua -> tee log/sched.log;
+bin/load          -> tee -a log/load.log;
+bin/midi          -> tee -a log/midi_notes.log;
+bin/group         -> tee -a log/group.log;
+lua src/rules.lua -> tee -a log/rules.log;
+lua src/score.lua -> tee -a log/score.log;
+lua src/sched.lua -> tee -a log/sched.log;
 
 //bin/midi -> STDOUT;
 //bin/load -> STDOUT;
