@@ -14,13 +14,14 @@
 --
 -- OUTPUT FORMAT
 --      For every valid SCORE line processed, the program writes to stdout:
---      STATS total_today=<n.nn> streak=<n> lesson=<id>[ivl=<n>,ease=<n.nn>,n_pass=<n>,n_fail=<n>]
+--      STATS total_today=<n.nn> streak=<n> lesson=<id>[ivl=<n>,ease=<n.nn>,n_pass=<n>,n_fail=<n>,n_pass_tot=<n>,n_fail_tot=<n>]
 --
 --      - total_today: Sum of all scores for the current calendar day.
 --      - streak: Number of consecutive days where score_goal was reached.
 --      - ivl: The SRS interval (in days) until the lesson should be reviewed.
 --      - ease: The SM-2 Easiness Factor (starting at 2.5).
 --      - n_pass/n_fail: Consecutive counts of success/failure for the lesson.
+--      - n_pass_tot/n_fail_tot: Total number of pass/fail at this lesson
 --
 -- ERROR HANDLING
 --      - If no cmdline argument is provided, prints usage and exits with status 1.
@@ -128,12 +129,15 @@ local function update_anki(l_data, success)
 	-- Initialize fields if new lesson
 	l_data.n_pass = l_data.n_pass or 0
 	l_data.n_fail = l_data.n_fail or 0
+	l_data.n_pass_tot = l_data.n_pass_tot or 0
+	l_data.n_fail_tot = l_data.n_fail_tot or 0
 	l_data.ivl = l_data.ivl or 0
 	l_data.ease = l_data.ease or 2.5
 
 	if success then
 		l_data.n_pass = l_data.n_pass + 1
 		l_data.n_fail = 0
+		l_data.n_pass_tot = l_data.n_pass_tot + 1
 
 		-- SM-2 Interval logic based on n_pass
 		if l_data.n_pass == 1 then
@@ -148,6 +152,7 @@ local function update_anki(l_data, success)
 	else
 		l_data.n_fail = l_data.n_fail + 1
 		l_data.n_pass = 0
+		l_data.n_fail_tot = l_data.n_fail_tot + 1
 
 		-- Penalty: reset interval and reduce ease
 		l_data.ivl = 1
@@ -188,7 +193,7 @@ for line in io.lines() do
 
 		print(
 			string.format(
-				"STATS time=%d total_today=%.2f streak=%d lesson=%s[ivl=%d,ease=%.2f,n_pass=%d,n_fail=%d]",
+				"STATS time=%d total_today=%.2f streak=%d lesson=%s[ivl=%d,ease=%.2f,n_pass=%d,n_fail=%d,n_pass_tot=%d,n_fail_tot=%d]",
 				lesson_time,
 				stats.daily[today],
 				streak,
@@ -196,7 +201,9 @@ for line in io.lines() do
 				l.ivl,
 				l.ease,
 				l.n_pass,
-				l.n_fail
+				l.n_fail,
+				l.n_pass_tot,
+				l.n_fail_tot
 			)
 		)
 	end

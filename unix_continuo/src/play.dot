@@ -3,16 +3,21 @@ STDIN -> sed "s/^/LOAD_LESSON /" -> bin/load;
 bin/load          -> bin/group;
 bin/midi          -> bin/group;
 bin/group         -> lua src/rules.lua;
+bin/load          -> lua src/score.lua;
 lua src/rules.lua -> lua src/score.lua;
-lua src/score.lua -> lua src/stats.lua;
-lua src/score.lua -> lua src/sched.lua;
+lua src/score.lua -> lua src/stats.lua log/stats.log;
+lua src/score.lua -> lua src/sched.lua -> bin/load;
 
-bin/load          -> tee log/load.log
-bin/midi          -> tee log/midi.log
-bin/group         -> tee log/rules.log;
-lua src/rules.lua -> tee log/score.log;
-lua src/score.lua -> tee log/stats.log;
-lua src/sched.lua -> tee log/sched.log;
+//bin/load          -> tee log/load.log
+//bin/midi          -> tee log/midi_notes.log
+//bin/group         -> tee log/group.log;
+//lua src/rules.lua -> tee log/rules.log;
+//lua src/score.lua -> tee log/score.log;
+//lua src/sched.lua -> tee log/sched.log;
 
 //bin/midi -> STDOUT;
-//bin/group -> STDOUT;
+//bin/load -> STDOUT;
+bin/group -> STDOUT;
+lua src/rules.lua -> STDOUT;
+lua src/score.lua -> STDOUT;
+lua src/sched.lua -> STDOUT;
