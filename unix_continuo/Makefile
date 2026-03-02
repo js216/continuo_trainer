@@ -1,12 +1,9 @@
 CFLAGS = -Wall -Wextra -std=c99 -fsanitize=address
 LDLIBS = -lpthread -lutil -lrtmidi -lX11
 
-PROGS = chunk group gui hint load midi realize record stats \
-        l2ly g2ly render draw show entry run
+PROGS = chunk group load midi stats l2ly g2ly entry run
 
 all: $(addprefix bin/,$(PROGS))
-
-pdfs: $(patsubst %.txt,%.pdf,$(wildcard seq/*.txt))
 
 bin/%: src/%.c | bin
 	$(CC) $(CFLAGS) $(LDLIBS) $< -o $@
@@ -23,9 +20,9 @@ bin/%: src/%.rs | bin
 bin:
 	mkdir -p bin
 
-.PHONY: format test clean dot
+.PHONY: format test clean pdf
 
-dot:
+pdf: $(patsubst %.txt,%.pdf,$(wildcard seq/*.txt))
 	@mkdir -p tmp
 	python3 src/run2dot.py < src/play.dot > tmp/play.dot
 	dot -Tpdf tmp/play.dot -o tmp/play.pdf
@@ -39,4 +36,4 @@ test:
 	lua src/tst.lua tst bin src
 
 clean:
-	rm -rf bin seq/*.pdf
+	rm -rf bin tmp seq/*.pdf

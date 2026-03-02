@@ -9,3 +9,6 @@ bassline = {
 figures = {
   0 0 0
 }
+
+melody = {
+}
