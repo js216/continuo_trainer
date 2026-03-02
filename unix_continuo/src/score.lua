@@ -7,6 +7,11 @@
 --      validation results from standard input. It calculates a performance
 --      score based on accuracy and the latency between chord realizations.
 --
+--      The script detects abandoned lessons (if a new LESSON starts before
+--      the previous one is finished) and calculates the score for the
+--      realized portion. Accuracy is calculated against the total expected
+--      groups; unrealized groups count as incorrect.
+--
 -- INPUT FORMAT
 --      The program expects three types of lines, typically piped from a
 --      validation tool:
@@ -20,33 +25,43 @@
 --
 --      RESULT <id> TIME:<ms> <STATUS>
 --          The evaluation result. <ms> is Unix time in milliseconds.
---          <STATUS> contains "OK" or "FAIL" (may include ANSI color codes).
+--          <STATUS> contains "OK" or "FAIL".
 --
 -- OUTPUT FORMAT
---      Once the result for the final BASSNOTE ID is received, a single line
---      is written to stdout:
+--      Once a lesson is completed or abandoned, a single line is written:
 --
---      SCORE time=<time> lesson=<id> accuracy=<n> score=<n.nn> slowest=<s.sss> fastest=<s.sss> average=<s.sss>
+--      SCORE time=<time> lesson=<id> accuracy=<n> score=<n.nn> duration=<s.sss> slowest=<s.sss> fastest=<s.sss> average=<s.sss>
 --
---      - time: Unix time in milliseconds of the first group played in this lesson.
---      - accuracy: Percentage of "OK" results.
+--      - time: Unix time in milliseconds of the first group played.
+--      - accuracy: Percentage of "OK" results out of total expected groups.
 --      - score: 0 if accuracy < 100%, otherwise (correct_groups * speed_factor).
---      - speed_factor: 1.0 (slow) to 5.0 (fast) based on the slowest transition.
+--      - duration: Total time between first and last result in seconds.
 --      - slowest/fastest/average: Latency between consecutive results in seconds.
 --
 -- ERROR HANDLING
---      - Non-sequential IDs: The program waits until all IDs from 0 to the
---        maximum BASSNOTE ID have been received before calculating.
---      - Missing LESSON: If results arrive before a LESSON line, they are
---        ignored as the context is unknown.
---      - Accuracy < 100%: The score is automatically set to 0 regardless of speed.
+--      - Abandoned Lessons: If a LESSON keyword appears while a lesson is
+--        underway, the script processes the partial results before resetting.
+--      - Accuracy < 100%: Missing results or "FAIL" status count against
+--        accuracy. The score is 0 unless 100% accuracy is achieved.
 
 local lesson_id = nil
 local max_bass_id = -1
 local results = {}
 
 local function calculate_score()
-	if max_bass_id < 0 then
+	-- Guard against empty lessons or lessons with no results
+	local first_idx = nil
+	local last_idx = nil
+	for i = 0, max_bass_id do
+		if results[i] then
+			if not first_idx then
+				first_idx = i
+			end
+			last_idx = i
+		end
+	end
+
+	if max_bass_id < 0 or not first_idx then
 		return
 	end
 
@@ -57,25 +72,25 @@ local function calculate_score()
 	local sum_delta = 0
 	local transition_count = 0
 
-	-- Ensure sequence completeness
+	-- Sequence processing
 	for i = 0, max_bass_id do
-		if not results[i] then
-			return
-		end
-		if results[i].status == "OK" then
-			ok_count = ok_count + 1
-		end
+		if results[i] then
+			if results[i].status == "OK" then
+				ok_count = ok_count + 1
+			end
 
-		if i > 0 then
-			local delta = results[i].time - results[i - 1].time
-			if delta < min_delta then
-				min_delta = delta
+			-- Only calculate latency if the previous result also exists
+			if i > 0 and results[i - 1] then
+				local delta = results[i].time - results[i - 1].time
+				if delta < min_delta then
+					min_delta = delta
+				end
+				if delta > max_delta then
+					max_delta = delta
+				end
+				sum_delta = sum_delta + delta
+				transition_count = transition_count + 1
 			end
-			if delta > max_delta then
-				max_delta = delta
-			end
-			sum_delta = sum_delta + delta
-			transition_count = transition_count + 1
 		end
 	end
 
@@ -90,7 +105,6 @@ local function calculate_score()
 		elseif max_delta >= 3000 then
 			speed_factor = 1.0
 		else
-			-- Linear interpolation between 50ms and 3000ms
 			speed_factor = 5.0 - (4.0 * (max_delta - 50) / (3000 - 50))
 		end
 		score = total_groups * speed_factor
@@ -100,16 +114,18 @@ local function calculate_score()
 	local slowest = max_delta / 1000
 	local fastest = (min_delta == math.huge) and 0 or (min_delta / 1000)
 	local average = (transition_count > 0) and (sum_delta / transition_count / 1000) or 0
+	local duration = (results[last_idx].time - results[first_idx].time) / 1000
 
 	local acc_fmt = (accuracy % 1 == 0) and string.format("%d", accuracy) or string.format("%.1f", accuracy)
 
 	print(
 		string.format(
-			"SCORE time=%d lesson=%s accuracy=%s score=%.2f slowest=%.3f fastest=%.3f average=%.3f",
-			results[0].time,
+			"SCORE time=%d lesson=%s accuracy=%s score=%.2f duration=%.3f slowest=%.3f fastest=%.3f average=%.3f",
+			results[first_idx].time,
 			tostring(lesson_id),
 			acc_fmt,
 			score,
+			duration,
 			slowest,
 			fastest,
 			average
@@ -121,6 +137,11 @@ for line in io.lines() do
 	-- Parse LESSON
 	local lid = line:match("^LESSON%s+(%S+)")
 	if lid then
+		-- Detect abandoned lesson: if we have a lesson_id but didn't finish the last max_bass_id
+		if lesson_id and not results[max_bass_id] then
+			calculate_score()
+		end
+
 		lesson_id = lid
 		max_bass_id = -1
 		results = {}
@@ -146,9 +167,16 @@ for line in io.lines() do
 			time = tonumber(rtime),
 		}
 
-		-- Check if this is the last expected result
+		-- Standard completion
 		if id_val == max_bass_id then
 			calculate_score()
+			-- Reset to avoid double-reporting if EOF is reached immediately after
+			lesson_id = nil
 		end
 	end
+end
+
+-- Handle case where the very last lesson in the stream was abandoned
+if lesson_id and not results[max_bass_id] then
+	calculate_score()
 end

@@ -21,3 +21,4 @@ bin/group -> STDOUT;
 lua src/rules.lua -> STDOUT;
 lua src/score.lua -> STDOUT;
 lua src/sched.lua -> STDOUT;
+lua src/stats.lua log/stats.log -> STDOUT;
