@@ -12,6 +12,10 @@
 --      realized portion. Accuracy is calculated against the total expected
 --      groups; unrealized groups count as incorrect.
 --
+--      Any individual transition duration longer than MAX_DURATION between
+--      groups causes that group to be counted as a failure. For statistics,
+--      latencies longer than MAX_DURATION are truncated to MAX_DURATION.
+--
 -- INPUT FORMAT
 --      The program expects three types of lines, typically piped from a
 --      validation tool:
@@ -41,9 +45,11 @@
 -- ERROR HANDLING
 --      - Abandoned Lessons: If a LESSON keyword appears while a lesson is
 --        underway, the script processes the partial results before resetting.
---      - Accuracy < 100%: Missing results or "FAIL" status count against
---        accuracy. The score is 0 unless 100% accuracy is achieved.
+--      - Accuracy < 100%: Missing results, "FAIL" status, or transitions
+--        exceeding 60s count against accuracy. The score is 0 unless 100%
+--        accuracy is achieved.
 
+local MAX_DURATION = 60 -- Seconds
 local lesson_id = nil
 local max_bass_id = -1
 local results = {}
@@ -71,25 +77,37 @@ local function calculate_score()
 	local max_delta = 0
 	local sum_delta = 0
 	local transition_count = 0
+	local total_duration = 0
 
 	-- Sequence processing
 	for i = 0, max_bass_id do
 		if results[i] then
-			if results[i].status == "OK" then
-				ok_count = ok_count + 1
-			end
+			local current_status = results[i].status
 
-			-- Only calculate latency if the previous result also exists
+			-- Check for timeout failure and calculate latency
 			if i > 0 and results[i - 1] then
 				local delta = results[i].time - results[i - 1].time
-				if delta < min_delta then
-					min_delta = delta
+				local delta_sec = delta / 1000
+
+				-- If duration exceeds MAX_DURATION, treat as a failed group and truncate
+				if delta_sec > MAX_DURATION then
+					current_status = "FAIL"
+					delta_sec = MAX_DURATION
 				end
-				if delta > max_delta then
-					max_delta = delta
+
+				if delta_sec * 1000 < min_delta then
+					min_delta = delta_sec * 1000
 				end
-				sum_delta = sum_delta + delta
+				if delta_sec * 1000 > max_delta then
+					max_delta = delta_sec * 1000
+				end
+				sum_delta = sum_delta + (delta_sec * 1000)
 				transition_count = transition_count + 1
+				total_duration = total_duration + delta_sec
+			end
+
+			if current_status == "OK" then
+				ok_count = ok_count + 1
 			end
 		end
 	end
@@ -97,7 +115,7 @@ local function calculate_score()
 	local accuracy = (ok_count / total_groups) * 100
 	local score = 0.0
 
-	-- Speed logic based on the SLOWEST group change
+	-- Speed logic based on the SLOWEST group change (max_delta is already truncated)
 	if accuracy == 100 then
 		local speed_factor
 		if max_delta <= 50 then
@@ -114,7 +132,6 @@ local function calculate_score()
 	local slowest = max_delta / 1000
 	local fastest = (min_delta == math.huge) and 0 or (min_delta / 1000)
 	local average = (transition_count > 0) and (sum_delta / transition_count / 1000) or 0
-	local duration = (results[last_idx].time - results[first_idx].time) / 1000
 
 	local acc_fmt = (accuracy % 1 == 0) and string.format("%d", accuracy) or string.format("%.1f", accuracy)
 
@@ -125,7 +142,7 @@ local function calculate_score()
 			tostring(lesson_id),
 			acc_fmt,
 			score,
-			duration,
+			total_duration,
 			slowest,
 			fastest,
 			average
