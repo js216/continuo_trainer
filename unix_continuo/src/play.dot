@@ -3,7 +3,6 @@
 // Copyright (c) 2026 Jakob Kastelic
 
 STDIN -> sed "s/^/LOAD_LESSON /" -> bin/load;
-//STDIN -> sed "s/^/LOAD_LESSON /" -> bin/gui;
 
 // main app logic
 bin/load          -> bin/group;
@@ -17,14 +16,18 @@ lua src/score.lua -> lua src/stats.lua log/stats.log;
 lua src/score.lua -> lua src/sched.lua;
 lua src/stats.lua log/stats.log -> lua src/sched.lua;
 lua src/sched.lua -> bin/load;
-//lua src/sched.lua -> bin/gui;
 
 // text user interface
 bin/load -> lua src/tui.lua;
 lua src/rules.lua -> lua src/tui.lua;
 lua src/score.lua -> lua src/tui.lua;
 lua src/stats.lua log/stats.log -> lua src/tui.lua;
-lua src/tui.lua -> STDOUT;
+
+// GUI
+STDIN -> sed "s/^/LOAD_LESSON /" -> bin/gui;
+lua src/sched.lua -> bin/gui;
+lua src/tui.lua -> bin/gui;
+bin/gui -> bin/load;
 
 // logging
 bin/load          -> tee -a log/load.log;
@@ -42,3 +45,4 @@ lua src/sched.lua -> tee -a log/sched.log;
 //lua src/score.lua -> STDOUT;
 //lua src/sched.lua -> STDOUT;
 //lua src/stats.lua log/stats.log -> STDOUT;
+//lua src/tui.lua -> STDOUT;

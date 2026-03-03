@@ -23,7 +23,8 @@ bin/%: src/%.rs | bin
 
 %.png: %.ly
 	lilypond --png -dpreview -o $(@:.png=) $<
-	mv $(@:.png=).preview.png $@
+	magick $(@:.png=).preview.png -trim +repage -bordercolor white -border 10x20 $@
+	rm $(@:.png=).preview.png
 
 %.pdf: %.ly
 	lilypond -o $(@:.pdf=) $^

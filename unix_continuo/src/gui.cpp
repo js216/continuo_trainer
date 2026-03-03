@@ -1,6 +1,8 @@
 #include "imgui.h"
 #include "imgui_impl_glfw.h"
 #include "imgui_impl_opengl3.h"
+#include <ctype.h>
+#include <fcntl.h>
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
@@ -11,18 +13,60 @@
 #define STB_IMAGE_IMPLEMENTATION
 #include "stb_image.h"
 
+#define MAX_LEN 1024
+
 struct state {
+   bool running = true;
    int current_lesson = 0;
+   char msg[MAX_LEN];
 } state;
+
+static void quit_lesson(void)
+{
+   state.msg[0] = '\0';
+   state.running = false;
+}
+
+static void reload_lesson(void)
+{
+   printf("LOAD_LESSON %d\n", state.current_lesson);
+   state.msg[0] = '\0';
+}
+
+static void next_lesson(void)
+{
+   state.current_lesson++;
+   printf("LOAD_LESSON %d\n", state.current_lesson);
+   state.msg[0] = '\0';
+}
+
+static void prev_lesson(void)
+{
+   state.current_lesson--;
+   printf("LOAD_LESSON %d\n", state.current_lesson);
+   state.msg[0] = '\0';
+}
 
 static void key_callback(GLFWwindow* window, int key, int scancode, int action, int mods)
 {
    if (action == GLFW_PRESS) {
-      if (key == GLFW_KEY_ESCAPE)
-         glfwSetWindowShouldClose(window, GLFW_TRUE);
-      printf("Key pressed: %d\n", key);
-   } else if (action == GLFW_RELEASE) {
-      printf("Key released: %d\n", key);
+      switch (key) {
+         case GLFW_KEY_ESCAPE:
+            glfwSetWindowShouldClose(window, GLFW_TRUE);
+            break;
+         case GLFW_KEY_Q:
+            quit_lesson();
+            break;
+         case GLFW_KEY_R:
+            reload_lesson();
+            break;
+         case GLFW_KEY_P:
+            prev_lesson();
+            break;
+         case GLFW_KEY_N:
+            next_lesson();
+            break;
+      }
    }
 }
 
@@ -48,9 +92,26 @@ static void check_load_lesson(const char *buf)
    state.current_lesson = (int)n;
 }
 
+static void check_msg(const char *buf)
+{
+   const char *found = strstr(buf, "MSG ");
+   if (found) {
+      const char *src = found + 4;
+      strncpy(state.msg, src, MAX_LEN - 1);
+      state.msg[MAX_LEN - 1] = '\0';
+
+      // Strip trailing newline to prevent layout issues
+      size_t len = strlen(state.msg);
+      if (len > 0 && state.msg[len - 1] == '\n') {
+         state.msg[len - 1] = '\0';
+      }
+   }
+}
+
 static void parse_line(const char *buf)
 {
    check_load_lesson(buf);
+   check_msg(buf);
 }
 
 static int LoadImage(const char* fname, GLuint* img, int* w, int* h)
@@ -105,17 +166,88 @@ static void show_music(void)
       snprintf(filename, sizeof(filename), "seq/%d.png", state.current_lesson);
       if (LoadImage(filename, &img, &iw, &ih))
          return;
+
       img_disp = state.current_lesson;
+      state.msg[0] = '\0';
    }
+
    ImGui::Image((ImTextureID)(intptr_t)img, ImVec2(iw, ih));
+}
+
+static void TextAnsi(const char* text)
+{
+   ImDrawList* draw_list = ImGui::GetWindowDrawList();
+   ImVec4 color = ImGui::GetStyle().Colors[ImGuiCol_Text];
+   const char* p = text;
+
+   while (*p != '\0') {
+      if (*p == '\x1B') { // Handle ANSI Colors
+         p++;
+         if (*p == '[') {
+            p++;
+            int code = 0;
+            while (isdigit(*p)) { code = code * 10 + (*p - '0'); p++; }
+            if (code == 32)      color = ImVec4(0.0f, 1.0f, 0.0f, 1.0f);
+            else if (code == 31) color = ImVec4(1.0f, 0.0f, 0.0f, 1.0f);
+            else if (code == 0)  color = ImGui::GetStyle().Colors[ImGuiCol_Text];
+            while (*p != '\0' && !isalpha(*p)) p++;
+            if (*p != '\0') p++;
+         }
+      }
+      // Detect UTF-8 ■ (\xE2\x96\xA0) or □ (\xE2\x96\xA1)
+      else if ((unsigned char)p[0] == 0xE2 && (unsigned char)p[1] == 0x96 &&
+            ((unsigned char)p[2] == 0xA0 || (unsigned char)p[2] == 0xA1)) {
+
+         bool filled = ((unsigned char)p[2] == 0xA0);
+         ImVec2 pos = ImGui::GetCursorScreenPos();
+         float sz = ImGui::GetFontSize();
+         ImU32 col = ImGui::ColorConvertFloat4ToU32(color);
+
+         ImVec2 a = ImVec2(pos.x + 2, pos.y + 2);
+         ImVec2 b = ImVec2(pos.x + sz - 2, pos.y + sz - 2);
+
+         if (filled) draw_list->AddRectFilled(a, b, col);
+         else        draw_list->AddRect(a, b, col, 0.0f, 0, 1.5f); // 1.5f thickness
+
+         ImGui::Dummy(ImVec2(sz, sz));
+         ImGui::SameLine(0, 0);
+         p += 3; // Advance past 3-byte UTF-8 sequence
+      }
+      else {
+         // Print everything else until the next ESC or UTF-8 box start
+         const char* next = p + 1;
+         while (*next != '\0' && *next != '\x1B' && (unsigned char)*next != 0xE2) next++;
+
+         int len = (int)(next - p);
+         ImGui::TextColored(color, "%.*s", len, p);
+         if (*next != '\0' && *next != '\n') ImGui::SameLine(0, 0);
+         p = next;
+      }
+   }
+   ImGui::NewLine();
 }
 
 static void gui_main(void)
 {
+   ImGui::SameLine();
+   if (ImGui::Button("[Q]uit"))
+      quit_lesson();
+
+   ImGui::SameLine();
+   if (ImGui::Button("[R]eload"))
+      reload_lesson();
+
+   ImGui::SameLine();
+   if (ImGui::Button("[P]rev"))
+      prev_lesson();
+
+   ImGui::SameLine();
+   if (ImGui::Button("[N]ext"))
+      next_lesson();
+
    show_music();
 
-   if (ImGui::Button("Save"))
-      printf("Saved\n");
+   TextAnsi(state.msg);
 }
 
 int main(int, char**)
@@ -147,19 +279,22 @@ int main(int, char**)
    io.IniFilename = "log/imgui.log";
 
    // Setup Dear ImGui style
-   //ImGui::StyleColorsDark();
-   ImGui::StyleColorsLight();
+   ImGui::StyleColorsDark();
+   //ImGui::StyleColorsLight();
    ImVec4 bg = ImVec4(0.45f, 0.55f, 0.60f, 1.00f);
 
    // Setup Platform/Renderer backends
    ImGui_ImplGlfw_InitForOpenGL(win, true);
    ImGui_ImplOpenGL3_Init(glsl_version);
 
+   // Non-blocking stdin
+   fcntl(STDIN_FILENO, F_SETFL, fcntl(STDIN_FILENO, F_GETFL) | O_NONBLOCK);
+
    // Main loop
-   while (!glfwWindowShouldClose(win)) {
+   while (!glfwWindowShouldClose(win) && state.running) {
       // Poll GLFW events
       glfwPollEvents();
-      ImGui_ImplGlfw_Sleep(33);
+      ImGui_ImplGlfw_Sleep(16);
       if (glfwGetWindowAttrib(win, GLFW_ICONIFIED) != 0)
          continue;
 
@@ -170,8 +305,8 @@ int main(int, char**)
       struct timeval tv = {0, 0}; // non-blocking
       int ret = select(STDIN_FILENO + 1, &fds, NULL, NULL, &tv);
       if (ret > 0 && FD_ISSET(STDIN_FILENO, &fds)) {
-         char buf[1024];
-         if (fgets(buf, sizeof(buf), stdin))
+         char buf[MAX_LEN];
+         while (fgets(buf, sizeof(buf), stdin))
             parse_line(buf);
       }
 

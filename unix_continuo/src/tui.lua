@@ -14,33 +14,33 @@
 --      SCORE time=<t> accuracy=<n> slowest=<s.ss> ...
 --      STATS time=<t> total_today=<n.nn> goal=<n.nn> ...
 
--- SPDX-License-Identifier: MIT
--- tui.lua --- terminal UI filter for result visualization
--- Copyright (c) 2026 Jakob Kastelic
+local OVERWRITE_MODE = true -- All intermediate lines visible if false
+local PREFIX = "MSG "
 
-io.stdout:setvbuf("line")
+io.stdout:setvbuf("line") -- Ensure output flushes on every newline
 
 -- ANSI Escape Codes
 local GREEN = "\27[32m"
 local RED = "\27[31m"
 local RESET = "\27[0m"
-local PREVIOUS_LINE = "\27[F" -- Move cursor to start of previous line
-local ERASE_LINE = "\27[K"    -- Erase from cursor to end of line
+local PREVIOUS_LINE = "\27[F"
+local ERASE_LINE = "\27[K"
 local GLYPH = "■"
 
 local line_buffer = ""
 local is_first_update = true
 
--- Helper to "overwrite" the line in a line-buffered environment
+-- Helper to "overwrite" the line or print a new one based on OVERWRITE_MODE
 local function redraw()
-    local prefix = ""
-    if not is_first_update then
-        -- If we've already printed a line, move back up to overwrite it
-        prefix = PREVIOUS_LINE .. ERASE_LINE
+    local control_chars = ""
+
+    if OVERWRITE_MODE and not is_first_update then
+        -- Move up one line and clear it before printing the update
+        control_chars = PREVIOUS_LINE .. ERASE_LINE
     end
 
-    -- We append \n to ensure the "line" buffer flushes to the terminal
-    io.write(prefix .. line_buffer .. "\n")
+    -- Every output begins with the prefix and ends with a newline to flush the buffer
+    io.write(control_chars .. PREFIX .. line_buffer .. "\n")
     is_first_update = false
 end
 
@@ -49,6 +49,7 @@ for line in io.lines() do
     if line:find("^LESSON") then
         line_buffer = ""
         is_first_update = true
+        -- Print LESSON lines as standard output (not prefixed)
         io.write("\n\n" .. line .. "\n")
 
     -- Handle RESULT lines (Individual exercise items)
@@ -88,7 +89,8 @@ for line in io.lines() do
             end
 
             redraw()
-            -- Reset for the next session/lesson
+
+            -- Reset for the next session
             line_buffer = ""
             is_first_update = true
         end
