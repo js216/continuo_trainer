@@ -1,13 +1,30 @@
+// SPDX-License-Identifier: MIT
+// play.dot --- continuo trainer implemented as program graph
+// Copyright (c) 2026 Jakob Kastelic
+
 STDIN -> sed "s/^/LOAD_LESSON /" -> bin/load;
 
+// main app logic
 bin/load          -> bin/group;
 bin/midi          -> bin/group;
 bin/group         -> lua src/rules.lua;
 bin/load          -> lua src/score.lua;
 lua src/rules.lua -> lua src/score.lua;
 lua src/score.lua -> lua src/stats.lua log/stats.log;
-lua src/score.lua -> lua src/sched.lua -> bin/load;
 
+// auto-reload
+lua src/score.lua -> lua src/sched.lua;
+lua src/stats.lua log/stats.log -> lua src/sched.lua;
+lua src/sched.lua -> bin/load;
+
+// text user interface
+bin/load -> lua src/tui.lua;
+lua src/rules.lua -> lua src/tui.lua;
+lua src/score.lua -> lua src/tui.lua;
+lua src/stats.lua log/stats.log -> lua src/tui.lua;
+lua src/tui.lua -> STDOUT_IMM;
+
+// logging
 bin/load          -> tee -a log/load.log;
 bin/midi          -> tee -a log/midi_notes.log;
 bin/group         -> tee -a log/group.log;
@@ -15,10 +32,11 @@ lua src/rules.lua -> tee -a log/rules.log;
 lua src/score.lua -> tee -a log/score.log;
 lua src/sched.lua -> tee -a log/sched.log;
 
+// debug prints
 //bin/midi -> STDOUT;
 //bin/load -> STDOUT;
-bin/group -> STDOUT;
-lua src/rules.lua -> STDOUT;
-lua src/score.lua -> STDOUT;
-lua src/sched.lua -> STDOUT;
-lua src/stats.lua log/stats.log -> STDOUT;
+//bin/group -> STDOUT;
+//lua src/rules.lua -> STDOUT;
+//lua src/score.lua -> STDOUT;
+//lua src/sched.lua -> STDOUT;
+//lua src/stats.lua log/stats.log -> STDOUT;

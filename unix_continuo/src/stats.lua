@@ -203,9 +203,10 @@ for line in io.lines() do
 
 		print(
 			string.format(
-				"STATS time=%d total_today=%.2f total_duration_today=%.3f streak=%d lesson=%s[ivl=%d,ease=%.2f,tot_dur=%.3f,n_pass=%d,n_fail=%d,n_pass_tot=%d,n_fail_tot=%d]",
+				"STATS time=%d total_today=%.2f goal=%.2f total_duration_today=%.3f streak=%d lesson=%s[ivl=%d,ease=%.2f,tot_dur=%.3f,n_pass=%d,n_fail=%d,n_pass_tot=%d,n_fail_tot=%d]",
 				lesson_time,
 				stats.daily[today].score,
+				stats.score_goal,
 				stats.daily[today].duration,
 				streak,
 				l_id,

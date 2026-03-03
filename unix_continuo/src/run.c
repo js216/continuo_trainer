@@ -1,10 +1,32 @@
-/* SPDX-License-Identifier: MIT
- * run.c — execute a graph of interconnected processes
- * C99 + POSIX rewrite of run.rs
+// SPDX-License-Identifier: MIT
+// run.c --- parallel process graph executor
+// Copyright (c) 2026 Jakob Kastelic
+
+/* DESCRIPTION
+ * run.c is a C99/POSIX utility that executes a directed graph of
+ * interconnected processes. It parses a DOT-subset file to wire up
+ * standard streams (stdin/stdout) between commands using pipes.
+ * It provides real-time monitoring: if any process writes to stderr
+ * or exits with an error, the entire graph is terminated via SIGTERM.
  *
- * Build:
- *   Linux:  gcc -std=c99 -O2 -o run run.c -lpthread -lutil
- *   macOS:  clang -std=c99 -O2 -o run run.c -lpthread
+ * ARGUMENTS
+ * arg[1]: Path to the graph definition file (e.g., "pipeline.dot").
+ *
+ * GRAPH SYNTAX
+ * Statements follow the DOT format: "NodeA" -> "NodeB";
+ * - Nodes can be shell commands or special identifiers.
+ * - Arrows represent a pipe from the source's stdout to the sink's stdin.
+ * - Multiple sinks (fan-out) or multiple sources (fan-in) are supported.
+ * - Statements must terminate with a semicolon (;).
+ *
+ * SPECIAL NODES
+ * STDIN       : The host terminal's standard input.
+ * STDOUT      : The host terminal's standard output (line-buffered).
+ * STDOUT_IMM  : Immediate terminal output (byte-by-byte, no buffering).
+ *
+ * BUILD
+ * Linux:  gcc -std=c99 -O2 -o run run.c -lpthread -lutil
+ * macOS:  clang -std=c99 -O2 -o run run.c -lpthread
  */
 
 #define _POSIX_C_SOURCE 200809L
@@ -94,20 +116,8 @@ static void print_proc_error(const char *line)
 }
 
 /* -------------------------------------------------------------------------
- * Line-oriented I/O over a raw fd
- * A "channel" is a Unix pipe whose write end carries '\n'-terminated lines.
+ * Line-oriented I/O helpers (used for stderr monitoring)
  * ---------------------------------------------------------------------- */
-static int fd_send_line(int wr, const char *line)
-{
-	size_t len = strlen(line);
-	if (write(wr, line, len) < 0)
-		return 0;
-	if (write(wr, "\n", 1) < 0)
-		return 0;
-	return 1;
-}
-
-/* Returns 1 on a complete line, 0 on EOF/error. */
 static int fd_recv_line(int rd, char *buf, size_t bufsz)
 {
 	size_t pos = 0;
@@ -129,7 +139,7 @@ static int fd_recv_line(int rd, char *buf, size_t bufsz)
 /* -------------------------------------------------------------------------
  * DOT-subset parser
  * ---------------------------------------------------------------------- */
-typedef enum { NT_STDIN, NT_STDOUT, NT_PROG } NodeKind;
+typedef enum { NT_STDIN, NT_STDOUT, NT_STDOUT_IMM, NT_PROG } NodeKind;
 
 typedef struct {
 	NodeKind kind;
@@ -158,6 +168,9 @@ static int intern_node(Node *nodes, int *n, const char *name)
 		tmp.cmd[0] = '\0';
 	} else if (strcmp(name, "STDOUT") == 0) {
 		tmp.kind = NT_STDOUT;
+		tmp.cmd[0] = '\0';
+	} else if (strcmp(name, "STDOUT_IMM") == 0) {
+		tmp.kind = NT_STDOUT_IMM;
 		tmp.cmd[0] = '\0';
 	} else {
 		tmp.kind = NT_PROG;
@@ -196,7 +209,6 @@ static void strip_comments(char *s)
 	*w = '\0';
 }
 
-/* Split on "->" respecting double-quoted strings; NUL-terminates in place. */
 static int split_arrow(char *s, char **parts, int max_parts)
 {
 	int n = 0;
@@ -262,9 +274,6 @@ static void parse_graph(char *src, Node *nodes, int *n_nodes, Edge *edges,
 			for (int i = 0; i + 1 < np; i++) {
 				char *a = trim(parts[i]);
 				char *b = trim(parts[i + 1]);
-				/* Strip surrounding quotes into temp buffers to
-				 * avoid modifying the string in place (parts
-				 * overlap). */
 				char ta[512], tb[512];
 				snprintf(ta, sizeof ta, "%s", a);
 				snprintf(tb, sizeof tb, "%s", b);
@@ -290,10 +299,6 @@ static void parse_graph(char *src, Node *nodes, int *n_nodes, Edge *edges,
 	}
 }
 
-/* -------------------------------------------------------------------------
- * argv parser
- * ---------------------------------------------------------------------- */
-/* Returns heap-allocated storage that out[] points into; caller must free(). */
 static char *parse_argv(const char *cmd, char **out, int max_out)
 {
 	char *buf = malloc(strlen(cmd) + 1);
@@ -332,9 +337,6 @@ static char *parse_argv(const char *cmd, char **out, int max_out)
 	return buf;
 }
 
-/* -------------------------------------------------------------------------
- * Dynamic int list
- * ---------------------------------------------------------------------- */
 typedef struct {
 	int *data;
 	int n, cap;
@@ -350,10 +352,9 @@ static void il_push(IntList *l, int v)
 }
 
 /* -------------------------------------------------------------------------
- * Thread argument types and thread functions
+ * Byte-oriented thread functions
  * ---------------------------------------------------------------------- */
 
-/* Fan one read-fd out to N write-fds */
 typedef struct {
 	int src_rd;
 	int *dst_wrs;
@@ -363,15 +364,16 @@ typedef struct {
 static void *thr_fanout(void *arg)
 {
 	FanoutArg *a = arg;
-	char line[LINE_BUF];
-	while (!g_failed && fd_recv_line(a->src_rd, line, sizeof line)) {
+	char buf[LINE_BUF];
+	ssize_t n;
+	while (!g_failed && (n = read(a->src_rd, buf, sizeof buf)) > 0) {
 		if (g_failed)
 			break;
 		int alive = 0;
 		for (int i = 0; i < a->n_dst; i++) {
 			if (a->dst_wrs[i] < 0)
 				continue;
-			if (!fd_send_line(a->dst_wrs[i], line)) {
+			if (write(a->dst_wrs[i], buf, (size_t)n) != n) {
 				close(a->dst_wrs[i]);
 				a->dst_wrs[i] = -1;
 			} else
@@ -389,7 +391,6 @@ static void *thr_fanout(void *arg)
 	return NULL;
 }
 
-/* One sub-thread per upstream source feeding a shared child stdin wr */
 typedef struct {
 	int src_rd;
 	int dst_wr;
@@ -399,14 +400,15 @@ typedef struct {
 static void *thr_fanin_sub(void *arg)
 {
 	FaninSubArg *a = arg;
-	char line[LINE_BUF];
-	while (!g_failed && fd_recv_line(a->src_rd, line, sizeof line)) {
+	char buf[LINE_BUF];
+	ssize_t n;
+	while (!g_failed && (n = read(a->src_rd, buf, sizeof buf)) > 0) {
 		if (g_failed)
 			break;
 		pthread_mutex_lock(a->mu);
-		int ok = fd_send_line(a->dst_wr, line);
+		ssize_t nw = write(a->dst_wr, buf, (size_t)n);
 		pthread_mutex_unlock(a->mu);
-		if (!ok)
+		if (nw != n)
 			break;
 	}
 	close(a->src_rd);
@@ -443,25 +445,21 @@ static void *thr_fanin(void *arg)
 	return NULL;
 }
 
-/* Pump real stdin → a pipe write-fd */
 void *thr_stdin_pump(void *arg)
 {
 	int dst = (int)(intptr_t)arg;
-	char line[LINE_BUF];
-	while (!g_failed && fgets(line, (int)sizeof line, stdin)) {
+	char buf[LINE_BUF];
+	ssize_t n;
+	while (!g_failed && (n = read(STDIN_FILENO, buf, sizeof buf)) > 0) {
 		if (g_failed)
 			break;
-		size_t len = strlen(line);
-		if (len > 0 && line[len - 1] == '\n')
-			line[--len] = '\0';
-		if (!fd_send_line(dst, line))
+		if (write(dst, buf, (size_t)n) != n)
 			break;
 	}
 	close(dst);
 	return NULL;
 }
 
-/* Write lines from a pipe read-fd to real stdout */
 typedef struct {
 	int src_rd;
 } StdoutArg;
@@ -481,7 +479,21 @@ static void *thr_stdout(void *arg)
 	return NULL;
 }
 
-/* Monitor child stderr; any output → print + fail */
+static void *thr_stdout_imm(void *arg)
+{
+	StdoutArg *a = arg;
+	char buf[4096];
+	ssize_t n;
+	while (!g_failed && (n = read(a->src_rd, buf, sizeof buf)) > 0) {
+		if (fwrite(buf, 1, (size_t)n, stdout) != (size_t)n)
+			break;
+		fflush(stdout);
+	}
+	close(a->src_rd);
+	free(a);
+	return NULL;
+}
+
 typedef struct {
 	int rd;
 } StderrArg;
@@ -492,7 +504,6 @@ static void *thr_stderr(void *arg)
 	char line[LINE_BUF];
 	while (fd_recv_line(a->rd, line, sizeof line)) {
 		print_proc_error(line);
-		free(a);
 		fail_all();
 	}
 	close(a->rd);
@@ -500,7 +511,6 @@ static void *thr_stderr(void *arg)
 	return NULL;
 }
 
-/* Wait for a child process to exit */
 typedef struct {
 	pid_t pid;
 	char cmd[64];
@@ -544,7 +554,6 @@ static void run(Node *nodes, int n_nodes, Edge *edges, int n_edges)
 		il_push(&node_in[edges[i].to], i);
 	}
 
-	/* One Unix pipe per edge; threads receive their fd copies directly. */
 	int *pipe_rd = malloc((size_t)n_edges * sizeof(int));
 	int *pipe_wr = malloc((size_t)n_edges * sizeof(int));
 	for (int i = 0; i < n_edges; i++) {
@@ -555,26 +564,21 @@ static void run(Node *nodes, int n_nodes, Edge *edges, int n_edges)
 		pipe_wr[i] = fds[1];
 	}
 
-	/* Generous upper bound: each node spawns at most ~5 threads. */
 	pthread_t *threads =
 	    malloc((size_t)(n_nodes * 6 + 2) * sizeof(pthread_t));
 	int n_threads = 0;
 
 #define SPAWN(fn, arg) pthread_create(&threads[n_threads++], NULL, fn, arg)
 
-	/* ---- STDIN node
-	 * ------------------------------------------------------- */
 	for (int ni = 0; ni < n_nodes; ni++) {
 		if (nodes[ni].kind != NT_STDIN)
 			continue;
 		IntList *outs = &node_out[ni];
 		if (outs->n == 0)
 			continue;
-
 		int relay[2];
 		if (pipe(relay))
 			die("pipe(stdin relay)");
-
 		FanoutArg *fa = malloc(sizeof *fa);
 		fa->src_rd = relay[0];
 		fa->dst_wrs = malloc((size_t)outs->n * sizeof(int));
@@ -585,21 +589,21 @@ static void run(Node *nodes, int n_nodes, Edge *edges, int n_edges)
 		SPAWN(thr_stdin_pump, (void *)(intptr_t)relay[1]);
 	}
 
-	/* ---- STDOUT node
-	 * ------------------------------------------------------ */
 	for (int ni = 0; ni < n_nodes; ni++) {
-		if (nodes[ni].kind != NT_STDOUT)
+		if (nodes[ni].kind != NT_STDOUT &&
+		    nodes[ni].kind != NT_STDOUT_IMM)
 			continue;
 		IntList *ins = &node_in[ni];
 		for (int j = 0; j < ins->n; j++) {
 			StdoutArg *a = malloc(sizeof *a);
 			a->src_rd = pipe_rd[ins->data[j]];
-			SPAWN(thr_stdout, a);
+			if (nodes[ni].kind == NT_STDOUT_IMM)
+				SPAWN(thr_stdout_imm, a);
+			else
+				SPAWN(thr_stdout, a);
 		}
 	}
 
-	/* ---- Program nodes
-	 * ---------------------------------------------------- */
 	for (int ni = 0; ni < n_nodes; ni++) {
 		if (nodes[ni].kind != NT_PROG)
 			continue;
@@ -616,7 +620,6 @@ static void run(Node *nodes, int n_nodes, Edge *edges, int n_edges)
 			die("empty command in graph");
 		}
 
-		/* Pipes to child */
 		int cin_rd = -1, cin_wr = -1;
 		int cout_rd = -1, cout_wr = -1;
 		int cerr_rd, cerr_wr;
@@ -654,7 +657,6 @@ static void run(Node *nodes, int n_nodes, Edge *edges, int n_edges)
 			die("fork()");
 
 		if (pid == 0) {
-			/* ---- child ---- */
 			if (cin_rd >= 0)
 				dup2(cin_rd, STDIN_FILENO);
 			else {
@@ -662,7 +664,6 @@ static void run(Node *nodes, int n_nodes, Edge *edges, int n_edges)
 				dup2(nul, STDIN_FILENO);
 				close(nul);
 			}
-
 			if (cout_wr >= 0)
 				dup2(cout_wr, STDOUT_FILENO);
 			else {
@@ -670,10 +671,8 @@ static void run(Node *nodes, int n_nodes, Edge *edges, int n_edges)
 				dup2(nul, STDOUT_FILENO);
 				close(nul);
 			}
-
 			dup2(cerr_wr, STDERR_FILENO);
 
-			/* Close every fd we don't need in the child */
 			if (cin_rd >= 0)
 				close(cin_rd);
 			if (cin_wr >= 0)
@@ -688,14 +687,10 @@ static void run(Node *nodes, int n_nodes, Edge *edges, int n_edges)
 				close(pipe_rd[i]);
 				close(pipe_wr[i]);
 			}
-
 			execvp(argv_arr[0], argv_arr);
-			fprintf(stderr, "exec '%s': %s\n", argv_arr[0],
-				strerror(errno));
 			_exit(127);
 		}
 
-		/* ---- parent: close child-side fds ---- */
 		if (cin_rd >= 0)
 			close(cin_rd);
 		if (cout_wr >= 0)
@@ -704,7 +699,6 @@ static void run(Node *nodes, int n_nodes, Edge *edges, int n_edges)
 
 		register_child(pid);
 
-		/* Fan-in: multiple upstream edges → child stdin */
 		if (ins->n > 0) {
 			FaninArg *fa = malloc(sizeof *fa);
 			fa->src_rds = malloc((size_t)ins->n * sizeof(int));
@@ -714,8 +708,6 @@ static void run(Node *nodes, int n_nodes, Edge *edges, int n_edges)
 				fa->src_rds[j] = pipe_rd[ins->data[j]];
 			SPAWN(thr_fanin, fa);
 		}
-
-		/* Fan-out: child stdout → downstream edges */
 		if (outs->n > 0) {
 			FanoutArg *fa = malloc(sizeof *fa);
 			fa->src_rd = cout_rd;
@@ -724,26 +716,21 @@ static void run(Node *nodes, int n_nodes, Edge *edges, int n_edges)
 			for (int j = 0; j < outs->n; j++)
 				fa->dst_wrs[j] = pipe_wr[outs->data[j]];
 			SPAWN(thr_fanout, fa);
-		} else {
-			if (cout_rd >= 0)
-				close(cout_rd);
+		} else if (cout_rd >= 0) {
+			close(cout_rd);
 		}
 
-		/* Stderr monitor */
 		{
 			StderrArg *a = malloc(sizeof *a);
 			a->rd = cerr_rd;
 			SPAWN(thr_stderr, a);
 		}
-
-		/* Wait thread */
 		{
 			WaitArg *a = malloc(sizeof *a);
 			a->pid = pid;
 			snprintf(a->cmd, sizeof a->cmd, "%s", argv_arr[0]);
 			SPAWN(thr_wait, a);
 		}
-
 		free(argv_buf);
 	}
 
@@ -763,23 +750,15 @@ static void run(Node *nodes, int n_nodes, Edge *edges, int n_edges)
 	free(pipe_wr);
 }
 
-/* -------------------------------------------------------------------------
- * main
- * ---------------------------------------------------------------------- */
 int main(int argc, char *argv[])
 {
 	if (argc != 2) {
 		fprintf(stderr, "Usage: %s <graph.dot>\n", argv[0]);
 		return 1;
 	}
-
 	FILE *f = fopen(argv[1], "r");
-	if (!f) {
-		fprintf(stderr, "\x1b[31mError:\x1b[0m cannot open '%s': %s\n",
-			argv[1], strerror(errno));
-		return 1;
-	}
-
+	if (!f)
+		die("fopen");
 	fseek(f, 0, SEEK_END);
 	long sz = ftell(f);
 	rewind(f);
@@ -794,12 +773,10 @@ int main(int argc, char *argv[])
 	static Node nodes[MAX_NODES];
 	static Edge edges[MAX_EDGES];
 	int n_nodes = 0, n_edges = 0;
-
 	parse_graph(src, nodes, &n_nodes, edges, &n_edges);
 	free(src);
 
 	if (n_edges > 0)
 		run(nodes, n_nodes, edges, n_edges);
-
 	return 0;
 }

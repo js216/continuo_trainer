@@ -3,125 +3,123 @@
 -- Copyright (c) 2026 Jakob Kastelic
 -- Lua 5.4 translation of rules.rs
 
---[[
-DESCRIPTION
-    rules is a filter that reads a stream of realized musical groups from
-    standard input and evaluates them against voice-leading and harmonic
-    rules.  It uses a sliding window of the last 4 groups to check
-    transitions between chords.  For each GROUP line, the program writes
-    a RESULT line to standard output indicating whether it passes (OK) or
-    fails (FAIL), with ANSI color highlighting.
-
-    A LESSON line resets the key signature and the sliding window; the key
-    token (3rd whitespace-separated field, e.g. "C", "g", "Bb", "f#") is
-    parsed to derive the diatonic pitch-class set used by harmonic rules.
-    All other unrecognized lines are silently ignored.
-
-INPUT FORMAT
-    The program processes two kinds of lines:
-
-    LESSON <name> <key>
-        Resets context.  <key> is a LilyPond-style key: uppercase = major,
-        lowercase = minor; accidentals via #/b or is/es/as suffixes
-        (e.g. "Fis" = F# major, "bes" = Bb minor).
-
-    GROUP <field> ...
-        Describes one realized chord.  Fields are space-separated tokens:
-
-        ID:<n>
-            Decimal integer identifier echoed verbatim in RESULT output.
-
-        passing
-            Optional bare keyword.  Marks the group as a passing chord;
-            most harmonic rules are skipped for passing groups (parallel-
-            motion and bass-tritone-leap rules still fire for them).
-
-        BASS:<pitch>
-            The notated (written) bass pitch in LilyPond syntax.  Used to
-            detect chromatic alterations and the special sentinel value "?"
-            which marks a group past the end of the lesson.
-
-        BASS_ACTUAL:<pitch>
-            The sounding bass pitch used for all interval calculations.
-
-        FIGURES:<spec>
-            Figured-bass annotation, slash- or comma-separated
-            (e.g. "6", "6/4", "b7", "#").  Empty or "0" means a plain
-            triad (3/5/8).  A lone "3" expands to 3/5/8; a lone "4"
-            expands to 4/5/8; a lone "6" prepends an implicit 3.
-            Accidentals: #/##/b/bb/n or is/isis/es/eses/as prefixes.
-
-        REALIZATION:<p1>/<p2>/...
-            Slash-separated LilyPond pitches for the inner voices, sorted
-            ascending by semitone.
-
-        MELODY:<pitch> [<pitch> ...]
-            One or more LilyPond pitches for the melody.  Multiple pitches
-            may follow as separate tokens until the next "key:value" token.
-
-        TIME:<ms>
-            Onset time in milliseconds.
-
-PITCH SYNTAX
-    All pitches use LilyPond notation: note letter (c d e f g a b),
-    optional accidental suffix (is = sharp, es/as = flat, isis = double-
-    sharp, eses = double-flat), and octave marks (' to go up, , to go
-    down, relative to c' = MIDI 60).  Trailing digits and dots (duration
-    info) are stripped before parsing.
-
-VALIDATION RULES
-    Rules are applied in order; the first failure stops evaluation of that
-    group.  Rules marked [all] fire even for passing chords; others are
-    skipped when the "passing" keyword is present.
-
-    Not Past End  [all]
-        Fails if BASS is the sentinel value "?", indicating the group lies
-        beyond the end of the lesson definition.
-
-    Parallel Fifths / Octaves  [all]
-        Across consecutive non-passing groups, checks every pair of voices
-        (bass, inner voices sorted ascending, melody) for parallel motion
-        into a perfect fifth (7 semitones mod 12) or unison/octave (0
-        semitones mod 12).  Duplicate pitch-classes shared by bass or
-        melody are collapsed before comparison.
-
-    Bass Tritone Leap  [all]
-        The bass may not move by exactly 6 semitones (mod 12) between
-        consecutive groups.
-
-    Realization Not Empty
-        At least one inner-voice pitch must be provided.
-
-    Realization Correctness
-        Every inner-voice pitch-class must belong to the set derived from
-        the figured-bass annotation.  Exception: if the bass pitch-class is
-        unchanged from the previous group (held bass), all pitch-classes
-        present in the previous group's inner voices and melody are also
-        admitted, to allow suspension resolution.
-
-    Bass In Key
-        The sounding bass pitch-class must be diatonic to the current key.
-        This check is suppressed when the notated and sounding bass share
-        the same pitch-class (i.e. no chromatic alteration has occurred).
-
-    Realization Complete
-        Every pitch-class required by the figured-bass annotation must
-        appear somewhere in the combined set of bass, inner voices, and
-        melody.
-
-OUTPUT FORMAT
-    For every GROUP line the program writes one line to standard output:
-
-        RESULT <id> OK
-            All rules passed (printed in green via ANSI escape codes).
-
-        RESULT <id> FAIL <message>
-            A rule was violated; <message> describes the first failure
-            (printed in red via ANSI escape codes).
-
-EXIT STATUS
-    Always returns 0.
-]]
+-- DESCRIPTION
+--     rules is a filter that reads a stream of realized musical groups from
+--     standard input and evaluates them against voice-leading and harmonic
+--     rules.  It uses a sliding window of the last 4 groups to check
+--     transitions between chords.  For each GROUP line, the program writes
+--     a RESULT line to standard output indicating whether it passes (OK) or
+--     fails (FAIL), with ANSI color highlighting.
+--
+--     A LESSON line resets the key signature and the sliding window; the key
+--     token (3rd whitespace-separated field, e.g. "C", "g", "Bb", "f#") is
+--     parsed to derive the diatonic pitch-class set used by harmonic rules.
+--     All other unrecognized lines are silently ignored.
+--
+-- INPUT FORMAT
+--     The program processes two kinds of lines:
+--
+--     LESSON <name> <key>
+--         Resets context.  <key> is a LilyPond-style key: uppercase = major,
+--         lowercase = minor; accidentals via #/b or is/es/as suffixes
+--         (e.g. "Fis" = F# major, "bes" = Bb minor).
+--
+--     GROUP <field> ...
+--         Describes one realized chord.  Fields are space-separated tokens:
+--
+--         ID:<n>
+--             Decimal integer identifier echoed verbatim in RESULT output.
+--
+--         passing
+--             Optional bare keyword.  Marks the group as a passing chord;
+--             most harmonic rules are skipped for passing groups (parallel-
+--             motion and bass-tritone-leap rules still fire for them).
+--
+--         BASS:<pitch>
+--             The notated (written) bass pitch in LilyPond syntax.  Used to
+--             detect chromatic alterations and the special sentinel value "?"
+--             which marks a group past the end of the lesson.
+--
+--         BASS_ACTUAL:<pitch>
+--             The sounding bass pitch used for all interval calculations.
+--
+--         FIGURES:<spec>
+--             Figured-bass annotation, slash- or comma-separated
+--             (e.g. "6", "6/4", "b7", "#").  Empty or "0" means a plain
+--             triad (3/5/8).  A lone "3" expands to 3/5/8; a lone "4"
+--             expands to 4/5/8; a lone "6" prepends an implicit 3.
+--             Accidentals: #/##/b/bb/n or is/isis/es/eses/as prefixes.
+--
+--         REALIZATION:<p1>/<p2>/...
+--             Slash-separated LilyPond pitches for the inner voices, sorted
+--             ascending by semitone.
+--
+--         MELODY:<pitch> [<pitch> ...]
+--             One or more LilyPond pitches for the melody.  Multiple pitches
+--             may follow as separate tokens until the next "key:value" token.
+--
+--         TIME:<ms>
+--             Onset time in milliseconds.
+--
+-- PITCH SYNTAX
+--     All pitches use LilyPond notation: note letter (c d e f g a b),
+--     optional accidental suffix (is = sharp, es/as = flat, isis = double-
+--     sharp, eses = double-flat), and octave marks (' to go up, , to go
+--     down, relative to c' = MIDI 60).  Trailing digits and dots (duration
+--     info) are stripped before parsing.
+--
+-- VALIDATION RULES
+--     Rules are applied in order; the first failure stops evaluation of that
+--     group.  Rules marked [all] fire even for passing chords; others are
+--     skipped when the "passing" keyword is present.
+--
+--     Not Past End  [all]
+--         Fails if BASS is the sentinel value "?", indicating the group lies
+--         beyond the end of the lesson definition.
+--
+--     Parallel Fifths / Octaves  [all]
+--         Across consecutive non-passing groups, checks every pair of voices
+--         (bass, inner voices sorted ascending, melody) for parallel motion
+--         into a perfect fifth (7 semitones mod 12) or unison/octave (0
+--         semitones mod 12).  Duplicate pitch-classes shared by bass or
+--         melody are collapsed before comparison.
+--
+--     Bass Tritone Leap  [all]
+--         The bass may not move by exactly 6 semitones (mod 12) between
+--         consecutive groups.
+--
+--     Realization Not Empty
+--         At least one inner-voice pitch must be provided.
+--
+--     Realization Correctness
+--         Every inner-voice pitch-class must belong to the set derived from
+--         the figured-bass annotation.  Exception: if the bass pitch-class is
+--         unchanged from the previous group (held bass), all pitch-classes
+--         present in the previous group's inner voices and melody are also
+--         admitted, to allow suspension resolution.
+--
+--     Bass In Key
+--         The sounding bass pitch-class must be diatonic to the current key.
+--         This check is suppressed when the notated and sounding bass share
+--         the same pitch-class (i.e. no chromatic alteration has occurred).
+--
+--     Realization Complete
+--         Every pitch-class required by the figured-bass annotation must
+--         appear somewhere in the combined set of bass, inner voices, and
+--         melody.
+--
+-- OUTPUT FORMAT
+--     For every GROUP line the program writes one line to standard output:
+--
+--         RESULT <id> OK
+--             All rules passed (printed in green via ANSI escape codes).
+--
+--         RESULT <id> FAIL <message>
+--             A rule was violated; <message> describes the first failure
+--             (printed in red via ANSI escape codes).
+--
+-- EXIT STATUS
+--     Always returns 0.
 
 local window = {}
 local key = { scale_pcs = {} }
