@@ -1,15 +1,29 @@
-CFLAGS = -Wall -Wextra -std=c99 -fsanitize=address
-LDLIBS = -lpthread -lutil -lrtmidi -lX11
+CFLAGS = -Wall -Wextra -std=c99 -fsanitize=address -D_POSIX_C_SOURCE=200809L -Wno-unused-function
+CPPFLAGS = -Ilib -Ilib/imgui -Ilib/imgui/backends
+CXXFLAGS = -std=c++11 -g -Wall -Wformat `pkg-config --cflags glfw3`
+LDLIBS = -lpthread -lutil -lrtmidi -lX11 -lm -lGL `pkg-config --static --libs glfw3`
 
-PROGS = chunk group load midi stats l2ly g2ly entry run
+PROGS = chunk group load midi l2ly g2ly entry run gui
+
+IMGUI = imgui.o imgui_demo.o imgui_draw.o imgui_tables.o imgui_widgets.o \
+        backends/imgui_impl_glfw.o backends/imgui_impl_opengl3.o
+
+IMGUI_OBJ = $(patsubst %,lib/imgui/%,$(IMGUI))
 
 all: $(addprefix bin/,$(PROGS))
 
 bin/%: src/%.c | bin
-	$(CC) $(CFLAGS) $(LDLIBS) $< -o $@
+	$(CC) $(CFLAGS) $< -o $@ $(LDLIBS)
+
+bin/gui: src/gui.cpp $(IMGUI_OBJ) | $(patsubst %.txt,%.png,$(wildcard seq/*.txt)) bin
+	$(CXX) $(CPPFLAGS) $(CXXFLAGS) $^ -o $@ $(LDLIBS)
 
 bin/%: src/%.rs | bin
 	rustc $< -o $@
+
+%.png: %.ly
+	lilypond --png -dpreview -dno-main-pdf -o $(@:.png=) $<
+	mv $(@:.png=).preview.png $@
 
 %.pdf: %.ly
 	lilypond -o $(@:.pdf=) $^
@@ -36,4 +50,4 @@ test:
 	lua src/tst.lua tst bin src
 
 clean:
-	rm -rf bin tmp seq/*.pdf
+	rm -rf bin tmp seq/*.pdf seq/*.png $(IMGUI_OBJ)

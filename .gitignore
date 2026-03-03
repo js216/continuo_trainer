@@ -1,7 +1,6 @@
 *.d
 *.o
 *.swp
-*.pdf
 *.log
 *.db
 *.ini
@@ -14,6 +13,9 @@ imgui_continuo/test/*
 !imgui_continuo/test/*.c
 !imgui_continuo/test/*.cpp
 !imgui_continuo/test/*.txt
+
+*.pdf
+*.png
 
 bin
 log
