@@ -22,7 +22,7 @@ bin/%: src/%.rs | bin
 	rustc $< -o $@
 
 %.png: %.ly
-	lilypond --png -dpreview -dno-main-pdf -o $(@:.png=) $<
+	lilypond --png -dpreview -o $(@:.png=) $<
 	mv $(@:.png=).preview.png $@
 
 %.pdf: %.ly

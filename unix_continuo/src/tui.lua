@@ -14,58 +14,83 @@
 --      SCORE time=<t> accuracy=<n> slowest=<s.ss> ...
 --      STATS time=<t> total_today=<n.nn> goal=<n.nn> ...
 
--------------------------------------------------------------------------------
+-- SPDX-License-Identifier: MIT
+-- tui.lua --- terminal UI filter for result visualization
+-- Copyright (c) 2026 Jakob Kastelic
 
-io.stdout:setvbuf("no") -- Force unbuffered output
+io.stdout:setvbuf("line")
 
--- ANSI Color Constants
+-- ANSI Escape Codes
 local GREEN = "\27[32m"
 local RED = "\27[31m"
 local RESET = "\27[0m"
+local PREVIOUS_LINE = "\27[F" -- Move cursor to start of previous line
+local ERASE_LINE = "\27[K"    -- Erase from cursor to end of line
 local GLYPH = "■"
 
+local line_buffer = ""
+local is_first_update = true
+
+-- Helper to "overwrite" the line in a line-buffered environment
+local function redraw()
+    local prefix = ""
+    if not is_first_update then
+        -- If we've already printed a line, move back up to overwrite it
+        prefix = PREVIOUS_LINE .. ERASE_LINE
+    end
+
+    -- We append \n to ensure the "line" buffer flushes to the terminal
+    io.write(prefix .. line_buffer .. "\n")
+    is_first_update = false
+end
+
 for line in io.lines() do
-	-- Handle LESSON lines
-	if line:find("^LESSON") then
-		io.write("\n" .. line .. "\n")
+    -- Handle LESSON lines: Reset state for a fresh section
+    if line:find("^LESSON") then
+        line_buffer = ""
+        is_first_update = true
+        io.write("\n\n" .. line .. "\n")
 
-	-- Handle RESULT lines (Individual exercise items)
-	elseif line:find("^RESULT") then
-		local status = line:match("RESULT %d+ TIME:%d+ .-([%a]+)\27%[0m")
+    -- Handle RESULT lines (Individual exercise items)
+    elseif line:find("^RESULT") then
+        local status = line:match("RESULT %d+ TIME:%d+ .-([%a]+)\27%[0m")
+        local color = (status == "mOK") and GREEN or RED
 
-		local color = (status == "mOK") and GREEN or RED
-		io.write(color .. GLYPH .. RESET .. " ")
-		io.stdout:flush()
+        line_buffer = line_buffer .. color .. GLYPH .. RESET .. " "
+        redraw()
 
-	-- Handle SCORE lines (Session performance summary)
-	elseif line:find("^SCORE") then
-		local acc = line:match("accuracy=([%d%.]+)")
-		local slow = line:match("slowest=([%d%.]+)")
+    -- Handle SCORE lines (Session performance summary)
+    elseif line:find("^SCORE") then
+        local acc = line:match("accuracy=([%d%.]+)")
+        local slow = line:match("slowest=([%d%.]+)")
 
-		if acc and slow then
-			local acc_val = tonumber(acc)
-			io.write(string.format(" | %g%% %.1fs", acc_val, tonumber(slow)))
-			io.stdout:flush()
-		end
+        if acc and slow then
+            local acc_val = tonumber(acc)
+            line_buffer = line_buffer .. string.format("| %g%% %.1fs ", acc_val, tonumber(slow))
+            redraw()
+        end
 
-	-- Handle STATS lines (Daily progress)
-	elseif line:find("^STATS") then
-		local total_str = line:match("total_today=([%d%.]+)")
-		local goal_str = line:match("goal=([%d%.]+)")
-		local streak = line:match("streak=([%d]+)")
+    -- Handle STATS lines (Daily progress)
+    elseif line:find("^STATS") then
+        local total_str = line:match("total_today=([%d%.]+)")
+        local goal_str = line:match("goal=([%d%.]+)")
+        local streak = line:match("streak=([%d]+)")
 
-		if total_str then
-			local total = tonumber(total_str)
-			local goal = tonumber(goal_str) or 0
-			local pts = math.floor(total + 0.5)
+        if total_str then
+            local total = tonumber(total_str)
+            local goal = tonumber(goal_str) or 0
+            local pts = math.floor(total + 0.5)
 
-			io.write(string.format(" pts=%d", pts))
+            line_buffer = line_buffer .. string.format("pts=%d", pts)
 
-			-- Display achievement message ONLY when goal is reached
-			if total >= goal and goal > 0 then
-				io.write(" " .. GREEN .. "streak=" .. streak .. RESET .. "\n")
-			end
-			io.stdout:flush()
-		end
-	end
+            if total >= goal and goal > 0 then
+                line_buffer = line_buffer .. " " .. GREEN .. "streak=" .. streak .. RESET
+            end
+
+            redraw()
+            -- Reset for the next session/lesson
+            line_buffer = ""
+            is_first_update = true
+        end
+    end
 end
