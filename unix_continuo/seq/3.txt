@@ -11,4 +11,5 @@ figures = {
 }
 
 melody = {
+   c'2 d'2 e'2
 }

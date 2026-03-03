@@ -2,6 +2,8 @@
 #include "imgui_impl_glfw.h"
 #include "imgui_impl_opengl3.h"
 #include <stdio.h>
+#include <string.h>
+#include <stdlib.h>
 #include <unistd.h>
 #include <sys/select.h>
 #include <GLFW/glfw3.h>
@@ -9,16 +11,58 @@
 #define STB_IMAGE_IMPLEMENTATION
 #include "stb_image.h"
 
-static bool LoadImage(const char* fname, GLuint* img, int* w, int* h)
+struct state {
+   int current_lesson = 0;
+} state;
+
+static void key_callback(GLFWwindow* window, int key, int scancode, int action, int mods)
+{
+   if (action == GLFW_PRESS) {
+      if (key == GLFW_KEY_ESCAPE)
+         glfwSetWindowShouldClose(window, GLFW_TRUE);
+      printf("Key pressed: %d\n", key);
+   } else if (action == GLFW_RELEASE) {
+      printf("Key released: %d\n", key);
+   }
+}
+
+static void check_load_lesson(const char *buf)
+{
+   // Check for prefix
+   const char *prefix = "LOAD_LESSON ";
+   size_t prefix_len = strlen(prefix);
+
+   if (strncmp(buf, prefix, prefix_len) != 0)
+      return; // Not found
+
+   // Parse the integer after the prefix
+   const char *num_str = buf + prefix_len;
+   char *endptr = NULL;
+   long n = strtol(num_str, &endptr, 10);
+
+   // Validate: must have consumed at least one digit
+   if (endptr == num_str)
+      return; // no number found
+
+   // Assign to state
+   state.current_lesson = (int)n;
+}
+
+static void parse_line(const char *buf)
+{
+   check_load_lesson(buf);
+}
+
+static int LoadImage(const char* fname, GLuint* img, int* w, int* h)
 {
    // Load from file to memory
    FILE* f = fopen(fname, "rb");
    if (f == NULL)
-      return false;
+      return -1;
    fseek(f, 0, SEEK_END);
    long size = ftell(f);
    if (size < 0)
-      return false;
+      return -1;
    fseek(f, 0, SEEK_SET);
    void* data = IM_ALLOC((size_t)size);
    fread(data, 1, (size_t)size, f);
@@ -30,7 +74,7 @@ static bool LoadImage(const char* fname, GLuint* img, int* w, int* h)
          w, h,
          NULL, 4);
    if (image_data == NULL)
-      return false;
+      return -1;
 
    // Create a OpenGL texture identifier
    glGenTextures(1, img);
@@ -47,36 +91,28 @@ static bool LoadImage(const char* fname, GLuint* img, int* w, int* h)
    stbi_image_free(image_data);
 
    IM_FREE(data);
-   return true;
+   return 0;
 }
 
-static void key_callback(GLFWwindow* window, int key, int scancode, int action, int mods)
+static void show_music(void)
 {
-   if (action == GLFW_PRESS) {
-      if (key == GLFW_KEY_ESCAPE)
-         glfwSetWindowShouldClose(window, GLFW_TRUE);
-      printf("Key pressed: %d\n", key);
-   } else if (action == GLFW_RELEASE) {
-      printf("Key released: %d\n", key);
+   static int iw = 0;
+   static int ih = 0;
+   static int img_disp = 0;
+   static GLuint img = 0;
+   if (!img || (img_disp != state.current_lesson)) {
+      char filename[64];
+      snprintf(filename, sizeof(filename), "seq/%d.png", state.current_lesson);
+      if (LoadImage(filename, &img, &iw, &ih))
+         return;
+      img_disp = state.current_lesson;
    }
-}
-
-static void parse_line(const char *buf)
-{
-   printf("Got line: %s", buf);
+   ImGui::Image((ImTextureID)(intptr_t)img, ImVec2(iw, ih));
 }
 
 static void gui_main(void)
 {
-   static int iw = 0;
-   static int ih = 0;
-   static GLuint img = 0;
-   if (!img) {
-      bool ret = LoadImage("seq/1.png", &img, &iw, &ih);
-      IM_ASSERT(ret);
-   }
-
-   ImGui::Image((ImTextureID)(intptr_t)img, ImVec2(iw, ih));
+   show_music();
 
    if (ImGui::Button("Save"))
       printf("Saved\n");
