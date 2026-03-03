@@ -4,3 +4,9 @@
 [submodule "imgui_continuo/rtmidi"]
 	path = imgui_continuo/rtmidi
 	url = https://github.com/thestk/rtmidi.git
+[submodule "unix_continuo/lib/--force"]
+	path = unix_continuo/lib/--force
+	url = https://github.com/ocornut/imgui.git
+[submodule "unix_continuo/lib/imgui"]
+	path = unix_continuo/lib/imgui
+	url = https://github.com/ocornut/imgui.git

@@ -24,7 +24,7 @@ fn main() {
 
     // Generate LilyPond document
     let lilypond = format!(
-        r#"\version "2.24.2"
+        r#"\version "2.22.1"
 \header {{
   title = "{title}"
 }}
