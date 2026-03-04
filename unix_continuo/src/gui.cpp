@@ -13,20 +13,38 @@
 #define STB_IMAGE_IMPLEMENTATION
 #include "stb_image.h"
 
+#define MAX_LINES 128
 #define MAX_LEN 1024
-#define MAX_LINES 1024
+
+struct Square {
+   bool ok;
+};
+
+struct status_line {
+   bool  valid    = false;
+   float acc      = 0.0f;
+   float slowest  = 0.0f;
+   int   pts      = 0;
+   bool  goal_met = false;
+   int   streak   = 0;
+};
 
 struct state {
-   bool running = true;
-   int current_lesson = 1;
-   char msg[MAX_LEN];
-   char explanation[MAX_LEN];
+   bool       running        = true;
+   int        current_lesson = 1;
+   struct Square     squares[MAX_LINES];
+   int        num_squares    = 0;
+   char       explanation[MAX_LINES * MAX_LEN];
+   struct status_line status;
+   bool       pending_clear  = false;
 } state;
 
 static void clear_status(void)
 {
-   state.msg[0] = '\0';
+   state.num_squares  = 0;
    state.explanation[0] = '\0';
+
+   state.status.slowest = 0;
 }
 
 static void quit_lesson(void)
@@ -41,16 +59,48 @@ static void reload_lesson(void)
    clear_status();
 }
 
+static int count_lessons(void)
+{
+   // Count contiguous seq/1.png, seq/2.png, ... with no gaps.
+   int n = 0;
+   for (;;) {
+      char path[64];
+      snprintf(path, sizeof(path), "seq/%d.png", n + 1);
+      if (access(path, F_OK) != 0)
+         break;
+      n++;
+   }
+   if (n == 0)
+      return 0;
+
+   // Check for gaps: any file beyond n that exists is a gap.
+   for (int i = 1; i <= n + 8; i++) {  // check a few past the end
+      char path[64];
+      snprintf(path, sizeof(path), "seq/%d.png", i);
+      bool exists = (access(path, F_OK) == 0);
+      bool expected = (i <= n);
+      if (exists && !expected) {
+         fprintf(stderr, "ERROR: gap in lesson files: seq/%d.png missing but seq/%d.png exists\n", n + 1, i);
+         exit(1);
+      }
+   }
+   return n;
+}
+
 static void next_lesson(void)
 {
-   state.current_lesson++;
+   int total = count_lessons();
+   if (total < 1) return;
+   state.current_lesson = (state.current_lesson % total) + 1;
    printf("LOAD_LESSON %d\n", state.current_lesson);
    clear_status();
 }
 
 static void prev_lesson(void)
 {
-   state.current_lesson--;
+   int total = count_lessons();
+   if (total < 1) return;
+   state.current_lesson = ((state.current_lesson - 2 + total) % total) + 1;
    printf("LOAD_LESSON %d\n", state.current_lesson);
    clear_status();
 }
@@ -78,78 +128,103 @@ static void key_callback(GLFWwindow* window, int key, int scancode, int action, 
    }
 }
 
-static void check_load_lesson(const char *buf)
-{
-   // Check for prefix
-   const char *prefix = "LOAD_LESSON ";
-   size_t prefix_len = strlen(prefix);
 
-   if (strncmp(buf, prefix, prefix_len) != 0)
-      return; // Not found
-
-   // Parse the integer after the prefix
-   const char *num_str = buf + prefix_len;
-   char *endptr = NULL;
-   long n = strtol(num_str, &endptr, 10);
-
-   // Validate: must have consumed at least one digit
-   if (endptr == num_str)
-      return; // no number found
-
-   // Assign to state
-   state.current_lesson = (int)n;
-   clear_status();
-}
-
-static void check_msg(const char *buf)
-{
-   const char *found = strstr(buf, "MSG ");
-   if (found) {
-      const char *src = found + 4;
-      strncpy(state.msg, src, MAX_LEN - 1);
-      state.msg[MAX_LEN - 1] = '\0';
-
-      // Strip trailing newline to prevent layout issues
-      size_t len = strlen(state.msg);
-      if (len > 0 && state.msg[len - 1] == '\n') {
-         state.msg[len - 1] = '\0';
-      }
-   }
-}
 
 static void check_result(const char *buf)
 {
-   if (!strstr(buf, "FAIL"))
-      return;
-
+   // RESULT <id> TIME:<t> <OK|FAIL> [error message]
    int id;
    if (sscanf(buf, "RESULT %d", &id) != 1)
       return;
 
-   const char *p = strstr(buf, "FAIL");
-   if (!p)
+   bool ok = (strstr(buf, " OK") != NULL || strstr(buf, "\tOK") != NULL ||
+              strstr(buf, "mOK") != NULL);
+
+   if (state.num_squares < MAX_LINES) {
+      if (state.pending_clear) {
+         state.num_squares    = 0;
+         state.explanation[0] = '\0';
+         state.pending_clear  = false;
+      }
+      state.squares[state.num_squares].ok = ok;
+      state.num_squares++;
+   }
+
+   if (!ok) {
+      // Append "id\terror message\n" to explanation
+      const char *fail = strstr(buf, "FAIL");
+      const char *msg = fail ? strchr(fail, ' ') : NULL;
+      if (msg) {
+         msg++; // skip space after FAIL
+         size_t len = strlen(state.explanation);
+         snprintf(state.explanation + len, sizeof(state.explanation) - len - 1,
+                  "%d\t%s", id, msg);
+         // msg already ends with \n from fgets
+      }
+   }
+
+   if (state.num_squares == 1)
+      state.status.slowest = 0;
+}
+
+static void check_score(const char *buf)
+{
+   // SCORE time=<t> accuracy=<n> slowest=<s.ss> ...
+   if (strncmp(buf, "SCORE", 5) != 0)
       return;
 
-   const char *msg = strchr(p, ' ');
-   if (!msg)
+   const char *p;
+   p = strstr(buf, "accuracy=");
+   if (p) sscanf(p, "accuracy=%f", &state.status.acc);
+
+   p = strstr(buf, "slowest=");
+   if (p) sscanf(p, "slowest=%f", &state.status.slowest);
+}
+
+static void check_stats(const char *buf)
+{
+   // STATS time=<t> total_today=<n.nn> goal=<n.nn> streak=<n> ...
+   if (strncmp(buf, "STATS", 5) != 0)
       return;
 
-   msg++;   /* skip space after FAIL */
+   float total = 0.0f, goal = 0.0f;
+   const char *p;
 
-   size_t len = strlen(state.explanation);
-   size_t remaining = sizeof(state.explanation) - len - 1;
-   if (!remaining)
+   p = strstr(buf, "total_today=");
+   if (p) sscanf(p, "total_today=%f", &total);
+
+   p = strstr(buf, "goal=");
+   if (p) sscanf(p, "goal=%f", &goal);
+
+   p = strstr(buf, "streak=");
+   if (p) sscanf(p, "streak=%d", &state.status.streak);
+
+   state.status.pts      = (int)(total + 0.5f);
+   state.status.goal_met = (total >= goal && goal > 0.0f);
+
+   // Trigger the next repetition of this lesson. We emit the command here,
+   // immediately after parsing, without touching display state — squares,
+   // explanation and status remain visible until the backend responds with
+   // a LESSON line, which is when parse_lesson() clears them.
+   printf("LOAD_LESSON %d\n", state.current_lesson);
+   fflush(stdout);
+   state.pending_clear = true;
+}
+
+static void parse_lesson(const char *buf)
+{
+   if (strncmp(buf, "LESSON", 6) != 0)
       return;
 
-   snprintf(state.explanation + len, remaining,
-         "%d\t%s\n", id, msg);
+   clear_status();
 }
 
 static void parse_line(const char *buf)
 {
-   check_load_lesson(buf);
-   check_msg(buf);
+   parse_lesson(buf);
    check_result(buf);
+   check_score(buf);
+   check_stats(buf);
 }
 
 static int LoadImage(const char* fname, GLuint* img, int* w, int* h)
@@ -204,9 +279,7 @@ static void show_music(void)
       snprintf(filename, sizeof(filename), "seq/%d.png", state.current_lesson);
       if (LoadImage(filename, &img, &iw, &ih))
          return;
-
       img_disp = state.current_lesson;
-      clear_status();
    }
 
    ImGui::Image((ImTextureID)(intptr_t)img, ImVec2(iw, ih));
@@ -244,95 +317,51 @@ static void DrawSquare(ImDrawList* draw_list, ImVec2 pos, float sz, ImU32 col, i
     ImGui::Dummy(ImVec2(width, height));
 }
 
-static void TextAnsi(const char* text)
+static void show_squares(void)
 {
-    ImDrawList* draw_list = ImGui::GetWindowDrawList();
-    ImVec4 color = ImGui::GetStyle().Colors[ImGuiCol_Text];
-    const char* p = text;
-    int square_count = 0;
+   if (state.num_squares == 0)
+      return;
 
-    while (*p != '\0') {
-        if (*p == '\x1B') {
-            p++;
-            if (*p == '[') {
-                p++;
-                int code = 0;
-                while (isdigit(*p)) { code = code * 10 + (*p - '0'); p++; }
-                if (code == 32)      color = ImVec4(0.0f, 1.0f, 0.0f, 1.0f);
-                else if (code == 31) color = ImVec4(1.0f, 0.0f, 0.0f, 1.0f);
-                else if (code == 0)  color = ImGui::GetStyle().Colors[ImGuiCol_Text];
-                while (*p != '\0' && !isalpha(*p)) p++;
-                if (*p != '\0') p++;
-            }
-        }
-        // Detect UTF-8 ■ (\xE2\x96\xA0) or □ (\xE2\x96\xA1)
-        else if ((unsigned char)p[0] == 0xE2 && (unsigned char)p[1] == 0x96 &&
-                ((unsigned char)p[2] == 0xA0 || (unsigned char)p[2] == 0xA1)) {
+   ImDrawList* draw_list = ImGui::GetWindowDrawList();
+   float sz = ImGui::GetFontSize() * 1.2f;
+   float square_width = sz * 1.4f + 2.0f;
 
-            bool filled = ((unsigned char)p[2] == 0xA0);
-            float sz = ImGui::GetFontSize();
-            float square_width = sz * 1.4f + 2.0f; // match DrawSquare width + SameLine spacing
+   float window_x    = ImGui::GetWindowPos().x;
+   float window_w    = ImGui::GetWindowWidth();
 
-            // Wrap to next line if the next square would exceed the window width
-            float window_x = ImGui::GetWindowPos().x;
-            float window_w = ImGui::GetWindowWidth();
-            float cursor_x = ImGui::GetCursorScreenPos().x;
-            if (cursor_x + square_width > window_x + window_w) {
-                ImGui::NewLine();
-            }
+   for (int i = 0; i < state.num_squares; i++) {
+      // Wrap to next line if this square would overflow
+      float cursor_x = ImGui::GetCursorScreenPos().x;
+      if (cursor_x + square_width > window_x + window_w) {
+         ImGui::NewLine();
+      }
 
-            DrawSquare(draw_list, ImGui::GetCursorScreenPos(), 1.2*sz,
-                       ImGui::ColorConvertFloat4ToU32(color), square_count++, filled);
+      ImU32 col = state.squares[i].ok
+         ? IM_COL32(0, 220, 80, 255)    // green
+         : IM_COL32(220, 50, 50, 255);  // red
 
-            ImGui::SameLine(0, 2.0f); // Small spacing between consecutive boxes
-            p += 3;
-        }
-        else {
-            const char* next = p + 1;
-            while (*next != '\0' && *next != '\x1B' && (unsigned char)*next != 0xE2) next++;
+      DrawSquare(draw_list, ImGui::GetCursorScreenPos(), sz, col, i, true);
+      ImGui::SameLine(0, 2.0f);
+   }
+   ImGui::NewLine();
+}
 
-            // Word-wrap: split the segment if it would overflow the window
-            float window_x = ImGui::GetWindowPos().x;
-            float window_w = ImGui::GetWindowContentRegionMax().x;
-            const char* seg = p;
-            while (seg < next) {
-                float cursor_x = ImGui::GetCursorScreenPos().x - window_x;
-                float remaining_w = window_w - cursor_x;
 
-                int seg_len = (int)(next - seg);
-                ImVec2 text_size = ImGui::CalcTextSize(seg, seg + seg_len);
-                if (text_size.x > remaining_w && remaining_w < window_w) {
-                    // Binary search for how many chars fit
-                    int lo = 0, hi = seg_len;
-                    while (lo < hi) {
-                        int mid = (lo + hi + 1) / 2;
-                        if (ImGui::CalcTextSize(seg, seg + mid).x <= remaining_w)
-                            lo = mid;
-                        else
-                            hi = mid - 1;
-                    }
-                    // Try to break at a space boundary
-                    int break_at = lo;
-                    if (break_at < seg_len) {
-                        int space = break_at;
-                        while (space > 0 && seg[space] != ' ') space--;
-                        if (space > 0) break_at = space + 1;
-                    }
-                    if (break_at == 0) break_at = lo > 0 ? lo : 1; // avoid infinite loop
+static void show_status_line(void)
+{
+   const status_line &s = state.status;
 
-                    ImGui::TextColored(color, "%.*s", break_at, seg);
-                    ImGui::NewLine();
-                    seg += break_at;
-                } else {
-                    ImGui::TextColored(color, "%.*s", seg_len, seg);
-                    if (*next != '\0' && *next != '\n') ImGui::SameLine(0, 0);
-                    seg = next;
-                }
-            }
-            p = next;
-        }
-    }
-    ImGui::NewLine();
+   ImGui::SameLine();
+   if (s.goal_met)
+      ImGui::TextColored(ImVec4(0.0f, 1.0f, 0.4f, 1.0f),
+                         "| %g%% %.1fs  pts=%d  streak=%d",
+                         s.acc, s.slowest, s.pts, s.streak);
+   else if (s.slowest != 0)
+      ImGui::Text("%d | pts=%d | %g%% %.1fs",
+               state.current_lesson, s.pts, s.acc, s.slowest);
+   else
+      ImGui::Text("%d | pts=%d",
+               state.current_lesson, s.pts);
 }
 
 static void gui_main(void)
@@ -353,10 +382,12 @@ static void gui_main(void)
    if (ImGui::Button("[N]ext"))
       next_lesson();
 
+   show_status_line();
    show_music();
+   show_squares();
 
-   TextAnsi(state.msg);
-   ImGui::TextUnformatted(state.explanation);
+   if (state.explanation[0] != '\0')
+      ImGui::TextUnformatted(state.explanation);
 }
 
 int main(int, char**)

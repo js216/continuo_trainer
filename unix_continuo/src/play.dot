@@ -12,22 +12,11 @@ bin/load          -> lua src/score.lua;
 lua src/rules.lua -> lua src/score.lua;
 lua src/score.lua -> lua src/stats.lua log/stats.log;
 
-// auto-reload
-lua src/score.lua -> lua src/sched.lua;
-lua src/stats.lua log/stats.log -> lua src/sched.lua;
-lua src/sched.lua -> bin/load;
-
-// text user interface
-bin/load -> lua src/tui.lua;
-lua src/rules.lua -> lua src/tui.lua;
-lua src/score.lua -> lua src/tui.lua;
-lua src/stats.lua log/stats.log -> lua src/tui.lua;
-
 // GUI
 STDIN -> sed "s/^/LOAD_LESSON /" -> bin/gui;
 lua src/rules.lua -> bin/gui;
-lua src/sched.lua -> bin/gui;
-lua src/tui.lua -> bin/gui;
+lua src/score.lua -> bin/gui;
+lua src/stats.lua log/stats.log -> bin/gui;
 bin/gui -> bin/load;
 
 // logging
@@ -36,7 +25,6 @@ bin/midi          -> tee -a log/midi_notes.log;
 bin/group         -> tee -a log/group.log;
 lua src/rules.lua -> tee -a log/rules.log;
 lua src/score.lua -> tee -a log/score.log;
-lua src/sched.lua -> tee -a log/sched.log;
 
 // debug prints
 //bin/midi -> STDOUT;
@@ -44,6 +32,5 @@ lua src/sched.lua -> tee -a log/sched.log;
 //bin/group -> STDOUT;
 //lua src/rules.lua -> STDOUT;
 //lua src/score.lua -> STDOUT;
-//lua src/sched.lua -> STDOUT;
 //lua src/stats.lua log/stats.log -> STDOUT;
-//lua src/tui.lua -> STDOUT;
+//bin/gui -> STDOUT;
