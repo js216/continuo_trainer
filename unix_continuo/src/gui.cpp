@@ -358,20 +358,20 @@ static void show_status_line(void)
    if (s.goal_met) {
       if (s.slowest != 0)
       snprintf(text_buf, sizeof(text_buf),
-               "%d | %d pts | streak: %d | %g%% %.1fs",
-               state.current_lesson, s.pts, s.streak, s.acc, s.slowest);
+               "L%d: %g%% %.1fs | %d pts | streak: %d",
+               state.current_lesson, s.acc, s.slowest, s.pts, s.streak);
       else
       snprintf(text_buf, sizeof(text_buf),
-               "%d | %d pts | streak: %d",
+               "L%d | %d pts | streak: %d",
                state.current_lesson, s.pts, s.streak);
    } else {
       if (s.slowest != 0)
          snprintf(text_buf, sizeof(text_buf),
-               "%d | %d pts | %g%% %.1fs",
-               state.current_lesson, s.pts, s.acc, s.slowest);
+               "L%d: %g%% %.1fs | %d pts",
+               state.current_lesson, s.acc, s.slowest, s.pts);
       else
          snprintf(text_buf, sizeof(text_buf),
-               "%d | %d pts",
+               "L%d | %d pts",
                state.current_lesson, s.pts);
    }
 
