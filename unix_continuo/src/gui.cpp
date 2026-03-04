@@ -37,6 +37,7 @@ struct state {
    char       explanation[MAX_LINES * MAX_LEN];
    struct status_line status;
    bool       pending_clear  = false;
+   int image_width = 0;
 } state;
 
 static void clear_status(void)
@@ -282,6 +283,7 @@ static void show_music(void)
       img_disp = state.current_lesson;
    }
 
+   state.image_width = iw;
    ImGui::Image((ImTextureID)(intptr_t)img, ImVec2(iw, ih));
 }
 
@@ -351,17 +353,50 @@ static void show_status_line(void)
 {
    const status_line &s = state.status;
 
-   ImGui::SameLine();
-   if (s.goal_met)
-      ImGui::TextColored(ImVec4(0.0f, 1.0f, 0.4f, 1.0f),
-                         "| %g%% %.1fs  pts=%d  streak=%d",
-                         s.acc, s.slowest, s.pts, s.streak);
-   else if (s.slowest != 0)
-      ImGui::Text("%d | pts=%d | %g%% %.1fs",
+   // Build the text first so we can measure it.
+   char text_buf[128];
+   if (s.goal_met) {
+      if (s.slowest != 0)
+      snprintf(text_buf, sizeof(text_buf),
+               "%d | %d pts | streak: %d | %g%% %.1fs",
+               state.current_lesson, s.pts, s.streak, s.acc, s.slowest);
+      else
+      snprintf(text_buf, sizeof(text_buf),
+               "%d | %d pts | streak: %d",
+               state.current_lesson, s.pts, s.streak);
+   } else {
+      if (s.slowest != 0)
+         snprintf(text_buf, sizeof(text_buf),
+               "%d | %d pts | %g%% %.1fs",
                state.current_lesson, s.pts, s.acc, s.slowest);
-   else
-      ImGui::Text("%d | pts=%d",
+      else
+         snprintf(text_buf, sizeof(text_buf),
+               "%d | %d pts",
                state.current_lesson, s.pts);
+   }
+
+   float text_w = ImGui::CalcTextSize(text_buf).x;
+
+   // Ideal position: right edge of text aligns with right edge of the image.
+   // The image is rendered at the window's content origin (x = window_x + padding),
+   // so its right edge is at that same x plus state.image_width.
+   float content_x  = ImGui::GetWindowPos().x + ImGui::GetWindowContentRegionMin().x;
+   float right_edge = content_x + (float)state.image_width;
+   float ideal_x    = right_edge - text_w;
+
+   // Fallback position: just after the buttons (current cursor after SameLine).
+   ImGui::SameLine();
+   float after_buttons_x = ImGui::GetCursorScreenPos().x;
+
+   // Use whichever is further right (i.e. don't collide into buttons).
+   float text_x = (ideal_x > after_buttons_x) ? ideal_x : after_buttons_x;
+
+   ImGui::SetCursorScreenPos(ImVec2(text_x, ImGui::GetCursorScreenPos().y));
+
+   if (s.goal_met)
+      ImGui::TextColored(ImVec4(0.0f, 1.0f, 0.4f, 1.0f), "%s", text_buf);
+   else
+      ImGui::TextUnformatted(text_buf);
 }
 
 static void gui_main(void)
