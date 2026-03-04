@@ -179,6 +179,25 @@ end
 local stats = load_stats(stats_file)
 
 for line in io.lines() do
+	if line:match("^QUERY_STATS") then
+		local today = get_date_str()
+		local today_data = stats.daily[today]
+		local total_today = today_data and today_data.score or 0
+		local total_dur_today = today_data and today_data.duration or 0
+		local streak = calculate_streak(stats)
+
+		print(
+			string.format(
+				"STATS time=%d total_today=%.2f goal=%.2f total_duration_today=%.3f streak=%d",
+				os.time(),
+				total_today,
+				stats.score_goal,
+				total_dur_today,
+				streak
+			)
+		)
+	end
+
 	local time, l_id, acc, score, dur =
 		line:match("SCORE time=(%S+) lesson=(%S+) accuracy=(%S+) score=(%S+) duration=(%S+)")
 

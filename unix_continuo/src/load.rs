@@ -72,7 +72,7 @@
 //         MELODY   i: <tokens|-|>
 //
 // DIAGNOSTICS AND EXIT STATUS
-//     On any error (unreadable file, unknown command, bass/figures length
+//     On any error (unreadable file, bass/figures length
 //     mismatch, stdin read failure) a red-highlighted message is written
 //     to standard error and the program exits with code 1.  On clean
 //     termination (EOF or QUIT) it exits with code 0.
@@ -334,7 +334,7 @@ fn main() {
                 None => die!("LOAD_LESSON requires a valid lesson number"),
             },
             Some("QUIT") => break,
-            Some(cmd) => die!("Unknown command: {}", cmd),
+            Some(..) => continue, // ignore all other cmds
         }
     }
 }

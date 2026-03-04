@@ -2,8 +2,6 @@
 // play.dot --- continuo trainer implemented as program graph
 // Copyright (c) 2026 Jakob Kastelic
 
-STDIN -> sed "s/^/LOAD_LESSON /" -> bin/load;
-
 // main app logic
 bin/load          -> bin/group;
 bin/midi          -> bin/group;
@@ -13,11 +11,11 @@ lua src/rules.lua -> lua src/score.lua;
 lua src/score.lua -> lua src/stats.lua log/stats.log;
 
 // GUI
-STDIN -> sed "s/^/LOAD_LESSON /" -> bin/gui;
 lua src/rules.lua -> bin/gui;
 lua src/score.lua -> bin/gui;
 lua src/stats.lua log/stats.log -> bin/gui;
 bin/gui -> bin/load;
+bin/gui -> lua src/stats.lua log/stats.log;
 
 // logging
 bin/load          -> tee -a log/load.log;

@@ -466,6 +466,7 @@ int main(int, char**)
    fcntl(STDIN_FILENO, F_SETFL, fcntl(STDIN_FILENO, F_GETFL) | O_NONBLOCK);
 
    reload_lesson();
+   printf("QUERY_STATS\n");
 
    // Main loop
    while (!glfwWindowShouldClose(win) && state.running) {
