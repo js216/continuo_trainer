@@ -98,6 +98,7 @@ static void check_load_lesson(const char *buf)
 
    // Assign to state
    state.current_lesson = (int)n;
+   clear_status();
 }
 
 static void check_msg(const char *buf)
@@ -211,57 +212,127 @@ static void show_music(void)
    ImGui::Image((ImTextureID)(intptr_t)img, ImVec2(iw, ih));
 }
 
+static void DrawSquare(ImDrawList* draw_list, ImVec2 pos, float sz, ImU32 col, int index, bool filled)
+{
+    // Increase width slightly to comfortably fit two digits (e.g., "99")
+    float width = sz * 1.4f;
+    float height = sz;
+
+    ImVec2 a = ImVec2(pos.x + 1, pos.y + 1);
+    ImVec2 b = ImVec2(pos.x + width - 1, pos.y + height - 1);
+
+    if (filled) {
+        draw_list->AddRectFilled(a, b, col, 2.0f); // Slight rounding for style
+    } else {
+        draw_list->AddRect(a, b, col, 2.0f, 0, 1.5f);
+    }
+
+    char buf[12];
+    snprintf(buf, sizeof(buf), "%d", index);
+
+    ImVec2 text_size = ImGui::CalcTextSize(buf);
+    ImVec2 text_pos = ImVec2(
+        a.x + ((b.x - a.x) - text_size.x) * 0.5f,
+        a.y + ((b.y - a.y) - text_size.y) * 0.5f
+    );
+
+    // Black text for filled squares, themed color for unfilled
+    ImU32 text_col = filled ? IM_COL32(0, 0, 0, 255) : col;
+    draw_list->AddText(text_pos, text_col, buf);
+
+    // Advance cursor by the custom width
+    ImGui::Dummy(ImVec2(width, height));
+}
+
 static void TextAnsi(const char* text)
 {
-   ImDrawList* draw_list = ImGui::GetWindowDrawList();
-   ImVec4 color = ImGui::GetStyle().Colors[ImGuiCol_Text];
-   const char* p = text;
+    ImDrawList* draw_list = ImGui::GetWindowDrawList();
+    ImVec4 color = ImGui::GetStyle().Colors[ImGuiCol_Text];
+    const char* p = text;
+    int square_count = 0;
 
-   while (*p != '\0') {
-      if (*p == '\x1B') { // Handle ANSI Colors
-         p++;
-         if (*p == '[') {
+    while (*p != '\0') {
+        if (*p == '\x1B') {
             p++;
-            int code = 0;
-            while (isdigit(*p)) { code = code * 10 + (*p - '0'); p++; }
-            if (code == 32)      color = ImVec4(0.0f, 1.0f, 0.0f, 1.0f);
-            else if (code == 31) color = ImVec4(1.0f, 0.0f, 0.0f, 1.0f);
-            else if (code == 0)  color = ImGui::GetStyle().Colors[ImGuiCol_Text];
-            while (*p != '\0' && !isalpha(*p)) p++;
-            if (*p != '\0') p++;
-         }
-      }
-      // Detect UTF-8 ■ (\xE2\x96\xA0) or □ (\xE2\x96\xA1)
-      else if ((unsigned char)p[0] == 0xE2 && (unsigned char)p[1] == 0x96 &&
-            ((unsigned char)p[2] == 0xA0 || (unsigned char)p[2] == 0xA1)) {
+            if (*p == '[') {
+                p++;
+                int code = 0;
+                while (isdigit(*p)) { code = code * 10 + (*p - '0'); p++; }
+                if (code == 32)      color = ImVec4(0.0f, 1.0f, 0.0f, 1.0f);
+                else if (code == 31) color = ImVec4(1.0f, 0.0f, 0.0f, 1.0f);
+                else if (code == 0)  color = ImGui::GetStyle().Colors[ImGuiCol_Text];
+                while (*p != '\0' && !isalpha(*p)) p++;
+                if (*p != '\0') p++;
+            }
+        }
+        // Detect UTF-8 ■ (\xE2\x96\xA0) or □ (\xE2\x96\xA1)
+        else if ((unsigned char)p[0] == 0xE2 && (unsigned char)p[1] == 0x96 &&
+                ((unsigned char)p[2] == 0xA0 || (unsigned char)p[2] == 0xA1)) {
 
-         bool filled = ((unsigned char)p[2] == 0xA0);
-         ImVec2 pos = ImGui::GetCursorScreenPos();
-         float sz = ImGui::GetFontSize();
-         ImU32 col = ImGui::ColorConvertFloat4ToU32(color);
+            bool filled = ((unsigned char)p[2] == 0xA0);
+            float sz = ImGui::GetFontSize();
+            float square_width = sz * 1.4f + 2.0f; // match DrawSquare width + SameLine spacing
 
-         ImVec2 a = ImVec2(pos.x + 2, pos.y + 2);
-         ImVec2 b = ImVec2(pos.x + sz - 2, pos.y + sz - 2);
+            // Wrap to next line if the next square would exceed the window width
+            float window_x = ImGui::GetWindowPos().x;
+            float window_w = ImGui::GetWindowWidth();
+            float cursor_x = ImGui::GetCursorScreenPos().x;
+            if (cursor_x + square_width > window_x + window_w) {
+                ImGui::NewLine();
+            }
 
-         if (filled) draw_list->AddRectFilled(a, b, col);
-         else        draw_list->AddRect(a, b, col, 0.0f, 0, 1.5f); // 1.5f thickness
+            DrawSquare(draw_list, ImGui::GetCursorScreenPos(), 1.2*sz,
+                       ImGui::ColorConvertFloat4ToU32(color), square_count++, filled);
 
-         ImGui::Dummy(ImVec2(sz, sz));
-         ImGui::SameLine(0, 0);
-         p += 3; // Advance past 3-byte UTF-8 sequence
-      }
-      else {
-         // Print everything else until the next ESC or UTF-8 box start
-         const char* next = p + 1;
-         while (*next != '\0' && *next != '\x1B' && (unsigned char)*next != 0xE2) next++;
+            ImGui::SameLine(0, 2.0f); // Small spacing between consecutive boxes
+            p += 3;
+        }
+        else {
+            const char* next = p + 1;
+            while (*next != '\0' && *next != '\x1B' && (unsigned char)*next != 0xE2) next++;
 
-         int len = (int)(next - p);
-         ImGui::TextColored(color, "%.*s", len, p);
-         if (*next != '\0' && *next != '\n') ImGui::SameLine(0, 0);
-         p = next;
-      }
-   }
-   ImGui::NewLine();
+            // Word-wrap: split the segment if it would overflow the window
+            float window_x = ImGui::GetWindowPos().x;
+            float window_w = ImGui::GetWindowContentRegionMax().x;
+            const char* seg = p;
+            while (seg < next) {
+                float cursor_x = ImGui::GetCursorScreenPos().x - window_x;
+                float remaining_w = window_w - cursor_x;
+
+                int seg_len = (int)(next - seg);
+                ImVec2 text_size = ImGui::CalcTextSize(seg, seg + seg_len);
+                if (text_size.x > remaining_w && remaining_w < window_w) {
+                    // Binary search for how many chars fit
+                    int lo = 0, hi = seg_len;
+                    while (lo < hi) {
+                        int mid = (lo + hi + 1) / 2;
+                        if (ImGui::CalcTextSize(seg, seg + mid).x <= remaining_w)
+                            lo = mid;
+                        else
+                            hi = mid - 1;
+                    }
+                    // Try to break at a space boundary
+                    int break_at = lo;
+                    if (break_at < seg_len) {
+                        int space = break_at;
+                        while (space > 0 && seg[space] != ' ') space--;
+                        if (space > 0) break_at = space + 1;
+                    }
+                    if (break_at == 0) break_at = lo > 0 ? lo : 1; // avoid infinite loop
+
+                    ImGui::TextColored(color, "%.*s", break_at, seg);
+                    ImGui::NewLine();
+                    seg += break_at;
+                } else {
+                    ImGui::TextColored(color, "%.*s", seg_len, seg);
+                    if (*next != '\0' && *next != '\n') ImGui::SameLine(0, 0);
+                    seg = next;
+                }
+            }
+            p = next;
+        }
+    }
+    ImGui::NewLine();
 }
 
 static void gui_main(void)
@@ -327,6 +398,8 @@ int main(int, char**)
 
    // Non-blocking stdin
    fcntl(STDIN_FILENO, F_SETFL, fcntl(STDIN_FILENO, F_GETFL) | O_NONBLOCK);
+
+   reload_lesson();
 
    // Main loop
    while (!glfwWindowShouldClose(win) && state.running) {
