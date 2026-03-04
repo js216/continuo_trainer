@@ -25,6 +25,7 @@ lua src/stats.lua log/stats.log -> lua src/tui.lua;
 
 // GUI
 STDIN -> sed "s/^/LOAD_LESSON /" -> bin/gui;
+lua src/rules.lua -> bin/gui;
 lua src/sched.lua -> bin/gui;
 lua src/tui.lua -> bin/gui;
 bin/gui -> bin/load;

@@ -14,37 +14,45 @@
 #include "stb_image.h"
 
 #define MAX_LEN 1024
+#define MAX_LINES 1024
 
 struct state {
    bool running = true;
-   int current_lesson = 0;
+   int current_lesson = 1;
    char msg[MAX_LEN];
+   char explanation[MAX_LEN];
 } state;
+
+static void clear_status(void)
+{
+   state.msg[0] = '\0';
+   state.explanation[0] = '\0';
+}
 
 static void quit_lesson(void)
 {
-   state.msg[0] = '\0';
+   clear_status();
    state.running = false;
 }
 
 static void reload_lesson(void)
 {
    printf("LOAD_LESSON %d\n", state.current_lesson);
-   state.msg[0] = '\0';
+   clear_status();
 }
 
 static void next_lesson(void)
 {
    state.current_lesson++;
    printf("LOAD_LESSON %d\n", state.current_lesson);
-   state.msg[0] = '\0';
+   clear_status();
 }
 
 static void prev_lesson(void)
 {
    state.current_lesson--;
    printf("LOAD_LESSON %d\n", state.current_lesson);
-   state.msg[0] = '\0';
+   clear_status();
 }
 
 static void key_callback(GLFWwindow* window, int key, int scancode, int action, int mods)
@@ -108,10 +116,39 @@ static void check_msg(const char *buf)
    }
 }
 
+static void check_result(const char *buf)
+{
+   if (!strstr(buf, "FAIL"))
+      return;
+
+   int id;
+   if (sscanf(buf, "RESULT %d", &id) != 1)
+      return;
+
+   const char *p = strstr(buf, "FAIL");
+   if (!p)
+      return;
+
+   const char *msg = strchr(p, ' ');
+   if (!msg)
+      return;
+
+   msg++;   /* skip space after FAIL */
+
+   size_t len = strlen(state.explanation);
+   size_t remaining = sizeof(state.explanation) - len - 1;
+   if (!remaining)
+      return;
+
+   snprintf(state.explanation + len, remaining,
+         "%d\t%s\n", id, msg);
+}
+
 static void parse_line(const char *buf)
 {
    check_load_lesson(buf);
    check_msg(buf);
+   check_result(buf);
 }
 
 static int LoadImage(const char* fname, GLuint* img, int* w, int* h)
@@ -168,7 +205,7 @@ static void show_music(void)
          return;
 
       img_disp = state.current_lesson;
-      state.msg[0] = '\0';
+      clear_status();
    }
 
    ImGui::Image((ImTextureID)(intptr_t)img, ImVec2(iw, ih));
@@ -248,6 +285,7 @@ static void gui_main(void)
    show_music();
 
    TextAnsi(state.msg);
+   ImGui::TextUnformatted(state.explanation);
 }
 
 int main(int, char**)

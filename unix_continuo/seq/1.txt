@@ -8,7 +8,7 @@ bassline = {
   a2 g2p fis2
   g2 fis2p e2
   fis2 e2p d2
-  e2 fis2p fis2
+  e2 fis2 fis2
   g2 fis2p e2
 }
 
