@@ -147,7 +147,7 @@ static void handle_result(const char *buf)
 
    if (state.num_squares < MAX_LINES) {
       state.squares[state.num_squares].ok = ok;
-      state.num_squares++;
+      state.num_squares = id + 1;
    }
 
    if (state.num_squares == state.num_notes + 1) {

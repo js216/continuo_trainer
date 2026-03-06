@@ -192,25 +192,17 @@ local function rem_euclid(a, b)
 end
 
 local function signum(x)
-	if x > 0 then
-		return 1
-	elseif x < 0 then
-		return -1
-	else
-		return 0
-	end
+	if x > 0 then return 1 elseif x < 0 then return -1 else return 0 end
 end
 
 -- Format a semitone value as a LilyPond-style pitch string with octave marks.
 local function pitch_name(semitone)
 	local NOTE_NAMES = { "c", "cis", "d", "dis", "e", "f", "fis", "g", "gis", "a", "ais", "b" }
 	local pc = semitone % 12
-	if pc < 0 then
-		pc = pc + 12
-	end
+	if pc < 0 then pc = pc + 12 end
 	local name = NOTE_NAMES[pc + 1] or "?"
 	-- c' = 60; each 12 semitones is one octave mark
-	local octave = math.floor(semitone / 12) - 4 -- relative to c' octave
+	local octave = math.floor(semitone / 12) - 4  -- relative to c' octave
 	local marks = ""
 	if octave >= 0 then
 		marks = string.rep("'", octave + 1)
@@ -423,14 +415,8 @@ end
 
 -- Format a parallel-motion violation as "(p_i, p_j) -> (c_i, c_j)".
 local function parallel_msg(kind, p_i, p_j, c_i, c_j)
-	return string.format(
-		"Parallel %s: (%s, %s) -> (%s, %s)",
-		kind,
-		pitch_name(p_i),
-		pitch_name(p_j),
-		pitch_name(c_i),
-		pitch_name(c_j)
-	)
+	return string.format("Parallel %s: (%s, %s) -> (%s, %s)",
+		kind, pitch_name(p_i), pitch_name(p_j), pitch_name(c_i), pitch_name(c_j))
 end
 
 -- Core detector: returns the first pair of voices moving in parallel at the
@@ -438,9 +424,7 @@ end
 local function find_parallel(p_voices, c_voices, interval)
 	for i = 1, #p_voices do
 		for j = i + 1, #p_voices do
-			if j > #c_voices then
-				goto continue
-			end
+			if j > #c_voices then goto continue end
 			local p_int = math.abs(p_voices[j] - p_voices[i]) % 12
 			local c_int = math.abs(c_voices[j] - c_voices[i]) % 12
 			if p_int == interval and c_int == interval then
@@ -460,22 +444,16 @@ end
 -- neither chord is a passing chord; otherwise returns nil.
 local function parallel_voices(ctx)
 	local window = ctx.window
-	if #window < 2 then
-		return nil
-	end
+	if #window < 2 then return nil end
 	local prev = window[#window - 1]
 	local curr = window[#window]
-	if curr.passing or prev.passing then
-		return nil
-	end
+	if curr.passing or prev.passing then return nil end
 	return flatten_voices(prev), flatten_voices(curr)
 end
 
 local function rule_no_parallel_fifths(ctx)
 	local p_voices, c_voices = parallel_voices(ctx)
-	if not p_voices then
-		return true, nil
-	end
+	if not p_voices then return true, nil end
 	local p_i, p_j, c_i, c_j = find_parallel(p_voices, c_voices, 7)
 	if p_i then
 		return false, parallel_msg("fifths", p_i, p_j, c_i, c_j)
@@ -485,9 +463,7 @@ end
 
 local function rule_no_parallel_octaves(ctx)
 	local p_voices, c_voices = parallel_voices(ctx)
-	if not p_voices then
-		return true, nil
-	end
+	if not p_voices then return true, nil end
 	local p_i, p_j, c_i, c_j = find_parallel(p_voices, c_voices, 0)
 	if p_i then
 		return false, parallel_msg("octaves", p_i, p_j, c_i, c_j)
@@ -771,20 +747,26 @@ local function push_window(g)
 end
 
 local function run_rules(ctx)
+	local errors = {}
 	for _, rule in ipairs(RULES) do
 		local ok, err = rule(ctx)
 		if not ok then
-			return false, err
+			errors[#errors + 1] = err
 		end
 	end
-	return true
+	if #errors == 0 then
+		return true, {}
+	end
+	return false, errors
 end
 
-local function print_result(g, ok, err)
+local function print_result(g, ok, errors)
 	if ok then
 		io.write(string.format("RESULT %d TIME:%d \27[32mOK\27[0m\n", g.id, g.time))
 	else
-		io.write(string.format("RESULT %d TIME:%d \27[31mFAIL\27[0m %s\n", g.id, g.time, err))
+		for _, err in ipairs(errors) do
+			io.write(string.format("RESULT %d TIME:%d \27[31mFAIL\27[0m %s\n", g.id, g.time, err))
+		end
 	end
 end
 
