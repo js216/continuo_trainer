@@ -433,21 +433,22 @@ local function parallel_msg(kind, p_i, p_j, c_i, c_j)
 	)
 end
 
--- Core detector: returns the first pair of voices moving in parallel at the
--- given interval (mod 12).  Returns p_i, p_j, c_i, c_j or nil.
+-- Core detector: returns the voice indices and semitones of the first pair
+-- moving in parallel at the given interval (mod 12).
+-- Returns vi, vj, p_i, p_j, c_i, c_j or nil.
 local function find_parallel(p_voices, c_voices, interval)
-	for i = 1, #p_voices do
-		for j = i + 1, #p_voices do
-			if j > #c_voices then
+	for vi = 1, #p_voices do
+		for vj = vi + 1, #p_voices do
+			if vj > #c_voices then
 				goto continue
 			end
-			local p_int = math.abs(p_voices[j] - p_voices[i]) % 12
-			local c_int = math.abs(c_voices[j] - c_voices[i]) % 12
+			local p_int = math.abs(p_voices[vj] - p_voices[vi]) % 12
+			local c_int = math.abs(c_voices[vj] - c_voices[vi]) % 12
 			if p_int == interval and c_int == interval then
-				local motion_i = c_voices[i] - p_voices[i]
-				local motion_j = c_voices[j] - p_voices[j]
+				local motion_i = c_voices[vi] - p_voices[vi]
+				local motion_j = c_voices[vj] - p_voices[vj]
 				if signum(motion_i) == signum(motion_j) and motion_i ~= 0 then
-					return p_voices[i], p_voices[j], c_voices[i], c_voices[j]
+					return vi, vj, p_voices[vi], p_voices[vj], c_voices[vi], c_voices[vj]
 				end
 			end
 			::continue::
@@ -476,7 +477,7 @@ local function rule_no_parallel_fifths(ctx)
 	if not p_voices then
 		return true, nil
 	end
-	local p_i, p_j, c_i, c_j = find_parallel(p_voices, c_voices, 7)
+	local _, _, p_i, p_j, c_i, c_j = find_parallel(p_voices, c_voices, 7)
 	if p_i then
 		return false, parallel_msg("fifths", p_i, p_j, c_i, c_j)
 	end
@@ -488,8 +489,10 @@ local function rule_no_parallel_octaves(ctx)
 	if not p_voices then
 		return true, nil
 	end
-	local p_i, p_j, c_i, c_j = find_parallel(p_voices, c_voices, 0)
-	if p_i then
+	local melody_idx = #p_voices -- melody is always the last voice
+	local vi, vj, p_i, p_j, c_i, c_j = find_parallel(p_voices, c_voices, 0)
+	-- parallels involving the melody are permitted in continuo style
+	if p_i and vi ~= melody_idx and vj ~= melody_idx then
 		return false, parallel_msg("octaves", p_i, p_j, c_i, c_j)
 	end
 	return true, nil
