@@ -191,6 +191,54 @@ local function rem_euclid(a, b)
 	return r
 end
 
+local function signum(x)
+	if x > 0 then
+		return 1
+	elseif x < 0 then
+		return -1
+	else
+		return 0
+	end
+end
+
+-- Format a semitone value as a LilyPond-style pitch string with octave marks.
+local function pitch_name(semitone)
+	local NOTE_NAMES = { "c", "cis", "d", "dis", "e", "f", "fis", "g", "gis", "a", "ais", "b" }
+	local pc = semitone % 12
+	if pc < 0 then
+		pc = pc + 12
+	end
+	local name = NOTE_NAMES[pc + 1] or "?"
+	-- c' = 60; each 12 semitones is one octave mark
+	local octave = math.floor(semitone / 12) - 4 -- relative to c' octave
+	local marks = ""
+	if octave >= 0 then
+		marks = string.rep("'", octave + 1)
+	else
+		marks = string.rep(",", -octave - 1)
+	end
+	return name .. marks
+end
+
+-- Collapse inner voices that duplicate the bass or melody pitch-class, then
+-- append the melody.  The result is an ordered voice list: bass, inner..., melody.
+local function flatten_voices(g)
+	local voices = { g.bass }
+	local mel = g.melody[1]
+	local b_pc = g.bass % 12
+	local m_pc = mel and (mel % 12) or nil
+	for _, n in ipairs(g.inner) do
+		local n_pc = n % 12
+		if n_pc ~= m_pc and n_pc ~= b_pc then
+			voices[#voices + 1] = n
+		end
+	end
+	if mel then
+		voices[#voices + 1] = mel
+	end
+	return voices
+end
+
 -- ---------------------------------------------------------------------------
 -- Key signature parsing
 -- ---------------------------------------------------------------------------
@@ -373,65 +421,76 @@ end
 -- Rules
 -- ---------------------------------------------------------------------------
 
-local function rule_no_parallels(ctx)
-	local window = ctx.window
-	if #window < 2 then
-		return true, nil
-	end
-	local prev = window[#window - 1]
-	local curr = window[#window]
-	if curr.passing or prev.passing then
-		return true, nil
-	end
+-- Format a parallel-motion violation as "(p_i, p_j) -> (c_i, c_j)".
+local function parallel_msg(kind, p_i, p_j, c_i, c_j)
+	return string.format(
+		"Parallel %s: (%s, %s) -> (%s, %s)",
+		kind,
+		pitch_name(p_i),
+		pitch_name(p_j),
+		pitch_name(c_i),
+		pitch_name(c_j)
+	)
+end
 
-	local function flatten(g)
-		local v = { g.bass }
-		local mel = g.melody[1]
-		local b_pc = g.bass % 12
-		local m_pc = mel and (mel % 12) or nil
-
-		for _, n in ipairs(g.inner) do
-			local n_pc = n % 12
-			if n_pc ~= m_pc and n_pc ~= b_pc then
-				v[#v + 1] = n
-			end
-		end
-		if mel then
-			v[#v + 1] = mel
-		end
-		return v
-	end
-
-	local p_voices = flatten(prev)
-	local c_voices = flatten(curr)
-
+-- Core detector: returns the first pair of voices moving in parallel at the
+-- given interval (mod 12).  Returns p_i, p_j, c_i, c_j or nil.
+local function find_parallel(p_voices, c_voices, interval)
 	for i = 1, #p_voices do
 		for j = i + 1, #p_voices do
-			if j > #c_voices or j > #p_voices then
+			if j > #c_voices then
 				goto continue
 			end
-
 			local p_int = math.abs(p_voices[j] - p_voices[i]) % 12
 			local c_int = math.abs(c_voices[j] - c_voices[i]) % 12
-
-			if (p_int == 7 and c_int == 7) or (p_int == 0 and c_int == 0) then
+			if p_int == interval and c_int == interval then
 				local motion_i = c_voices[i] - p_voices[i]
 				local motion_j = c_voices[j] - p_voices[j]
-				local function signum(x)
-					if x > 0 then
-						return 1
-					elseif x < 0 then
-						return -1
-					else
-						return 0
-					end
-				end
 				if signum(motion_i) == signum(motion_j) and motion_i ~= 0 then
-					return false, string.format("Parallel fifths/octaves between voice %d and %d", i - 1, j - 1)
+					return p_voices[i], p_voices[j], c_voices[i], c_voices[j]
 				end
 			end
 			::continue::
 		end
+	end
+	return nil
+end
+
+-- Shared guard: returns p_voices, c_voices when the window is ready and
+-- neither chord is a passing chord; otherwise returns nil.
+local function parallel_voices(ctx)
+	local window = ctx.window
+	if #window < 2 then
+		return nil
+	end
+	local prev = window[#window - 1]
+	local curr = window[#window]
+	if curr.passing or prev.passing then
+		return nil
+	end
+	return flatten_voices(prev), flatten_voices(curr)
+end
+
+local function rule_no_parallel_fifths(ctx)
+	local p_voices, c_voices = parallel_voices(ctx)
+	if not p_voices then
+		return true, nil
+	end
+	local p_i, p_j, c_i, c_j = find_parallel(p_voices, c_voices, 7)
+	if p_i then
+		return false, parallel_msg("fifths", p_i, p_j, c_i, c_j)
+	end
+	return true, nil
+end
+
+local function rule_no_parallel_octaves(ctx)
+	local p_voices, c_voices = parallel_voices(ctx)
+	if not p_voices then
+		return true, nil
+	end
+	local p_i, p_j, c_i, c_j = find_parallel(p_voices, c_voices, 0)
+	if p_i then
+		return false, parallel_msg("octaves", p_i, p_j, c_i, c_j)
 	end
 	return true, nil
 end
@@ -575,7 +634,8 @@ local function rule_realization_complete(ctx)
 end
 
 local RULES = {
-	rule_no_parallels,
+	rule_no_parallel_fifths,
+	rule_no_parallel_octaves,
 	rule_bass_leap,
 	rule_check_realization,
 	rule_bass_in_key,
