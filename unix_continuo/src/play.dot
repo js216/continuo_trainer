@@ -11,6 +11,7 @@ lua src/rules.lua -> lua src/score.lua;
 lua src/score.lua -> lua src/stats.lua log/stats.log;
 
 // GUI
+bin/load -> bin/gui;
 lua src/rules.lua -> bin/gui;
 lua src/score.lua -> bin/gui;
 lua src/stats.lua log/stats.log -> bin/gui;
@@ -31,4 +32,4 @@ lua src/score.lua -> tee -a log/score.log;
 //lua src/rules.lua -> STDOUT;
 //lua src/score.lua -> STDOUT;
 //lua src/stats.lua log/stats.log -> STDOUT;
-//bin/gui -> STDOUT;
+bin/gui -> STDOUT;

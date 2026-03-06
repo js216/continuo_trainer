@@ -2,6 +2,7 @@
 #include "imgui_impl_glfw.h"
 #include "imgui_impl_opengl3.h"
 #include <ctype.h>
+#include <ctime>
 #include <fcntl.h>
 #include <stdio.h>
 #include <string.h>
@@ -21,9 +22,11 @@ struct Square {
 };
 
 struct status_line {
-   bool  valid    = false;
+   // current lesson
    float acc      = 0.0f;
    float slowest  = 0.0f;
+
+   // today
    int   pts      = 0;
    bool  goal_met = false;
    int   streak   = 0;
@@ -34,17 +37,17 @@ struct state {
    int        current_lesson = 1;
    struct Square     squares[MAX_LINES];
    int        num_squares    = 0;
+   int        num_notes    = 0;
    char       explanation[MAX_LINES * MAX_LEN];
    struct status_line status;
-   bool       pending_clear  = false;
    int image_width = 0;
+   bool triggered_today = false;
 } state;
 
 static void clear_status(void)
 {
    state.num_squares  = 0;
    state.explanation[0] = '\0';
-
    state.status.slowest = 0;
 }
 
@@ -129,30 +132,29 @@ static void key_callback(GLFWwindow* window, int key, int scancode, int action, 
    }
 }
 
-
-
-static void check_result(const char *buf)
+static void handle_result(const char *buf)
 {
    // RESULT <id> TIME:<t> <OK|FAIL> [error message]
    int id;
    if (sscanf(buf, "RESULT %d", &id) != 1)
       return;
 
+   if (id == 0)
+      clear_status();
+
    bool ok = (strstr(buf, " OK") != NULL || strstr(buf, "\tOK") != NULL ||
               strstr(buf, "mOK") != NULL);
 
    if (state.num_squares < MAX_LINES) {
-      if (state.pending_clear) {
-         state.num_squares    = 0;
-         state.explanation[0] = '\0';
-         state.pending_clear  = false;
-      }
       state.squares[state.num_squares].ok = ok;
       state.num_squares++;
    }
 
+   if (state.num_squares == state.num_notes + 1) {
+      printf("LOAD_LESSON %d\n", state.current_lesson);
+   }
+
    if (!ok) {
-      // Append "id\terror message\n" to explanation
       const char *fail = strstr(buf, "FAIL");
       const char *msg = fail ? strchr(fail, ' ') : NULL;
       if (msg) {
@@ -160,7 +162,6 @@ static void check_result(const char *buf)
          size_t len = strlen(state.explanation);
          snprintf(state.explanation + len, sizeof(state.explanation) - len - 1,
                   "%d\t%s", id, msg);
-         // msg already ends with \n from fgets
       }
    }
 
@@ -168,7 +169,7 @@ static void check_result(const char *buf)
       state.status.slowest = 0;
 }
 
-static void check_score(const char *buf)
+static void handle_score(const char *buf)
 {
    // SCORE time=<t> accuracy=<n> slowest=<s.ss> ...
    if (strncmp(buf, "SCORE", 5) != 0)
@@ -182,7 +183,7 @@ static void check_score(const char *buf)
    if (p) sscanf(p, "slowest=%f", &state.status.slowest);
 }
 
-static void check_stats(const char *buf)
+static void handle_stats(const char *buf)
 {
    // STATS time=<t> total_today=<n.nn> goal=<n.nn> streak=<n> ...
    if (strncmp(buf, "STATS", 5) != 0)
@@ -202,30 +203,53 @@ static void check_stats(const char *buf)
 
    state.status.pts      = (int)(total + 0.5f);
    state.status.goal_met = (total >= goal && goal > 0.0f);
-
-   // Trigger the next repetition of this lesson. We emit the command here,
-   // immediately after parsing, without touching display state — squares,
-   // explanation and status remain visible until the backend responds with
-   // a LESSON line, which is when parse_lesson() clears them.
-   printf("LOAD_LESSON %d\n", state.current_lesson);
-   fflush(stdout);
-   state.pending_clear = true;
 }
 
-static void parse_lesson(const char *buf)
+static void handle_lesson(const char *buf)
 {
    if (strncmp(buf, "LESSON", 6) != 0)
       return;
+}
 
-   clear_status();
+static void handle_bassnote(const char *buf)
+{
+   const char cmd[] = "BASSNOTE ";
+   size_t cmd_len = sizeof(cmd) - 1;
+
+   if (strncmp(buf, cmd, cmd_len) != 0)
+      return;
+
+   const char *p = buf + cmd_len;
+   sscanf(p, "%d", &state.num_notes);
 }
 
 static void parse_line(const char *buf)
 {
-   parse_lesson(buf);
-   check_result(buf);
-   check_score(buf);
-   check_stats(buf);
+   handle_lesson(buf);
+   handle_result(buf);
+   handle_score(buf);
+   handle_stats(buf);
+   handle_bassnote(buf);
+}
+
+static void check_new_day(void)
+{
+   std::time_t now = std::time(nullptr);
+   std::tm* localTime = std::localtime(&now);
+
+   int hour   = localTime->tm_hour;
+   int minute = localTime->tm_min;
+
+   // Trigger at 2:00 AM
+   if (hour == 2 && minute == 0 && !state.triggered_today) {
+      printf("QUERY_STATS\n");
+      state.triggered_today = true;
+   }
+
+   // Reset flag after 2:00 AM window passes
+   if (hour == 2 && minute > 0) {
+      state.triggered_today = false; // ready for next day
+   }
 }
 
 static int LoadImage(const char* fname, GLuint* img, int* w, int* h)
@@ -348,7 +372,6 @@ static void show_squares(void)
    ImGui::NewLine();
 }
 
-
 static void show_status_line(void)
 {
    const status_line &s = state.status;
@@ -423,6 +446,8 @@ static void gui_main(void)
 
    if (state.explanation[0] != '\0')
       ImGui::TextUnformatted(state.explanation);
+
+   check_new_day();
 }
 
 int main(int, char**)
@@ -466,7 +491,6 @@ int main(int, char**)
    fcntl(STDIN_FILENO, F_SETFL, fcntl(STDIN_FILENO, F_GETFL) | O_NONBLOCK);
 
    reload_lesson();
-   printf("QUERY_STATS\n");
 
    // Main loop
    while (!glfwWindowShouldClose(win) && state.running) {

@@ -27,7 +27,7 @@ local DEFAULT_SCORE_GOAL = 1000
 local stats_file = arg[1]
 
 if not stats_file then
-	print("Usage: lua stats.lua <stats_file.lua>")
+	io.write("Usage: lua stats.lua <stats_file.lua>\n")
 	os.exit(1)
 end
 
@@ -173,72 +173,124 @@ local function update_anki(l_data, success, duration)
 end
 
 -------------------------------------------------------------------------------
--- MAIN EXECUTION
+-- COMMANDS
 -------------------------------------------------------------------------------
 
-local stats = load_stats(stats_file)
+local function handle_query_stats(stats, line)
+	local today = get_date_str()
+	local today_data = stats.daily[today]
+	local total_today = today_data and today_data.score or 0
+	local total_dur_today = today_data and today_data.duration or 0
+	local streak = calculate_streak(stats)
 
-for line in io.lines() do
-	if line:match("^QUERY_STATS") then
-		local today = get_date_str()
-		local today_data = stats.daily[today]
-		local total_today = today_data and today_data.score or 0
-		local total_dur_today = today_data and today_data.duration or 0
-		local streak = calculate_streak(stats)
-
-		print(
-			string.format(
-				"STATS time=%d total_today=%.2f goal=%.2f total_duration_today=%.3f streak=%d",
-				os.time(),
-				total_today,
-				stats.score_goal,
-				total_dur_today,
-				streak
-			)
+	io.write(
+		string.format(
+			"STATS time=%d total_today=%.2f goal=%.2f total_duration_today=%.3f streak=%d\n",
+			os.time(),
+			total_today,
+			stats.score_goal,
+			total_dur_today,
+			streak
 		)
+	)
+end
+
+local function handle_load_lesson(stats, line)
+	local l_id = line:match("LOAD_LESSON (%S+)")
+	if not l_id then
+		return
 	end
 
+	local today = get_date_str()
+	local today_data = stats.daily[today]
+	local total_today = today_data and today_data.score or 0
+	local total_dur_today = today_data and today_data.duration or 0
+	local streak = calculate_streak(stats)
+	local l = stats.lessons[l_id]
+
+	io.write(
+		string.format(
+			"STATS total_today=%.2f goal=%.2f total_duration_today=%.3f streak=%d lesson=%s[ivl=%d,ease=%.2f,tot_dur=%.3f,n_pass=%d,n_fail=%d,n_pass_tot=%d,n_fail_tot=%d]\n",
+			stats.daily[today].score,
+			stats.score_goal,
+			stats.daily[today].duration,
+			streak,
+			l_id,
+			l.ivl,
+			l.ease,
+			l.total_duration,
+			l.n_pass,
+			l.n_fail,
+			l.n_pass_tot,
+			l.n_fail_tot
+		)
+	)
+end
+
+local function handle_score(stats, line)
 	local time, l_id, acc, score, dur =
 		line:match("SCORE time=(%S+) lesson=(%S+) accuracy=(%S+) score=(%S+) duration=(%S+)")
 
-	if time and l_id and score and dur then
-		local today = get_date_str()
-		local score_val = tonumber(score)
-		local acc_val = tonumber(acc)
-		local dur_val = tonumber(dur)
-		local lesson_time = tonumber(time)
-
-		stats.daily[today] = stats.daily[today] or { score = 0, duration = 0 }
-		stats.daily[today].score = stats.daily[today].score + score_val
-		stats.daily[today].duration = stats.daily[today].duration + dur_val
-
-		stats.lessons[l_id] = stats.lessons[l_id] or {}
-		update_anki(stats.lessons[l_id], acc_val == 100, dur_val)
-
-		save_stats(stats_file, stats)
-
-		local streak = calculate_streak(stats)
-		local l = stats.lessons[l_id]
-
-		print(
-			string.format(
-				"STATS time=%d total_today=%.2f goal=%.2f total_duration_today=%.3f streak=%d lesson=%s[ivl=%d,ease=%.2f,tot_dur=%.3f,n_pass=%d,n_fail=%d,n_pass_tot=%d,n_fail_tot=%d]",
-				lesson_time,
-				stats.daily[today].score,
-				stats.score_goal,
-				stats.daily[today].duration,
-				streak,
-				l_id,
-				l.ivl,
-				l.ease,
-				l.total_duration,
-				l.n_pass,
-				l.n_fail,
-				l.n_pass_tot,
-				l.n_fail_tot
-			)
-		)
+	if not (time and l_id and score and dur) then
+		return
 	end
+
+	local today = get_date_str()
+	local score_val = tonumber(score)
+	local acc_val = tonumber(acc)
+	local dur_val = tonumber(dur)
+	local lesson_time = tonumber(time)
+
+	stats.daily[today] = stats.daily[today] or { score = 0, duration = 0 }
+	stats.daily[today].score = stats.daily[today].score + score_val
+	stats.daily[today].duration = stats.daily[today].duration + dur_val
+
+	stats.lessons[l_id] = stats.lessons[l_id] or {}
+	update_anki(stats.lessons[l_id], acc_val == 100, dur_val)
+
+	save_stats(stats_file, stats)
+
+	local streak = calculate_streak(stats)
+	local l = stats.lessons[l_id]
+
+	io.write(
+		string.format(
+			"STATS time=%d total_today=%.2f goal=%.2f total_duration_today=%.3f streak=%d lesson=%s[ivl=%d,ease=%.2f,tot_dur=%.3f,n_pass=%d,n_fail=%d,n_pass_tot=%d,n_fail_tot=%d]\n",
+			lesson_time,
+			stats.daily[today].score,
+			stats.score_goal,
+			stats.daily[today].duration,
+			streak,
+			l_id,
+			l.ivl,
+			l.ease,
+			l.total_duration,
+			l.n_pass,
+			l.n_fail,
+			l.n_pass_tot,
+			l.n_fail_tot
+		)
+	)
 end
 
-save_stats(stats_file, stats)
+-------------------------------------------------------------------------------
+-- MAIN EXECUTION
+-------------------------------------------------------------------------------
+
+for line in io.lines() do
+	local stats = load_stats(stats_file)
+
+	if line:match("^QUERY_STATS") then
+		handle_query_stats(stats, line)
+	end
+
+	if line:match("^LOAD_LESSON") then
+		handle_load_lesson(stats, line)
+	end
+
+	if line:match("^SCORE") then
+		handle_score(stats, line)
+	end
+
+	save_stats(stats_file, stats)
+end
