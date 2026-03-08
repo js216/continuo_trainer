@@ -18,7 +18,8 @@
 #define MAX_LEN 1024
 
 struct Square {
-   bool ok;
+   enum State {OK, FAIL, DONE};
+   State state;
 };
 
 struct status_line {
@@ -143,14 +144,19 @@ static void handle_result(const char *buf)
       clear_status();
 
    bool ok = (strstr(buf, " OK") != NULL || strstr(buf, "\tOK") != NULL ||
-              strstr(buf, "mOK") != NULL);
+         strstr(buf, "mOK") != NULL);
 
    if (state.num_squares < MAX_LINES) {
-      state.squares[state.num_squares].ok = ok;
+      if (ok)
+         state.squares[state.num_squares].state = Square::OK;
+      else
+         state.squares[state.num_squares].state = Square::FAIL;
       state.num_squares = id + 1;
    }
 
-   if (state.num_squares == state.num_notes + 1) {
+   if (id + 1 == state.num_notes + 1) {
+      state.squares[id + 1].state = Square::State::DONE;
+      state.num_squares = id + 2;
       printf("LOAD_LESSON %d\n", state.current_lesson);
    }
 
@@ -161,7 +167,7 @@ static void handle_result(const char *buf)
          msg++; // skip space after FAIL
          size_t len = strlen(state.explanation);
          snprintf(state.explanation + len, sizeof(state.explanation) - len - 1,
-                  "%d\t%s", id, msg);
+               "%d\t%s", id, msg);
       }
    }
 
@@ -311,36 +317,59 @@ static void show_music(void)
    ImGui::Image((ImTextureID)(intptr_t)img, ImVec2(iw, ih));
 }
 
-static void DrawSquare(ImDrawList* draw_list, ImVec2 pos, float sz, ImU32 col, int index, bool filled)
+static void DrawSquare(ImDrawList* draw_list, ImVec2 pos, float sz,
+      Square::State ss, int index, bool filled)
 {
-    // Increase width slightly to comfortably fit two digits (e.g., "99")
-    float width = sz * 1.4f;
-    float height = sz;
+   // choose size
+   float width = sz * 1.4f;
+   float height = sz;
 
-    ImVec2 a = ImVec2(pos.x + 1, pos.y + 1);
-    ImVec2 b = ImVec2(pos.x + width - 1, pos.y + height - 1);
+   // choose color
+   ImU32 col = IM_COL32(0, 0, 0, 255);
+   switch (ss) {
+      case Square::State::OK:
+         col = IM_COL32(0, 220, 80, 255);   // green
+         break;
+      case Square::State::FAIL:
+         col = IM_COL32(220, 50, 50, 255);  // red
+         break;
+      case Square::State::DONE:
+         col = IM_COL32(50, 50, 220, 255);  // blue
+         break;
+      default:
+         fprintf(stderr, "ERROR: Unknown square state\n");
+         exit(1);
+   }
 
-    if (filled) {
-        draw_list->AddRectFilled(a, b, col, 2.0f); // Slight rounding for style
-    } else {
-        draw_list->AddRect(a, b, col, 2.0f, 0, 1.5f);
-    }
+   // choose coordinates
+   ImVec2 a = ImVec2(pos.x + 1, pos.y + 1);
+   ImVec2 b = ImVec2(pos.x + width - 1, pos.y + height - 1);
 
-    char buf[12];
-    snprintf(buf, sizeof(buf), "%d", index);
+   // draw the square
+   if (filled) {
+      draw_list->AddRectFilled(a, b, col, 2.0f); // Slight rounding for style
+   } else {
+      draw_list->AddRect(a, b, col, 2.0f, 0, 1.5f);
+   }
 
-    ImVec2 text_size = ImGui::CalcTextSize(buf);
-    ImVec2 text_pos = ImVec2(
-        a.x + ((b.x - a.x) - text_size.x) * 0.5f,
-        a.y + ((b.y - a.y) - text_size.y) * 0.5f
-    );
+   // text inside the square
+   char buf[12];
+   if (ss == Square::State::DONE)
+      snprintf(buf, sizeof(buf), ".");
+   else
+      snprintf(buf, sizeof(buf), "%d", index);
+   ImVec2 text_size = ImGui::CalcTextSize(buf);
+   ImVec2 text_pos = ImVec2(
+         a.x + ((b.x - a.x) - text_size.x) * 0.5f,
+         a.y + ((b.y - a.y) - text_size.y) * 0.5f
+         );
 
-    // Black text for filled squares, themed color for unfilled
-    ImU32 text_col = filled ? IM_COL32(0, 0, 0, 255) : col;
-    draw_list->AddText(text_pos, text_col, buf);
+   // Black text for filled squares, themed color for unfilled
+   ImU32 text_col = filled ? IM_COL32(0, 0, 0, 255) : col;
+   draw_list->AddText(text_pos, text_col, buf);
 
-    // Advance cursor by the custom width
-    ImGui::Dummy(ImVec2(width, height));
+   // Advance cursor by the custom width
+   ImGui::Dummy(ImVec2(width, height));
 }
 
 static void show_squares(void)
@@ -362,11 +391,8 @@ static void show_squares(void)
          ImGui::NewLine();
       }
 
-      ImU32 col = state.squares[i].ok
-         ? IM_COL32(0, 220, 80, 255)    // green
-         : IM_COL32(220, 50, 50, 255);  // red
-
-      DrawSquare(draw_list, ImGui::GetCursorScreenPos(), sz, col, i, true);
+      DrawSquare(draw_list, ImGui::GetCursorScreenPos(),
+            sz, state.squares[i].state, i, true);
       ImGui::SameLine(0, 2.0f);
    }
    ImGui::NewLine();
@@ -380,11 +406,11 @@ static void show_status_line(void)
    char text_buf[128];
    if (s.goal_met) {
       if (s.slowest != 0)
-      snprintf(text_buf, sizeof(text_buf),
+         snprintf(text_buf, sizeof(text_buf),
                "L%d: %g%% %.1fs | %d pts | streak: %d",
                state.current_lesson, s.acc, s.slowest, s.pts, s.streak);
       else
-      snprintf(text_buf, sizeof(text_buf),
+         snprintf(text_buf, sizeof(text_buf),
                "L%d | %d pts | streak: %d",
                state.current_lesson, s.pts, s.streak);
    } else {
