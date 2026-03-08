@@ -207,19 +207,13 @@ local function handle_load_lesson(stats, line)
 	local total_dur_today = today_data and today_data.duration or 0
 	local streak = calculate_streak(stats)
 	local l = stats.lessons[l_id]
-	local score_today = 0
-	local duration_today = 0
-	if stats.daily[today] then
-		local score_today = stats.daily[today].score
-		local duration_today = stats.daily[today].duration
-	end
 
 	io.write(
 		string.format(
 			"STATS total_today=%.2f goal=%.2f total_duration_today=%.3f streak=%d lesson=%s[ivl=%d,ease=%.2f,tot_dur=%.3f,n_pass=%d,n_fail=%d,n_pass_tot=%d,n_fail_tot=%d]\n",
-			score_today,
+			total_today,
 			stats.score_goal,
-			duration_today,
+			total_dur_today,
 			streak,
 			l_id,
 			l.ivl,

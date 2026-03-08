@@ -31,5 +31,5 @@ lua src/score.lua -> tee -a log/score.log;
 //bin/group -> STDOUT;
 //lua src/rules.lua -> STDOUT;
 //lua src/score.lua -> STDOUT;
-//lua src/stats.lua log/stats.log -> STDOUT;
+lua src/stats.lua log/stats.log -> STDOUT;
 bin/gui -> STDOUT;
