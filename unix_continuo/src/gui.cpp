@@ -325,16 +325,16 @@ static void DrawSquare(ImDrawList* draw_list, ImVec2 pos, float sz,
    float height = sz;
 
    // choose color
-   ImU32 col = IM_COL32(0, 0, 0, 255);
+   ImU32 bg = IM_COL32(0, 0, 0, 255);
    switch (ss) {
       case Square::State::OK:
-         col = IM_COL32(0, 220, 80, 255);   // green
+         bg = IM_COL32(0, 220, 80, 255);   // green
          break;
       case Square::State::FAIL:
-         col = IM_COL32(220, 50, 50, 255);  // red
+         bg = IM_COL32(220, 50, 50, 255);  // red
          break;
       case Square::State::DONE:
-         col = IM_COL32(50, 50, 220, 255);  // blue
+         bg = IM_COL32(50, 50, 220, 255);  // blue
          break;
       default:
          fprintf(stderr, "ERROR: Unknown square state\n");
@@ -347,15 +347,15 @@ static void DrawSquare(ImDrawList* draw_list, ImVec2 pos, float sz,
 
    // draw the square
    if (filled) {
-      draw_list->AddRectFilled(a, b, col, 2.0f); // Slight rounding for style
+      draw_list->AddRectFilled(a, b, bg, 2.0f); // Slight rounding for style
    } else {
-      draw_list->AddRect(a, b, col, 2.0f, 0, 1.5f);
+      draw_list->AddRect(a, b, bg, 2.0f, 0, 1.5f);
    }
 
    // text inside the square
    char buf[12];
    if (ss == Square::State::DONE)
-      snprintf(buf, sizeof(buf), ".");
+      snprintf(buf, sizeof(buf), "|");
    else
       snprintf(buf, sizeof(buf), "%d", index);
    ImVec2 text_size = ImGui::CalcTextSize(buf);
@@ -364,11 +364,17 @@ static void DrawSquare(ImDrawList* draw_list, ImVec2 pos, float sz,
          a.y + ((b.y - a.y) - text_size.y) * 0.5f
          );
 
-   // Black text for filled squares, themed color for unfilled
-   ImU32 text_col = filled ? IM_COL32(0, 0, 0, 255) : col;
-   draw_list->AddText(text_pos, text_col, buf);
+   // choose text color
+   ImU32 fg = IM_COL32(0, 0, 0, 255);
+   if (! filled)
+      fg = bg;
+   else if (ss == Square::State::DONE)
+      fg = IM_COL32(255, 255, 255, 255);
 
-   // Advance cursor by the custom width
+   // draw text
+   draw_list->AddText(text_pos, fg, buf);
+
+   // advance cursor by the custom width
    ImGui::Dummy(ImVec2(width, height));
 }
 
