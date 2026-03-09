@@ -137,7 +137,7 @@ local function calculate_score()
 
 	print(
 		string.format(
-			"SCORE time=%d lesson=%s accuracy=%s score=%.2f duration=%.3f slowest=%.3f fastest=%.3f average=%.3f",
+			"SCORE time=%d lesson=%s accuracy=%s score=%.2f duration=%.3f slowest=%.3f fastest=%.3f average=%.3f groups=%d",
 			results[first_idx].time,
 			tostring(lesson_id),
 			acc_fmt,
@@ -145,7 +145,8 @@ local function calculate_score()
 			total_duration,
 			slowest,
 			fastest,
-			average
+			average,
+			total_groups
 		)
 	)
 end
