@@ -221,20 +221,22 @@ local function pitch_name(semitone)
 end
 
 -- Collapse inner voices that duplicate the bass or melody pitch-class, then
--- append the melody.  The result is an ordered voice list: bass, inner..., melody.
+-- append the melody.  Returns a list of {semitone, role} where role is
+-- "bass", "inner_N" (1-based original index), or "melody".  Roles allow
+-- find_parallel to check only same-voice pairs across consecutive groups.
 local function flatten_voices(g)
-	local voices = { g.bass }
+	local voices = { { semitone = g.bass, role = "bass" } }
 	local mel = g.melody[1]
 	local b_pc = g.bass % 12
 	local m_pc = mel and (mel % 12) or nil
-	for _, n in ipairs(g.inner) do
+	for idx, n in ipairs(g.inner) do
 		local n_pc = n % 12
 		if n_pc ~= m_pc and n_pc ~= b_pc then
-			voices[#voices + 1] = n
+			voices[#voices + 1] = { semitone = n, role = "inner_" .. idx }
 		end
 	end
 	if mel then
-		voices[#voices + 1] = mel
+		voices[#voices + 1] = { semitone = mel, role = "melody" }
 	end
 	return voices
 end
@@ -433,26 +435,38 @@ local function parallel_msg(kind, p_i, p_j, c_i, c_j)
 	)
 end
 
--- Core detector: returns the voice indices and semitones of the first pair
--- moving in parallel at the given interval (mod 12).
--- Returns vi, vj, p_i, p_j, c_i, c_j or nil.
+-- Core detector: checks every pair of voices that share the same role in
+-- both p_voices and c_voices for parallel motion at the given interval.
+-- Returns p_i, p_j, c_i, c_j (semitone values) or nil.
 local function find_parallel(p_voices, c_voices, interval)
+	-- index c_voices by role for O(1) lookup
+	local c_by_role = {}
+	for _, v in ipairs(c_voices) do
+		c_by_role[v.role] = v.semitone
+	end
+
 	for vi = 1, #p_voices do
+		local pv_i = p_voices[vi]
+		local cv_i = c_by_role[pv_i.role]
+		if cv_i == nil then goto continue_i end
+
 		for vj = vi + 1, #p_voices do
-			if vj > #c_voices then
-				goto continue
-			end
-			local p_int = math.abs(p_voices[vj] - p_voices[vi]) % 12
-			local c_int = math.abs(c_voices[vj] - c_voices[vi]) % 12
+			local pv_j = p_voices[vj]
+			local cv_j = c_by_role[pv_j.role]
+			if cv_j == nil then goto continue_j end
+
+			local p_int = math.abs(pv_j.semitone - pv_i.semitone) % 12
+			local c_int = math.abs(cv_j - cv_i) % 12
 			if p_int == interval and c_int == interval then
-				local motion_i = c_voices[vi] - p_voices[vi]
-				local motion_j = c_voices[vj] - p_voices[vj]
+				local motion_i = cv_i - pv_i.semitone
+				local motion_j = cv_j - pv_j.semitone
 				if signum(motion_i) == signum(motion_j) and motion_i ~= 0 then
-					return vi, vj, p_voices[vi], p_voices[vj], c_voices[vi], c_voices[vj]
+					return pv_i.semitone, pv_j.semitone, cv_i, cv_j
 				end
 			end
-			::continue::
+			::continue_j::
 		end
+		::continue_i::
 	end
 	return nil
 end
@@ -477,7 +491,7 @@ local function rule_no_parallel_fifths(ctx)
 	if not p_voices then
 		return true, nil
 	end
-	local _, _, p_i, p_j, c_i, c_j = find_parallel(p_voices, c_voices, 7)
+	local p_i, p_j, c_i, c_j = find_parallel(p_voices, c_voices, 7)
 	if p_i then
 		return false, parallel_msg("fifths", p_i, p_j, c_i, c_j)
 	end
@@ -489,10 +503,8 @@ local function rule_no_parallel_octaves(ctx)
 	if not p_voices then
 		return true, nil
 	end
-	local melody_idx = #p_voices -- melody is always the last voice
-	local vi, vj, p_i, p_j, c_i, c_j = find_parallel(p_voices, c_voices, 0)
-	-- parallels involving the melody are permitted in continuo style
-	if p_i and vi ~= melody_idx and vj ~= melody_idx then
+	local p_i, p_j, c_i, c_j = find_parallel(p_voices, c_voices, 0)
+	if p_i then
 		return false, parallel_msg("octaves", p_i, p_j, c_i, c_j)
 	end
 	return true, nil
