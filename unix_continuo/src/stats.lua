@@ -4,13 +4,14 @@
 
 -- DESCRIPTION
 --      stats.lua reads SCORE lines from standard input and maintains a
---      persistent log of performance. It calculates daily total scores,
---      accumulates daily and per-lesson practice duration, monitors a
---      daily "goal streak," and applies the SM-2 algorithm (Spaced
---      Repetition System) to individual lessons.
+--      persistent log of performance. It calculates Mastery (the player's
+--      demonstrated peak capability) and Power (current operational strength
+--      based on memory decay). Points are awarded based on increases in
+--      Mastery and Power, rewarding growth and maintenance over mindless
+--      repetition of mastered material.
 --
 -- ARGUMENTS
---      arg[1]: Path to the stats storage file (e.g., "my_progress.lua").
+--      arg[1]: Path to the stats storage file (e.g., "stats.log").
 --              This file is a standard Lua script that returns a table.
 --              If it doesn't exist, a new one will be created.
 --
@@ -20,8 +21,8 @@
 --
 -- OUTPUT FORMAT
 --      For every valid SCORE line processed, the program writes to stdout:
---      STATS time=<t> total_today=<n.nn> total_duration_today=<s.sss> streak=<n>
---            lesson=<id>[ivl=<n>,ease=<n.nn>,tot_dur=<s.sss>,n_pass=<n>,n_fail=<n>,...]
+--      STATS time=<t> total_today=<n.nn> goal=<n.nn> total_duration_today=<s.sss> streak=<n>
+--            lesson=<id>[ivl=<n>,ease=<n.nn>,tot_dur=<s.sss>,mastery=<n.nn>,power=<n.nn>]
 
 local DEFAULT_SCORE_GOAL = 1000
 local stats_file = arg[1]
@@ -32,265 +33,191 @@ if not stats_file then
 end
 
 -------------------------------------------------------------------------------
--- DATA PERSISTENCE
--------------------------------------------------------------------------------
-
-local function load_stats(path)
-	local f = io.open(path, "r")
-	if not f then
-		return {
-			score_goal = DEFAULT_SCORE_GOAL,
-			daily = {},
-			lessons = {},
-		}
-	end
-	f:close()
-
-	local chunk, err = loadfile(path)
-	if not chunk then
-		io.stderr:write("Error: Could not parse stats file: " .. tostring(err) .. "\n")
-		os.exit(1)
-	end
-
-	local data = chunk()
-	if type(data) ~= "table" or not data.lessons then
-		io.stderr:write("Error: Stats file is not in a recognized format.\n")
-		os.exit(1)
-	end
-
-	data.daily = data.daily or {}
-	return data
-end
-
-local function save_stats(path, data)
-	local f = io.open(path, "w")
-	if not f then
-		io.stderr:write("Error: Could not write to stats file.\n")
-		os.exit(1)
-	end
-
-	local function serialize(t, indent, depth)
-		depth = depth or 0
-		local s = "{\n"
-		local next_indent = indent .. "  "
-
-		-- Sort keys for consistent file output
-		local keys = {}
-		for k in pairs(t) do
-			table.insert(keys, k)
-		end
-		table.sort(keys, function(a, b)
-			return tostring(a) < tostring(b)
-		end)
-
-		for _, k in ipairs(keys) do
-			local v = t[k]
-			s = s .. next_indent .. "[" .. (type(k) == "string" and string.format("%q", k) or k) .. "] = "
-
-			if type(v) == "table" then
-				-- Special handling: Put daily records on one line
-				if depth == 1 and (v.score or v.duration) then
-					s = s .. '{["score"] = ' .. v.score .. ', ["duration"] = ' .. v.duration .. "},\n"
-				else
-					s = s .. serialize(v, next_indent, depth + 1) .. ",\n"
-				end
-			elseif type(v) == "string" then
-				s = s .. string.format("%q", v) .. ",\n"
-			else
-				s = s .. tostring(v) .. ",\n"
-			end
-		end
-		return s .. indent .. "}"
-	end
-
-	f:write("return " .. serialize(data, "", 0) .. "\n")
-	f:flush()
-	f:close()
-end
-
--------------------------------------------------------------------------------
--- CORE LOGIC
+-- UTILITIES & METRICS
 -------------------------------------------------------------------------------
 
 local function get_date_str()
 	return os.date("%Y-%m-%d")
 end
 
+-- Power represents current "readiness." It is the portion of Mastery
+-- currently accessible based on the SRS interval and time since last practice.
+local function calculate_power(l_data)
+	local mastery = l_data.mastery or 0
+	local ivl = l_data.ivl or 0
+	local last_date = l_data.last_date
+
+	if not last_date or ivl <= 0 then return 0 end
+
+	local y, m, d = last_date:match("(%d+)-(%d+)-(%d+)")
+	local last_ts = os.time({year=y, month=m, day=d, hour=12})
+	local days_elapsed = math.floor(os.difftime(os.time(), last_ts) / 86400)
+
+	-- Power reaches 50% of Mastery when days_elapsed == ivl
+	local stability = math.exp(-0.693 * (math.max(0, days_elapsed) / ivl))
+	return math.min(mastery, mastery * stability)
+end
+
 local function calculate_streak(data)
 	local streak = 0
 	local current_ts = os.time()
+	local today = get_date_str()
 
 	while true do
 		local d_str = os.date("%Y-%m-%d", current_ts)
-		local day_data = data.daily[d_str]
-		local day_score = day_data and day_data.score or 0
-
+		local day_score = (data.daily[d_str] and data.daily[d_str].score) or 0
 		if day_score >= data.score_goal then
 			streak = streak + 1
 			current_ts = current_ts - 86400
 		else
-			if d_str == get_date_str() and streak == 0 then
+			if d_str == today and streak == 0 then
 				current_ts = current_ts - 86400
-			else
-				break
-			end
+			else break end
 		end
 	end
 	return streak
 end
 
-local function update_anki(l_data, success, duration)
-	l_data.n_pass = l_data.n_pass or 0
-	l_data.n_fail = l_data.n_fail or 0
-	l_data.n_pass_tot = l_data.n_pass_tot or 0
-	l_data.n_fail_tot = l_data.n_fail_tot or 0
-	l_data.ivl = l_data.ivl or 0
-	l_data.ease = l_data.ease or 2.5
-	l_data.total_duration = (l_data.total_duration or 0) + duration
+-------------------------------------------------------------------------------
+-- DATA PERSISTENCE
+-------------------------------------------------------------------------------
 
-	if success then
-		l_data.n_pass = l_data.n_pass + 1
-		l_data.n_fail = 0
-		l_data.n_pass_tot = l_data.n_pass_tot + 1
+local function load_stats(path)
+	local f = io.open(path, "r")
+	if not f then return { score_goal = DEFAULT_SCORE_GOAL, daily = {}, lessons = {} } end
+	f:close()
+	local chunk = loadfile(path)
+	if not chunk then return { score_goal = DEFAULT_SCORE_GOAL, daily = {}, lessons = {} } end
+	local data = chunk()
+	data.daily = data.daily or {}
+	data.lessons = data.lessons or {}
+	return data
+end
 
-		if l_data.n_pass == 1 then
-			l_data.ivl = 1
-		elseif l_data.n_pass == 2 then
-			l_data.ivl = 6
-		else
-			l_data.ivl = math.ceil(l_data.ivl * l_data.ease)
+local function save_stats(path, data)
+	local f = io.open(path, "w")
+	if not f then return end
+	local function serialize(t, indent, depth)
+		depth = depth or 0
+		local s = "{\n"
+		local next_indent = indent .. "  "
+		local keys = {}
+		for k in pairs(t) do table.insert(keys, k) end
+		table.sort(keys, function(a, b) return tostring(a) < tostring(b) end)
+		for _, k in ipairs(keys) do
+			local v = t[k]
+			s = s .. next_indent .. "[" .. (type(k) == "string" and string.format("%q", k) or k) .. "] = "
+			if type(v) == "table" then
+				if depth == 1 and (v.score or v.duration) then
+					s = s .. '{["score"] = ' .. (v.score or 0) .. ', ["duration"] = ' .. (v.duration or 0) .. "},\n"
+				else s = s .. serialize(v, next_indent, depth + 1) .. ",\n" end
+			elseif type(v) == "string" then s = s .. string.format("%q", v) .. ",\n"
+			else s = s .. tostring(v) .. ",\n" end
 		end
-		l_data.ease = l_data.ease + 0.1
-	else
-		l_data.n_fail = l_data.n_fail + 1
-		l_data.n_pass = 0
-		l_data.n_fail_tot = l_data.n_fail_tot + 1
-		l_data.ivl = 1
-		l_data.ease = math.max(1.3, l_data.ease - 0.2)
+		return s .. indent .. "}"
 	end
-
-	l_data.last_date = get_date_str()
+	f:write("return " .. serialize(data, "", 0) .. "\n")
+	f:close()
 end
 
 -------------------------------------------------------------------------------
--- COMMANDS
+-- OUTPUT HELPER
 -------------------------------------------------------------------------------
 
-local function handle_query_stats(stats, line)
+local function print_stats_line(stats, l_id, timestamp)
 	local today = get_date_str()
-	local today_data = stats.daily[today]
-	local total_today = today_data and today_data.score or 0
-	local total_dur_today = today_data and today_data.duration or 0
+	local d = stats.daily[today] or { score = 0, duration = 0 }
 	local streak = calculate_streak(stats)
 
-	io.write(
-		string.format(
-			"STATS time=%d total_today=%.2f goal=%.2f total_duration_today=%.3f streak=%d\n",
-			os.time(),
-			total_today,
-			stats.score_goal,
-			total_dur_today,
-			streak
-		)
+	-- Using %.0f for timestamp to avoid integer representation errors in Lua 5.3+
+	local output = string.format(
+		"STATS time=%.0f total_today=%.2f goal=%.2f total_duration_today=%.3f streak=%d",
+		timestamp or os.time(), d.score, stats.score_goal, d.duration, streak
 	)
-end
 
-local function handle_load_lesson(stats, line)
-	local l_id = line:match("LOAD_LESSON (%S+)")
-	if not l_id then
-		return
+	if l_id and stats.lessons[l_id] then
+		local l = stats.lessons[l_id]
+		output = output .. string.format(
+			" lesson=%s[ivl=%d,ease=%.2f,tot_dur=%.3f,n_pass_tot=%d,n_fail_tot=%d,mastery=%.2f,power=%.2f]",
+			l_id, math.tointeger(math.floor(l.ivl or 0)) or 0, l.ease or 2.5, l.total_duration or 0,
+			math.tointeger(l.n_pass_tot or 0) or 0, math.tointeger(l.n_fail_tot or 0) or 0, l.mastery or 0, calculate_power(l)
+		)
 	end
-
-	local today = get_date_str()
-	local today_data = stats.daily[today]
-	local total_today = today_data and today_data.score or 0
-	local total_dur_today = today_data and today_data.duration or 0
-	local streak = calculate_streak(stats)
-	local l = stats.lessons[l_id]
-
-	io.write(
-		string.format(
-			"STATS total_today=%.2f goal=%.2f total_duration_today=%.3f streak=%d lesson=%s[ivl=%d,ease=%.2f,tot_dur=%.3f,n_pass=%d,n_fail=%d,n_pass_tot=%d,n_fail_tot=%d]\n",
-			total_today,
-			stats.score_goal,
-			total_dur_today,
-			streak,
-			l_id,
-			l.ivl,
-			l.ease,
-			l.total_duration,
-			l.n_pass,
-			l.n_fail,
-			l.n_pass_tot,
-			l.n_fail_tot
-		)
-	)
+	io.write(output .. "\n")
 end
+
+-------------------------------------------------------------------------------
+-- COMMAND HANDLERS
+-------------------------------------------------------------------------------
 
 local function handle_score(stats, line)
-	local time, l_id, acc, score, dur =
+	local ts, l_id, acc, score, dur =
 		line:match("SCORE time=(%S+) lesson=(%S+) accuracy=(%S+) score=(%S+) duration=(%S+)")
 
-	if not (time and l_id and score and dur) then
-		return
+	if not (l_id and score) then return end
+	local s_val, a_val, d_val = tonumber(score) or 0, tonumber(acc) or 0, tonumber(dur) or 0
+	local today = get_date_str()
+
+	local l = stats.lessons[l_id] or { ease = 2.5, ivl = 0, mastery = 0, total_duration = 0 }
+
+	-- 1. Snapshot state before update for points calculation
+	local old_mastery = l.mastery or 0
+	local old_power = calculate_power(l)
+
+	-- 2. Update Mastery (Dampened growth towards the peak)
+	if a_val >= 80 and s_val > old_mastery then
+		l.mastery = old_mastery + (s_val - old_mastery) * 0.20
 	end
 
-	local today = get_date_str()
-	local score_val = tonumber(score)
-	local acc_val = tonumber(acc)
-	local dur_val = tonumber(dur)
-	local lesson_time = tonumber(time)
+	-- 3. Update SRS fields
+	if a_val == 100 then
+		l.n_pass = (l.n_pass or 0) + 1
+		l.n_fail = 0
+		l.n_pass_tot = (l.n_pass_tot or 0) + 1
+		if l.n_pass == 1 then l.ivl = 1
+		elseif l.n_pass == 2 then l.ivl = 6
+		else l.ivl = math.ceil((l.ivl or 1) * (l.ease or 2.5)) end
+		l.ease = math.min(3.5, (l.ease or 2.5) + 0.1)
+	else
+		l.n_fail = (l.n_fail or 0) + 1
+		l.n_pass = 0
+		l.n_fail_tot = (l.n_fail_tot or 0) + 1
+		l.ivl = 1
+		l.ease = math.max(1.3, (l.ease or 2.5) - 0.2)
+	end
 
+	l.total_duration = (l.total_duration or 0) + d_val
+	l.last_date = today
+	stats.lessons[l_id] = l
+
+	-- 4. Calculate Growth Points
+	local new_power = calculate_power(l)
+	local m_delta = math.max(0, l.mastery - old_mastery)
+	local p_delta = math.max(0, new_power - old_power)
+
+	-- Mastery increases provide 1:1 points; Power increases provide 0.5:1
+	local points_earned = m_delta + (p_delta * 0.5)
+
+	-- 5. Update Daily Totals
 	stats.daily[today] = stats.daily[today] or { score = 0, duration = 0 }
-	stats.daily[today].score = stats.daily[today].score + score_val
-	stats.daily[today].duration = stats.daily[today].duration + dur_val
-
-	stats.lessons[l_id] = stats.lessons[l_id] or {}
-	update_anki(stats.lessons[l_id], acc_val == 100, dur_val)
+	stats.daily[today].score = stats.daily[today].score + points_earned
+	stats.daily[today].duration = stats.daily[today].duration + d_val
 
 	save_stats(stats_file, stats)
-
-	local streak = calculate_streak(stats)
-	local l = stats.lessons[l_id]
-
-	io.write(
-		string.format(
-			"STATS time=%d total_today=%.2f goal=%.2f total_duration_today=%.3f streak=%d lesson=%s[ivl=%d,ease=%.2f,tot_dur=%.3f,n_pass=%d,n_fail=%d,n_pass_tot=%d,n_fail_tot=%d]\n",
-			lesson_time,
-			stats.daily[today].score,
-			stats.score_goal,
-			stats.daily[today].duration,
-			streak,
-			l_id,
-			l.ivl,
-			l.ease,
-			l.total_duration,
-			l.n_pass,
-			l.n_fail,
-			l.n_pass_tot,
-			l.n_fail_tot
-		)
-	)
+	print_stats_line(stats, l_id, tonumber(ts))
 end
 
 -------------------------------------------------------------------------------
--- MAIN EXECUTION
+-- MAIN LOOP
 -------------------------------------------------------------------------------
 
 for line in io.lines() do
 	local stats = load_stats(stats_file)
-
 	if line:match("^QUERY_STATS") then
-		handle_query_stats(stats, line)
-	end
-
-	if line:match("^LOAD_LESSON") then
-		handle_load_lesson(stats, line)
-	end
-
-	if line:match("^SCORE") then
+		print_stats_line(stats)
+	elseif line:match("^LOAD_LESSON") then
+		print_stats_line(stats, line:match("LOAD_LESSON (%S+)"))
+	elseif line:match("^SCORE") then
 		handle_score(stats, line)
 	end
-
-	save_stats(stats_file, stats)
 end

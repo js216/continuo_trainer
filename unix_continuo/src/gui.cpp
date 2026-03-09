@@ -26,11 +26,14 @@ struct status_line {
    // current lesson
    float acc      = 0.0f;
    float slowest  = 0.0f;
+   float mastery  = 0.0f;
+   float power    = 0.0f;
 
    // today
-   int   pts      = 0;
-   bool  goal_met = false;
-   int   streak   = 0;
+   int   pts       = 0;
+   int   pts_delta = 0;   // points earned on the last completed lesson
+   bool  goal_met  = false;
+   int   streak    = 0;
 };
 
 struct state {
@@ -140,8 +143,10 @@ static void handle_result(const char *buf)
    if (sscanf(buf, "RESULT %d", &id) != 1)
       return;
 
-   if (id == 0)
+   if (id == 0) {
       clear_status();
+      state.status.pts_delta = 0;
+   }
 
    bool ok = (strstr(buf, " OK") != NULL || strstr(buf, "\tOK") != NULL ||
          strstr(buf, "mOK") != NULL);
@@ -191,7 +196,8 @@ static void handle_score(const char *buf)
 
 static void handle_stats(const char *buf)
 {
-   // STATS time=<t> total_today=<n.nn> goal=<n.nn> streak=<n> ...
+   // STATS time=<t> total_today=<n.nn> goal=<n.nn> streak=<n>
+   //       [lesson=<id>[ivl=<n>,ease=<n>,tot_dur=<s>,mastery=<n>,power=<n>]]
    if (strncmp(buf, "STATS", 5) != 0)
       return;
 
@@ -207,8 +213,21 @@ static void handle_stats(const char *buf)
    p = strstr(buf, "streak=");
    if (p) sscanf(p, "streak=%d", &state.status.streak);
 
-   state.status.pts      = (int)(total + 0.5f);
-   state.status.goal_met = (total >= goal && goal > 0.0f);
+   // mastery= and power= live inside the lesson bracket, e.g.
+   // lesson=3[ivl=6,ease=2.60,tot_dur=12.345,mastery=18.50,power=9.20]
+   p = strstr(buf, "mastery=");
+   if (p) sscanf(p, "mastery=%f", &state.status.mastery);
+
+   p = strstr(buf, "power=");
+   if (p) sscanf(p, "power=%f", &state.status.power);
+
+   int new_pts = (int)(total + 0.5f);
+   // Accumulate the delta — do NOT clear it here. The second STATS line
+   // (from LOAD_LESSON) will add 0, leaving the delta intact until the
+   // next attempt starts. Clearing happens in handle_result on id == 0.
+   state.status.pts_delta += new_pts - state.status.pts;
+   state.status.pts        = new_pts;
+   state.status.goal_met   = (total >= goal && goal > 0.0f);
 }
 
 static void handle_lesson(const char *buf)
@@ -408,26 +427,41 @@ static void show_status_line(void)
 {
    const status_line &s = state.status;
 
-   // Build the text first so we can measure it.
-   char text_buf[128];
+   // Lesson label: "L3" when no lesson data yet, "L3 12.3/5.4" when available.
+   char lesson_buf[48];
+   if (s.mastery > 0.0f || s.power > 0.0f)
+      snprintf(lesson_buf, sizeof(lesson_buf),
+            "L%d %.1f/%.1f", state.current_lesson, s.mastery, s.power);
+   else
+      snprintf(lesson_buf, sizeof(lesson_buf), "L%d", state.current_lesson);
+
+   // Points field: "586 pts" normally, "586 pts (+5)" right after a lesson.
+   char pts_buf[48];
+   if (s.slowest != 0.0f && s.pts_delta > 0)
+      snprintf(pts_buf, sizeof(pts_buf), "%d pts (+%d)", s.pts, s.pts_delta);
+   else
+      snprintf(pts_buf, sizeof(pts_buf), "%d pts", s.pts);
+
+   // Build the full status text.
+   char text_buf[256];
    if (s.goal_met) {
-      if (s.slowest != 0)
+      if (s.slowest != 0.0f)
          snprintf(text_buf, sizeof(text_buf),
-               "L%d: %g%% %.1fs | %d pts | streak: %d",
-               state.current_lesson, s.acc, s.slowest, s.pts, s.streak);
+               "%s: %g%% %.1fs | %s | streak: %d",
+               lesson_buf, s.acc, s.slowest, pts_buf, s.streak);
       else
          snprintf(text_buf, sizeof(text_buf),
-               "L%d | %d pts | streak: %d",
-               state.current_lesson, s.pts, s.streak);
+               "%s | %s | streak: %d",
+               lesson_buf, pts_buf, s.streak);
    } else {
-      if (s.slowest != 0)
+      if (s.slowest != 0.0f)
          snprintf(text_buf, sizeof(text_buf),
-               "L%d: %g%% %.1fs | %d pts",
-               state.current_lesson, s.acc, s.slowest, s.pts);
+               "%s: %g%% %.1fs | %s",
+               lesson_buf, s.acc, s.slowest, pts_buf);
       else
          snprintf(text_buf, sizeof(text_buf),
-               "L%d | %d pts",
-               state.current_lesson, s.pts);
+               "%s | %s",
+               lesson_buf, pts_buf);
    }
 
    float text_w = ImGui::CalcTextSize(text_buf).x;
