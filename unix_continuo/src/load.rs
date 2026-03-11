@@ -70,6 +70,7 @@
 //         BASSNOTE i: <token> [passing]
 //         FIGURES  i: <token>
 //         MELODY   i: <tokens|-|>
+//     LESSON_END
 //
 // DIAGNOSTICS AND EXIT STATUS
 //     On any error (unreadable file, bass/figures length
@@ -290,6 +291,7 @@ fn emit(n: usize, lesson: &Lesson, melody_groups: &[String]) {
             }
         );
     }
+    println!("LESSON_END");
 }
 
 fn load_and_emit(n: usize) {

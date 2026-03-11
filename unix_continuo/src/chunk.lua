@@ -46,8 +46,10 @@
 --           FIGURE:<f0>|<f1>|... MELODY:<m0>|<m1>|...
 --     (all on one line; HEART indices are 0-based, matching BASSNOTE output)
 
-local CONTEXT_LEFT  = 1
+local CONTEXT_LEFT = 1
 local CONTEXT_RIGHT = 1
+
+io.stdout:setvbuf("line") -- flush after every CHUNK line so stats.lua sees them promptly
 
 -- ── helpers ──────────────────────────────────────────────────────────────────
 
@@ -274,18 +276,20 @@ local function process_lesson(lesson_n, key, bass, passing, figures, melody)
 
 		local content = build_chunk_content(key, skills_str, bass, passing, figures, melody, s, e)
 		local hash = write_chunk(content)
-		print(string.format(
-			"CHUNK LESSON:%d HEART:%d-%d LEN:%d HASH:%s SKILLS:%s BASSLINE:%s FIGURE:%s MELODY:%s",
-			lesson_n,
-			heart.s - 1,
-			heart.e - 1,
-			e - s + 1,
-			hash,
-			skills_str,
-			fmt_bassline(bass, passing, s, e),
-			fmt_figures(figures, s, e),
-			fmt_melody(melody, s, e)
-		))
+		print(
+			string.format(
+				"CHUNK LESSON:%d HEART:%d-%d LEN:%d HASH:%s SKILLS:%s BASSLINE:%s FIGURE:%s MELODY:%s",
+				lesson_n,
+				heart.s - 1,
+				heart.e - 1,
+				e - s + 1,
+				hash,
+				skills_str,
+				fmt_bassline(bass, passing, s, e),
+				fmt_figures(figures, s, e),
+				fmt_melody(melody, s, e)
+			)
+		)
 	end
 end
 
@@ -301,10 +305,16 @@ local function flush()
 end
 
 for line in io.lines() do
+	-- LESSON_END: all data for current lesson received — emit chunks immediately
+	if line:match("^LESSON_END") then
+		flush()
+		goto continue
+	end
+
 	-- LESSON <n> <key> <time> <title>
 	local n, key = line:match("^LESSON (%d+) (%S+)")
 	if n then
-		flush()
+		flush() -- safety flush in case LESSON_END was missing
 		current = { n = tonumber(n), key = key, bass = {}, passing = {}, figures = {}, melody = {} }
 		goto continue
 	end

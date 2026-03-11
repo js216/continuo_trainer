@@ -3,34 +3,34 @@
 // Copyright (c) 2026 Jakob Kastelic
 
 // main app logic
+bin/load          -> lua src/chunk.lua;
 bin/load          -> bin/group;
 bin/midi          -> bin/group;
 bin/group         -> lua src/rules.lua;
-bin/load          -> lua src/score.lua;
-lua src/rules.lua -> lua src/score.lua;
-lua src/score.lua -> lua src/stats.lua log/stats.log;
+bin/load          -> lua src/stats.lua log/stats.log;
+lua src/rules.lua -> lua src/stats.lua log/stats.log;
+lua src/chunk.lua -> lua src/stats.lua log/stats.log;
 
 // GUI
 bin/load -> bin/gui;
 lua src/rules.lua -> bin/gui;
-lua src/score.lua -> bin/gui;
 lua src/stats.lua log/stats.log -> bin/gui;
 bin/gui -> bin/load;
 bin/gui -> lua src/stats.lua log/stats.log;
 
 // logging
 bin/load          -> tee -a log/load.log;
+lua src/chunk.lua -> tee -a log/chunk.log;
 bin/midi          -> tee -a log/midi_notes.log;
 bin/group         -> tee -a log/group.log;
 lua src/rules.lua -> tee -a log/rules.log;
-lua src/score.lua -> tee -a log/score.log;
 bin/gui           -> tee -a log/gui.log;
 
 // debug prints
 //bin/midi -> STDOUT;
 //bin/load -> STDOUT;
+//lua src/chunk.lua -> STDOUT;
 //bin/group -> STDOUT;
 //lua src/rules.lua -> STDOUT;
-//lua src/score.lua -> STDOUT;
 //lua src/stats.lua log/stats.log -> STDOUT;
 //bin/gui -> STDOUT;
