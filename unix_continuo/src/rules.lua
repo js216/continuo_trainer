@@ -448,12 +448,16 @@ local function find_parallel(p_voices, c_voices, interval)
 	for vi = 1, #p_voices do
 		local pv_i = p_voices[vi]
 		local cv_i = c_by_role[pv_i.role]
-		if cv_i == nil then goto continue_i end
+		if cv_i == nil then
+			goto continue_i
+		end
 
 		for vj = vi + 1, #p_voices do
 			local pv_j = p_voices[vj]
 			local cv_j = c_by_role[pv_j.role]
-			if cv_j == nil then goto continue_j end
+			if cv_j == nil then
+				goto continue_j
+			end
 
 			local p_int = math.abs(pv_j.semitone - pv_i.semitone) % 12
 			local c_int = math.abs(cv_j - cv_i) % 12

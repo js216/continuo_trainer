@@ -45,7 +45,7 @@
 --      theoretical maximum score (max_groups * 5.0). Raw values are used
 --      internally for all point calculations so harder lessons remain worth more.
 
-local DEFAULT_SCORE_GOAL = 1000
+local DEFAULT_SCORE_GOAL = 100
 local stats_file = arg[1]
 
 if not stats_file then
@@ -297,8 +297,12 @@ local function handle_score(stats, line)
 		-- Secondary suggestions for the "good attempt, no mastery gain" cases.
 		if suggestion == nil then
 			if s_val <= old_mastery then
-				-- Score didn't beat the ceiling: they're already at or above this level.
-				suggestion = "already_mastered"
+				-- Only say "already mastered" if this was a strong attempt that
+				-- genuinely ran into the ceiling (score >= 90% of mastery).
+				-- A weak score that happens to be below mastery is not praise-worthy.
+				if old_mastery > 0 and s_val >= old_mastery * 0.9 then
+					suggestion = "already_mastered"
+				end
 			elseif quality < 0.1 then
 				-- Score beat mastery but quality was so low it produced no real gain.
 				-- Point to the weakest quality factor so they know what to work on.

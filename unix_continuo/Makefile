@@ -43,7 +43,7 @@ pdf: $(patsubst %.txt,%.pdf,$(wildcard seq/*.txt))
 	dot -Tpdf tmp/play.dot -o tmp/play.pdf
 
 format:
-	clang-format -i src/*.c
+	clang-format -i src/*.c src/*.cpp
 	rustfmt src/*.rs
 	stylua src/*.lua
 
