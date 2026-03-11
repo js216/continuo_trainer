@@ -45,7 +45,7 @@
 --      theoretical maximum score (max_groups * 5.0). Raw values are used
 --      internally for all point calculations so harder lessons remain worth more.
 
-local DEFAULT_SCORE_GOAL = 100
+local DEFAULT_SCORE_GOAL = 1000
 local stats_file = arg[1]
 
 if not stats_file then
@@ -68,10 +68,12 @@ local function calculate_power(l_data)
 	local ivl = l_data.ivl or 0
 	local last_date = l_data.last_date
 
-	if not last_date or ivl <= 0 then return 0 end
+	if not last_date or ivl <= 0 then
+		return 0
+	end
 
 	local y, m, d = last_date:match("(%d+)-(%d+)-(%d+)")
-	local last_ts = os.time({year=y, month=m, day=d, hour=12})
+	local last_ts = os.time({ year = y, month = m, day = d, hour = 12 })
 	local days_elapsed = math.floor(os.difftime(os.time(), last_ts) / 86400)
 
 	-- Power reaches 50% of Mastery when days_elapsed == ivl
@@ -93,7 +95,9 @@ local function calculate_streak(data)
 		else
 			if d_str == today and streak == 0 then
 				current_ts = current_ts - 86400
-			else break end
+			else
+				break
+			end
 		end
 	end
 	return streak
@@ -104,7 +108,9 @@ end
 -- speed_factor). Falls back to the raw value if max_groups is not yet known.
 local function normalize(raw, l_data)
 	local max_groups = l_data.max_groups or 0
-	if max_groups <= 0 then return raw end
+	if max_groups <= 0 then
+		return raw
+	end
 	return (raw / (max_groups * 5.0)) * 100.0
 end
 
@@ -114,10 +120,14 @@ end
 
 local function load_stats(path)
 	local f = io.open(path, "r")
-	if not f then return { score_goal = DEFAULT_SCORE_GOAL, daily = {}, lessons = {} } end
+	if not f then
+		return { score_goal = DEFAULT_SCORE_GOAL, daily = {}, lessons = {} }
+	end
 	f:close()
 	local chunk = loadfile(path)
-	if not chunk then return { score_goal = DEFAULT_SCORE_GOAL, daily = {}, lessons = {} } end
+	if not chunk then
+		return { score_goal = DEFAULT_SCORE_GOAL, daily = {}, lessons = {} }
+	end
 	local data = chunk()
 	data.daily = data.daily or {}
 	data.lessons = data.lessons or {}
@@ -126,23 +136,34 @@ end
 
 local function save_stats(path, data)
 	local f = io.open(path, "w")
-	if not f then return end
+	if not f then
+		return
+	end
 	local function serialize(t, indent, depth)
 		depth = depth or 0
 		local s = "{\n"
 		local next_indent = indent .. "  "
 		local keys = {}
-		for k in pairs(t) do table.insert(keys, k) end
-		table.sort(keys, function(a, b) return tostring(a) < tostring(b) end)
+		for k in pairs(t) do
+			table.insert(keys, k)
+		end
+		table.sort(keys, function(a, b)
+			return tostring(a) < tostring(b)
+		end)
 		for _, k in ipairs(keys) do
 			local v = t[k]
 			s = s .. next_indent .. "[" .. (type(k) == "string" and string.format("%q", k) or k) .. "] = "
 			if type(v) == "table" then
 				if depth == 1 and (v.score or v.duration) then
 					s = s .. '{["score"] = ' .. (v.score or 0) .. ', ["duration"] = ' .. (v.duration or 0) .. "},\n"
-				else s = s .. serialize(v, next_indent, depth + 1) .. ",\n" end
-			elseif type(v) == "string" then s = s .. string.format("%q", v) .. ",\n"
-			else s = s .. tostring(v) .. ",\n" end
+				else
+					s = s .. serialize(v, next_indent, depth + 1) .. ",\n"
+				end
+			elseif type(v) == "string" then
+				s = s .. string.format("%q", v) .. ",\n"
+			else
+				s = s .. tostring(v) .. ",\n"
+			end
 		end
 		return s .. indent .. "}"
 	end
@@ -162,23 +183,28 @@ local function print_stats_line(stats, l_id, timestamp, suggestion)
 	-- Using %.0f for timestamp to avoid integer representation errors in Lua 5.3+
 	local output = string.format(
 		"STATS time=%.0f total_today=%.2f goal=%.2f total_duration_today=%.3f streak=%d",
-		timestamp or os.time(), d.score, stats.score_goal, d.duration, streak
+		timestamp or os.time(),
+		d.score,
+		stats.score_goal,
+		d.duration,
+		streak
 	)
 
 	if l_id and stats.lessons[l_id] then
 		local l = stats.lessons[l_id]
 		local power = calculate_power(l)
-		output = output .. string.format(
-			" lesson=%s[ivl=%d,ease=%.2f,tot_dur=%.3f,n_pass_tot=%d,n_fail_tot=%d,mastery=%.2f,power=%.2f]",
-			l_id,
-			math.tointeger(math.floor(l.ivl or 0)) or 0,
-			l.ease or 2.5,
-			l.total_duration or 0,
-			math.tointeger(l.n_pass_tot or 0) or 0,
-			math.tointeger(l.n_fail_tot or 0) or 0,
-			normalize(l.mastery or 0, l),
-			normalize(power, l)
-		)
+		output = output
+			.. string.format(
+				" lesson=%s[ivl=%d,ease=%.2f,tot_dur=%.3f,n_pass_tot=%d,n_fail_tot=%d,mastery=%.2f,power=%.2f]",
+				l_id,
+				math.tointeger(math.floor(l.ivl or 0)) or 0,
+				l.ease or 2.5,
+				l.total_duration or 0,
+				math.tointeger(l.n_pass_tot or 0) or 0,
+				math.tointeger(l.n_fail_tot or 0) or 0,
+				normalize(l.mastery or 0, l),
+				normalize(power, l)
+			)
 	end
 	if suggestion then
 		output = output .. " suggestion=" .. suggestion
@@ -194,7 +220,9 @@ local function handle_score(stats, line)
 	local ts, l_id, acc, score, dur =
 		line:match("SCORE time=(%S+) lesson=(%S+) accuracy=(%S+) score=(%S+) duration=(%S+)")
 
-	if not (l_id and score) or l_id == "nil" then return end
+	if not (l_id and score) or l_id == "nil" then
+		return
+	end
 	local s_val, a_val, d_val = tonumber(score) or 0, tonumber(acc) or 0, tonumber(dur) or 0
 	local today = get_date_str()
 
@@ -221,8 +249,7 @@ local function handle_score(stats, line)
 	--     A pass requires accuracy >= 80%. This is the primary consistency signal.
 	local pass_this_session = (a_val >= 80) and 1.0 or 0.0
 	local alpha = 0.18
-	l.ema_pass = l.ema_pass and (alpha * pass_this_session + (1 - alpha) * l.ema_pass)
-	                        or pass_this_session
+	l.ema_pass = l.ema_pass and (alpha * pass_this_session + (1 - alpha) * l.ema_pass) or pass_this_session
 
 	-- 2b. Speed factor: how fast is this session relative to the lesson's personal
 	--     best average note time? Lower average = faster = better.
@@ -272,14 +299,17 @@ local function handle_score(stats, line)
 		suggestion = "try_again"
 	else
 		local factors = {
-			{ name = "be_more_consistent", val = l.ema_pass    },
-			{ name = "play_faster",        val = speed_factor   },
-			{ name = "play_more_evenly",   val = evenness_factor },
+			{ name = "be_more_consistent", val = l.ema_pass },
+			{ name = "play_faster", val = speed_factor },
+			{ name = "play_more_evenly", val = evenness_factor },
 		}
-		local min_val  = math.huge
-		local min_idx  = nil
+		local min_val = math.huge
+		local min_idx = nil
 		for i, f in ipairs(factors) do
-			if f.val < min_val then min_val = f.val; min_idx = i end
+			if f.val < min_val then
+				min_val = f.val
+				min_idx = i
+			end
 		end
 		if min_idx and min_val < 0.6 then
 			local is_dominant = true
@@ -308,8 +338,13 @@ local function handle_score(stats, line)
 				-- Point to the weakest quality factor so they know what to work on.
 				local weakest = "be_more_consistent"
 				local wval = l.ema_pass
-				if speed_factor < wval then weakest = "play_faster"; wval = speed_factor end
-				if evenness_factor < wval then weakest = "play_more_evenly" end
+				if speed_factor < wval then
+					weakest = "play_faster"
+					wval = speed_factor
+				end
+				if evenness_factor < wval then
+					weakest = "play_more_evenly"
+				end
 				suggestion = "raise_quality_" .. weakest
 			end
 		end
@@ -331,9 +366,13 @@ local function handle_score(stats, line)
 		l.n_pass = (l.n_pass or 0) + 1
 		l.n_fail = 0
 		l.n_pass_tot = (l.n_pass_tot or 0) + 1
-		if l.n_pass == 1 then l.ivl = 1
-		elseif l.n_pass == 2 then l.ivl = 6
-		else l.ivl = math.ceil((l.ivl or 1) * (l.ease or 2.5)) end
+		if l.n_pass == 1 then
+			l.ivl = 1
+		elseif l.n_pass == 2 then
+			l.ivl = 6
+		else
+			l.ivl = math.ceil((l.ivl or 1) * (l.ease or 2.5))
+		end
 		l.ease = math.min(3.5, (l.ease or 2.5) + 0.1)
 	else
 		l.n_fail = (l.n_fail or 0) + 1
@@ -366,6 +405,94 @@ local function handle_score(stats, line)
 	print_stats_line(stats, l_id, tonumber(ts), suggestion)
 end
 
+local function handle_suggest(stats)
+	-- 1. Discover all lesson IDs that have a seq/N.txt file.
+	local available = {}
+	local i = 1
+	while true do
+		local f = io.open("seq/" .. i .. ".txt", "r")
+		if not f then
+			break
+		end
+		f:close()
+		table.insert(available, tostring(i))
+		i = i + 1
+	end
+
+	if #available == 0 then
+		io.write("SUGGESTION none reason=no_lessons_available\n")
+		return
+	end
+
+	-- 2. Split into known (have a stats entry with mastery data) and new.
+	local known = {}
+	local new_lessons = {}
+	for _, id in ipairs(available) do
+		local l = stats.lessons[id]
+		if l and (l.mastery or 0) > 0 then
+			table.insert(known, id)
+		else
+			table.insert(new_lessons, id)
+		end
+	end
+
+	-- 3. Among known lessons, find the best candidate to review.
+	--    Priority 1: overdue (days_elapsed >= ivl), ranked by overdue ratio descending.
+	--    Priority 2: not yet overdue but ema_pass < 0.8 (still needs work),
+	--                ranked by ema_pass ascending (weakest first).
+	local best_id = nil
+	local best_score = -math.huge
+	local best_type = nil -- "overdue" or "needs_work"
+
+	for _, id in ipairs(known) do
+		local l = stats.lessons[id]
+		local ivl = l.ivl or 0
+		local last_date = l.last_date
+		local days_elapsed = 0
+		if last_date then
+			local y, m, d = last_date:match("(%d+)-(%d+)-(%d+)")
+			local last_ts = os.time({ year = y, month = m, day = d, hour = 12 })
+			days_elapsed = math.floor(os.difftime(os.time(), last_ts) / 86400)
+		end
+
+		if ivl > 0 and days_elapsed >= ivl then
+			-- Overdue: score = days_elapsed / ivl (higher = more overdue)
+			local score = days_elapsed / ivl
+			if best_type ~= "overdue" or score > best_score then
+				best_type = "overdue"
+				best_score = score
+				best_id = id
+			end
+		elseif best_type ~= "overdue" then
+			-- Not overdue: consider if ema_pass is weak
+			local ep = l.ema_pass or 0
+			if ep < 0.8 then
+				-- Score = 1 - ema_pass so weakest gets highest score
+				local score = 1.0 - ep
+				if score > best_score then
+					best_score = score
+					best_id = id
+				end
+			end
+		end
+	end
+
+	if best_id then
+		local reason = (best_type == "overdue") and "overdue" or "needs_work"
+		io.write("SUGGESTION lesson=" .. best_id .. " reason=" .. reason .. "\n")
+		return
+	end
+
+	-- 4. No good known candidate — suggest the first new lesson.
+	if #new_lessons > 0 then
+		io.write("SUGGESTION lesson=" .. new_lessons[1] .. " reason=new_lesson\n")
+		return
+	end
+
+	-- 5. All known lessons are on schedule and nothing new to learn.
+	io.write("SUGGESTION none reason=all_up_to_date\n")
+end
+
 -------------------------------------------------------------------------------
 -- MAIN LOOP
 -------------------------------------------------------------------------------
@@ -378,5 +505,7 @@ for line in io.lines() do
 		print_stats_line(stats, line:match("LOAD_LESSON (%S+)"))
 	elseif line:match("^SCORE") then
 		handle_score(stats, line)
+	elseif line:match("^SUGGEST_LESSON") then
+		handle_suggest(stats)
 	end
 end

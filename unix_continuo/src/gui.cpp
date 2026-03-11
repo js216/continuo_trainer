@@ -126,6 +126,12 @@ static void prev_lesson(void)
 	clear_status();
 }
 
+static void suggest_lesson(void)
+{
+	printf("SUGGEST_LESSON\n");
+	fflush(stdout);
+}
+
 static void key_callback(GLFWwindow *window, int key, int scancode, int action,
 			 int mods)
 {
@@ -145,6 +151,9 @@ static void key_callback(GLFWwindow *window, int key, int scancode, int action,
 			break;
 		case GLFW_KEY_N:
 			next_lesson();
+			break;
+		case GLFW_KEY_S:
+			suggest_lesson();
 			break;
 		}
 	}
@@ -287,6 +296,51 @@ static void handle_bassnote(const char *buf)
 	sscanf(p, "%d", &state.num_notes);
 }
 
+static void handle_suggestion(const char *buf)
+{
+	// SUGGESTION lesson=<id>
+	// SUGGESTION none reason=<token>
+	if (strncmp(buf, "SUGGESTION", 10) != 0)
+		return;
+
+	const char *p = strstr(buf, "lesson=");
+	if (p) {
+		int id = 0;
+		if (sscanf(p, "lesson=%d", &id) == 1 && id > 0) {
+			state.current_lesson = id;
+			printf("LOAD_LESSON %d\n", id);
+			fflush(stdout);
+			clear_status();
+		}
+		// Flash the reason regardless of whether the lesson jump
+		// succeeded.
+		const char *r = strstr(buf, "reason=");
+		if (r) {
+			char reason[32] = "";
+			sscanf(r, "reason=%31s", reason);
+			strncpy(state.status.suggestion, reason,
+				sizeof(state.status.suggestion) - 1);
+			state.status
+			    .suggestion[sizeof(state.status.suggestion) - 1] =
+			    '\0';
+			state.status.suggestion_time = glfwGetTime();
+		}
+		return;
+	}
+
+	// No lesson — show the reason as a status flash.
+	p = strstr(buf, "reason=");
+	if (p) {
+		char reason[32] = "";
+		sscanf(p, "reason=%31s", reason);
+		strncpy(state.status.suggestion, reason,
+			sizeof(state.status.suggestion) - 1);
+		state.status.suggestion[sizeof(state.status.suggestion) - 1] =
+		    '\0';
+		state.status.suggestion_time = glfwGetTime();
+	}
+}
+
 static void parse_line(const char *buf)
 {
 	handle_lesson(buf);
@@ -294,6 +348,7 @@ static void parse_line(const char *buf)
 	handle_score(buf);
 	handle_stats(buf);
 	handle_bassnote(buf);
+	handle_suggestion(buf);
 }
 
 static void check_new_day(void)
@@ -480,6 +535,16 @@ static const char *expand_suggestion(const char *s)
 		return "Good score! Even up your tempo to grow mastery.";
 	if (strcmp(s, "try_another_lesson") == 0)
 		return "Great effort! Try another lesson now.";
+	if (strcmp(s, "no_lessons_available") == 0)
+		return "No lessons found in seq/.";
+	if (strcmp(s, "all_up_to_date") == 0)
+		return "All caught up! Come back later.";
+	if (strcmp(s, "overdue") == 0)
+		return "Due for review.";
+	if (strcmp(s, "needs_work") == 0)
+		return "Needs more practice.";
+	if (strcmp(s, "new_lesson") == 0)
+		return "New lesson!";
 	return s; // fallback: show the raw token
 }
 
@@ -629,6 +694,10 @@ static void gui_main(void)
 	ImGui::SameLine();
 	if (ImGui::Button("[N]ext"))
 		next_lesson();
+
+	ImGui::SameLine();
+	if (ImGui::Button("[S]uggest"))
+		suggest_lesson();
 
 	show_status_line();
 	show_music();
