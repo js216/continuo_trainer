@@ -22,14 +22,25 @@ fn main() {
     // LilyPond requires lowercase pitch names for \key
     let key_ly = key.to_lowercase();
 
+    // Optional \header block: omitted entirely for chunk files (no title).
+    let header_block = if title.is_empty() {
+        String::new()
+    } else {
+        format!("\\header {{\n  title = \"{}\"\n}}\n\n", title)
+    };
+
+    // Optional time signature: chunk files have no time field, so we use
+    // \cadenzaOn which suppresses automatic barlines.
+    let time_directive = if time.is_empty() {
+        r"\cadenzaOn".to_string()
+    } else {
+        format!(r"\time {}", time)
+    };
+
     // Generate LilyPond document
     let lilypond = format!(
         r#"\version "2.22.1"
-\header {{
-  title = "{title}"
-}}
-
-%% Solidus glyph for passing notes in figured bass.
+{header_block}%% Solidus glyph for passing notes in figured bass.
 %% A simple diagonal stroke, sized and sloped to match the figure column.
 passingNoteSolidus = \markup
   \override #'(thickness . 1.4)
@@ -53,13 +64,13 @@ passingNoteSolidus = \markup
     \new Staff = "melody" {{
       \clef treble
       \key {key_ly} \major
-      \time {time}
+      {time_directive}
       {melody}
     }}
     \new Staff = "continuo" {{
       \clef bass
       \key {key_ly} \major
-      \time {time}
+      {time_directive}
       <<
         \new Voice = "bassline" {{
           {bassline}
@@ -73,9 +84,9 @@ passingNoteSolidus = \markup
     }}
   >>
 }}"#,
-        title = title,
+        header_block = header_block,
         key_ly = key_ly,
-        time = time,
+        time_directive = time_directive,
         melody = melody_to_ly(&melody),
         bassline = bassline_to_ly(&bassline),
         figures = figures_to_ly(&figures, &bassline),
@@ -104,11 +115,15 @@ fn extract_block(content: &str, block_name: &str) -> String {
     rest[start_brace..end_brace].trim().replace('\n', " ")
 }
 
-// Naive pass-through for melody notation
+// Pass-through for melody notation.  Standalone "-" tokens (empty-group
+// markers used in chunk files) are dropped; ties are normalised.
 fn melody_to_ly(input: &str) -> String {
-    input
-        .replace("~ ", "~ ") // normalise ties (idempotent)
-        .replace("~", "~ ")
+    let filtered: String = input
+        .split_whitespace()
+        .filter(|tok| *tok != "-")
+        .collect::<Vec<_>>()
+        .join(" ");
+    filtered.replace("~ ", "~ ").replace("~", "~ ")
 }
 
 // Like melody_to_ly but also strips trailing 'p' passing-note markers from

@@ -9,13 +9,14 @@ IMGUI = imgui.o imgui_demo.o imgui_draw.o imgui_tables.o imgui_widgets.o \
         backends/imgui_impl_glfw.o backends/imgui_impl_opengl3.o
 
 IMGUI_OBJ = $(patsubst %,lib/imgui/%,$(IMGUI))
+PNG = $(patsubst %.txt,%.png,$(wildcard seq/*.txt)) $(patsubst %.txt,%.png,$(wildcard chn/*.txt))
 
 all: $(addprefix bin/,$(PROGS))
 
 bin/%: src/%.c | bin
 	$(CC) $(CFLAGS) $< -o $@ $(LDLIBS)
 
-bin/gui: src/gui.cpp $(IMGUI_OBJ) | $(patsubst %.txt,%.png,$(wildcard seq/*.txt)) bin
+bin/gui: src/gui.cpp $(IMGUI_OBJ) | $(PNG) bin
 	$(CXX) $(CPPFLAGS) $(CXXFLAGS) $^ -o $@ $(LDLIBS)
 
 bin/%: src/%.rs | bin
@@ -51,4 +52,4 @@ test:
 	lua src/tst.lua tst bin src
 
 clean:
-	rm -rf bin tmp seq/*.pdf seq/*.png $(IMGUI_OBJ)
+	rm -rf bin tmp seq/*.pdf seq/*.png chn/*.ly chn/*.png $(IMGUI_OBJ)
