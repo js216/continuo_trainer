@@ -49,25 +49,25 @@
 -- "algorithm" key on first run (or whenever a key is absent), so they can be
 -- tuned by editing the log file directly without touching this source.
 local ALGORITHM_DEFAULTS = {
-	score_goal         = 1000,  -- daily point target
-	ema_alpha          = 0.18,  -- EMA smoothing for pass-rate (~10-session window)
-	pass_accuracy      = 80,    -- minimum accuracy % to count as a pass
-	mastery_growth     = 0.20,  -- fraction of (score - mastery) gap closed per session
-	power_half_life    = 0.693, -- ln(2): power reaches 50% of mastery at days_elapsed == ivl
-	power_points_ratio = 0.5,   -- power-delta weight relative to mastery-delta (1:1)
-	bottleneck_thresh  = 0.6,   -- factor value below which it is considered a bottleneck
-	dominance_margin   = 0.2,   -- how much lower the bottleneck must be than the others
-	min_quality        = 0.1,   -- quality below this triggers a "raise quality" suggestion
-	mastery_score_frac = 0.9,   -- score must be >= this fraction of mastery to say "already mastered"
-	max_consecutive    = 5,     -- consecutive attempts before "try_another_lesson"
-	weak_ema_thresh    = 0.8,   -- ema_pass below this marks a lesson as "needs_work"
-	ease_initial       = 2.5,   -- starting ease factor for new lessons
-	ease_min           = 1.3,   -- minimum ease factor
-	ease_max           = 3.5,   -- maximum ease factor
-	ease_pass_delta    = 0.1,   -- ease increase on a perfect pass
-	ease_fail_delta    = 0.2,   -- ease decrease on a fail
-	ivl_first          = 1,     -- interval (days) after first perfect pass
-	ivl_second         = 6,     -- interval (days) after second consecutive perfect pass
+	score_goal = 1000, -- daily point target
+	ema_alpha = 0.18, -- EMA smoothing for pass-rate (~10-session window)
+	pass_accuracy = 80, -- minimum accuracy % to count as a pass
+	mastery_growth = 0.20, -- fraction of (score - mastery) gap closed per session
+	power_half_life = 0.693, -- ln(2): power reaches 50% of mastery at days_elapsed == ivl
+	power_points_ratio = 0.5, -- power-delta weight relative to mastery-delta (1:1)
+	bottleneck_thresh = 0.6, -- factor value below which it is considered a bottleneck
+	dominance_margin = 0.2, -- how much lower the bottleneck must be than the others
+	min_quality = 0.1, -- quality below this triggers a "raise quality" suggestion
+	mastery_score_frac = 0.9, -- score must be >= this fraction of mastery to say "already mastered"
+	max_consecutive = 5, -- consecutive attempts before "try_another_lesson"
+	weak_ema_thresh = 0.8, -- ema_pass below this marks a lesson as "needs_work"
+	ease_initial = 2.5, -- starting ease factor for new lessons
+	ease_min = 1.3, -- minimum ease factor
+	ease_max = 3.5, -- maximum ease factor
+	ease_pass_delta = 0.1, -- ease increase on a perfect pass
+	ease_fail_delta = 0.2, -- ease decrease on a fail
+	ivl_first = 1, -- interval (days) after first perfect pass
+	ivl_second = 6, -- interval (days) after second consecutive perfect pass
 }
 
 local stats_file = arg[1]
@@ -150,7 +150,7 @@ local function load_stats(path)
 				data.algorithm[k] = v
 			end
 		end
-		data.daily   = data.daily   or {}
+		data.daily = data.daily or {}
 		data.lessons = data.lessons or {}
 		return data
 	end
@@ -261,7 +261,8 @@ local function handle_score(stats, line)
 	local s_val, a_val, d_val = tonumber(score) or 0, tonumber(acc) or 0, tonumber(dur) or 0
 	local today = get_date_str()
 
-	local l = stats.lessons[l_id] or { ease = alg.ease_initial, ivl = 0, mastery = 0, total_duration = 0, max_groups = 0 }
+	local l = stats.lessons[l_id]
+		or { ease = alg.ease_initial, ivl = 0, mastery = 0, total_duration = 0, max_groups = 0 }
 
 	-- Update the theoretical score ceiling: groups * 5.0 (max speed_factor).
 	-- Take the max across sessions in case a lesson is ever edited.
@@ -283,7 +284,8 @@ local function handle_score(stats, line)
 	-- 2a. Update EMA of pass rate (~10-session window, alpha=ema_alpha).
 	--     A pass requires accuracy >= pass_accuracy%. This is the primary consistency signal.
 	local pass_this_session = (a_val >= alg.pass_accuracy) and 1.0 or 0.0
-	l.ema_pass = l.ema_pass and (alg.ema_alpha * pass_this_session + (1 - alg.ema_alpha) * l.ema_pass) or pass_this_session
+	l.ema_pass = l.ema_pass and (alg.ema_alpha * pass_this_session + (1 - alg.ema_alpha) * l.ema_pass)
+		or pass_this_session
 
 	-- 2b. Speed factor: how fast is this session relative to the lesson's personal
 	--     best average note time? Lower average = faster = better.
