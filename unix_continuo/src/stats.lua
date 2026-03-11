@@ -319,7 +319,9 @@ local function update_entry(entry, sd, alg)
 		end
 		speed_factor = math.min(1.0, entry.best_avg / sd.average)
 	else
-		speed_factor = 0.0
+		-- No timing transitions (e.g. single-note heart): speed unmeasurable,
+		-- do not penalise.
+		speed_factor = 1.0
 	end
 
 	-- Evenness factor
@@ -327,7 +329,8 @@ local function update_entry(entry, sd, alg)
 	if sd.slowest > 0 and sd.fastest > 0 then
 		evenness_factor = math.min(1.0, sd.fastest / sd.slowest)
 	else
-		evenness_factor = 0.0
+		-- Single transition or no transitions: evenness unmeasurable, do not penalise.
+		evenness_factor = 1.0
 	end
 
 	local quality = entry.ema_pass * speed_factor * evenness_factor
