@@ -45,7 +45,31 @@
 --      theoretical maximum score (max_groups * 5.0). Raw values are used
 --      internally for all point calculations so harder lessons remain worth more.
 
-local DEFAULT_SCORE_GOAL = 1000
+-- Algorithm parameter defaults. These are written into the stats log under the
+-- "algorithm" key on first run (or whenever a key is absent), so they can be
+-- tuned by editing the log file directly without touching this source.
+local ALGORITHM_DEFAULTS = {
+	score_goal         = 1000,  -- daily point target
+	ema_alpha          = 0.18,  -- EMA smoothing for pass-rate (~10-session window)
+	pass_accuracy      = 80,    -- minimum accuracy % to count as a pass
+	mastery_growth     = 0.20,  -- fraction of (score - mastery) gap closed per session
+	power_half_life    = 0.693, -- ln(2): power reaches 50% of mastery at days_elapsed == ivl
+	power_points_ratio = 0.5,   -- power-delta weight relative to mastery-delta (1:1)
+	bottleneck_thresh  = 0.6,   -- factor value below which it is considered a bottleneck
+	dominance_margin   = 0.2,   -- how much lower the bottleneck must be than the others
+	min_quality        = 0.1,   -- quality below this triggers a "raise quality" suggestion
+	mastery_score_frac = 0.9,   -- score must be >= this fraction of mastery to say "already mastered"
+	max_consecutive    = 5,     -- consecutive attempts before "try_another_lesson"
+	weak_ema_thresh    = 0.8,   -- ema_pass below this marks a lesson as "needs_work"
+	ease_initial       = 2.5,   -- starting ease factor for new lessons
+	ease_min           = 1.3,   -- minimum ease factor
+	ease_max           = 3.5,   -- maximum ease factor
+	ease_pass_delta    = 0.1,   -- ease increase on a perfect pass
+	ease_fail_delta    = 0.2,   -- ease decrease on a fail
+	ivl_first          = 1,     -- interval (days) after first perfect pass
+	ivl_second         = 6,     -- interval (days) after second consecutive perfect pass
+}
+
 local stats_file = arg[1]
 
 if not stats_file then
@@ -63,7 +87,7 @@ end
 
 -- Power represents current "readiness." It is the portion of Mastery
 -- currently accessible based on the SRS interval and time since last practice.
-local function calculate_power(l_data)
+local function calculate_power(l_data, alg)
 	local mastery = l_data.mastery or 0
 	local ivl = l_data.ivl or 0
 	local last_date = l_data.last_date
@@ -77,7 +101,7 @@ local function calculate_power(l_data)
 	local days_elapsed = math.floor(os.difftime(os.time(), last_ts) / 86400)
 
 	-- Power reaches 50% of Mastery when days_elapsed == ivl
-	local stability = math.exp(-0.693 * (math.max(0, days_elapsed) / ivl))
+	local stability = math.exp(-alg.power_half_life * (math.max(0, days_elapsed) / ivl))
 	return math.min(mastery, mastery * stability)
 end
 
@@ -89,7 +113,7 @@ local function calculate_streak(data)
 	while true do
 		local d_str = os.date("%Y-%m-%d", current_ts)
 		local day_score = (data.daily[d_str] and data.daily[d_str].score) or 0
-		if day_score >= data.score_goal then
+		if day_score >= data.algorithm.score_goal then
 			streak = streak + 1
 			current_ts = current_ts - 86400
 		else
@@ -119,19 +143,28 @@ end
 -------------------------------------------------------------------------------
 
 local function load_stats(path)
+	local function with_defaults(data)
+		data.algorithm = data.algorithm or {}
+		for k, v in pairs(ALGORITHM_DEFAULTS) do
+			if data.algorithm[k] == nil then
+				data.algorithm[k] = v
+			end
+		end
+		data.daily   = data.daily   or {}
+		data.lessons = data.lessons or {}
+		return data
+	end
+
 	local f = io.open(path, "r")
 	if not f then
-		return { score_goal = DEFAULT_SCORE_GOAL, daily = {}, lessons = {} }
+		return with_defaults({})
 	end
 	f:close()
 	local chunk = loadfile(path)
 	if not chunk then
-		return { score_goal = DEFAULT_SCORE_GOAL, daily = {}, lessons = {} }
+		return with_defaults({})
 	end
-	local data = chunk()
-	data.daily = data.daily or {}
-	data.lessons = data.lessons or {}
-	return data
+	return with_defaults(chunk())
 end
 
 local function save_stats(path, data)
@@ -176,6 +209,7 @@ end
 -------------------------------------------------------------------------------
 
 local function print_stats_line(stats, l_id, timestamp, suggestion)
+	local alg = stats.algorithm
 	local today = get_date_str()
 	local d = stats.daily[today] or { score = 0, duration = 0 }
 	local streak = calculate_streak(stats)
@@ -185,20 +219,20 @@ local function print_stats_line(stats, l_id, timestamp, suggestion)
 		"STATS time=%.0f total_today=%.2f goal=%.2f total_duration_today=%.3f streak=%d",
 		timestamp or os.time(),
 		d.score,
-		stats.score_goal,
+		alg.score_goal,
 		d.duration,
 		streak
 	)
 
 	if l_id and stats.lessons[l_id] then
 		local l = stats.lessons[l_id]
-		local power = calculate_power(l)
+		local power = calculate_power(l, alg)
 		output = output
 			.. string.format(
 				" lesson=%s[ivl=%d,ease=%.2f,tot_dur=%.3f,n_pass_tot=%d,n_fail_tot=%d,mastery=%.2f,power=%.2f]",
 				l_id,
 				math.tointeger(math.floor(l.ivl or 0)) or 0,
-				l.ease or 2.5,
+				l.ease or alg.ease_initial,
 				l.total_duration or 0,
 				math.tointeger(l.n_pass_tot or 0) or 0,
 				math.tointeger(l.n_fail_tot or 0) or 0,
@@ -217,6 +251,7 @@ end
 -------------------------------------------------------------------------------
 
 local function handle_score(stats, line)
+	local alg = stats.algorithm
 	local ts, l_id, acc, score, dur =
 		line:match("SCORE time=(%S+) lesson=(%S+) accuracy=(%S+) score=(%S+) duration=(%S+)")
 
@@ -226,7 +261,7 @@ local function handle_score(stats, line)
 	local s_val, a_val, d_val = tonumber(score) or 0, tonumber(acc) or 0, tonumber(dur) or 0
 	local today = get_date_str()
 
-	local l = stats.lessons[l_id] or { ease = 2.5, ivl = 0, mastery = 0, total_duration = 0, max_groups = 0 }
+	local l = stats.lessons[l_id] or { ease = alg.ease_initial, ivl = 0, mastery = 0, total_duration = 0, max_groups = 0 }
 
 	-- Update the theoretical score ceiling: groups * 5.0 (max speed_factor).
 	-- Take the max across sessions in case a lesson is ever edited.
@@ -238,18 +273,17 @@ local function handle_score(stats, line)
 	-- 1. Snapshot raw state before update for points calculation.
 	--    Points always use raw values so harder lessons give more points.
 	local old_mastery = l.mastery or 0
-	local old_power = calculate_power(l)
+	local old_power = calculate_power(l, alg)
 
 	-- 2. Parse timing fields from the SCORE line.
 	local slowest = tonumber(line:match("slowest=(%S+)")) or 0
 	local fastest = tonumber(line:match("fastest=(%S+)")) or 0
 	local average = tonumber(line:match("average=(%S+)")) or 0
 
-	-- 2a. Update EMA of pass rate (~10-session window, alpha=0.18).
-	--     A pass requires accuracy >= 80%. This is the primary consistency signal.
-	local pass_this_session = (a_val >= 80) and 1.0 or 0.0
-	local alpha = 0.18
-	l.ema_pass = l.ema_pass and (alpha * pass_this_session + (1 - alpha) * l.ema_pass) or pass_this_session
+	-- 2a. Update EMA of pass rate (~10-session window, alpha=ema_alpha).
+	--     A pass requires accuracy >= pass_accuracy%. This is the primary consistency signal.
+	local pass_this_session = (a_val >= alg.pass_accuracy) and 1.0 or 0.0
+	l.ema_pass = l.ema_pass and (alg.ema_alpha * pass_this_session + (1 - alg.ema_alpha) * l.ema_pass) or pass_this_session
 
 	-- 2b. Speed factor: how fast is this session relative to the lesson's personal
 	--     best average note time? Lower average = faster = better.
@@ -283,19 +317,19 @@ local function handle_score(stats, line)
 
 	-- 2f. Track consecutive attempts on this lesson (resets when another lesson
 	--     is scored). Used to detect over-drilling.
-	if stats.last_lesson_scored ~= l_id then
+	if alg.last_lesson_scored ~= l_id then
 		l.n_consecutive = 1
 	else
 		l.n_consecutive = (l.n_consecutive or 0) + 1
 	end
-	stats.last_lesson_scored = l_id
+	alg.last_lesson_scored = l_id
 
 	-- 2e. Derive a suggestion: call out the single clearest bottleneck, if any.
-	--     Only fired when accuracy >= 80 (otherwise it's simply "try again").
-	--     A factor is considered the bottleneck when it is below 0.6 AND at least
-	--     0.2 lower than both other factors — i.e. clearly the odd one out.
+	--     Only fired when accuracy >= pass_accuracy% (otherwise it's simply "try again").
+	--     A factor is considered the bottleneck when it is below bottleneck_thresh AND at
+	--     least dominance_margin lower than both other factors — i.e. clearly the odd one out.
 	local suggestion = nil
-	if a_val < 80 then
+	if a_val < alg.pass_accuracy then
 		suggestion = "try_again"
 	else
 		local factors = {
@@ -311,10 +345,10 @@ local function handle_score(stats, line)
 				min_idx = i
 			end
 		end
-		if min_idx and min_val < 0.6 then
+		if min_idx and min_val < alg.bottleneck_thresh then
 			local is_dominant = true
 			for i, f in ipairs(factors) do
-				if i ~= min_idx and (f.val - min_val) < 0.2 then
+				if i ~= min_idx and (f.val - min_val) < alg.dominance_margin then
 					is_dominant = false
 					break
 				end
@@ -327,13 +361,13 @@ local function handle_score(stats, line)
 		-- Secondary suggestions for the "good attempt, no mastery gain" cases.
 		if suggestion == nil then
 			if s_val <= old_mastery then
-				-- Only say "already mastered" if this was a strong attempt that
-				-- genuinely ran into the ceiling (score >= 90% of mastery).
+				-- Only say "already mastered" if this was a strong attempt that genuinely
+				-- ran into the ceiling (score >= mastery_score_frac of mastery).
 				-- A weak score that happens to be below mastery is not praise-worthy.
-				if old_mastery > 0 and s_val >= old_mastery * 0.9 then
+				if old_mastery > 0 and s_val >= old_mastery * alg.mastery_score_frac then
 					suggestion = "already_mastered"
 				end
-			elseif quality < 0.1 then
+			elseif quality < alg.min_quality then
 				-- Score beat mastery but quality was so low it produced no real gain.
 				-- Point to the weakest quality factor so they know what to work on.
 				local weakest = "be_more_consistent"
@@ -351,14 +385,14 @@ local function handle_score(stats, line)
 	end
 
 	-- Over-drilling check: overrides everything — rest is more important.
-	if l.n_consecutive >= 5 then
+	if l.n_consecutive >= alg.max_consecutive then
 		suggestion = "try_another_lesson"
 	end
 
 	-- 3. Update Mastery: grow toward the session score, scaled by quality.
-	--     Requires accuracy >= 80% and a score that beats current mastery.
-	if a_val >= 80 and s_val > old_mastery then
-		l.mastery = old_mastery + (s_val - old_mastery) * 0.20 * quality
+	--     Requires accuracy >= pass_accuracy% and a score that beats current mastery.
+	if a_val >= alg.pass_accuracy and s_val > old_mastery then
+		l.mastery = old_mastery + (s_val - old_mastery) * alg.mastery_growth * quality
 	end
 
 	-- 4. Update SRS fields
@@ -367,19 +401,19 @@ local function handle_score(stats, line)
 		l.n_fail = 0
 		l.n_pass_tot = (l.n_pass_tot or 0) + 1
 		if l.n_pass == 1 then
-			l.ivl = 1
+			l.ivl = alg.ivl_first
 		elseif l.n_pass == 2 then
-			l.ivl = 6
+			l.ivl = alg.ivl_second
 		else
-			l.ivl = math.ceil((l.ivl or 1) * (l.ease or 2.5))
+			l.ivl = math.ceil((l.ivl or 1) * (l.ease or alg.ease_initial))
 		end
-		l.ease = math.min(3.5, (l.ease or 2.5) + 0.1)
+		l.ease = math.min(alg.ease_max, (l.ease or alg.ease_initial) + alg.ease_pass_delta)
 	else
 		l.n_fail = (l.n_fail or 0) + 1
 		l.n_pass = 0
 		l.n_fail_tot = (l.n_fail_tot or 0) + 1
 		l.ivl = 1
-		l.ease = math.max(1.3, (l.ease or 2.5) - 0.2)
+		l.ease = math.max(alg.ease_min, (l.ease or alg.ease_initial) - alg.ease_fail_delta)
 	end
 
 	l.total_duration = (l.total_duration or 0) + d_val
@@ -389,12 +423,12 @@ local function handle_score(stats, line)
 	-- 5. Calculate Growth Points using raw deltas (not normalized).
 	--    This preserves the property that harder lessons (higher max_groups)
 	--    yield more points for the same proportional improvement.
-	local new_power = calculate_power(l)
+	local new_power = calculate_power(l, alg)
 	local m_delta = math.max(0, (l.mastery or 0) - old_mastery)
 	local p_delta = math.max(0, new_power - old_power)
 
-	-- Mastery increases provide 1:1 points; Power increases provide 0.5:1
-	local points_earned = m_delta + (p_delta * 0.5)
+	-- Mastery increases provide 1:1 points; Power increases provide power_points_ratio:1
+	local points_earned = m_delta + (p_delta * alg.power_points_ratio)
 
 	-- 6. Update Daily Totals
 	stats.daily[today] = stats.daily[today] or { score = 0, duration = 0 }
@@ -406,6 +440,7 @@ local function handle_score(stats, line)
 end
 
 local function handle_suggest(stats)
+	local alg = stats.algorithm
 	-- 1. Discover all lesson IDs that have a seq/N.txt file.
 	local available = {}
 	local i = 1
@@ -438,7 +473,7 @@ local function handle_suggest(stats)
 
 	-- 3. Among known lessons, find the best candidate to review.
 	--    Priority 1: overdue (days_elapsed >= ivl), ranked by overdue ratio descending.
-	--    Priority 2: not yet overdue but ema_pass < 0.8 (still needs work),
+	--    Priority 2: not yet overdue but ema_pass < weak_ema_thresh (still needs work),
 	--                ranked by ema_pass ascending (weakest first).
 	local best_id = nil
 	local best_score = -math.huge
@@ -466,7 +501,7 @@ local function handle_suggest(stats)
 		elseif best_type ~= "overdue" then
 			-- Not overdue: consider if ema_pass is weak
 			local ep = l.ema_pass or 0
-			if ep < 0.8 then
+			if ep < alg.weak_ema_thresh then
 				-- Score = 1 - ema_pass so weakest gets highest score
 				local score = 1.0 - ep
 				if score > best_score then
