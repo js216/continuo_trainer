@@ -32,8 +32,13 @@ struct status_line {
    // today
    int   pts       = 0;
    int   pts_delta = 0;   // points earned on the last completed lesson
+   double pts_delta_time = -1e9;  // initialised far in the past; never triggers on startup
    bool  goal_met  = false;
    int   streak    = 0;
+
+   // coaching suggestion from last STATS line
+   char  suggestion[32]  = "";
+   double suggestion_time = -1e9;
 };
 
 struct state {
@@ -45,7 +50,8 @@ struct state {
    char       explanation[MAX_LINES * MAX_LEN];
    struct status_line status;
    int image_width = 0;
-   bool triggered_today = false;
+   bool triggered_today    = false;
+   bool stats_initialized  = false;  // true after first STATS line; suppresses startup celebration
 } state;
 
 static void clear_status(void)
@@ -221,13 +227,27 @@ static void handle_stats(const char *buf)
    p = strstr(buf, "power=");
    if (p) sscanf(p, "power=%f", &state.status.power);
 
+   p = strstr(buf, "suggestion=");
+   if (p) {
+      char raw[32] = "";
+      sscanf(p, "suggestion=%31s", raw);
+      strncpy(state.status.suggestion, raw, sizeof(state.status.suggestion) - 1);
+      state.status.suggestion[sizeof(state.status.suggestion) - 1] = '\0';
+      state.status.suggestion_time = glfwGetTime();
+   }
+
    int new_pts = (int)(total + 0.5f);
    // Accumulate the delta — do NOT clear it here. The second STATS line
    // (from LOAD_LESSON) will add 0, leaving the delta intact until the
    // next attempt starts. Clearing happens in handle_result on id == 0.
    state.status.pts_delta += new_pts - state.status.pts;
-   state.status.pts        = new_pts;
-   state.status.goal_met   = (total >= goal && goal > 0.0f);
+   // Only celebrate points earned during this session, never on the initial
+   // load of existing totals from the stats file.
+   if (state.stats_initialized && state.status.pts_delta > 0 && new_pts > state.status.pts)
+      state.status.pts_delta_time = glfwGetTime();
+   state.status.pts       = new_pts;
+   state.status.goal_met  = (total >= goal && goal > 0.0f);
+   state.stats_initialized = true;
 }
 
 static void handle_lesson(const char *buf)
@@ -423,6 +443,20 @@ static void show_squares(void)
    ImGui::NewLine();
 }
 
+static const char* expand_suggestion(const char* s)
+{
+   if (strcmp(s, "try_again")                         == 0) return "Try again!";
+   if (strcmp(s, "play_faster")                       == 0) return "Try to play faster!";
+   if (strcmp(s, "play_more_evenly")                  == 0) return "Focus on an even tempo!";
+   if (strcmp(s, "be_more_consistent")                == 0) return "Be more consistent!";
+   if (strcmp(s, "already_mastered")                  == 0) return "Excellent! Already mastered.";
+   if (strcmp(s, "raise_quality_be_more_consistent")  == 0) return "Good score! Play more consistently to grow mastery.";
+   if (strcmp(s, "raise_quality_play_faster")         == 0) return "Good score! Play faster to grow mastery.";
+   if (strcmp(s, "raise_quality_play_more_evenly")    == 0) return "Good score! Even up your tempo to grow mastery.";
+   if (strcmp(s, "try_another_lesson")                == 0) return "Great effort! Try another lesson now.";
+   return s;  // fallback: show the raw token
+}
+
 static void show_status_line(void)
 {
    const status_line &s = state.status;
@@ -435,12 +469,9 @@ static void show_status_line(void)
    else
       snprintf(lesson_buf, sizeof(lesson_buf), "L%d", state.current_lesson);
 
-   // Points field: "586 pts" normally, "586 pts (+5)" right after a lesson.
+   // Points field.
    char pts_buf[48];
-   if (s.slowest != 0.0f && s.pts_delta > 0)
-      snprintf(pts_buf, sizeof(pts_buf), "%d pts (+%d)", s.pts, s.pts_delta);
-   else
-      snprintf(pts_buf, sizeof(pts_buf), "%d pts", s.pts);
+   snprintf(pts_buf, sizeof(pts_buf), "%d pts", s.pts);
 
    // Build the full status text.
    char text_buf[256];
@@ -466,6 +497,16 @@ static void show_status_line(void)
 
    float text_w = ImGui::CalcTextSize(text_buf).x;
 
+   // If a suggestion arrived recently, override the status text for 1 second.
+   const char* display_text = text_buf;
+   char suggestion_buf[64] = "";
+   double age = glfwGetTime() - s.suggestion_time;
+   if (s.suggestion[0] != '\0' && age < 1.0) {
+      strncpy(suggestion_buf, expand_suggestion(s.suggestion), sizeof(suggestion_buf) - 1);
+      display_text = suggestion_buf;
+      text_w = ImGui::CalcTextSize(display_text).x;
+   }
+
    // Ideal position: right edge of text aligns with right edge of the image.
    // The image is rendered at the window's content origin (x = window_x + padding),
    // so its right edge is at that same x plus state.image_width.
@@ -482,10 +523,56 @@ static void show_status_line(void)
 
    ImGui::SetCursorScreenPos(ImVec2(text_x, ImGui::GetCursorScreenPos().y));
 
-   if (s.goal_met)
-      ImGui::TextColored(ImVec4(0.0f, 1.0f, 0.4f, 1.0f), "%s", text_buf);
+   if (s.suggestion[0] != '\0' && age < 1.0)
+      ImGui::TextColored(ImVec4(1.0f, 0.85f, 0.1f, 1.0f), "%s", display_text);
+   else if (s.goal_met)
+      ImGui::TextColored(ImVec4(0.0f, 1.0f, 0.4f, 1.0f), "%s", display_text);
    else
-      ImGui::TextUnformatted(text_buf);
+      ImGui::TextUnformatted(display_text);
+}
+
+static void show_celebration(void)
+{
+   const status_line &s = state.status;
+   if (s.pts_delta <= 0) return;
+
+   double age = glfwGetTime() - s.pts_delta_time;
+   const double DURATION = 2.0;
+   if (age >= DURATION) return;
+
+   float t     = (float)(age / DURATION);       // 0 → 1 over lifetime
+   float alpha = 1.0f - t;                       // fade out
+   float rise  = t * 40.0f;                      // drift upward 40px
+
+   ImGuiIO& io = ImGui::GetIO();
+   float cx = io.DisplaySize.x * 0.5f;
+   float cy = io.DisplaySize.y * 0.4f - rise;
+
+   char buf[32];
+   snprintf(buf, sizeof(buf), "+%d pts!", s.pts_delta);
+
+   // Draw with a large font scale via the foreground draw list so it
+   // floats above all windows without affecting layout.
+   ImDrawList* dl = ImGui::GetForegroundDrawList();
+   float font_size = ImGui::GetFontSize() * 3.0f;
+   ImVec2 text_size = ImGui::CalcTextSize(buf);
+   // CalcTextSize uses current font size; scale manually for centering.
+   float scale = 3.0f;
+   ImVec2 pos = ImVec2(cx - text_size.x * scale * 0.5f,
+                       cy - text_size.y * scale * 0.5f);
+
+   // Choose colour: gold normally, bright green when goal just met.
+   ImU32 col;
+   if (s.goal_met)
+      col = IM_COL32(80, 255, 120, (int)(alpha * 255));
+   else
+      col = IM_COL32(255, 210, 40,  (int)(alpha * 255));
+
+   // Shadow for legibility.
+   ImU32 shadow = IM_COL32(0, 0, 0, (int)(alpha * 180));
+   dl->AddText(ImGui::GetFont(), font_size,
+               ImVec2(pos.x + 2, pos.y + 2), shadow, buf);
+   dl->AddText(ImGui::GetFont(), font_size, pos, col, buf);
 }
 
 static void gui_main(void)
@@ -513,6 +600,7 @@ static void gui_main(void)
    if (state.explanation[0] != '\0')
       ImGui::TextUnformatted(state.explanation);
 
+   show_celebration();
    check_new_day();
 }
 

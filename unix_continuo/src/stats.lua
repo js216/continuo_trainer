@@ -10,6 +10,21 @@
 --      Mastery and Power, rewarding growth and maintenance over mindless
 --      repetition of mastered material.
 --
+--      Mastery growth is gated by a session quality score:
+--
+--        quality = ema_pass * speed_factor * evenness_factor
+--
+--      ema_pass    : exponential moving average of pass/fail over ~10 sessions
+--                    (alpha=0.18). A master plays it right almost every time.
+--      speed_factor: average note time this session relative to the lesson's
+--                    personal best. Faster = higher. Capped at 1.0.
+--      evenness_factor: fastest/slowest note ratio. Perfect even tempo = 1.0;
+--                    large spread = closer to 0. A master plays in even tempo.
+--
+--      Mastery only grows when accuracy >= 80% and the raw score exceeds the
+--      current mastery. The growth step is scaled by quality, so high mastery
+--      requires consistent, fast, and even performance across many sessions.
+--
 -- ARGUMENTS
 --      arg[1]: Path to the stats storage file (e.g., "stats.log").
 --              This file is a standard Lua script that returns a table.
@@ -139,7 +154,7 @@ end
 -- OUTPUT HELPER
 -------------------------------------------------------------------------------
 
-local function print_stats_line(stats, l_id, timestamp)
+local function print_stats_line(stats, l_id, timestamp, suggestion)
 	local today = get_date_str()
 	local d = stats.daily[today] or { score = 0, duration = 0 }
 	local streak = calculate_streak(stats)
@@ -165,6 +180,9 @@ local function print_stats_line(stats, l_id, timestamp)
 			normalize(power, l)
 		)
 	end
+	if suggestion then
+		output = output .. " suggestion=" .. suggestion
+	end
 	io.write(output .. "\n")
 end
 
@@ -176,11 +194,11 @@ local function handle_score(stats, line)
 	local ts, l_id, acc, score, dur =
 		line:match("SCORE time=(%S+) lesson=(%S+) accuracy=(%S+) score=(%S+) duration=(%S+)")
 
-	if not (l_id and score) then return end
+	if not (l_id and score) or l_id == "nil" then return end
 	local s_val, a_val, d_val = tonumber(score) or 0, tonumber(acc) or 0, tonumber(dur) or 0
 	local today = get_date_str()
 
-	local l = stats.lessons[l_id] or { ease = 2.5, ivl = 0, mastery = 0, total_duration = 0 }
+	local l = stats.lessons[l_id] or { ease = 2.5, ivl = 0, mastery = 0, total_duration = 0, max_groups = 0 }
 
 	-- Update the theoretical score ceiling: groups * 5.0 (max speed_factor).
 	-- Take the max across sessions in case a lesson is ever edited.
@@ -194,12 +212,117 @@ local function handle_score(stats, line)
 	local old_mastery = l.mastery or 0
 	local old_power = calculate_power(l)
 
-	-- 2. Update Mastery (dampened growth towards the peak, requires >=80% accuracy)
-	if a_val >= 80 and s_val > old_mastery then
-		l.mastery = old_mastery + (s_val - old_mastery) * 0.20
+	-- 2. Parse timing fields from the SCORE line.
+	local slowest = tonumber(line:match("slowest=(%S+)")) or 0
+	local fastest = tonumber(line:match("fastest=(%S+)")) or 0
+	local average = tonumber(line:match("average=(%S+)")) or 0
+
+	-- 2a. Update EMA of pass rate (~10-session window, alpha=0.18).
+	--     A pass requires accuracy >= 80%. This is the primary consistency signal.
+	local pass_this_session = (a_val >= 80) and 1.0 or 0.0
+	local alpha = 0.18
+	l.ema_pass = l.ema_pass and (alpha * pass_this_session + (1 - alpha) * l.ema_pass)
+	                        or pass_this_session
+
+	-- 2b. Speed factor: how fast is this session relative to the lesson's personal
+	--     best average note time? Lower average = faster = better.
+	--     best_avg tracks the fastest (lowest) average ever recorded.
+	if average > 0 then
+		if not l.best_avg or average < l.best_avg then
+			l.best_avg = average
+		end
+	end
+	local speed_factor
+	if average > 0 and l.best_avg and l.best_avg > 0 then
+		-- Ratio of best to current: 1.0 when matching PB, decays toward 0 when slow.
+		-- Clamp to [0,1] so a fluke fast session never inflates above 1.
+		speed_factor = math.min(1.0, l.best_avg / average)
+	else
+		speed_factor = 0.0
 	end
 
-	-- 3. Update SRS fields
+	-- 2c. Evenness factor: fastest/slowest ratio. Perfect evenness = 1.0.
+	--     A wide spread between the fastest and slowest note indicates uneven tempo.
+	local evenness_factor
+	if slowest > 0 and fastest > 0 then
+		evenness_factor = math.min(1.0, fastest / slowest)
+	else
+		evenness_factor = 0.0
+	end
+
+	-- 2d. Combined quality gates mastery growth. All three dimensions must be
+	--     strong for mastery to advance meaningfully.
+	local quality = l.ema_pass * speed_factor * evenness_factor
+
+	-- 2f. Track consecutive attempts on this lesson (resets when another lesson
+	--     is scored). Used to detect over-drilling.
+	if stats.last_lesson_scored ~= l_id then
+		l.n_consecutive = 1
+	else
+		l.n_consecutive = (l.n_consecutive or 0) + 1
+	end
+	stats.last_lesson_scored = l_id
+
+	-- 2e. Derive a suggestion: call out the single clearest bottleneck, if any.
+	--     Only fired when accuracy >= 80 (otherwise it's simply "try again").
+	--     A factor is considered the bottleneck when it is below 0.6 AND at least
+	--     0.2 lower than both other factors — i.e. clearly the odd one out.
+	local suggestion = nil
+	if a_val < 80 then
+		suggestion = "try_again"
+	else
+		local factors = {
+			{ name = "be_more_consistent", val = l.ema_pass    },
+			{ name = "play_faster",        val = speed_factor   },
+			{ name = "play_more_evenly",   val = evenness_factor },
+		}
+		local min_val  = math.huge
+		local min_idx  = nil
+		for i, f in ipairs(factors) do
+			if f.val < min_val then min_val = f.val; min_idx = i end
+		end
+		if min_idx and min_val < 0.6 then
+			local is_dominant = true
+			for i, f in ipairs(factors) do
+				if i ~= min_idx and (f.val - min_val) < 0.2 then
+					is_dominant = false
+					break
+				end
+			end
+			if is_dominant then
+				suggestion = factors[min_idx].name
+			end
+		end
+
+		-- Secondary suggestions for the "good attempt, no mastery gain" cases.
+		if suggestion == nil then
+			if s_val <= old_mastery then
+				-- Score didn't beat the ceiling: they're already at or above this level.
+				suggestion = "already_mastered"
+			elseif quality < 0.1 then
+				-- Score beat mastery but quality was so low it produced no real gain.
+				-- Point to the weakest quality factor so they know what to work on.
+				local weakest = "be_more_consistent"
+				local wval = l.ema_pass
+				if speed_factor < wval then weakest = "play_faster"; wval = speed_factor end
+				if evenness_factor < wval then weakest = "play_more_evenly" end
+				suggestion = "raise_quality_" .. weakest
+			end
+		end
+	end
+
+	-- Over-drilling check: overrides everything — rest is more important.
+	if l.n_consecutive >= 5 then
+		suggestion = "try_another_lesson"
+	end
+
+	-- 3. Update Mastery: grow toward the session score, scaled by quality.
+	--     Requires accuracy >= 80% and a score that beats current mastery.
+	if a_val >= 80 and s_val > old_mastery then
+		l.mastery = old_mastery + (s_val - old_mastery) * 0.20 * quality
+	end
+
+	-- 4. Update SRS fields
 	if a_val == 100 then
 		l.n_pass = (l.n_pass or 0) + 1
 		l.n_fail = 0
@@ -220,23 +343,23 @@ local function handle_score(stats, line)
 	l.last_date = today
 	stats.lessons[l_id] = l
 
-	-- 4. Calculate Growth Points using raw deltas (not normalized).
+	-- 5. Calculate Growth Points using raw deltas (not normalized).
 	--    This preserves the property that harder lessons (higher max_groups)
 	--    yield more points for the same proportional improvement.
 	local new_power = calculate_power(l)
-	local m_delta = math.max(0, l.mastery - old_mastery)
+	local m_delta = math.max(0, (l.mastery or 0) - old_mastery)
 	local p_delta = math.max(0, new_power - old_power)
 
 	-- Mastery increases provide 1:1 points; Power increases provide 0.5:1
 	local points_earned = m_delta + (p_delta * 0.5)
 
-	-- 5. Update Daily Totals
+	-- 6. Update Daily Totals
 	stats.daily[today] = stats.daily[today] or { score = 0, duration = 0 }
 	stats.daily[today].score = stats.daily[today].score + points_earned
 	stats.daily[today].duration = stats.daily[today].duration + d_val
 
 	save_stats(stats_file, stats)
-	print_stats_line(stats, l_id, tonumber(ts))
+	print_stats_line(stats, l_id, tonumber(ts), suggestion)
 end
 
 -------------------------------------------------------------------------------
