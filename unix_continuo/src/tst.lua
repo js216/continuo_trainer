@@ -4,18 +4,28 @@
 
 -- DESCRIPTION
 --      This script discovers and runs program regression tests located in
---      the same directory as the script. A valid test consists of a pair:
+--      the same directory as the script. A valid test consists of:
 --
---          progname_N_in.txt
---          progname_N_out.txt
+--          progname_N_in.txt   (required) stdin fed to the program
+--          progname_N_out.txt  (required) expected stdout
+--          progname_N_arg.txt  (optional) passed as first CLI arg (e.g. a
+--                              stats log); copied to a temp file before the
+--                              run so the original is never mutated.
+--          progname_N_arg_in.txt   alternative to _arg.txt; if present,
+--                                  takes precedence over _arg.txt.
+--          progname_N_arg_out.txt  expected content of the arg file after
+--                                  the run (only checked when _arg_in.txt
+--                                  is used); useful for testing programs
+--                                  that persist state (e.g. stats.lua).
 --
 --      where:
---      - progname matches an executable in ../bin/
+--      - progname matches an executable in ../bin/ or a .lua file in ../src/
 --      - N is a positive integer test number
 --
---      For each valid test, the script feeds the _in.txt file to
---      ../bin/progname via stdin and compares stdout with the
---      corresponding _out.txt file using diff.
+--      For each valid test, the script feeds the _in.txt file to the program
+--      via stdin and compares stdout with the _out.txt file using diff.
+--      If _arg_out.txt is present, the temp copy of the arg file is also
+--      diffed against it after the run.
 --
 -- EXECUTION ORDER
 --      Tests are executed in deterministic order:
@@ -82,7 +92,7 @@ local function collect_cases()
 	handle:close()
 
 	for _, name in ipairs(files) do
-		if name:match("_in%.txt$") then
+		if name:match("_in%.txt$") and not name:match("_arg_in%.txt$") then
 			local prog = name:match("^([^_]+)")
 			if prog then
 				local num = extract_number(prog, name)
@@ -122,11 +132,38 @@ local function run_case(prog, num_str)
 		return
 	end
 
+	-- Optional first argument: either _arg.txt (input only) or _arg_in.txt +
+	-- optional _arg_out.txt (also checks the file's state after the run).
+	-- In both cases the file is copied to a temp so the original is never mutated.
+	local arg_in_file = TST_DIR .. "/" .. prog .. "_" .. num_str .. "_arg_in.txt"
+	local arg_file = TST_DIR .. "/" .. prog .. "_" .. num_str .. "_arg.txt"
+	local arg_out_file = TST_DIR .. "/" .. prog .. "_" .. num_str .. "_arg_out.txt"
+	local tmp_arg = nil
+	local extra_arg = ""
+	local check_arg_out = false
+	if file_exists(arg_in_file) then
+		tmp_arg = os.tmpname()
+		os.execute("cp " .. arg_in_file .. " " .. tmp_arg)
+		extra_arg = " " .. tmp_arg
+		check_arg_out = file_exists(arg_out_file)
+	elseif file_exists(arg_file) then
+		tmp_arg = os.tmpname()
+		os.execute("cp " .. arg_file .. " " .. tmp_arg)
+		extra_arg = " " .. tmp_arg
+	end
+
 	-- Construct and run the command
-	local cmd = exec_cmd .. " < " .. in_file .. " | diff -u - " .. out_file .. " >/dev/null 2>&1"
+	local cmd = exec_cmd .. extra_arg .. " < " .. in_file .. " | diff -u - " .. out_file .. " >/dev/null 2>&1"
 
 	local ok = os.execute(cmd)
-	if ok == true or ok == 0 then
+	local arg_ok = true
+	if check_arg_out and tmp_arg then
+		local diff_cmd = "diff -u " .. tmp_arg .. " " .. arg_out_file .. " >/dev/null 2>&1"
+		local r = os.execute(diff_cmd)
+		arg_ok = (r == true or r == 0)
+	end
+	if tmp_arg then os.remove(tmp_arg) end
+	if (ok == true or ok == 0) and arg_ok then
 		print(GREEN .. "OK" .. RESET .. " " .. label)
 	else
 		print(RED .. "FAIL" .. RESET .. " " .. label)
