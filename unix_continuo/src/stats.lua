@@ -39,8 +39,14 @@
 --          routes finalisation to stats.chunks.
 --      LESSON_NAME <n>                          from lua src/all.lua
 --          Ensures stats.lessons[n] exists with defaults; saves if new.
+--          Records n as a known live lesson for ALL_SCANNED validation.
 --      CHUNK_NAME <hash>                        from lua src/all.lua
 --          Ensures stats.chunks[hash] exists with defaults; saves if new.
+--          Records hash as a known live chunk for ALL_SCANNED validation.
+--      ALL_SCANNED                              from lua src/all.lua
+--          Verifies that every entry in stats.lessons and stats.chunks was
+--          announced via LESSON_NAME / CHUNK_NAME.  Any unannounced (stale)
+--          entry is reported to stderr and the process exits with code 1.
 --      LOAD_LESSON <n>                          from bin/gui
 --          Emits a STATS line for lesson n (no scoring).
 --      QUERY_STATS                              from bin/gui
@@ -749,12 +755,15 @@ end
 
 local in_chunk_session = false
 local pending_suggest = false -- defer SUGGEST_LESSON until first CHUNK arrives
+local scanned_lessons = {} -- lessons announced via LESSON_NAME this session
+local scanned_chunks  = {} -- chunks announced via CHUNK_NAME this session
 
 for line in io.lines() do
 	line = line:gsub("\r$", "")
 	-- LESSON_NAME / CHUNK_NAME: emitted by all.lua; initialise entries if absent
 	if line:match("^LESSON_NAME ") then
 		local n = line:match("^LESSON_NAME (%S+)")
+		scanned_lessons[n] = true
 		local stats = load_stats(stats_file)
 		if not stats.lessons[n] then
 			stats.lessons[n] = { ease = stats.algorithm.ease_initial, ivl = 0,
@@ -763,6 +772,7 @@ for line in io.lines() do
 		end
 	elseif line:match("^CHUNK_NAME ") then
 		local h = line:match("^CHUNK_NAME (%S+)")
+		scanned_chunks[h] = true
 		local stats = load_stats(stats_file)
 		if not stats.chunks[h] then
 			stats.chunks[h] = { ease = stats.algorithm.ease_initial, ivl = 0,
@@ -840,6 +850,27 @@ for line in io.lines() do
 			handle_suggest(stats)
 		else
 			pending_suggest = true
+		end
+	elseif line:match("^ALL_SCANNED") then
+		local stats = load_stats(stats_file)
+		local stale = {}
+		for id in pairs(stats.lessons) do
+			if tonumber(id) and not scanned_lessons[tostring(id)] then
+				stale[#stale + 1] = "lesson:" .. id
+			end
+		end
+		for h in pairs(stats.chunks) do
+			if not scanned_chunks[h] then
+				stale[#stale + 1] = "chunk:" .. h
+			end
+		end
+		if #stale > 0 then
+			table.sort(stale)
+			io.stderr:write("Error: stale entries in stats (not present in current lesson set):\n")
+			for _, s in ipairs(stale) do
+				io.stderr:write("  " .. s .. "\n")
+			end
+			os.exit(1)
 		end
 	end
 end
