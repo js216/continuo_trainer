@@ -18,9 +18,7 @@
 //     P     Previous lesson (exits chunk mode).
 //     N     Next lesson (exits chunk mode).
 //     S     If in chunk mode: exit chunk mode and reload the parent lesson.
-//           Otherwise: emit SUGGEST_LESSON.
-//     C     Emit SUGGEST_CHUNK.  If already in chunk mode, adds
-//           exclude=<hash> to avoid suggesting the same chunk twice.
+//           Otherwise: emit SUGGEST_LESSON to get the best item to practice.
 //
 // RECEIVED (stdin, from stats.lua and bin/load)
 //     BASSNOTE <i>: <token> [passing]
@@ -42,11 +40,10 @@
 //         Flashes the reason string without changing lesson.
 //
 // EMITTED (stdout, to bin/load and stats.lua)
-//     LOAD_LESSON <n>                 Load lesson n.
-//     LOAD_CHUNK <hash>               Load chunk file chn/<hash>.txt.
-//     SUGGEST_LESSON                  Request a lesson recommendation.
-//     SUGGEST_CHUNK [exclude=<hash>]  Request a chunk recommendation.
-//     QUERY_STATS                     Request a stats refresh (at 2:00 AM).
+//     LOAD_LESSON <n>       Load lesson n.
+//     LOAD_CHUNK <hash>     Load chunk file chn/<hash>.txt.
+//     SUGGEST_LESSON        Request the best item to practice (chunk or lesson).
+//     QUERY_STATS           Request a stats refresh (at 2:00 AM).
 //
 // FILES
 //     seq/<n>.png     Score image for lesson n.
@@ -199,15 +196,6 @@ static void suggest_lesson(void)
 	fflush(stdout);
 }
 
-static void suggest_chunk(void)
-{
-	if (state.current_chunk[0])
-		printf("SUGGEST_CHUNK exclude=%s\n", state.current_chunk);
-	else
-		printf("SUGGEST_CHUNK\n");
-	fflush(stdout);
-}
-
 static void key_callback(GLFWwindow *window, int key, int scancode, int action,
 			 int mods)
 {
@@ -230,9 +218,6 @@ static void key_callback(GLFWwindow *window, int key, int scancode, int action,
 			break;
 		case GLFW_KEY_S:
 			suggest_lesson();
-			break;
-		case GLFW_KEY_C:
-			suggest_chunk();
 			break;
 		}
 	}
@@ -804,10 +789,6 @@ static void gui_main(void)
 	ImGui::SameLine();
 	if (ImGui::Button("[S]uggest"))
 		suggest_lesson();
-
-	ImGui::SameLine();
-	if (ImGui::Button("[C]hunk"))
-		suggest_chunk();
 
 	show_status_line();
 	show_music();
