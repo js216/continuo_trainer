@@ -718,21 +718,40 @@ end
 -- MAIN LOOP
 -------------------------------------------------------------------------------
 
+local in_chunk_session = false
+local pending_suggest_chunk = false
+
 for line in io.lines() do
 	line = line:gsub("\r$", "")
 	-- CHUNK: register chunk metadata in memory (no disk I/O)
 	if line:match("^CHUNK ") then
 		handle_chunk(line)
+		if pending_suggest_chunk then
+			pending_suggest_chunk = false
+			local stats = load_stats(stats_file)
+			handle_suggest_chunk(stats)
+		end
+
+	-- CHUNK_SESSION: the next LESSON is a chunk replay, not a real lesson
+	elseif line:match("^CHUNK_SESSION ") then
+		in_chunk_session = true
 
 	-- LESSON: new lesson starting; finalise any abandoned in-progress lesson
 	elseif line:match("^LESSON ") then
-		if current and current.max_bass_id >= 0 and not current.results[current.max_bass_id] then
-			local stats = load_stats(stats_file)
-			finalize(stats)
+		if in_chunk_session then
+			-- chunk replay: track notes for RESULT scoring but don't
+			-- update last_lesson_id (keep the parent lesson)
+			current = { id = line:match("^LESSON (%S+)"), max_bass_id = -1, results = {}, is_chunk = true }
+			in_chunk_session = false
+		else
+			if current and current.max_bass_id >= 0 and not current.results[current.max_bass_id] then
+				local stats = load_stats(stats_file)
+				finalize(stats)
+			end
+			local n = line:match("^LESSON (%S+)")
+			current = { id = n, max_bass_id = -1, results = {} }
+			last_lesson_id = n
 		end
-		local n = line:match("^LESSON (%S+)")
-		current = { id = n, max_bass_id = -1, results = {} }
-		last_lesson_id = n
 
 	-- BASSNOTE: track highest index to know when the lesson is complete
 	elseif line:match("^BASSNOTE ") then
@@ -771,8 +790,16 @@ for line in io.lines() do
 		local stats = load_stats(stats_file)
 		handle_suggest(stats)
 	elseif line:match("^SUGGEST_CHUNK") then
-		local stats = load_stats(stats_file)
-		handle_suggest_chunk(stats)
+		local l_id = (current and tostring(current.id)) or last_lesson_id
+		local chunks = l_id and lesson_chunks_mem[l_id] or {}
+		if #chunks == 0 then
+			-- Chunks not yet registered (chunk.lua still running); defer
+			-- until the first CHUNK line for this lesson arrives.
+			pending_suggest_chunk = true
+		else
+			local stats = load_stats(stats_file)
+			handle_suggest_chunk(stats)
+		end
 	end
 end
 

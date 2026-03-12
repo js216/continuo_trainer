@@ -45,6 +45,7 @@ struct status_line {
 struct state {
 	bool running = true;
 	int current_lesson = 1;
+	char current_chunk[64] = ""; // non-empty while a chunk session is active
 	struct Square squares[MAX_LINES];
 	int num_squares = 0;
 	int num_notes = 0;
@@ -71,6 +72,7 @@ static void quit_lesson(void)
 
 static void reload_lesson(void)
 {
+	state.current_chunk[0] = '\0';
 	printf("LOAD_LESSON %d\n", state.current_lesson);
 	clear_status();
 }
@@ -112,6 +114,7 @@ static void next_lesson(void)
 	if (total < 1)
 		return;
 	state.current_lesson = (state.current_lesson % total) + 1;
+	state.current_chunk[0] = '\0';
 	printf("LOAD_LESSON %d\n", state.current_lesson);
 	clear_status();
 }
@@ -122,6 +125,7 @@ static void prev_lesson(void)
 	if (total < 1)
 		return;
 	state.current_lesson = ((state.current_lesson - 2 + total) % total) + 1;
+	state.current_chunk[0] = '\0';
 	printf("LOAD_LESSON %d\n", state.current_lesson);
 	clear_status();
 }
@@ -194,7 +198,10 @@ static void handle_result(const char *buf)
 	if (id + 1 == state.num_notes + 1) {
 		state.squares[id + 1].state = Square::State::DONE;
 		state.num_squares = id + 2;
-		printf("LOAD_LESSON %d\n", state.current_lesson);
+		if (state.current_chunk[0])
+			printf("LOAD_CHUNK %s\n", state.current_chunk);
+		else
+			printf("LOAD_LESSON %d\n", state.current_lesson);
 	}
 
 	if (!ok) {
@@ -317,6 +324,8 @@ static void handle_suggestion(const char *buf)
 	if (cp) {
 		char hash[64] = "";
 		sscanf(cp, "chunk=%63s", hash);
+		strncpy(state.current_chunk, hash, sizeof(state.current_chunk) - 1);
+		state.current_chunk[sizeof(state.current_chunk) - 1] = '\0';
 		printf("LOAD_CHUNK %s\n", hash);
 		fflush(stdout);
 		// Flash skills as the status message
@@ -441,15 +450,19 @@ static void show_music(void)
 {
 	static int iw = 0;
 	static int ih = 0;
-	static int img_disp = 0;
+	static char img_path[128] = "";
 	static GLuint img = 0;
-	if (!img || (img_disp != state.current_lesson)) {
-		char filename[64];
-		snprintf(filename, sizeof(filename), "seq/%d.png",
-			 state.current_lesson);
-		if (LoadImage(filename, &img, &iw, &ih))
+
+	char desired[128];
+	if (state.current_chunk[0])
+		snprintf(desired, sizeof(desired), "chn/%s.png", state.current_chunk);
+	else
+		snprintf(desired, sizeof(desired), "seq/%d.png", state.current_lesson);
+
+	if (!img || strcmp(img_path, desired) != 0) {
+		if (LoadImage(desired, &img, &iw, &ih))
 			return;
-		img_disp = state.current_lesson;
+		strncpy(img_path, desired, sizeof(img_path) - 1);
 	}
 
 	state.image_width = iw;
