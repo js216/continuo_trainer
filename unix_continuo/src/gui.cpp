@@ -379,6 +379,7 @@ static void handle_suggestion(const char *buf)
 		state.current_chunk[sizeof(state.current_chunk) - 1] = '\0';
 		printf("LOAD_CHUNK %s\n", hash);
 		fflush(stdout);
+		clear_status();
 		// Flash skills as the status message
 		char skills[24] = "?";
 		const char *sp = strstr(buf, "skills=");
