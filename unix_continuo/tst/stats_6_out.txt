@@ -1,3 +1,3 @@
 SUGGESTION chunk=b8e6fb11a7f32f6691e610a366d1422fd6c5cdb4 lesson=1 skills=root reason=new_chunk
-STATS time=1000 total_today=3.34 goal=1000.00 total_duration_today=2.000 streak=0 lesson=1[ivl=1,ease=2.60,tot_dur=2.000,n_pass_tot=1,n_fail_tot=0,mastery=14.85,power=14.85]
+STATS time=1000 total_today=51.97 goal=1000.00 total_duration_today=2.000 streak=0 lesson=1[ivl=1,ease=2.60,tot_dur=2.000,n_pass_tot=1,n_fail_tot=0,mastery=14.85,power=14.85]
 SUGGESTION chunk=44a3ea0a999f100e178d71969081e4c19b91bdfd lesson=1 skills=root 6 reason=weak_chunk

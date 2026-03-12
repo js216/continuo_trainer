@@ -14,19 +14,20 @@ return {
     ["ivl_second"] = 6,
     ["last_lesson_scored"] = "1",
     ["mastery_growth"] = 0.2,
+    ["mastery_points_per_pct"] = 2.5,
     ["mastery_score_frac"] = 0.9,
     ["max_consecutive"] = 5,
     ["min_quality"] = 0.1,
     ["pass_accuracy"] = 80,
     ["power_half_life"] = 0.693,
-    ["power_points_ratio"] = 0.5,
+    ["power_points_per_pct"] = 1.0,
     ["score_goal"] = 1000,
     ["weak_ema_thresh"] = 0.8,
   },
   ["chunks"] = {
   },
   ["daily"] = {
-    ["2026-03-11"] = {["score"] = 2.2271186440678, ["duration"] = 1.0},
+    ["2026-03-12"] = {["score"] = 51.966101694915, ["duration"] = 1.0},
   },
   ["lessons"] = {
     ["1"] = {
@@ -34,7 +35,7 @@ return {
       ["ease"] = 2.6,
       ["ema_pass"] = 1.0,
       ["ivl"] = 1,
-      ["last_date"] = "2026-03-11",
+      ["last_date"] = "2026-03-12",
       ["mastery"] = 1.4847457627119,
       ["max_groups"] = 2,
       ["n_consecutive"] = 1,

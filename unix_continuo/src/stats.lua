@@ -67,7 +67,8 @@ local ALGORITHM_DEFAULTS = {
 	pass_accuracy = 80, -- minimum accuracy % to count as a pass
 	mastery_growth = 0.20, -- fraction of (score - mastery) gap closed per session
 	power_half_life = 0.693, -- ln(2): power reaches 50% of mastery at days_elapsed == ivl
-	power_points_ratio = 0.5, -- power-delta weight relative to mastery-delta (1:1)
+	mastery_points_per_pct = 2.5, -- points awarded per 1% normalised mastery gain
+	power_points_per_pct = 1.0,  -- points awarded per 1% normalised power gain
 	bottleneck_thresh = 0.6, -- factor value below which it is considered a bottleneck
 	dominance_margin = 0.2, -- how much lower the bottleneck must be than the others
 	min_quality = 0.1, -- quality below this triggers a "raise quality" suggestion
@@ -636,7 +637,8 @@ local function finalize(stats)
 	end
 
 	-- ── daily totals (lesson only) ────────────────────────────────────────────
-	local points = res.m_delta + res.p_delta * alg.power_points_ratio
+	local points = normalize(res.m_delta, l) * alg.mastery_points_per_pct
+	            + normalize(res.p_delta, l) * alg.power_points_per_pct
 	stats.daily[today] = stats.daily[today] or { score = 0, duration = 0 }
 	stats.daily[today].score = stats.daily[today].score + points
 	stats.daily[today].duration = stats.daily[today].duration + sd.duration
