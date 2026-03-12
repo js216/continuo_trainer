@@ -17,8 +17,7 @@
 //     R     Reload: re-emit LOAD_LESSON or LOAD_CHUNK for the current item.
 //     P     Previous lesson (exits chunk mode).
 //     N     Next lesson (exits chunk mode).
-//     S     If in chunk mode: exit chunk mode and reload the parent lesson.
-//           Otherwise: emit SUGGEST_LESSON to get the best item to practice.
+//     S     Emit SUGGEST_LESSON to get the best item to practice next.
 //
 // RECEIVED (stdin, from stats.lua and bin/load)
 //     BASSNOTE <i>: <token> [passing]
@@ -185,13 +184,6 @@ static void prev_lesson(void)
 
 static void suggest_lesson(void)
 {
-	if (state.current_chunk[0]) {
-		state.current_chunk[0] = '\0';
-		printf("LOAD_LESSON %d\n", state.current_lesson);
-		fflush(stdout);
-		clear_status();
-		return;
-	}
 	printf("SUGGEST_LESSON\n");
 	fflush(stdout);
 }
