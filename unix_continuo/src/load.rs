@@ -294,6 +294,53 @@ fn emit(n: usize, lesson: &Lesson, melody_groups: &[String]) {
     println!("LESSON_END");
 }
 
+fn load_and_emit_chunk(hash: &str) {
+    let file = format!("chn/{}.txt", hash);
+    let content = match fs::read_to_string(&file) {
+        Ok(c) => c,
+        Err(e) => {
+            die!("Cannot read {}: {}", file, e);
+        }
+    };
+
+    let lesson = parse_lesson(&content);
+    if lesson.bass.len() != lesson.figures.len() {
+        die!(
+            "Length mismatch: bass={} figures={}",
+            lesson.bass.len(),
+            lesson.figures.len()
+        );
+    }
+
+    let melody_groups = group_melody(&lesson.bass, &lesson.melody);
+
+    println!("CHUNK_SESSION {}", hash);
+    println!("LESSON {} {}", hash, lesson.key);
+    for i in 0..lesson.bass.len() {
+        let (tok, passing) = if is_passing(&lesson.bass[i]) {
+            (lesson.bass[i].trim_end_matches('p'), true)
+        } else {
+            (lesson.bass[i].as_str(), false)
+        };
+        if passing {
+            println!("BASSNOTE {}: {} passing", i, tok);
+        } else {
+            println!("BASSNOTE {}: {}", i, tok);
+        }
+        println!("FIGURES {}: {}", i, lesson.figures[i]);
+        println!(
+            "MELODY {}: {}",
+            i,
+            if melody_groups[i].is_empty() {
+                "-"
+            } else {
+                &melody_groups[i]
+            }
+        );
+    }
+    println!("LESSON_END");
+}
+
 fn load_and_emit(n: usize) {
     let file = format!("seq/{}.txt", n);
     let content = match fs::read_to_string(&file) {
@@ -334,6 +381,10 @@ fn main() {
             Some("LOAD_LESSON") => match parts.next().and_then(|x| x.parse::<usize>().ok()) {
                 Some(n) => load_and_emit(n),
                 None => die!("LOAD_LESSON requires a valid lesson number"),
+            },
+            Some("LOAD_CHUNK") => match parts.next() {
+                Some(hash) => load_and_emit_chunk(hash),
+                None => die!("LOAD_CHUNK requires a hash"),
             },
             Some("QUIT") => break,
             Some(..) => continue, // ignore all other cmds
