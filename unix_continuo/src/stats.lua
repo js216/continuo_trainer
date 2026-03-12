@@ -427,7 +427,7 @@ local function handle_suggest(stats)
 	local alg = stats.algorithm
 	local available = {}
 	for id in pairs(stats.lessons) do
-		table.insert(available, id)
+		if tonumber(id) then table.insert(available, id) end
 	end
 	table.sort(available, function(a, b) return tonumber(a) < tonumber(b) end)
 
@@ -545,8 +545,44 @@ local function finalize(stats)
 	end
 
 	local alg = stats.algorithm
-	local l_id = tostring(current.id)
 	local today = get_date_str()
+
+	-- ── chunk session: update stats.chunks only ───────────────────────────────
+	if current.is_chunk then
+		local hash = tostring(current.id)
+		local c = stats.chunks[hash]
+			or { ease = alg.ease_initial, ivl = 0, mastery = 0, total_duration = 0, max_groups = 0 }
+		if alg.last_lesson_scored ~= hash then
+			c.n_consecutive = 1
+		else
+			c.n_consecutive = (c.n_consecutive or 0) + 1
+		end
+		alg.last_lesson_scored = hash
+		local res = update_entry(c, sd, alg)
+		stats.chunks[hash] = c
+		local points = normalize(res.m_delta, c) * alg.mastery_points_per_pct
+		            + normalize(res.p_delta, c) * alg.power_points_per_pct
+		stats.daily[today] = stats.daily[today] or { score = 0, duration = 0 }
+		stats.daily[today].score = stats.daily[today].score + points
+		stats.daily[today].duration = stats.daily[today].duration + sd.duration
+		save_stats(stats_file, stats)
+		local power = calculate_power(c, alg)
+		local d = stats.daily[today]
+		local streak = calculate_streak(stats)
+		local suggestion = c.n_consecutive >= alg.max_consecutive and "try_another_lesson" or nil
+		io.write(string.format(
+			"STATS time=%.0f total_today=%.2f goal=%.2f total_duration_today=%.3f streak=%d"
+				.. " chunk=%s[ivl=%d,ease=%.2f,mastery=%.2f,power=%.2f]%s\n",
+			sd.time, d.score, alg.score_goal, d.duration, streak,
+			hash, math.floor(c.ivl or 0), c.ease or alg.ease_initial,
+			normalize(c.mastery or 0, c), normalize(power, c),
+			suggestion and (" suggestion=" .. suggestion) or ""
+		))
+		current = nil
+		return
+	end
+
+	local l_id = tostring(current.id)
 
 	-- ── lesson entry ──────────────────────────────────────────────────────────
 	local l = stats.lessons[l_id]
