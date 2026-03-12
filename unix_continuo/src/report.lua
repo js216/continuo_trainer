@@ -4,10 +4,10 @@
 --
 -- DESCRIPTION
 --      Reads a stats.log file from stdin, parses the Lua table it contains,
---      and prints a formatted summary: today's score and streak, algorithm
---      parameters, and sorted tables for all lessons and chunks showing
---      mastery, power, interval, ease, pass/fail counts, and days since
---      last practice.
+--      and prints a formatted summary: today's score and streak, then
+--      sections for skills, lessons and chunks.  Skill stats are derived
+--      by reading chn/<hash>.txt files from the working directory (files
+--      that cannot be opened are silently skipped).
 --
 -- INPUT
 --      A stats.log file (the format written by stats.lua) on stdin.
@@ -15,7 +15,7 @@
 --      or unparseable file is handled gracefully with a diagnostic message.
 --
 -- OUTPUT
---      Plain-text report to stdout.
+--      Plain-text report to stdout, all lines ≤ 80 characters.
 --
 -- USAGE
 --      lua src/report.lua < log/stats.log
@@ -149,7 +149,6 @@ print(
 	)
 )
 
--- total time across all lessons
 local total_secs = 0
 for _, l in pairs(lessons) do
 	total_secs = total_secs + (l.total_duration or 0)
@@ -162,7 +161,70 @@ local n_chunks = 0
 for _ in pairs(chunks) do
 	n_chunks = n_chunks + 1
 end
-print(string.format("Total   lessons: %d   chunks: %d   practice time: %s", n_lessons, n_chunks, fmt_dur(total_secs)))
+print(string.format(
+	"Total   lessons: %d   chunks: %d   practice time: %s",
+	n_lessons, n_chunks, fmt_dur(total_secs)
+))
+
+-- ── skills ────────────────────────────────────────────────────────────────────
+-- Aggregate per-skill stats by reading each chn/<hash>.txt file.
+-- A chunk with skills "root 6" contributes to both "root" and "6".
+
+local skill_stats = {} -- [skill] = {n, m_sum, p_sum, pass, fail}
+
+for h, c in pairs(chunks) do
+	local f = io.open("chn/" .. h .. ".txt", "r")
+	if f then
+		local skills_str
+		for line in f:lines() do
+			local s = line:match("^skills:%s*(.+)$")
+			if s then
+				skills_str = s
+				break
+			end
+		end
+		f:close()
+		if skills_str then
+			local m_pct = normalize(c.mastery or 0, c)
+			local p_pct = normalize(calculate_power(c), c)
+			for skill in skills_str:gmatch("%S+") do
+				local ss = skill_stats[skill]
+				if not ss then
+					ss = { n = 0, m_sum = 0, p_sum = 0, pass = 0, fail = 0 }
+					skill_stats[skill] = ss
+				end
+				ss.n = ss.n + 1
+				ss.m_sum = ss.m_sum + m_pct
+				ss.p_sum = ss.p_sum + p_pct
+				ss.pass = ss.pass + (c.n_pass_tot or 0)
+				ss.fail = ss.fail + (c.n_fail_tot or 0)
+			end
+		end
+	end
+end
+
+local skill_names = {}
+for s in pairs(skill_stats) do
+	table.insert(skill_names, s)
+end
+-- Weakest first (lowest average mastery).
+table.sort(skill_names, function(a, b)
+	return (skill_stats[a].m_sum / skill_stats[a].n) < (skill_stats[b].m_sum / skill_stats[b].n)
+end)
+
+-- Column widths: 2+10+2+4+2+7+2+7+2+5+2+5 = 50
+if #skill_names > 0 then
+	print()
+	print(string.format("SKILLS (%d)", #skill_names))
+	print(string.format("  %-10s  %4s  %-7s  %-7s  %-5s  %s",
+		"Skill", "N", "Mastery", "Power", "Pass", "Fail"))
+	print(string.rep("-", 50))
+	for _, sname in ipairs(skill_names) do
+		local ss = skill_stats[sname]
+		print(string.format("  %-10s  %4d  %6.1f%%  %6.1f%%  %5d  %5d",
+			sname, ss.n, ss.m_sum / ss.n, ss.p_sum / ss.n, ss.pass, ss.fail))
+	end
+end
 
 -- ── lessons ───────────────────────────────────────────────────────────────────
 
@@ -174,54 +236,28 @@ table.sort(lesson_ids, function(a, b)
 	return (tonumber(a) or 0) < (tonumber(b) or 0)
 end)
 
+-- Column widths: 2+4+2+7+2+7+2+4+2+4+2+4+2+4+2+4+2+7+2+10 = 75
 if #lesson_ids > 0 then
 	print()
 	print(string.format("LESSONS (%d)", #lesson_ids))
-	-- header row
-	print(
-		string.format(
-			"  %-4s  %-8s  %-8s  %-6s  %-5s  %-4s  %-5s  %-5s  %-8s  %s",
-			"ID",
-			"Mastery",
-			"Power",
-			"Ivl",
-			"Ease",
-			"EMA",
-			"Pass",
-			"Fail",
-			"Time",
-			"Last"
-		)
-	)
-	print(string.rep("-", 76))
+	print(string.format("  %-4s  %-7s  %-7s  %-4s  %-4s  %-4s  %-4s  %-4s  %-7s  %s",
+		"ID", "Mastery", "Power", "Ivl", "Ease", "EMA", "Pass", "Fail", "Time", "Last"))
+	print(string.rep("-", 75))
 	for _, id in ipairs(lesson_ids) do
 		local l = lessons[id]
 		local mastery_pct = normalize(l.mastery or 0, l)
-		local power = calculate_power(l)
-		local power_pct = normalize(power, l)
+		local power_pct = normalize(calculate_power(l), l)
 		local elapsed = days_since(l.last_date)
 		local ivl = math.floor(l.ivl or 0)
-		-- mark overdue lessons
-		local due = ""
-		if ivl > 0 and elapsed and elapsed >= ivl then
-			due = " *"
-		end
-		print(
-			string.format(
-				"  %-4s  %6.1f%%   %6.1f%%   %6d  %5.2f  %.2f  %5d  %5d  %8s  %s%s",
-				id,
-				mastery_pct,
-				power_pct,
-				ivl,
-				l.ease or (alg.ease_initial or 2.5),
-				l.ema_pass or 0,
-				l.n_pass_tot or 0,
-				l.n_fail_tot or 0,
-				fmt_dur(l.total_duration or 0),
-				l.last_date or "--",
-				due
-			)
-		)
+		local due = (ivl > 0 and elapsed and elapsed >= ivl) and " *" or ""
+		print(string.format(
+			"  %-4s  %6.1f%%  %6.1f%%  %4d  %4.2f  %4.2f  %4d  %4d  %7s  %s%s",
+			id, mastery_pct, power_pct, ivl,
+			l.ease or (alg.ease_initial or 2.5),
+			l.ema_pass or 0,
+			l.n_pass_tot or 0, l.n_fail_tot or 0,
+			fmt_dur(l.total_duration or 0),
+			l.last_date or "--", due))
 	end
 end
 
@@ -231,7 +267,7 @@ local chunk_hashes = {}
 for h in pairs(chunks) do
 	table.insert(chunk_hashes, h)
 end
--- sort by last_date descending, then hash
+-- Sort by last_date descending, then hash.
 table.sort(chunk_hashes, function(a, b)
 	local da = chunks[a].last_date or ""
 	local db = chunks[b].last_date or ""
@@ -241,51 +277,26 @@ table.sort(chunk_hashes, function(a, b)
 	return a < b
 end)
 
+-- Column widths: 2+10+2+7+2+7+2+4+2+4+2+4+2+4+2+4+2+10 = 72
 if #chunk_hashes > 0 then
 	print()
 	print(string.format("CHUNKS (%d)", #chunk_hashes))
-	print(
-		string.format(
-			"  %-10s  %-3s  %-8s  %-8s  %-6s  %-5s  %-4s  %-5s  %-5s  %s",
-			"Hash",
-			"Grp",
-			"Mastery",
-			"Power",
-			"Ivl",
-			"Ease",
-			"EMA",
-			"Pass",
-			"Fail",
-			"Last"
-		)
-	)
-	print(string.rep("-", 76))
+	print(string.format("  %-10s  %-7s  %-7s  %-4s  %-4s  %-4s  %-4s  %-4s  %s",
+		"Hash", "Mastery", "Power", "Ivl", "Ease", "EMA", "Pass", "Fail", "Last"))
+	print(string.rep("-", 72))
 	for _, h in ipairs(chunk_hashes) do
 		local c = chunks[h]
 		local mastery_pct = normalize(c.mastery or 0, c)
-		local power = calculate_power(c)
-		local power_pct = normalize(power, c)
+		local power_pct = normalize(calculate_power(c), c)
 		local ivl = math.floor(c.ivl or 0)
 		local elapsed = days_since(c.last_date)
-		local due = ""
-		if ivl > 0 and elapsed and elapsed >= ivl then
-			due = " *"
-		end
-		print(
-			string.format(
-				"  %-10s  %3d  %6.1f%%   %6.1f%%   %6d  %5.2f  %.2f  %5d  %5d  %s%s",
-				h:sub(1, 10),
-				c.max_groups or 0,
-				mastery_pct,
-				power_pct,
-				ivl,
-				c.ease or (alg.ease_initial or 2.5),
-				c.ema_pass or 0,
-				c.n_pass_tot or 0,
-				c.n_fail_tot or 0,
-				c.last_date or "--",
-				due
-			)
-		)
+		local due = (ivl > 0 and elapsed and elapsed >= ivl) and " *" or ""
+		print(string.format(
+			"  %-10s  %6.1f%%  %6.1f%%  %4d  %4.2f  %4.2f  %4d  %4d  %s%s",
+			h:sub(1, 10), mastery_pct, power_pct, ivl,
+			c.ease or (alg.ease_initial or 2.5),
+			c.ema_pass or 0,
+			c.n_pass_tot or 0, c.n_fail_tot or 0,
+			c.last_date or "--", due))
 	end
 end
