@@ -11,6 +11,7 @@ return {
     ["ease_pass_delta"] = 0.1,
     ["ema_alpha"] = 0.18,
     ["ivl_first"] = 1,
+    ["ivl_max"] = 365,
     ["ivl_second"] = 6,
     ["last_lesson_scored"] = "1",
     ["mastery_growth"] = 0.2,

@@ -180,7 +180,7 @@ if #lesson_ids > 0 then
 	-- header row
 	print(
 		string.format(
-			"  %-4s  %-8s  %-8s  %-4s  %-5s  %-4s  %-5s  %-5s  %-8s  %s",
+			"  %-4s  %-8s  %-8s  %-6s  %-5s  %-4s  %-5s  %-5s  %-8s  %s",
 			"ID",
 			"Mastery",
 			"Power",
@@ -193,7 +193,7 @@ if #lesson_ids > 0 then
 			"Last"
 		)
 	)
-	print(string.rep("-", 74))
+	print(string.rep("-", 76))
 	for _, id in ipairs(lesson_ids) do
 		local l = lessons[id]
 		local mastery_pct = normalize(l.mastery or 0, l)
@@ -208,7 +208,7 @@ if #lesson_ids > 0 then
 		end
 		print(
 			string.format(
-				"  %-4s  %6.1f%%   %6.1f%%   %4d  %5.2f  %.2f  %5d  %5d  %8s  %s%s",
+				"  %-4s  %6.1f%%   %6.1f%%   %6d  %5.2f  %.2f  %5d  %5d  %8s  %s%s",
 				id,
 				mastery_pct,
 				power_pct,
@@ -246,7 +246,7 @@ if #chunk_hashes > 0 then
 	print(string.format("CHUNKS (%d)", #chunk_hashes))
 	print(
 		string.format(
-			"  %-10s  %-3s  %-8s  %-8s  %-4s  %-5s  %-4s  %-5s  %-5s  %s",
+			"  %-10s  %-3s  %-8s  %-8s  %-6s  %-5s  %-4s  %-5s  %-5s  %s",
 			"Hash",
 			"Grp",
 			"Mastery",
@@ -259,7 +259,7 @@ if #chunk_hashes > 0 then
 			"Last"
 		)
 	)
-	print(string.rep("-", 74))
+	print(string.rep("-", 76))
 	for _, h in ipairs(chunk_hashes) do
 		local c = chunks[h]
 		local mastery_pct = normalize(c.mastery or 0, c)
@@ -273,7 +273,7 @@ if #chunk_hashes > 0 then
 		end
 		print(
 			string.format(
-				"  %-10s  %3d  %6.1f%%   %6.1f%%   %4d  %5.2f  %.2f  %5d  %5d  %s%s",
+				"  %-10s  %3d  %6.1f%%   %6.1f%%   %6d  %5.2f  %.2f  %5d  %5d  %s%s",
 				h:sub(1, 10),
 				c.max_groups or 0,
 				mastery_pct,

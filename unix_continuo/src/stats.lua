@@ -108,6 +108,7 @@ local ALGORITHM_DEFAULTS = {
 	ease_fail_delta = 0.2, -- ease decrease on a fail
 	ivl_first = 1, -- interval (days) after first perfect pass
 	ivl_second = 6, -- interval (days) after second consecutive perfect pass
+	ivl_max = 365, -- maximum interval (days); caps runaway SRS growth
 	chunk_mastery_thresh = 60, -- normalised % below which a chunk needs practice
 	chunk_power_thresh = 40, -- normalised % below which a chunk needs practice
 }
@@ -379,7 +380,7 @@ local function update_entry(entry, sd, alg)
 		elseif entry.n_pass == 2 then
 			entry.ivl = alg.ivl_second
 		else
-			entry.ivl = math.ceil((entry.ivl or 1) * (entry.ease or alg.ease_initial))
+			entry.ivl = math.min(alg.ivl_max, math.ceil((entry.ivl or 1) * (entry.ease or alg.ease_initial)))
 		end
 		entry.ease = math.min(alg.ease_max, (entry.ease or alg.ease_initial) + alg.ease_pass_delta)
 	else
