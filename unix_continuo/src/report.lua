@@ -1,8 +1,24 @@
 -- SPDX-License-Identifier: MIT
--- report.lua --- print a human-readable report from a stats file on stdin
+-- report.lua --- human-readable stats report
 -- Copyright (c) 2026 Jakob Kastelic
 --
--- Usage:  lua report.lua < log/stats.log
+-- DESCRIPTION
+--      Reads a stats.log file from stdin, parses the Lua table it contains,
+--      and prints a formatted summary: today's score and streak, algorithm
+--      parameters, and sorted tables for all lessons and chunks showing
+--      mastery, power, interval, ease, pass/fail counts, and days since
+--      last practice.
+--
+-- INPUT
+--      A stats.log file (the format written by stats.lua) on stdin.
+--      The file must be a valid Lua script that returns a table.  An empty
+--      or unparseable file is handled gracefully with a diagnostic message.
+--
+-- OUTPUT
+--      Plain-text report to stdout.
+--
+-- USAGE
+--      lua src/report.lua < log/stats.log
 
 local content = io.read("*a")
 if not content or content:match("^%s*$") then

@@ -1,6 +1,47 @@
 // SPDX-License-Identifier: MIT
-// entry.rs --- MIDI text stream to Lilypond-style chord sequencer
+// entry.rs --- MIDI text stream to lesson-file recorder
 // Copyright (c) 2026 Jakob Kastelic
+//
+// DESCRIPTION
+//     entry reads NOTE_ON / NOTE_OFF events from stdin (typically from
+//     bin/midi) and groups them into chords.  A chord is complete when all
+//     held keys are released.  The lowest pitch becomes the bassline note;
+//     the highest is the melody note (or "r" for a single-note chord); any
+//     middle pitches are currently ignored.  Enharmonic spelling is
+//     key-aware: in key F, "ais" is respelled as "bes".
+//
+//     Two output modes:
+//       Normal (no --outdir): on EOF, the complete sequence is written to
+//           stdout as a lesson file.
+//       Live (--outdir DIR): every stdin line is echoed to stdout; after
+//           each all-keys-release, DIR/N.txt is written or overwritten
+//           (N is the first unused integer on startup).
+//
+// ARGUMENTS
+//     --key    KEY       Enharmonic spelling key (default: C).
+//     --time   TIME      Time signature string, e.g. "3/2" (default: 4/4).
+//     --title  TITLE...  Lesson title; consumes tokens until the next flag.
+//     --duration DUR     Default note duration in LilyPond notation
+//                        (default: 2).  Dots are supported, e.g. "2.".
+//     --outdir DIR       Enable live mode; write lesson file to DIR/N.txt.
+//
+// INPUT
+//     NOTE_ON  <lily> [VELOCITY:<v>] TIME:<t>   A key was pressed.
+//     NOTE_OFF <lily> [...]                      A key was released.
+//     (All other lines are echoed unchanged in live mode; ignored otherwise.)
+//
+// OUTPUT
+//     A lesson file in seq/*.txt format:
+//         title: <title>
+//         key:   <key>
+//         time:  <time>
+//
+//         bassline = { <note><dur> ... }
+//         figures  = { 0 ... }       (all zeros; intended for manual editing)
+//         melody   = { <note><dur> ... }
+//
+//     Bar lines are computed from --time and --duration so that each
+//     line within the braces represents exactly one measure.
 
 use std::collections::{HashMap, HashSet};
 use std::env;

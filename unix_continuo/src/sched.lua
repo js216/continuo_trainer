@@ -1,16 +1,22 @@
 -- SPDX-License-Identifier: MIT
--- lesson_filter.lua --- bridge for automatic lesson loading
+-- sched.lua --- automatic lesson loader bridge
 -- Copyright (c) 2026 Jakob Kastelic
 
 -- DESCRIPTION
---      lesson_filter.lua is a stdin/stdout bridge that extracts lesson
---      IDs from a performance stream to trigger lesson loading.
+--      sched watches the stats pipeline output for STATS lines that carry a
+--      lesson ID and automatically reloads that lesson.  It is intended as a
+--      bridge between stats.lua and bin/load in graphs where the GUI is
+--      absent.
 --
--- INPUT FORMAT
---      Scans for the pattern "lesson=<id>" where <id> is numeric.
+-- INPUT
+--      Any stream of lines.  Two patterns are matched:
+--          lesson=<id>   (numeric) — remembered as the current lesson.
+--          STATS         — triggers a LOAD_LESSON for the last seen ID.
+--      All other lines are silently ignored.
 --
--- OUTPUT FORMAT
---      Writes "LOAD_LESSON <id>" to stdout immediately upon match.
+-- OUTPUT
+--      LOAD_LESSON <id>    Emitted each time a STATS line is received and a
+--                          lesson ID has previously been seen.
 
 io.stdout:setvbuf("no")
 

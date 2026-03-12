@@ -14,9 +14,14 @@
 //
 // COMMANDS (stdin)
 //     LOAD_LESSON <n>
-//         Load and emit lesson number <n>.  <n> must be a non-negative
-//         decimal integer.  Any unrecognized command (including a malformed
-//         LOAD_LESSON line) is fatal.
+//         Load and emit seq/<n>.txt.  <n> must be a non-negative decimal
+//         integer.  A malformed LOAD_LESSON line is fatal.
+//
+//     LOAD_CHUNK <hash>
+//         Load and emit chn/<hash>.txt as a chunk session.  Emits
+//         CHUNK_SESSION <hash> before the normal LESSON / BASSNOTE /
+//         FIGURES / MELODY / LESSON_END sequence, using the hash as the
+//         LESSON identifier so downstream programs can track it.
 //
 //     QUIT
 //         Exit cleanly.

@@ -1,6 +1,41 @@
 // SPDX-License-Identifier: MIT
 // g2ly.rs --- convert group output into a four-staff LilyPond score
 // Copyright (c) 2026 Jakob Kastelic
+//
+// DESCRIPTION
+//     g2ly reads the output of bin/group from standard input and produces a
+//     complete LilyPond (.ly) document on standard output.  The score has
+//     four staves (top to bottom):
+//       1. Melody (treble): verbatim MELODY tokens.
+//       2. Realization treble: inner voices at or above middle C.
+//       3. Realization bass: two voices — BASS_ACTUAL (voice 1) and inner
+//          voices below middle C (voice 2).
+//       4. Figured bass (bass clef): the written BASS note with a
+//          \FiguredBass context below it.
+//
+//     Realization notes are tied across passing groups.  Passing groups
+//     emit a solidus figure (<_\>) instead of the FIGURES field content.
+//
+//     Unrecognised GROUP lines produce a stderr warning; processing
+//     continues.
+//
+// INPUT FORMAT
+//     LESSON <n> <key> <time> <title>
+//         Provides key, time signature, and title for the score header.
+//
+//     GROUP ID:<n> [passing] BASS:<note> FIGURES:<fig> MELODY:<mel>
+//           BASS_ACTUAL:<note> TIME:<ms> REALIZATION:<p1>/<p2>/...
+//         One realized chord.  See bin/group for field definitions.
+//
+// OUTPUT FORMAT
+//     A complete LilyPond document ready for lilypond(1).
+//
+// FIGURED BASS TRANSLATION
+//     "0"      → <_>       empty figure
+//     "#"      → <_+>      raised third
+//     "b"      → <_->      lowered third
+//     "#6"     → <6+>, "b6" → <6->
+//     "a/b/c"  → <a b c>   slash-separated stack
 
 use std::io::{self, BufRead};
 

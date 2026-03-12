@@ -1,6 +1,37 @@
 // SPDX-License-Identifier: MIT
-// l2ly.rs --- convert lesson file from stdin into minimal LilyPond grand staff
+// l2ly.rs --- convert lesson file into a minimal LilyPond grand staff
 // Copyright (c) 2026 Jakob Kastelic
+//
+// DESCRIPTION
+//     l2ly reads a lesson file from stdin and writes a two-staff LilyPond
+//     (.ly) document to stdout: melody in treble clef, bassline with figured
+//     bass in bass clef.
+//
+//     Chunk files (no title or time fields) are handled automatically:
+//     the \header block is omitted and \cadenzaOn replaces the time
+//     signature directive to suppress automatic bar lines.
+//
+// INPUT FORMAT
+//     A lesson file in seq/*.txt or chn/*.txt format.  Metadata as
+//     "key: value" lines; sections as brace-delimited blocks:
+//         title:   <text>       optional; absent in chunk files
+//         key:     <text>       key letter, e.g. G
+//         time:    <text>       time signature, e.g. 4/4; absent in chunks
+//         bassline = { <tokens> }
+//         figures  = { <tokens> }
+//         melody   = { <tokens> }
+//
+//     Bass tokens with a trailing 'p' (e.g. fis2p) are passing notes:
+//     the 'p' is stripped and the figure is replaced with a solidus (<_\>).
+//
+// OUTPUT FORMAT
+//     A complete LilyPond document ready for lilypond(1).
+//
+// FIGURED BASS TRANSLATION
+//     "0"        → <_>          no figure
+//     "#" / "b"  → <_+> / <_->  raised/lowered third
+//     "#6"/"b6"  → <6+> / <6->
+//     "a/b/c"    → <a b c>      slash-separated stack
 
 use std::io::{self, Read};
 

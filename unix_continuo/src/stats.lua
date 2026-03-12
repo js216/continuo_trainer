@@ -3,54 +3,84 @@
 -- Copyright (c) 2026 Jakob Kastelic
 
 -- DESCRIPTION
---      stats.lua incorporates the scoring logic formerly in score.lua and
---      reads the rules.lua output directly, computing per-lesson and per-chunk
---      statistics without an intermediate SCORE line.
+--      Accumulates RESULT lines for the current lesson in memory.  When the
+--      last RESULT arrives (or the lesson is abandoned), it computes accuracy,
+--      score and timing, then updates Mastery, Power and SRS fields for both
+--      the lesson and every chunk whose heart falls inside that lesson.
 --
---      It accumulates RESULT lines for the current lesson in memory.  When the
---      last RESULT arrives (or the lesson is abandoned by a new LESSON line or
---      EOF), it computes accuracy, score and timing, then updates Mastery,
---      Power and SRS fields for both the lesson and every chunk whose heart
---      falls inside that lesson.
+--      During a CHUNK_SESSION the same pipeline runs, but only stats.chunks
+--      is updated; stats.lessons is left untouched.
 --
---      Mastery growth is gated by a session quality score:
---
---        quality = ema_pass * speed_factor * evenness_factor
---
---      ema_pass    : exponential moving average of pass/fail over ~10 sessions
---                    (alpha=0.18). A master plays it right almost every time.
---      speed_factor: average note time this session relative to the lesson's
---                    personal best. Faster = higher. Capped at 1.0.
---      evenness_factor: fastest/slowest note ratio. Perfect even tempo = 1.0;
---                    large spread = closer to 0. A master plays in even tempo.
---
---      Mastery only grows when accuracy >= 80% and the raw score exceeds the
---      current mastery. The growth step is scaled by quality, so high mastery
---      requires consistent, fast, and even performance across many sessions.
+--      Mastery growth is gated by a quality score:
+--          quality = ema_pass × speed_factor × evenness_factor
+--      ema_pass:        EMA of pass/fail over ~10 sessions (alpha=0.18).
+--      speed_factor:    session average relative to the personal best; ≤1.
+--      evenness_factor: fastest/slowest note ratio; 1 = perfectly even.
+--      Mastery grows only when accuracy ≥ 80% and score exceeds mastery.
 --
 -- ARGUMENTS
---      arg[1]: Path to the stats storage file (e.g., "stats.log").
---              This file is a standard Lua script that returns a table.
---              If it doesn't exist, a new one will be created.
+--      arg[1]: Path to the stats file (e.g. "log/stats.log").  A valid Lua
+--              script returning a table; created on first write if absent.
 --
--- INPUT FORMAT
+-- INPUT
 --      LESSON <n> <key> <time> <title>          from bin/load
+--          Starts a new lesson accumulator.  During a CHUNK_SESSION, <n>
+--          is the chunk hash; the accumulator is flagged is_chunk=true and
+--          stats.lessons is not updated on completion.
 --      BASSNOTE <i>: <token> [passing]          from bin/load
 --      RESULT <i> TIME:<ms> OK|FAIL [msg]       from lua src/rules.lua
---      CHUNK LESSON:<n> HEART:<s>-<e> LEN:<l> HASH:<h> ...
+--      CHUNK LESSON:<n> HEART:<s>-<e> LEN:<l> HASH:<h> KEY:<k>
+--            SKILLS:<s> BASSLINE:<b> FIGURE:<f> MELODY:<m>
 --                                               from lua src/chunk.lua
+--          Registers chunk metadata for the current lesson; used to update
+--          per-chunk stats when the parent lesson is finalised.
+--      CHUNK_SESSION <hash>                     from bin/load
+--          Signals that the next LESSON is a chunk replay; suppresses
+--          last_lesson_id update and routes finalisation to stats.chunks.
+--      LESSON_NAME <n>                          from lua src/all.lua
+--          Ensures stats.lessons[n] exists with defaults; saves if new.
+--      CHUNK_NAME <hash>                        from lua src/all.lua
+--          Ensures stats.chunks[hash] exists with defaults; saves if new.
 --      LOAD_LESSON <n>                          from bin/gui
+--          Emits a STATS line for lesson n (no scoring).
 --      QUERY_STATS                              from bin/gui
+--          Emits a STATS line for the current daily totals.
 --      SUGGEST_LESSON                           from bin/gui
+--          Selects and emits the best lesson to practice next.
+--      SUGGEST_CHUNK [exclude=<hash>]           from bin/gui
+--          Selects and emits the weakest chunk for the current lesson.
+--          Skips the chunk identified by exclude= (used in chunk mode).
 --
--- OUTPUT FORMAT
---      For every completed lesson:
---      STATS time=<t> total_today=<n.nn> goal=<n.nn> total_duration_today=<s.sss> streak=<n>
---            lesson=<id>[ivl=<n>,ease=<n.nn>,tot_dur=<s.sss>,n_pass_tot=<n>,n_fail_tot=<n>,
+-- OUTPUT
+--      After every completed lesson:
+--      STATS time=<t> total_today=<n.nn> goal=<n.nn>
+--            total_duration_today=<s.sss> streak=<n>
+--            lesson=<id>[ivl=<n>,ease=<n.nn>,tot_dur=<s.sss>,
+--                        n_pass_tot=<n>,n_fail_tot=<n>,
 --                        mastery=<n.nn>,power=<n.nn>]
+--            [suggestion=<token>]
 --
---      mastery and power are normalised to [0,100] relative to the lesson's
---      theoretical maximum score (max_groups * 5.0).
+--      After every completed chunk session:
+--      STATS time=<t> total_today=<n.nn> goal=<n.nn>
+--            total_duration_today=<s.sss> streak=<n>
+--            chunk=<hash>[ivl=<n>,ease=<n.nn>,mastery=<n.nn>,power=<n.nn>]
+--            [suggestion=<token>]
+--
+--      In response to QUERY_STATS or LOAD_LESSON:
+--      STATS time=<t> total_today=<n.nn> goal=<n.nn>
+--            total_duration_today=<s.sss> streak=<n> [lesson=<id>[...]]
+--
+--      In response to SUGGEST_LESSON:
+--      SUGGESTION lesson=<id> reason=<overdue|needs_work|new_lesson>
+--      SUGGESTION none reason=<all_up_to_date|no_lessons_available>
+--
+--      In response to SUGGEST_CHUNK:
+--      SUGGESTION chunk=<hash> lesson=<id> skills=<s>
+--                 reason=<weak_chunk|new_chunk>
+--      SUGGESTION none reason=<all_chunks_mastered|no_chunks|no_active_lesson>
+--
+--      mastery and power are normalised to [0,100] as
+--      (raw / (max_groups × 5.0)) × 100.
 
 -- Any single transition longer than MAX_DURATION seconds is clamped to that
 -- value and counted as a failure.
@@ -73,7 +103,7 @@ local ALGORITHM_DEFAULTS = {
 	dominance_margin = 0.2, -- how much lower the bottleneck must be than the others
 	min_quality = 0.1, -- quality below this triggers a "raise quality" suggestion
 	mastery_score_frac = 0.9, -- score must be >= this fraction of mastery to say "already mastered"
-	max_consecutive = 5, -- consecutive attempts before "try_another_lesson"
+	max_consecutive = 10, -- consecutive attempts before "try_another_lesson"
 	weak_ema_thresh = 0.8, -- ema_pass below this marks a lesson as "needs_work"
 	ease_initial = 2.5, -- starting ease factor for new lessons
 	ease_min = 1.3, -- minimum ease factor

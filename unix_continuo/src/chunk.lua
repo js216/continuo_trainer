@@ -35,6 +35,10 @@
 --     other       any figure not matched by the above rules
 --
 -- INPUT FORMAT (from bin/load)
+--     CHUNK_SESSION <hash>    Signals that the following LESSON…LESSON_END
+--                             is a chunk replay (loaded via LOAD_CHUNK).
+--                             chunk.lua skips the entire session: no chunks
+--                             are re-derived from an already-chunked file.
 --     LESSON <n> <key> <time> <title>
 --     BASSNOTE <i>: <token> [passing]
 --     FIGURES  <i>: <token>

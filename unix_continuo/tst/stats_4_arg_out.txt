@@ -16,7 +16,7 @@ return {
     ["mastery_growth"] = 0.2,
     ["mastery_points_per_pct"] = 2.5,
     ["mastery_score_frac"] = 0.9,
-    ["max_consecutive"] = 5,
+    ["max_consecutive"] = 10,
     ["min_quality"] = 0.1,
     ["pass_accuracy"] = 80,
     ["power_half_life"] = 0.693,

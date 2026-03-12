@@ -1,20 +1,24 @@
 -- SPDX-License-Identifier: MIT
--- all_chunks.lua --- generate chn/<hash>.txt for every lesson in seq/;
---                    serve as a persistent index of lessons and chunks.
+-- all.lua --- build chunk files and serve as a persistent lesson/chunk index
 -- Copyright (c) 2026 Jakob Kastelic
 --
--- Usage: lua src/all_chunks.lua
+-- DESCRIPTION
+--      On startup (and on every RESCAN command) the script:
+--        1. Scans seq/*.txt and emits one LESSON_NAME line per lesson in
+--           ascending numeric order.
+--        2. Runs bin/load | lua src/chunk.lua for every lesson, writes any
+--           new chn/<hash>.txt files (idempotent; hash collision is fatal),
+--           and emits one CHUNK_NAME line per chunk.
+--      After the initial scan the script blocks on stdin until EOF.  Connect
+--      a long-lived process (e.g. bin/gui) to keep it alive.
 --
--- On startup (and on each RESCAN command received on stdin) the script:
---   1. Scans seq/*.txt for lesson numbers and emits one line per lesson:
---        LESSON_NAME <n>
---   2. Runs bin/load | lua src/chunk.lua for every lesson, writes any new
---      chunk files to chn/, and emits one line per chunk:
---        CHUNK_NAME <hash>
+-- INPUT
+--      RESCAN      Repeat the full scan-and-emit cycle.
+--      (all other lines are silently ignored)
 --
--- After the initial scan the script waits on stdin.  The only recognised
--- command is:
---   RESCAN   — repeat the full scan/emit cycle
+-- OUTPUT
+--      LESSON_NAME <n>        One per lesson, in ascending numeric order.
+--      CHUNK_NAME <hash>      One per unique chunk, in lesson order.
 
 local function die(fmt, ...)
 	io.stderr:write(string.format("Error: " .. fmt, ...) .. "\n")

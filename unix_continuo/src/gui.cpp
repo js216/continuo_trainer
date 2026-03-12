@@ -1,3 +1,57 @@
+// SPDX-License-Identifier: MIT
+// gui.cpp --- OpenGL/ImGui continuo trainer front-end
+// Copyright (c) 2026 Jakob Kastelic
+
+// DESCRIPTION
+//     gui is the interactive front-end for the continuo trainer.  It opens
+//     a GLFW window showing the current lesson or chunk score image and a
+//     row of green/red squares tracking pass/fail results.  A status bar
+//     shows mastery, power, today's score, streak, and coaching suggestions.
+//
+//     All pipeline communication is via stdin/stdout.  Stdin is polled
+//     non-blocking so the UI remains responsive.
+//
+// KEYBOARD SHORTCUTS
+//     ESC   Close the window and exit.
+//     Q     Clear the current lesson display.
+//     R     Reload: re-emit LOAD_LESSON or LOAD_CHUNK for the current item.
+//     P     Previous lesson (exits chunk mode).
+//     N     Next lesson (exits chunk mode).
+//     S     If in chunk mode: exit chunk mode and reload the parent lesson.
+//           Otherwise: emit SUGGEST_LESSON.
+//     C     Emit SUGGEST_CHUNK.  If already in chunk mode, adds
+//           exclude=<hash> to avoid suggesting the same chunk twice.
+//
+// RECEIVED (stdin, from stats.lua and bin/load)
+//     BASSNOTE <i>: <token> [passing]
+//         Updates the expected note count for progress-square sizing.
+//     RESULT <i> TIME:<t> OK|FAIL [<message>]
+//         Updates the pass/fail square for group <i>.  On the last result,
+//         automatically reloads the current lesson or chunk.
+//     STATS time=<t> total_today=<n.nn> goal=<n.nn> streak=<n>
+//           [lesson=<id>[...,mastery=<n>,power=<n>]] [suggestion=<token>]
+//           [chunk=<hash>[...,mastery=<n>,power=<n>]]
+//         Updates the status bar.  Points delta animation fires when
+//         today's score increases after the first stats load.
+//     SUGGESTION chunk=<hash> lesson=<n> skills=<s> reason=<r>
+//         Enters chunk mode: sets current_chunk=<hash>, stores <n> as the
+//         parent lesson, emits LOAD_CHUNK, flashes skills as status text.
+//     SUGGESTION lesson=<id> reason=<r>
+//         Loads lesson <id> and flashes the reason string.
+//     SUGGESTION none reason=<token>
+//         Flashes the reason string without changing lesson.
+//
+// EMITTED (stdout, to bin/load and stats.lua)
+//     LOAD_LESSON <n>                 Load lesson n.
+//     LOAD_CHUNK <hash>               Load chunk file chn/<hash>.txt.
+//     SUGGEST_LESSON                  Request a lesson recommendation.
+//     SUGGEST_CHUNK [exclude=<hash>]  Request a chunk recommendation.
+//     QUERY_STATS                     Request a stats refresh (at 2:00 AM).
+//
+// FILES
+//     seq/<n>.png     Score image for lesson n.
+//     chn/<hash>.png  Score image for chunk <hash>.
+
 #include "imgui.h"
 #include "imgui_impl_glfw.h"
 #include "imgui_impl_opengl3.h"
