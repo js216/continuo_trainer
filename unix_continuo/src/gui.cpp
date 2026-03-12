@@ -72,8 +72,10 @@ static void quit_lesson(void)
 
 static void reload_lesson(void)
 {
-	state.current_chunk[0] = '\0';
-	printf("LOAD_LESSON %d\n", state.current_lesson);
+	if (state.current_chunk[0])
+		printf("LOAD_CHUNK %s\n", state.current_chunk);
+	else
+		printf("LOAD_LESSON %d\n", state.current_lesson);
 	clear_status();
 }
 
@@ -132,13 +134,23 @@ static void prev_lesson(void)
 
 static void suggest_lesson(void)
 {
+	if (state.current_chunk[0]) {
+		state.current_chunk[0] = '\0';
+		printf("LOAD_LESSON %d\n", state.current_lesson);
+		fflush(stdout);
+		clear_status();
+		return;
+	}
 	printf("SUGGEST_LESSON\n");
 	fflush(stdout);
 }
 
 static void suggest_chunk(void)
 {
-	printf("SUGGEST_CHUNK\n");
+	if (state.current_chunk[0])
+		printf("SUGGEST_CHUNK exclude=%s\n", state.current_chunk);
+	else
+		printf("SUGGEST_CHUNK\n");
 	fflush(stdout);
 }
 
@@ -329,10 +341,10 @@ static void handle_suggestion(const char *buf)
 		printf("LOAD_CHUNK %s\n", hash);
 		fflush(stdout);
 		// Flash skills as the status message
-		char skills[32] = "?";
+		char skills[24] = "?";
 		const char *sp = strstr(buf, "skills=");
 		if (sp)
-			sscanf(sp, "skills=%31s", skills);
+			sscanf(sp, "skills=%23s", skills);
 		snprintf(state.status.suggestion, sizeof(state.status.suggestion),
 			 "chunk: %s", skills);
 		state.status.suggestion_time = glfwGetTime();

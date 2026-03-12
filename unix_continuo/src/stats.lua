@@ -658,8 +658,8 @@ local function finalize(stats)
 	current = nil
 end
 
-local function handle_suggest_chunk(stats)
-	local l_id = (current and tostring(current.id)) or last_lesson_id
+local function handle_suggest_chunk(stats, exclude_hash)
+	local l_id = (current and not current.is_chunk and tostring(current.id)) or last_lesson_id
 	if not l_id then
 		io.write("SUGGESTION none reason=no_active_lesson\n")
 		return
@@ -676,6 +676,7 @@ local function handle_suggest_chunk(stats)
 	local weakest_hash, weakest_skills, weakest_score = nil, nil, math.huge
 	local new_hash, new_skills = nil, nil
 	for _, ci in ipairs(chunks) do
+		if exclude_hash and ci.hash == exclude_hash then goto continue_chunk end
 		local c = stats.chunks[ci.hash]
 		if not c then
 			if not new_hash then
@@ -694,6 +695,7 @@ local function handle_suggest_chunk(stats)
 				end
 			end
 		end
+		::continue_chunk::
 	end
 
 	-- Known weak chunks take priority; new chunks next; otherwise all mastered.
@@ -720,6 +722,7 @@ end
 
 local in_chunk_session = false
 local pending_suggest_chunk = false
+local pending_exclude_hash = nil
 
 for line in io.lines() do
 	line = line:gsub("\r$", "")
@@ -729,7 +732,8 @@ for line in io.lines() do
 		if pending_suggest_chunk then
 			pending_suggest_chunk = false
 			local stats = load_stats(stats_file)
-			handle_suggest_chunk(stats)
+			handle_suggest_chunk(stats, pending_exclude_hash)
+			pending_exclude_hash = nil
 		end
 
 	-- CHUNK_SESSION: the next LESSON is a chunk replay, not a real lesson
@@ -790,15 +794,17 @@ for line in io.lines() do
 		local stats = load_stats(stats_file)
 		handle_suggest(stats)
 	elseif line:match("^SUGGEST_CHUNK") then
-		local l_id = (current and tostring(current.id)) or last_lesson_id
+		local exclude = line:match("exclude=(%S+)")
+		local l_id = (current and not current.is_chunk and tostring(current.id)) or last_lesson_id
 		local chunks = l_id and lesson_chunks_mem[l_id] or {}
 		if #chunks == 0 then
 			-- Chunks not yet registered (chunk.lua still running); defer
 			-- until the first CHUNK line for this lesson arrives.
 			pending_suggest_chunk = true
+			pending_exclude_hash = exclude
 		else
 			local stats = load_stats(stats_file)
-			handle_suggest_chunk(stats)
+			handle_suggest_chunk(stats, exclude)
 		end
 	end
 end
