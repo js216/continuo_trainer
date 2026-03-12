@@ -10,6 +10,7 @@ bin/group         -> lua src/rules.lua;
 bin/load          -> lua src/stats.lua log/stats.log;
 lua src/rules.lua -> lua src/stats.lua log/stats.log;
 lua src/chunk.lua -> lua src/stats.lua log/stats.log;
+lua src/all.lua   -> lua src/stats.lua log/stats.log;
 
 // GUI
 bin/load -> bin/gui;
@@ -17,6 +18,7 @@ lua src/rules.lua -> bin/gui;
 lua src/stats.lua log/stats.log -> bin/gui;
 bin/gui -> bin/load;
 bin/gui -> lua src/stats.lua log/stats.log;
+bin/gui -> lua src/all.lua;
 
 // logging
 bin/load          -> tee -a log/load.log;
@@ -28,9 +30,9 @@ bin/gui           -> tee -a log/gui.log;
 
 // debug prints
 //bin/midi -> STDOUT;
-bin/load -> STDOUT;
+//bin/load -> STDOUT;
 //lua src/chunk.lua -> STDOUT;
 //bin/group -> STDOUT;
 //lua src/rules.lua -> STDOUT;
-lua src/stats.lua log/stats.log -> STDOUT;
-bin/gui -> STDOUT;
+//lua src/stats.lua log/stats.log -> STDOUT;
+//bin/gui -> STDOUT;

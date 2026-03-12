@@ -101,24 +101,6 @@ local function get_date_str()
 	return os.date("%Y-%m-%d")
 end
 
-local function assert_chunk_exists(hash)
-	local path = "chn/" .. hash .. ".txt"
-	local f = io.open(path, "r")
-	if f then
-		f:close()
-		return
-	end
-	io.stderr:write(
-		string.format(
-			"\27[31mError:\27[0m stats wants to suggest chunk %s but chn/%s.txt does not exist.\n"
-				.. "Run: lua src/all_chunks.lua\n",
-			hash,
-			hash
-		)
-	)
-	os.exit(1)
-end
-
 local function calculate_power(l_data, alg)
 	local mastery = l_data.mastery or 0
 	local ivl = l_data.ivl or 0
@@ -444,16 +426,10 @@ end
 local function handle_suggest(stats)
 	local alg = stats.algorithm
 	local available = {}
-	local i = 1
-	while true do
-		local f = io.open("seq/" .. i .. ".txt", "r")
-		if not f then
-			break
-		end
-		f:close()
-		table.insert(available, tostring(i))
-		i = i + 1
+	for id in pairs(stats.lessons) do
+		table.insert(available, id)
 	end
+	table.sort(available, function(a, b) return tonumber(a) < tonumber(b) end)
 
 	if #available == 0 then
 		io.write("SUGGESTION none reason=no_lessons_available\n")
@@ -464,7 +440,7 @@ local function handle_suggest(stats)
 	local new_lessons = {}
 	for _, id in ipairs(available) do
 		local l = stats.lessons[id]
-		if l and (l.mastery or 0) > 0 then
+		if l and l.last_date then
 			table.insert(known, id)
 		else
 			table.insert(new_lessons, id)
@@ -702,13 +678,11 @@ local function handle_suggest_chunk(stats, exclude_hash)
 
 	-- Known weak chunks take priority; new chunks next; otherwise all mastered.
 	if weakest_hash then
-		assert_chunk_exists(weakest_hash)
 		io.write(string.format(
 			"SUGGESTION chunk=%s lesson=%s skills=%s reason=weak_chunk\n",
 			weakest_hash, l_id, weakest_skills
 		))
 	elseif new_hash then
-		assert_chunk_exists(new_hash)
 		io.write(string.format(
 			"SUGGESTION chunk=%s lesson=%s skills=%s reason=new_chunk\n",
 			new_hash, l_id, new_skills
@@ -728,8 +702,26 @@ local pending_exclude_hash = nil
 
 for line in io.lines() do
 	line = line:gsub("\r$", "")
+	-- LESSON_NAME / CHUNK_NAME: emitted by all.lua; initialise entries if absent
+	if line:match("^LESSON_NAME ") then
+		local n = line:match("^LESSON_NAME (%S+)")
+		local stats = load_stats(stats_file)
+		if not stats.lessons[n] then
+			stats.lessons[n] = { ease = stats.algorithm.ease_initial, ivl = 0,
+			                     mastery = 0, total_duration = 0, max_groups = 0 }
+			save_stats(stats_file, stats)
+		end
+	elseif line:match("^CHUNK_NAME ") then
+		local h = line:match("^CHUNK_NAME (%S+)")
+		local stats = load_stats(stats_file)
+		if not stats.chunks[h] then
+			stats.chunks[h] = { ease = stats.algorithm.ease_initial, ivl = 0,
+			                    mastery = 0, total_duration = 0, max_groups = 0 }
+			save_stats(stats_file, stats)
+		end
+
 	-- CHUNK: register chunk metadata in memory (no disk I/O)
-	if line:match("^CHUNK ") then
+	elseif line:match("^CHUNK ") then
 		handle_chunk(line)
 		if pending_suggest_chunk then
 			pending_suggest_chunk = false
