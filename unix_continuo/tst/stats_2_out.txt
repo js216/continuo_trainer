@@ -1,0 +1,2 @@
+STATS time=1000 total_today=0.00 goal=1000.00 total_duration_today=2.000 streak=0 lesson=1[ivl=1,ease=2.30,tot_dur=2.000,n_pass_tot=0,n_fail_tot=1,mastery=0.00,power=0.00] suggestion=try_again
+STATS time=10000 total_today=0.60 goal=1000.00 total_duration_today=4.000 streak=0 lesson=1[ivl=1,ease=2.40,tot_dur=4.000,n_pass_tot=1,n_fail_tot=1,mastery=2.67,power=2.67] suggestion=be_more_consistent
