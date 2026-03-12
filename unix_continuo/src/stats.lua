@@ -81,6 +81,8 @@ local ALGORITHM_DEFAULTS = {
 	ease_fail_delta = 0.2, -- ease decrease on a fail
 	ivl_first = 1, -- interval (days) after first perfect pass
 	ivl_second = 6, -- interval (days) after second consecutive perfect pass
+	chunk_mastery_thresh = 60, -- normalised % below which a chunk needs practice
+	chunk_power_thresh = 40, -- normalised % below which a chunk needs practice
 }
 
 local stats_file = arg[1]
@@ -503,7 +505,8 @@ end
 -------------------------------------------------------------------------------
 
 local current = nil -- { id, max_bass_id, results={[i]={status,time}} }
-local lesson_chunks_mem = {} -- { [l_id] = { {hash, heart_s, heart_e, len}, ... } }
+local last_lesson_id = nil -- id of most recent lesson (survives finalize)
+local lesson_chunks_mem = {} -- { [l_id] = { {hash, heart_s, heart_e, len, skills}, ... } }
 
 local function handle_chunk(line)
 	local n, s, e, h = line:match("^CHUNK LESSON:(%d+) HEART:(%d+)-(%d+) %S+ HASH:(%x+)")
@@ -511,6 +514,7 @@ local function handle_chunk(line)
 		return
 	end
 	local len = tonumber(line:match("LEN:(%d+)")) or 1
+	local skills = line:match("SKILLS:(.-) BASSLINE:") or "?"
 	local l_id = tostring(tonumber(n))
 	if not lesson_chunks_mem[l_id] then
 		lesson_chunks_mem[l_id] = {}
@@ -525,6 +529,7 @@ local function handle_chunk(line)
 		heart_s = tonumber(s),
 		heart_e = tonumber(e),
 		len = len,
+		skills = skills,
 	}
 end
 
@@ -635,6 +640,60 @@ local function finalize(stats)
 	current = nil
 end
 
+local function handle_suggest_chunk(stats)
+	local l_id = (current and tostring(current.id)) or last_lesson_id
+	if not l_id then
+		io.write("SUGGESTION none reason=no_active_lesson\n")
+		return
+	end
+	local alg = stats.algorithm
+	local chunks = lesson_chunks_mem[l_id] or {}
+	if #chunks == 0 then
+		io.write("SUGGESTION none reason=no_chunks\n")
+		return
+	end
+
+	-- Among chunks already in stats: find the weakest below threshold.
+	-- Among chunks not yet in stats: remember the first (= next to introduce).
+	local weakest_hash, weakest_skills, weakest_score = nil, nil, math.huge
+	local new_hash, new_skills = nil, nil
+	for _, ci in ipairs(chunks) do
+		local c = stats.chunks[ci.hash]
+		if not c then
+			if not new_hash then
+				new_hash = ci.hash
+				new_skills = ci.skills or "?"
+			end
+		else
+			local m_pct = normalize(c.mastery or 0, c)
+			local p_pct = normalize(calculate_power(c, alg), c)
+			if m_pct < alg.chunk_mastery_thresh or p_pct < alg.chunk_power_thresh then
+				local score = m_pct + p_pct
+				if score < weakest_score then
+					weakest_score = score
+					weakest_hash = ci.hash
+					weakest_skills = ci.skills or "?"
+				end
+			end
+		end
+	end
+
+	-- Known weak chunks take priority; new chunks next; otherwise all mastered.
+	if weakest_hash then
+		io.write(string.format(
+			"SUGGESTION chunk=%s lesson=%s skills=%s reason=weak_chunk\n",
+			weakest_hash, l_id, weakest_skills
+		))
+	elseif new_hash then
+		io.write(string.format(
+			"SUGGESTION chunk=%s lesson=%s skills=%s reason=new_chunk\n",
+			new_hash, l_id, new_skills
+		))
+	else
+		io.write("SUGGESTION none reason=all_chunks_mastered\n")
+	end
+end
+
 -------------------------------------------------------------------------------
 -- MAIN LOOP
 -------------------------------------------------------------------------------
@@ -652,6 +711,7 @@ for line in io.lines() do
 		end
 		local n = line:match("^LESSON (%S+)")
 		current = { id = n, max_bass_id = -1, results = {} }
+		last_lesson_id = n
 
 	-- BASSNOTE: track highest index to know when the lesson is complete
 	elseif line:match("^BASSNOTE ") then
@@ -689,6 +749,9 @@ for line in io.lines() do
 	elseif line:match("^SUGGEST_LESSON") then
 		local stats = load_stats(stats_file)
 		handle_suggest(stats)
+	elseif line:match("^SUGGEST_CHUNK") then
+		local stats = load_stats(stats_file)
+		handle_suggest_chunk(stats)
 	end
 end
 

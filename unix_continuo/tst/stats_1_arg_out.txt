@@ -1,6 +1,8 @@
 return {
   ["algorithm"] = {
     ["bottleneck_thresh"] = 0.6,
+    ["chunk_mastery_thresh"] = 60,
+    ["chunk_power_thresh"] = 40,
     ["dominance_margin"] = 0.2,
     ["ease_fail_delta"] = 0.2,
     ["ease_initial"] = 2.5,

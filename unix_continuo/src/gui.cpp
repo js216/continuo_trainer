@@ -132,6 +132,12 @@ static void suggest_lesson(void)
 	fflush(stdout);
 }
 
+static void suggest_chunk(void)
+{
+	printf("SUGGEST_CHUNK\n");
+	fflush(stdout);
+}
+
 static void key_callback(GLFWwindow *window, int key, int scancode, int action,
 			 int mods)
 {
@@ -154,6 +160,9 @@ static void key_callback(GLFWwindow *window, int key, int scancode, int action,
 			break;
 		case GLFW_KEY_S:
 			suggest_lesson();
+			break;
+		case GLFW_KEY_C:
+			suggest_chunk();
 			break;
 		}
 	}
