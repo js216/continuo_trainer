@@ -22,10 +22,12 @@
 --      - progname matches an executable in ../bin/ or a .lua file in ../src/
 --      - N is a positive integer test number
 --
---      For each valid test, the script feeds the _in.txt file to the program
---      via stdin and compares stdout with the _out.txt file using diff.
---      If _arg_out.txt is present, the temp copy of the arg file is also
---      diffed against it after the run.
+--      For each valid test, the script:
+--        (1) checks all _in.txt and _arg_in.txt files have Unix line endings
+--            and reports any CRLF files as failures before running anything;
+--        (2) runs each test with the files as-is (Unix endings);
+--        (3) runs each test again with input converted to DOS endings on the
+--            fly via sed, verifying the program produces identical output.
 --
 -- EXECUTION ORDER
 --      Tests are executed in deterministic order:
@@ -34,10 +36,11 @@
 --
 -- OUTPUT FORMAT
 --      If output matches, the script prints:
---          OK progname_N   (in green)
+--          OK progname_N         (Unix pass, in green)
+--          OK progname_N [dos]   (DOS pass, in green)
 --
 --      If output differs, it prints:
---          FAIL progname_N (in red)
+--          FAIL progname_N       (in red)
 --
 -- ERROR HANDLING
 --      Files that do not begin with the name of an executable in ../bin/
@@ -73,6 +76,14 @@ local function file_exists(path)
 	return false
 end
 
+local function has_crlf(path)
+	local f = io.open(path, "rb")
+	if not f then return false end
+	local content = f:read("*a")
+	f:close()
+	return content:find("\r\n") ~= nil
+end
+
 local function extract_number(prog, name)
 	local num = name:match("^" .. prog:gsub("%-", "%%-") .. "_(%d+)_in%.txt$")
 	return num
@@ -106,44 +117,63 @@ local function collect_cases()
 	return cases
 end
 
-local function run_case(prog, num_str)
-	local in_file = TST_DIR .. "/" .. prog .. "_" .. num_str .. "_in.txt"
-	local out_file = TST_DIR .. "/" .. prog .. "_" .. num_str .. "_out.txt"
-	local label = prog .. "_" .. num_str
-
-	if not file_exists(out_file) then
-		io.stderr:write(RED .. "FAIL" .. RESET .. ": Missing output file: " .. label .. "_out.txt\n")
-		status = 1
-		return
+-- (1) Check all input files have Unix endings.
+local function check_line_endings(cases)
+	local bad = {}
+	for _, c in ipairs(cases) do
+		local in_file  = TST_DIR .. "/" .. c.prog .. "_" .. c.num_str .. "_in.txt"
+		local arg_file = TST_DIR .. "/" .. c.prog .. "_" .. c.num_str .. "_arg_in.txt"
+		if has_crlf(in_file)  then bad[#bad+1] = in_file  end
+		if file_exists(arg_file) and has_crlf(arg_file) then bad[#bad+1] = arg_file end
 	end
+	if #bad > 0 then
+		for _, f in ipairs(bad) do
+			print(RED .. "FAIL" .. RESET .. " line-endings: " .. f
+			      .. " has CRLF — run: sed -i 's/\\r//' " .. f)
+		end
+		status = 1
+	end
+end
 
-	-- Logic to determine the execution command
+local function resolve_exec(prog, label)
 	local bin_path = BIN_DIR .. "/" .. prog
 	local src_path = SRC_DIR .. "/" .. prog .. ".lua"
-	local exec_cmd
+	if file_exists(bin_path) then return bin_path end
+	if file_exists(src_path) then return "lua " .. src_path end
+	io.stderr:write(RED .. "FAIL" .. RESET .. ": No executable or source found for " .. label .. "\n")
+	status = 1
+	return nil
+end
 
-	if file_exists(bin_path) then
-		exec_cmd = bin_path
-	elseif file_exists(src_path) then
-		exec_cmd = "lua " .. src_path
-	else
-		io.stderr:write(RED .. "FAIL" .. RESET .. ": No executable or source found for " .. label .. "\n")
+-- (2)/(3) Run one test case, optionally converting input to DOS on the fly.
+local function run_case(prog, num_str, dos_mode)
+	local in_file  = TST_DIR .. "/" .. prog .. "_" .. num_str .. "_in.txt"
+	local out_file = TST_DIR .. "/" .. prog .. "_" .. num_str .. "_out.txt"
+	local label    = prog .. "_" .. num_str .. (dos_mode and " [dos]" or "")
+
+	if not file_exists(out_file) then
+		io.stderr:write(RED .. "FAIL" .. RESET .. ": Missing output file: " .. out_file .. "\n")
 		status = 1
 		return
 	end
 
-	-- Optional first argument: either _arg.txt (input only) or _arg_in.txt +
-	-- optional _arg_out.txt (also checks the file's state after the run).
-	-- In both cases the file is copied to a temp so the original is never mutated.
-	local arg_in_file = TST_DIR .. "/" .. prog .. "_" .. num_str .. "_arg_in.txt"
-	local arg_file = TST_DIR .. "/" .. prog .. "_" .. num_str .. "_arg.txt"
+	local exec_cmd = resolve_exec(prog, label)
+	if not exec_cmd then return end
+
+	local arg_in_file  = TST_DIR .. "/" .. prog .. "_" .. num_str .. "_arg_in.txt"
+	local arg_file     = TST_DIR .. "/" .. prog .. "_" .. num_str .. "_arg.txt"
 	local arg_out_file = TST_DIR .. "/" .. prog .. "_" .. num_str .. "_arg_out.txt"
-	local tmp_arg = nil
-	local extra_arg = ""
+	local tmp_arg      = nil
+	local extra_arg    = ""
 	local check_arg_out = false
+
 	if file_exists(arg_in_file) then
 		tmp_arg = os.tmpname()
-		os.execute("cp " .. arg_in_file .. " " .. tmp_arg)
+		if dos_mode then
+			os.execute("sed 's/$/\\r/' " .. arg_in_file .. " > " .. tmp_arg)
+		else
+			os.execute("cp " .. arg_in_file .. " " .. tmp_arg)
+		end
 		extra_arg = " " .. tmp_arg
 		check_arg_out = file_exists(arg_out_file)
 	elseif file_exists(arg_file) then
@@ -152,17 +182,29 @@ local function run_case(prog, num_str)
 		extra_arg = " " .. tmp_arg
 	end
 
-	-- Construct and run the command
-	local cmd = exec_cmd .. extra_arg .. " < " .. in_file .. " | diff -u - " .. out_file .. " >/dev/null 2>&1"
+	-- Feed stdin through sed to add \r when in DOS mode.
+	local stdin_cmd
+	if dos_mode then
+		stdin_cmd = "sed 's/$/\\r/' " .. in_file
+	else
+		stdin_cmd = "cat " .. in_file
+	end
+
+	local cmd = stdin_cmd .. " | " .. exec_cmd .. extra_arg
+	              .. " | diff -u - " .. out_file .. " >/dev/null 2>&1"
 
 	local ok = os.execute(cmd)
 	local arg_ok = true
 	if check_arg_out and tmp_arg then
-		local diff_cmd = "diff -u " .. tmp_arg .. " " .. arg_out_file .. " >/dev/null 2>&1"
-		local r = os.execute(diff_cmd)
+		-- arg_out is always Unix; strip \r from the temp file before diffing.
+		local stripped = os.tmpname()
+		os.execute("sed 's/\\r//' " .. tmp_arg .. " > " .. stripped)
+		local r = os.execute("diff -u " .. stripped .. " " .. arg_out_file .. " >/dev/null 2>&1")
 		arg_ok = (r == true or r == 0)
+		os.remove(stripped)
 	end
 	if tmp_arg then os.remove(tmp_arg) end
+
 	if (ok == true or ok == 0) and arg_ok then
 		print(GREEN .. "OK" .. RESET .. " " .. label)
 	else
@@ -179,15 +221,18 @@ local function main()
 	local cases = collect_cases()
 
 	table.sort(cases, function(a, b)
-		if a.prog ~= b.prog then
-			return a.prog < b.prog
-		end
+		if a.prog ~= b.prog then return a.prog < b.prog end
 		return a.num < b.num
 	end)
 
-	for _, c in ipairs(cases) do
-		run_case(c.prog, c.num_str)
-	end
+	-- (1) Line-ending check
+	check_line_endings(cases)
+
+	-- (2) Unix pass
+	for _, c in ipairs(cases) do run_case(c.prog, c.num_str, false) end
+
+	-- (3) DOS pass
+	for _, c in ipairs(cases) do run_case(c.prog, c.num_str, true) end
 end
 
 main()
