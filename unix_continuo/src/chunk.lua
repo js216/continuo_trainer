@@ -142,6 +142,11 @@ local function skill_of_single(fig)
 	if has_num(fig, 2) then
 		return "2"
 	end
+	-- Figures containing only 3rd, 5th, or 8th (possibly modified) are root-position
+	-- chords with an altered interval, e.g. "#3", "b5", "5", "8", "#3/5".
+	if not has_num(fig, 6) and not has_num(fig, 7) and not has_num(fig, 4) and not has_num(fig, 2) then
+		return "root"
+	end
 	return "other"
 end
 
@@ -196,26 +201,6 @@ local function build_chunk_content(key, skill, bass, passing, figures, melody, s
 	return table.concat(lines, "\n")
 end
 
--- Hash content, verify or create chn/<hash>.txt, return the hash string.
-local function write_chunk(content)
-	local hash = sha1(content)
-	local path = "chn/" .. hash .. ".txt"
-	local existing = io.open(path, "rb")
-	if existing then
-		local old = existing:read("*a")
-		existing:close()
-		if old ~= content then
-			die("hash collision on %s", path)
-		end
-	else
-		os.execute("mkdir -p chn")
-		local f = assert(io.open(path, "wb"))
-		f:write(content)
-		f:close()
-	end
-	return hash
-end
-
 -- ── inline summary helpers ────────────────────────────────────────────────────
 
 local function fmt_bassline(bass, passing, s, e)
@@ -261,6 +246,11 @@ local function process_lesson(lesson_n, key, bass, passing, figures, melody)
 		local s = math.max(1, heart.s - CONTEXT_LEFT)
 		local e = math.min(N, heart.e + CONTEXT_RIGHT)
 
+		-- Don't start with a passing note unless the lesson itself starts with one.
+		if passing[s] and s > 1 and not passing[1] then
+			s = s - 1
+		end
+
 		-- Collect skills for every heart touched by [s..e], left to right,
 		-- listing each heart's skill exactly once.
 		local seen = {}
@@ -275,15 +265,17 @@ local function process_lesson(lesson_n, key, bass, passing, figures, melody)
 		local skills_str = table.concat(skills, " ")
 
 		local content = build_chunk_content(key, skills_str, bass, passing, figures, melody, s, e)
-		local hash = write_chunk(content)
+		content = content:gsub("\r\n", "\n"):gsub("\r", "\n")
+		local hash = sha1(content)
 		print(
 			string.format(
-				"CHUNK LESSON:%d HEART:%d-%d LEN:%d HASH:%s SKILLS:%s BASSLINE:%s FIGURE:%s MELODY:%s",
+				"CHUNK LESSON:%d HEART:%d-%d LEN:%d HASH:%s KEY:%s SKILLS:%s BASSLINE:%s FIGURE:%s MELODY:%s",
 				lesson_n,
 				heart.s - 1,
 				heart.e - 1,
 				e - s + 1,
 				hash,
+				key,
 				skills_str,
 				fmt_bassline(bass, passing, s, e),
 				fmt_figures(figures, s, e),
@@ -296,6 +288,7 @@ end
 -- ── main: parse bin/load output from stdin ────────────────────────────────────
 
 local current = nil
+local in_chunk_session = false -- true while processing a CHUNK_SESSION stream
 
 local function flush()
 	if current then
@@ -305,17 +298,37 @@ local function flush()
 end
 
 for line in io.lines() do
+	-- CHUNK_SESSION: the following LESSON..LESSON_END is a chunk replay; skip it
+	if line:match("^CHUNK_SESSION ") then
+		flush() -- safety flush of any pending lesson
+		in_chunk_session = true
+		current = nil
+		goto continue
+	end
+
 	-- LESSON_END: all data for current lesson received — emit chunks immediately
 	if line:match("^LESSON_END") then
+		if in_chunk_session then
+			in_chunk_session = false
+			goto continue -- no flush for chunk sessions
+		end
 		flush()
 		goto continue
 	end
 
 	-- LESSON <n> <key> <time> <title>
-	local n, key = line:match("^LESSON (%d+) (%S+)")
+	local n, key = line:match("^LESSON (%S+) (%S+)")
 	if n then
-		flush() -- safety flush in case LESSON_END was missing
-		current = { n = tonumber(n), key = key, bass = {}, passing = {}, figures = {}, melody = {} }
+		if in_chunk_session then
+			-- The LESSON line from a chunk stream uses a hash id, not a number
+			in_chunk_session = false
+			goto continue
+		end
+		local num = tonumber(n)
+		if num then
+			flush() -- safety flush in case LESSON_END was missing
+			current = { n = num, key = key, bass = {}, passing = {}, figures = {}, melody = {} }
+		end
 		goto continue
 	end
 
