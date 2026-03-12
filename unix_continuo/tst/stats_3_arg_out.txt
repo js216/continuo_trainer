@@ -24,19 +24,7 @@ return {
     ["weak_ema_thresh"] = 0.8,
   },
   ["chunks"] = {
-    ["aaaa000000000000000000000000000000000001"] = {
-      ["ease"] = 2.6,
-      ["ema_pass"] = 1.0,
-      ["ivl"] = 1,
-      ["last_date"] = "2026-03-11",
-      ["mastery"] = 1.0,
-      ["max_groups"] = 2,
-      ["n_fail"] = 0,
-      ["n_pass"] = 1,
-      ["n_pass_tot"] = 1,
-      ["total_duration"] = 0,
-    },
-    ["bbbb000000000000000000000000000000000002"] = {
+    ["0318d158b93faa1a36efcf9dc4f07d581a494a49"] = {
       ["ease"] = 2.6,
       ["ema_pass"] = 1.0,
       ["ivl"] = 1,
@@ -48,7 +36,19 @@ return {
       ["n_pass_tot"] = 1,
       ["total_duration"] = 0,
     },
-    ["cccc000000000000000000000000000000000003"] = {
+    ["44a3ea0a999f100e178d71969081e4c19b91bdfd"] = {
+      ["ease"] = 2.6,
+      ["ema_pass"] = 1.0,
+      ["ivl"] = 1,
+      ["last_date"] = "2026-03-11",
+      ["mastery"] = 1.0,
+      ["max_groups"] = 4,
+      ["n_fail"] = 0,
+      ["n_pass"] = 1,
+      ["n_pass_tot"] = 1,
+      ["total_duration"] = 0,
+    },
+    ["b8e6fb11a7f32f6691e610a366d1422fd6c5cdb4"] = {
       ["ease"] = 2.6,
       ["ema_pass"] = 1.0,
       ["ivl"] = 1,

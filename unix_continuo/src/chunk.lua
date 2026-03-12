@@ -298,6 +298,7 @@ local function flush()
 end
 
 for line in io.lines() do
+	line = line:gsub("\r$", "")
 	-- CHUNK_SESSION: the following LESSON..LESSON_END is a chunk replay; skip it
 	if line:match("^CHUNK_SESSION ") then
 		flush() -- safety flush of any pending lesson

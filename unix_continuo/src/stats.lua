@@ -100,6 +100,24 @@ local function get_date_str()
 	return os.date("%Y-%m-%d")
 end
 
+local function assert_chunk_exists(hash)
+	local path = "chn/" .. hash .. ".txt"
+	local f = io.open(path, "r")
+	if f then
+		f:close()
+		return
+	end
+	io.stderr:write(
+		string.format(
+			"\27[31mError:\27[0m stats wants to suggest chunk %s but chn/%s.txt does not exist.\n"
+				.. "Run: lua src/all_chunks.lua\n",
+			hash,
+			hash
+		)
+	)
+	os.exit(1)
+end
+
 local function calculate_power(l_data, alg)
 	local mastery = l_data.mastery or 0
 	local ivl = l_data.ivl or 0
@@ -680,11 +698,13 @@ local function handle_suggest_chunk(stats)
 
 	-- Known weak chunks take priority; new chunks next; otherwise all mastered.
 	if weakest_hash then
+		assert_chunk_exists(weakest_hash)
 		io.write(string.format(
 			"SUGGESTION chunk=%s lesson=%s skills=%s reason=weak_chunk\n",
 			weakest_hash, l_id, weakest_skills
 		))
 	elseif new_hash then
+		assert_chunk_exists(new_hash)
 		io.write(string.format(
 			"SUGGESTION chunk=%s lesson=%s skills=%s reason=new_chunk\n",
 			new_hash, l_id, new_skills
@@ -699,6 +719,7 @@ end
 -------------------------------------------------------------------------------
 
 for line in io.lines() do
+	line = line:gsub("\r$", "")
 	-- CHUNK: register chunk metadata in memory (no disk I/O)
 	if line:match("^CHUNK ") then
 		handle_chunk(line)

@@ -28,9 +28,9 @@ bin/gui           -> tee -a log/gui.log;
 
 // debug prints
 //bin/midi -> STDOUT;
-//bin/load -> STDOUT;
+bin/load -> STDOUT;
 //lua src/chunk.lua -> STDOUT;
 //bin/group -> STDOUT;
 //lua src/rules.lua -> STDOUT;
-//lua src/stats.lua log/stats.log -> STDOUT;
-//bin/gui -> STDOUT;
+lua src/stats.lua log/stats.log -> STDOUT;
+bin/gui -> STDOUT;

@@ -307,10 +307,28 @@ static void handle_bassnote(const char *buf)
 
 static void handle_suggestion(const char *buf)
 {
-	// SUGGESTION lesson=<id>
+	// SUGGESTION chunk=<hash> lesson=<n> skills=<s> reason=<r>
+	// SUGGESTION lesson=<id> reason=<r>
 	// SUGGESTION none reason=<token>
 	if (strncmp(buf, "SUGGESTION", 10) != 0)
 		return;
+
+	const char *cp = strstr(buf, "chunk=");
+	if (cp) {
+		char hash[64] = "";
+		sscanf(cp, "chunk=%63s", hash);
+		printf("LOAD_CHUNK %s\n", hash);
+		fflush(stdout);
+		// Flash skills as the status message
+		char skills[32] = "?";
+		const char *sp = strstr(buf, "skills=");
+		if (sp)
+			sscanf(sp, "skills=%31s", skills);
+		snprintf(state.status.suggestion, sizeof(state.status.suggestion),
+			 "chunk: %s", skills);
+		state.status.suggestion_time = glfwGetTime();
+		return;
+	}
 
 	const char *p = strstr(buf, "lesson=");
 	if (p) {
@@ -707,6 +725,10 @@ static void gui_main(void)
 	ImGui::SameLine();
 	if (ImGui::Button("[S]uggest"))
 		suggest_lesson();
+
+	ImGui::SameLine();
+	if (ImGui::Button("[C]hunk"))
+		suggest_chunk();
 
 	show_status_line();
 	show_music();
