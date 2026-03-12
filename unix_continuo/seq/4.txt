@@ -1,0 +1,28 @@
+title: Purcell bars 1-5
+key: G
+time: 3/2
+
+bassline = {
+  g2 fis2p e2
+  fis2 e2p d2
+  e2 d2p c2
+  d2 c2p b,2
+  c2 d2 d2
+}
+
+figures = {
+  0 0 6
+  6 0 0
+  0 0 6
+  0 0 6
+  6 4 3
+}
+
+melody = {
+  r2 r2 r2
+  r2 r2 r2
+  r2 r2 r2
+  r2 r2 r2
+  r2 r2 r2
+}
+
