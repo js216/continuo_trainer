@@ -178,13 +178,12 @@ fn main() {
             // REMOVED PASS THROUGH
         } else if line.starts_with("MELODY ") {
             if let Some((_, content)) = line.split_once(": ") {
-                let mut new_melody = Vec::new();
+                let mut s = state.lock().unwrap();
                 for tok in content.split_whitespace() {
                     if let Some(n) = parse_token(tok) {
-                        new_melody.push(n);
+                        s.melody.push(n);
                     }
                 }
-                state.lock().unwrap().melody = new_melody;
             }
             // REMOVED PASS THROUGH
         }
