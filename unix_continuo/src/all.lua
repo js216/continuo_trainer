@@ -200,7 +200,7 @@ io.stdout:setvbuf("line")
 scan_and_emit()
 
 for line in io.lines() do
-	line = line:gsub("\r$", "")
+	line = line:gsub("\r", "")
 	if line == "RESCAN" then
 		scan_and_emit()
 	end

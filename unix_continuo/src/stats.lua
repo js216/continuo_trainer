@@ -759,7 +759,7 @@ local scanned_lessons = {} -- lessons announced via LESSON_NAME this session
 local scanned_chunks  = {} -- chunks announced via CHUNK_NAME this session
 
 for line in io.lines() do
-	line = line:gsub("\r$", "")
+	line = line:gsub("\r", "")
 	-- LESSON_NAME / CHUNK_NAME: emitted by all.lua; initialise entries if absent
 	if line:match("^LESSON_NAME ") then
 		local n = line:match("^LESSON_NAME (%S+)")

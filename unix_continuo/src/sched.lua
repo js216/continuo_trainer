@@ -23,7 +23,7 @@ io.stdout:setvbuf("no")
 local current_lesson_id = nil
 
 for line in io.lines() do
-	line = line:gsub("\r$", "")
+	line = line:gsub("\r", "")
 	-- 1. Try to update the ID whenever a line contains "lesson="
 	local found_id = line:match("lesson=(%d+)")
 	if found_id then

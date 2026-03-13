@@ -815,7 +815,7 @@ end
 
 local function main()
 	for line in io.lines() do
-		line = line:gsub("\r$", "")
+		line = line:gsub("\r", "")
 		if line:match("^LESSON") then
 			local k = parse_lesson_key(line)
 			if k then
