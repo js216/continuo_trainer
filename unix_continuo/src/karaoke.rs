@@ -133,8 +133,9 @@ fn main() {
                     (s.bpm, s.melody.clone())
                 };
 
+                let mut stopped = false;
                 for note in melody {
-                    if stop_ref.load(Ordering::SeqCst) { break; }
+                    if stop_ref.load(Ordering::SeqCst) { stopped = true; break; }
 
                     let total_secs = note.beats * 60.0 / bpm;
                     if let (Some(lily), Some(midi)) = (&note.lily, note.midi) {
@@ -146,7 +147,7 @@ fn main() {
                         notes_ref.lock().unwrap().insert(midi);
 
                         thread::sleep(play_dur);
-                        if stop_ref.load(Ordering::SeqCst) { break; }
+                        if stop_ref.load(Ordering::SeqCst) { stopped = true; break; }
 
                         println!("MIDI NOTE_OFF {}", lily);
                         let _ = io::stdout().flush();
@@ -156,6 +157,11 @@ fn main() {
                     } else {
                         thread::sleep(Duration::from_secs_f64(total_secs));
                     }
+                }
+
+                if !stopped {
+                    println!("KARAOKE_DONE");
+                    let _ = io::stdout().flush();
                 }
             });
         } else if line == "KARAOKE_OFF" {
