@@ -18,6 +18,7 @@
 //     P     Previous lesson (exits chunk mode).
 //     N     Next lesson (exits chunk mode).
 //     S     Emit SUGGEST_LESSON to get the best item to practice next.
+//     K     Toggle karaoke mode (emits KARAOKE_ON / KARAOKE_OFF).
 //
 // RECEIVED (stdin, from stats.lua and bin/load)
 //     BASSNOTE <i>: <token> [passing]
@@ -43,6 +44,8 @@
 //     LOAD_CHUNK <hash>     Load chunk file chn/<hash>.txt.
 //     SUGGEST_LESSON        Request the best item to practice (chunk or lesson).
 //     QUERY_STATS           Request a stats refresh (at 2:00 AM).
+//     KARAOKE_ON            Enable karaoke mode.
+//     KARAOKE_OFF           Disable karaoke mode.
 //
 // FILES
 //     seq/<n>.png     Score image for lesson n.
@@ -105,6 +108,7 @@ struct state {
 	bool triggered_today = false;
 	bool stats_initialized = false; // true after first STATS line;
 					// suppresses startup celebration
+	bool karaoke_on = false;
 } state;
 
 static void clear_status(void)
@@ -188,6 +192,16 @@ static void suggest_lesson(void)
 	fflush(stdout);
 }
 
+static void toggle_karaoke(void)
+{
+	state.karaoke_on = !state.karaoke_on;
+	if (state.karaoke_on)
+		printf("KARAOKE_ON\n");
+	else
+		printf("KARAOKE_OFF\n");
+	fflush(stdout);
+}
+
 static void key_callback(GLFWwindow *window, int key, int scancode, int action,
 			 int mods)
 {
@@ -210,6 +224,9 @@ static void key_callback(GLFWwindow *window, int key, int scancode, int action,
 			break;
 		case GLFW_KEY_S:
 			suggest_lesson();
+			break;
+		case GLFW_KEY_K:
+			toggle_karaoke();
 			break;
 		}
 	}
@@ -782,6 +799,16 @@ static void gui_main(void)
 	ImGui::SameLine();
 	if (ImGui::Button("[S]uggest"))
 		suggest_lesson();
+
+	ImGui::SameLine();
+	bool karaoke_was_on = state.karaoke_on;
+	if (karaoke_was_on)
+		ImGui::PushStyleColor(ImGuiCol_Button,
+				      ImVec4(0.0f, 0.7f, 0.2f, 1.0f));
+	if (ImGui::Button("[K]araoke"))
+		toggle_karaoke();
+	if (karaoke_was_on)
+		ImGui::PopStyleColor();
 
 	show_status_line();
 	show_music();

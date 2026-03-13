@@ -11,6 +11,9 @@ bin/load          -> lua src/stats.lua log/stats.log;
 lua src/rules.lua -> lua src/stats.lua log/stats.log;
 lua src/chunk.lua -> lua src/stats.lua log/stats.log;
 lua src/all.lua   -> lua src/stats.lua log/stats.log;
+bin/load          -> bin/karaoke;
+bin/karaoke       -> bin/midi;
+STDIN             -> bin/karaoke;
 
 // GUI
 bin/load -> bin/gui;
