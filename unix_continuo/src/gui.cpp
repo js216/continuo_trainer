@@ -31,9 +31,9 @@
 //           [chunk=<hash>[...,mastery=<n>,power=<n>]]
 //         Updates the status bar.  Points delta animation fires when
 //         today's score increases after the first stats load.
-//     SUGGESTION chunk=<hash> lesson=<n> skills=<s> reason=<r>
-//         Enters chunk mode: sets current_chunk=<hash>, stores <n> as the
-//         parent lesson, emits LOAD_CHUNK, flashes skills as status text.
+//     SUGGESTION chunk=<hash> skills=<s> reason=<r>
+//         Enters chunk mode: sets current_chunk=<hash>, emits LOAD_CHUNK,
+//         flashes skills as status text.
 //     SUGGESTION lesson=<id> reason=<r>
 //         Loads lesson <id> and flashes the reason string.
 //     SUGGESTION none reason=<token>
@@ -384,7 +384,7 @@ static void handle_bassnote(const char *buf)
 
 static void handle_suggestion(const char *buf)
 {
-	// SUGGESTION chunk=<hash> lesson=<n> skills=<s> reason=<r>
+	// SUGGESTION chunk=<hash> skills=<s> reason=<r>
 	// SUGGESTION lesson=<id> reason=<r>
 	// SUGGESTION none reason=<token>
 	if (strncmp(buf, "SUGGESTION", 10) != 0)

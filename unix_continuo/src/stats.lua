@@ -76,8 +76,7 @@
 --            total_duration_today=<s.sss> streak=<n> [lesson=<id>[...]]
 --
 --      In response to SUGGEST_LESSON:
---      SUGGESTION chunk=<hash> lesson=<id> skills=<s>
---                 reason=<weak_chunk|new_chunk>
+--      SUGGESTION chunk=<hash> skills=<s> reason=<weak_chunk|new_chunk>
 --      SUGGESTION lesson=<id> reason=<overdue|needs_work|new_lesson>
 --      SUGGESTION none reason=<all_up_to_date|no_lessons_available>
 --
@@ -458,8 +457,10 @@ local function print_stats_line(stats, l_id, timestamp, suggestion)
 	io.write(output .. "\n")
 end
 
--- Forward declaration: populated as CHUNK lines arrive, consumed by handle_suggest.
+-- Forward declarations: populated as lines arrive, consumed by handle_suggest.
 local lesson_chunks_mem = {} -- { [l_id] = { {hash, heart_s, heart_e, len, skills}, ... } }
+local chunk_skills = {}      -- { [hash] = skills_str }  flat map for suggestions
+local scanned_chunks  = {}   -- chunks announced via CHUNK_NAME this session
 
 -------------------------------------------------------------------------------
 -- COMMAND HANDLERS
@@ -468,27 +469,26 @@ local lesson_chunks_mem = {} -- { [l_id] = { {hash, heart_s, heart_e, len, skill
 local function handle_suggest(stats)
 	local alg = stats.algorithm
 
-	-- First: scan all lesson chunks for any that are weak or never played.
-	local weakest_hash, weakest_skills, weakest_lesson = nil, nil, nil
+	-- Scan all known chunks for any that are weak or never played.
+	local weakest_hash, weakest_skills = nil, nil
 	local weakest_score = math.huge
-	local new_hash, new_skills, new_lesson = nil, nil, nil
+	local new_hash, new_skills = nil, nil
 
-	for l_id, chunks in pairs(lesson_chunks_mem) do
-		for _, ci in ipairs(chunks) do
-			local c = stats.chunks[ci.hash]
-			if not c or not c.last_date then
-				if not new_hash then
-					new_hash, new_skills, new_lesson = ci.hash, ci.skills or "?", l_id
-				end
-			elseif (c.n_consecutive or 0) < alg.max_consecutive then
-				local m_pct = normalize(c.mastery or 0, c)
-				local p_pct = normalize(calculate_power(c, alg), c)
-				if m_pct < alg.chunk_mastery_thresh or p_pct < alg.chunk_power_thresh then
-					local score = m_pct + p_pct
-					if score < weakest_score then
-						weakest_score = score
-						weakest_hash, weakest_skills, weakest_lesson = ci.hash, ci.skills or "?", l_id
-					end
+	for h in pairs(scanned_chunks) do
+		local c = stats.chunks[h]
+		if not c or not c.last_date then
+			if not new_hash then
+				new_hash, new_skills = h, chunk_skills[h] or "?"
+			end
+		elseif (c.n_consecutive or 0) < alg.max_consecutive then
+			local m_pct = normalize(c.mastery or 0, c)
+			local p_pct = normalize(calculate_power(c, alg), c)
+			if m_pct < alg.chunk_mastery_thresh or p_pct < alg.chunk_power_thresh then
+				local score = m_pct + p_pct
+				if score < weakest_score then
+					weakest_score = score
+					weakest_hash = h
+					weakest_skills = chunk_skills[h] or "?"
 				end
 			end
 		end
@@ -496,15 +496,15 @@ local function handle_suggest(stats)
 
 	if weakest_hash then
 		io.write(string.format(
-			"SUGGESTION chunk=%s lesson=%s skills=%s reason=weak_chunk\n",
-			weakest_hash, weakest_lesson, weakest_skills
+			"SUGGESTION chunk=%s skills=%s reason=weak_chunk\n",
+			weakest_hash, weakest_skills
 		))
 		return
 	end
 	if new_hash then
 		io.write(string.format(
-			"SUGGESTION chunk=%s lesson=%s skills=%s reason=new_chunk\n",
-			new_hash, new_lesson, new_skills
+			"SUGGESTION chunk=%s skills=%s reason=new_chunk\n",
+			new_hash, new_skills
 		))
 		return
 	end
@@ -596,6 +596,7 @@ local function handle_chunk(line)
 	check_hash(h)
 	local len = tonumber(line:match("LEN:(%d+)")) or 1
 	local skills = line:match("SKILLS:(.-) BASSLINE:") or "?"
+	chunk_skills[h] = skills
 	local l_id = tostring(tonumber(n))
 	if not lesson_chunks_mem[l_id] then
 		lesson_chunks_mem[l_id] = {}
@@ -765,7 +766,6 @@ end
 local in_chunk_session = false
 local pending_suggest = false -- defer SUGGEST_LESSON until first CHUNK arrives
 local scanned_lessons = {} -- lessons announced via LESSON_NAME this session
-local scanned_chunks  = {} -- chunks announced via CHUNK_NAME this session
 
 for line in io.lines() do
 	line = line:gsub("\r", "")
@@ -788,6 +788,10 @@ for line in io.lines() do
 			stats.chunks[h] = { ease = stats.algorithm.ease_initial, ivl = 0,
 			                    mastery = 0, total_duration = 0, max_groups = 0 }
 			save_stats(stats_file, stats)
+		end
+		if pending_suggest then
+			pending_suggest = false
+			handle_suggest(load_stats(stats_file))
 		end
 
 	-- CHUNK: register chunk metadata in memory (no disk I/O)
@@ -855,9 +859,9 @@ for line in io.lines() do
 		local stats = load_stats(stats_file)
 		print_stats_line(stats, line:match("LOAD_LESSON (%S+)"))
 	elseif line:match("^SUGGEST_LESSON") then
-		-- If no chunks registered yet (chunk.lua still running), defer until
-		-- the first CHUNK line arrives.
-		local has_chunks = next(lesson_chunks_mem) ~= nil
+		-- If no chunks registered yet (all.lua still running), defer until
+		-- the first CHUNK_NAME or CHUNK line arrives.
+		local has_chunks = next(scanned_chunks) ~= nil
 		if has_chunks then
 			local stats = load_stats(stats_file)
 			handle_suggest(stats)
