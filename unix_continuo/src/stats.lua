@@ -480,7 +480,7 @@ local function handle_suggest(stats)
 				if not new_hash then
 					new_hash, new_skills, new_lesson = ci.hash, ci.skills or "?", l_id
 				end
-			else
+			elseif (c.n_consecutive or 0) < alg.max_consecutive then
 				local m_pct = normalize(c.mastery or 0, c)
 				local p_pct = normalize(calculate_power(c, alg), c)
 				if m_pct < alg.chunk_mastery_thresh or p_pct < alg.chunk_power_thresh then
@@ -538,6 +538,7 @@ local function handle_suggest(stats)
 
 	for _, id in ipairs(known) do
 		local l = stats.lessons[id]
+		if (l.n_consecutive or 0) >= alg.max_consecutive then goto continue end
 		local ivl = l.ivl or 0
 		local last_date = l.last_date
 		local days_elapsed = 0
@@ -564,6 +565,7 @@ local function handle_suggest(stats)
 				end
 			end
 		end
+		::continue::
 	end
 
 	if best_id then
