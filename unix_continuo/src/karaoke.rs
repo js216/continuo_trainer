@@ -1,10 +1,7 @@
-use std::collections::HashSet;
 use std::io::{self, BufRead, Write};
 use std::sync::{Arc, Mutex, atomic::{AtomicBool, Ordering}};
 use std::thread;
 use std::time::Duration;
-
-const NOTE_NAMES: &[&str] = &["c", "cis", "d", "dis", "e", "f", "fis", "g", "gis", "a", "ais", "b"];
 
 #[derive(Clone)]
 struct Note {
@@ -19,16 +16,6 @@ struct SharedState {
 }
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
-
-fn midi_to_lily(note: u8) -> String {
-    let octave = (note / 12) as i32 - 1;
-    let name = NOTE_NAMES[(note % 12) as usize];
-    if octave >= 4 {
-        format!("{}{}", name, "'".repeat((octave - 3) as usize))
-    } else {
-        format!("{}{}", name, ",".repeat((3 - octave) as usize))
-    }
-}
 
 fn parse_token(tok: &str) -> Option<Note> {
     let tok = tok.replace('~', "");
@@ -91,15 +78,6 @@ fn parse_token(tok: &str) -> Option<Note> {
     Some(Note { lily, midi: midi_note, beats })
 }
 
-fn midi_panic(on_notes: &Arc<Mutex<HashSet<u8>>>) {
-    let mut notes = on_notes.lock().unwrap();
-    for &m in notes.iter() {
-        println!("MIDI NOTE_OFF {}", midi_to_lily(m));
-    }
-    let _ = io::stdout().flush();
-    notes.clear();
-}
-
 // ── Main ─────────────────────────────────────────────────────────────────────
 
 fn main() {
@@ -108,7 +86,6 @@ fn main() {
         melody: Vec::new(),
     }));
 
-    let on_notes = Arc::new(Mutex::new(HashSet::<u8>::new()));
     let stop_signal = Arc::new(AtomicBool::new(false));
 
     let stdin = io::stdin();
@@ -125,7 +102,6 @@ fn main() {
             stop_signal.store(false, Ordering::SeqCst);
             let state_ref = Arc::clone(&state);
             let stop_ref = Arc::clone(&stop_signal);
-            let notes_ref = Arc::clone(&on_notes);
 
             thread::spawn(move || {
                 let (bpm, melody) = {
@@ -138,20 +114,18 @@ fn main() {
                     if stop_ref.load(Ordering::SeqCst) { stopped = true; break; }
 
                     let total_secs = note.beats * 60.0 / bpm;
-                    if let (Some(lily), Some(midi)) = (&note.lily, note.midi) {
+                    if let (Some(lily), Some(_midi)) = (&note.lily, note.midi) {
                         let play_dur = Duration::from_secs_f64(total_secs * 0.9);
                         let gap_dur = Duration::from_secs_f64(total_secs * 0.1);
 
                         println!("MIDI NOTE_ON {} VELOCITY:80", lily);
                         let _ = io::stdout().flush();
-                        notes_ref.lock().unwrap().insert(midi);
 
                         thread::sleep(play_dur);
                         if stop_ref.load(Ordering::SeqCst) { stopped = true; break; }
 
                         println!("MIDI NOTE_OFF {}", lily);
                         let _ = io::stdout().flush();
-                        notes_ref.lock().unwrap().remove(&midi);
 
                         thread::sleep(gap_dur);
                     } else {
@@ -166,7 +140,8 @@ fn main() {
             });
         } else if line == "KARAOKE_OFF" {
             stop_signal.store(true, Ordering::SeqCst);
-            midi_panic(&on_notes);
+            println!("MIDI PANIC");
+            let _ = io::stdout().flush();
         } else if line.starts_with("LESSON ") {
             let mut s = state.lock().unwrap();
             s.melody.clear();

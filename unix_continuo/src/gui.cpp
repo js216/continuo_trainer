@@ -123,6 +123,11 @@ static void clear_status(void)
 
 static void quit_lesson(void)
 {
+	if (state.karaoke_on) {
+		printf("KARAOKE_OFF\n");
+		fflush(stdout);
+		state.karaoke_on = false;
+	}
 	clear_status();
 	state.running = false;
 }

@@ -34,6 +34,7 @@
  *     MIDI TEST                  Send a C#4 note-on/note-off (250 ms) to the output.
  *     MIDI NOTE_ON <lily> VELOCITY:<v>  Send note-on to the current output device.
  *     MIDI NOTE_OFF <lily>              Send note-off to the current output device.
+ *     MIDI PANIC                        Send All Notes Off (CC 123) on all 16 channels.
  *
  * EVENTS (stdout)
  *     DEVICE_AVAIL <n> <name>
@@ -545,6 +546,19 @@ static void close_midi_out(State *s)
 	}
 }
 
+static void panic_midi_out(State *s)
+{
+	if (!s->midi_out) {
+		out_status("No MIDI output connected");
+		return;
+	}
+	for (int ch = 0; ch < 16; ch++) {
+		unsigned char msg[3] = {(unsigned char)(0xB0 | ch), 123, 0};
+		rtmidi_out_send_message(s->midi_out, msg, 3);
+	}
+	out_status("MIDI panic sent");
+}
+
 static void test_midi_out(State *s)
 {
 	if (!s->midi_out) {
@@ -605,6 +619,8 @@ static void handle_command(State *s, const char *line)
 		refresh_devices(s);
 	} else if (strcmp(cmd, "MIDI TEST") == 0) {
 		test_midi_out(s);
+	} else if (strcmp(cmd, "MIDI PANIC") == 0) {
+		panic_midi_out(s);
 	} else if (strncmp(cmd, "MIDI NOTE_ON ", 13) == 0) {
 		char lily[16];
 		unsigned int vel;
