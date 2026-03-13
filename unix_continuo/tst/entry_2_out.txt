@@ -1,6 +1,7 @@
 title: Untitled
 key: C
 time: 4/4
+bpm: 120
 
 bassline = {
   d2 cis2

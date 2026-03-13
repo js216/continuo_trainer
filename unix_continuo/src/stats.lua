@@ -594,6 +594,7 @@ local function handle_chunk(line)
 		return
 	end
 	check_hash(h)
+	scanned_chunks[h] = true
 	local len = tonumber(line:match("LEN:(%d+)")) or 1
 	local skills = line:match("SKILLS:(.-) BASSLINE:") or "?"
 	chunk_skills[h] = skills

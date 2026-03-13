@@ -1,4 +1,4 @@
-LESSON 2 G 3/2 Purcell bars 38-42
+LESSON 2 G 3/2 120 Purcell bars 38-42
 BASSNOTE 0: d2
 FIGURES 0: 0
 MELODY 0: fis'1
