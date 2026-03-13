@@ -167,14 +167,15 @@ fn main() {
         } else if line == "KARAOKE_OFF" {
             stop_signal.store(true, Ordering::SeqCst);
             midi_panic(&on_notes);
-        } else if line.starts_with("KARAOKE_BPM ") {
-            if let Some(n_str) = line.split_whitespace().nth(1) {
-                if let Ok(n) = n_str.parse::<f64>() {
-                    if n > 0.0 { state.lock().unwrap().bpm = n; }
+        } else if line.starts_with("LESSON ") {
+            let mut s = state.lock().unwrap();
+            s.melody.clear();
+            // LESSON <id> <key> <time> <bpm> [<title>]
+            if let Some(bpm_str) = line.split_whitespace().nth(4) {
+                if let Ok(n) = bpm_str.parse::<f64>() {
+                    if n > 0.0 { s.bpm = n; }
                 }
             }
-        } else if line.starts_with("LESSON ") {
-            state.lock().unwrap().melody.clear();
             // REMOVED PASS THROUGH
         } else if line.starts_with("MELODY ") {
             if let Some((_, content)) = line.split_once(": ") {
