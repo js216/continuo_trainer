@@ -20,7 +20,7 @@
 //     S     Emit SUGGEST_LESSON to get the best item to practice next.
 //     K     Toggle karaoke mode (emits KARAOKE_ON / KARAOKE_OFF).
 //
-// RECEIVED (stdin, from stats.lua and bin/load)
+// RECEIVED (stdin, from stats.lua, bin/load, and bin/karaoke)
 //     BASSNOTE <i>: <token> [passing]
 //         Updates the expected note count for progress-square sizing.
 //     RESULT <i> TIME:<t> OK|FAIL [<message>]
@@ -46,6 +46,9 @@
 //     QUERY_STATS           Request a stats refresh (at 2:00 AM).
 //     KARAOKE_ON            Enable karaoke mode.
 //     KARAOKE_OFF           Disable karaoke mode.
+//
+// RECEIVED (stdin, from stats.lua, bin/load, and bin/karaoke)
+//     KARAOKE_DONE          Karaoke playback finished; resets button to normal.
 //
 // FILES
 //     seq/<n>.png     Score image for lesson n.
@@ -171,6 +174,7 @@ static void next_lesson(void)
 		return;
 	state.current_lesson = (state.current_lesson % total) + 1;
 	state.current_chunk[0] = '\0';
+	state.karaoke_on = false;
 	printf("LOAD_LESSON %d\n", state.current_lesson);
 	clear_status();
 }
@@ -182,6 +186,7 @@ static void prev_lesson(void)
 		return;
 	state.current_lesson = ((state.current_lesson - 2 + total) % total) + 1;
 	state.current_chunk[0] = '\0';
+	state.karaoke_on = false;
 	printf("LOAD_LESSON %d\n", state.current_lesson);
 	clear_status();
 }
@@ -440,6 +445,10 @@ static void handle_suggestion(const char *buf)
 
 static void parse_line(const char *buf)
 {
+	if (strncmp(buf, "KARAOKE_DONE", 12) == 0) {
+		state.karaoke_on = false;
+		return;
+	}
 	handle_lesson(buf);
 	handle_result(buf);
 	handle_score(buf);
