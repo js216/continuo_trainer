@@ -12,6 +12,7 @@ struct Note {
 
 struct SharedState {
     bpm: f64,
+    beats_per_bar: u32,
     melody: Vec<Note>,
 }
 
@@ -83,6 +84,7 @@ fn parse_token(tok: &str) -> Option<Note> {
 fn main() {
     let state = Arc::new(Mutex::new(SharedState {
         bpm: 120.0,
+        beats_per_bar: 4,
         melody: Vec::new(),
     }));
 
@@ -104,10 +106,24 @@ fn main() {
             let stop_ref = Arc::clone(&stop_signal);
 
             thread::spawn(move || {
-                let (bpm, melody) = {
+                let (bpm, beats_per_bar, melody) = {
                     let s = state_ref.lock().unwrap();
-                    (s.bpm, s.melody.clone())
+                    (s.bpm, s.beats_per_bar, s.melody.clone())
                 };
+
+                // Count-in: one short click per beat in the bar
+                let beat_secs = 60.0 / bpm;
+                let click_on  = Duration::from_millis(30);
+                let click_off = Duration::from_secs_f64(beat_secs) - click_on;
+                for _ in 0..beats_per_bar {
+                    if stop_ref.load(Ordering::SeqCst) { return; }
+                    println!("MIDI NOTE_ON b'' VELOCITY:64");
+                    let _ = io::stdout().flush();
+                    thread::sleep(click_on);
+                    println!("MIDI NOTE_OFF b''");
+                    let _ = io::stdout().flush();
+                    thread::sleep(click_off);
+                }
 
                 let mut stopped = false;
                 for note in melody {
@@ -146,7 +162,15 @@ fn main() {
             let mut s = state.lock().unwrap();
             s.melody.clear();
             // LESSON <id> <key> <time> <bpm> [<title>]
-            if let Some(bpm_str) = line.split_whitespace().nth(4) {
+            let fields: Vec<&str> = line.split_whitespace().collect();
+            if let Some(time_str) = fields.get(3) {
+                if let Some(num_str) = time_str.split('/').next() {
+                    if let Ok(n) = num_str.parse::<u32>() {
+                        if n > 0 { s.beats_per_bar = n; }
+                    }
+                }
+            }
+            if let Some(bpm_str) = fields.get(4) {
                 if let Ok(n) = bpm_str.parse::<f64>() {
                     if n > 0.0 { s.bpm = n; }
                 }
