@@ -89,6 +89,7 @@ fn main() {
     }));
 
     let stop_signal = Arc::new(AtomicBool::new(false));
+    let mut last_handle: Option<thread::JoinHandle<()>> = None;
 
     let stdin = io::stdin();
     for line_result in stdin.lock().lines() {
@@ -105,7 +106,7 @@ fn main() {
             let state_ref = Arc::clone(&state);
             let stop_ref = Arc::clone(&stop_signal);
 
-            thread::spawn(move || {
+            last_handle = Some(thread::spawn(move || {
                 let (bpm, beats_per_bar, melody) = {
                     let s = state_ref.lock().unwrap();
                     (s.bpm, s.beats_per_bar, s.melody.clone())
@@ -114,7 +115,7 @@ fn main() {
                 // Count-in: one short click per beat in the bar
                 let beat_secs = 60.0 / bpm;
                 let click_on  = Duration::from_millis(30);
-                let click_off = Duration::from_secs_f64(beat_secs) - click_on;
+                let click_off = Duration::from_secs_f64((beat_secs - 0.030_f64).max(0.0));
                 for _ in 0..beats_per_bar {
                     if stop_ref.load(Ordering::SeqCst) { return; }
                     println!("MIDI NOTE_ON b'' VELOCITY:64");
@@ -153,7 +154,7 @@ fn main() {
                     println!("KARAOKE_DONE");
                     let _ = io::stdout().flush();
                 }
-            });
+            }));
         } else if line == "KARAOKE_OFF" {
             stop_signal.store(true, Ordering::SeqCst);
             println!("MIDI PANIC");
@@ -188,5 +189,8 @@ fn main() {
             // REMOVED PASS THROUGH
         }
         // General pass-through block deleted.
+    }
+    if let Some(h) = last_handle {
+        h.join().ok();
     }
 }
