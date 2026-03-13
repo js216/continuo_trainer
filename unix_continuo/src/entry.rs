@@ -20,6 +20,7 @@
 // ARGUMENTS
 //     --key    KEY       Enharmonic spelling key (default: C).
 //     --time   TIME      Time signature string, e.g. "3/2" (default: 4/4).
+//     --bpm    BPM       Tempo in beats per minute (default: 120).
 //     --title  TITLE...  Lesson title; consumes tokens until the next flag.
 //     --duration DUR     Default note duration in LilyPond notation
 //                        (default: 2).  Dots are supported, e.g. "2.".
@@ -35,6 +36,7 @@
 //         title: <title>
 //         key:   <key>
 //         time:  <time>
+//         bpm:   <bpm>
 //
 //         bassline = { <note><dur> ... }
 //         figures  = { 0 ... }       (all zeros; intended for manual editing)
@@ -92,6 +94,7 @@ fn main() -> io::Result<()> {
     let args: Vec<String> = env::args().collect();
     let mut key = "C".to_string();
     let mut time = "4/4".to_string();
+    let mut bpm = 120u32;
     let mut title = "Untitled".to_string();
     let mut duration = "2".to_string();
     let mut outdir: Option<String> = None;
@@ -105,6 +108,10 @@ fn main() -> io::Result<()> {
             }
             "--time" => {
                 time = args[i + 1].clone();
+                i += 2;
+            }
+            "--bpm" => {
+                bpm = args[i + 1].parse().unwrap_or(120);
                 i += 2;
             }
             "--duration" => {
@@ -175,6 +182,7 @@ fn main() -> io::Result<()> {
                         fs::File::create(path)?,
                         &key,
                         &time,
+                        bpm,
                         &title,
                         &history,
                         &duration,
@@ -185,7 +193,7 @@ fn main() -> io::Result<()> {
     }
 
     if outdir.is_none() {
-        write_data(io::stdout(), &key, &time, &title, &history, &duration)?;
+        write_data(io::stdout(), &key, &time, bpm, &title, &history, &duration)?;
     }
     Ok(())
 }
@@ -194,11 +202,12 @@ fn write_data<W: Write>(
     mut w: W,
     key: &str,
     time: &str,
+    bpm: u32,
     title: &str,
     hist: &Vec<Vec<String>>,
     dur_str: &str,
 ) -> io::Result<()> {
-    writeln!(w, "title: {}\nkey: {}\ntime: {}\n", title, key, time)?;
+    writeln!(w, "title: {}\nkey: {}\ntime: {}\nbpm: {}\n", title, key, time, bpm)?;
 
     let parts: Vec<&str> = time.split('/').collect();
     let beats_per_bar = parts[0].parse::<f32>().unwrap_or(4.0);
