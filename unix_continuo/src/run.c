@@ -352,13 +352,31 @@ static void *thr_fanin_sub(void *arg)
 {
 	FaninSubArg *a = arg;
 	char buf[LINE_BUF];
-	ssize_t n;
-	while (!g_terminating && (n = read(a->src_rd, buf, sizeof buf)) > 0) {
-		pthread_mutex_lock(a->mu);
-		ssize_t nw = write(a->dst_wr, buf, (size_t)n);
-		pthread_mutex_unlock(a->mu);
-		if (nw != n)
+	size_t len = 0;
+	while (!g_terminating) {
+		ssize_t n = read(a->src_rd, buf + len, sizeof buf - len - 1);
+		if (n <= 0)
 			break;
+		len += (size_t)n;
+		char *start = buf;
+		char *nl;
+		while ((nl = memchr(start, '\n', len - (size_t)(start - buf)))) {
+			size_t line_len = (size_t)(nl - start) + 1;
+			pthread_mutex_lock(a->mu);
+			ssize_t nw = write(a->dst_wr, start, line_len);
+			pthread_mutex_unlock(a->mu);
+			if (nw != (ssize_t)line_len)
+				goto done;
+			start = nl + 1;
+		}
+		len -= (size_t)(start - buf);
+		memmove(buf, start, len);
+	}
+done:
+	if (len > 0) {
+		pthread_mutex_lock(a->mu);
+		write(a->dst_wr, buf, len);
+		pthread_mutex_unlock(a->mu);
 	}
 	close(a->src_rd);
 	free(a);

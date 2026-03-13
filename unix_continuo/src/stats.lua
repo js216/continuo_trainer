@@ -130,6 +130,12 @@ end
 -- UTILITIES & METRICS
 -------------------------------------------------------------------------------
 
+local function check_hash(h)
+	if type(h) ~= "string" or #h ~= 40 or not h:match("^[0-9a-f]+$") then
+		error(string.format("invalid SHA1 hash: %q", tostring(h)), 2)
+	end
+end
+
 local function get_date_str()
 	return os.date("%Y-%m-%d")
 end
@@ -585,6 +591,7 @@ local function handle_chunk(line)
 	if not (n and s and e and h) then
 		return
 	end
+	check_hash(h)
 	local len = tonumber(line:match("LEN:(%d+)")) or 1
 	local skills = line:match("SKILLS:(.-) BASSLINE:") or "?"
 	local l_id = tostring(tonumber(n))
@@ -772,6 +779,7 @@ for line in io.lines() do
 		end
 	elseif line:match("^CHUNK_NAME ") then
 		local h = line:match("^CHUNK_NAME (%S+)")
+		check_hash(h)
 		scanned_chunks[h] = true
 		local stats = load_stats(stats_file)
 		if not stats.chunks[h] then
@@ -791,13 +799,16 @@ for line in io.lines() do
 
 	-- CHUNK_SESSION: the next LESSON is a chunk replay, not a real lesson
 	elseif line:match("^CHUNK_SESSION ") then
+		check_hash(line:match("^CHUNK_SESSION (%S+)"))
 		in_chunk_session = true
 
 	-- LESSON: new lesson starting; finalise any abandoned in-progress lesson
 	elseif line:match("^LESSON ") then
 		if in_chunk_session then
 			-- chunk replay: track notes for RESULT scoring only
-			current = { id = line:match("^LESSON (%S+)"), max_bass_id = -1, results = {}, is_chunk = true }
+			local chunk_id = line:match("^LESSON (%S+)")
+			check_hash(chunk_id)
+			current = { id = chunk_id, max_bass_id = -1, results = {}, is_chunk = true }
 			in_chunk_session = false
 		else
 			if current and current.max_bass_id >= 0 and not current.results[current.max_bass_id] then
