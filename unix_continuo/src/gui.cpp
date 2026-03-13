@@ -174,6 +174,8 @@ static int count_lessons(void)
 
 static void next_lesson(void)
 {
+	printf("KARAOKE_OFF\n");
+
 	int total = count_lessons();
 	if (total < 1)
 		return;
@@ -186,6 +188,8 @@ static void next_lesson(void)
 
 static void prev_lesson(void)
 {
+	printf("KARAOKE_OFF\n");
+
 	int total = count_lessons();
 	if (total < 1)
 		return;
@@ -198,6 +202,7 @@ static void prev_lesson(void)
 
 static void suggest_lesson(void)
 {
+	printf("KARAOKE_OFF\n");
 	printf("SUGGEST_LESSON\n");
 	fflush(stdout);
 }
