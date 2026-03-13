@@ -40,6 +40,7 @@
 //         title: <text>     Lesson title (free text).
 //         key:   <text>     Key signature.
 //         time:  <text>     Time signature.
+//         bpm:   <n>        Tempo in beats per minute (integer).
 //
 //     Sections (whitespace-separated tokens, one or more lines each):
 //         bassline { ... }  Bass note tokens.
@@ -69,7 +70,7 @@
 //     group, its melody group is empty and "-" is emitted.
 //
 // OUTPUT FORMAT
-//     LESSON <n> <key> <time> <title>
+//     LESSON <n> <key> <time> <bpm> <title>
 //
 //     For each bass index i (0-based):
 //         BASSNOTE i: <token> [passing]
@@ -160,6 +161,7 @@ struct Lesson {
     title: String,
     key: String,
     time: String,
+    bpm: u32,
     bass: Vec<String>,
     figures: Vec<String>,
     melody: Vec<String>,
@@ -169,6 +171,7 @@ fn parse_lesson(content: &str) -> Lesson {
     let mut title = String::new();
     let mut key = String::new();
     let mut time = String::new();
+    let mut bpm = 0u32;
     let mut bass = Vec::new();
     let mut figures = Vec::new();
     let mut melody = Vec::new();
@@ -189,6 +192,10 @@ fn parse_lesson(content: &str) -> Lesson {
         }
         if l.starts_with("time:") {
             time = l[5..].trim().to_string();
+            continue;
+        }
+        if l.starts_with("bpm:") {
+            bpm = l[4..].trim().parse().unwrap_or(0);
             continue;
         }
         if l.starts_with("bassline") {
@@ -219,6 +226,7 @@ fn parse_lesson(content: &str) -> Lesson {
         title,
         key,
         time,
+        bpm,
         bass,
         figures,
         melody,
@@ -271,8 +279,8 @@ fn group_melody(bass: &[String], melody: &[String]) -> Vec<String> {
 
 fn emit(n: usize, lesson: &Lesson, melody_groups: &[String]) {
     println!(
-        "LESSON {} {} {} {}",
-        n, lesson.key, lesson.time, lesson.title
+        "LESSON {} {} {} {} {}",
+        n, lesson.key, lesson.time, lesson.bpm, lesson.title
     );
     for i in 0..lesson.bass.len() {
         let (tok, passing) = if is_passing(&lesson.bass[i]) {
@@ -320,7 +328,7 @@ fn load_and_emit_chunk(hash: &str) {
     let melody_groups = group_melody(&lesson.bass, &lesson.melody);
 
     println!("CHUNK_SESSION {}", hash);
-    println!("LESSON {} {}", hash, lesson.key);
+    println!("LESSON {} {} {} {}", hash, lesson.key, lesson.time, lesson.bpm);
     for i in 0..lesson.bass.len() {
         let (tok, passing) = if is_passing(&lesson.bass[i]) {
             (lesson.bass[i].trim_end_matches('p'), true)
