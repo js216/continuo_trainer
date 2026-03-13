@@ -26,12 +26,14 @@
  *     Octave marks: ' raises by one octave, , lowers by one.
  *
  * COMMANDS (stdin)
- *     MIDI IN <n>        Open MIDI input device number n.
- *     MIDI OUT <n>       Open MIDI output device number n.
- *     MIDI FORWARD ON    Forward raw MIDI input bytes to the output port.
- *     MIDI FORWARD OFF   Disable forwarding.
- *     MIDI DEVICES       Re-enumerate devices and emit DEVICE_AVAIL lines.
- *     MIDI TEST          Send a C#4 note-on/note-off (250 ms) to the output.
+ *     MIDI IN <n>                Open MIDI input device number n.
+ *     MIDI OUT <n>               Open MIDI output device number n.
+ *     MIDI FORWARD ON            Forward raw MIDI input bytes to the output port.
+ *     MIDI FORWARD OFF           Disable forwarding.
+ *     MIDI DEVICES               Re-enumerate devices and emit DEVICE_AVAIL lines.
+ *     MIDI TEST                  Send a C#4 note-on/note-off (250 ms) to the output.
+ *     MIDI NOTE_ON <lily> VELOCITY:<v>  Send note-on to the current output device.
+ *     MIDI NOTE_OFF <lily>              Send note-off to the current output device.
  *
  * EVENTS (stdout)
  *     DEVICE_AVAIL <n> <name>
@@ -175,6 +177,39 @@ static void note_to_lily(unsigned char note, char *buf, size_t len)
 			buf[pos++] = ',';
 	}
 	buf[pos] = '\0';
+}
+
+/* Parse LilyPond absolute pitch back to MIDI note; returns -1 on error */
+static int lily_to_note(const char *s)
+{
+	static const struct {
+		const char *name;
+		int semi;
+	} names[] = {
+	    {"cis", 1}, {"dis", 3}, {"fis", 6}, {"gis", 8}, {"ais", 10},
+	    {"c", 0},   {"d", 2},   {"e", 4},   {"f", 5},   {"g", 7},
+	    {"a", 9},   {"b", 11},
+	};
+
+	int semi = -1;
+	const char *p = s;
+	for (size_t i = 0; i < sizeof(names) / sizeof(names[0]); i++) {
+		size_t len = strlen(names[i].name);
+		if (strncmp(p, names[i].name, len) == 0) {
+			semi = names[i].semi;
+			p += len;
+			break;
+		}
+	}
+	if (semi < 0)
+		return -1;
+
+	int octave = 3;
+	while (*p == '\'') { octave++; p++; }
+	while (*p == ',')  { octave--; p++; }
+
+	int midi = (octave + 1) * 12 + semi;
+	return (midi >= 0 && midi <= 127) ? midi : -1;
 }
 
 /* ------------------------------------------------------------------ */
@@ -570,6 +605,40 @@ static void handle_command(State *s, const char *line)
 		refresh_devices(s);
 	} else if (strcmp(cmd, "MIDI TEST") == 0) {
 		test_midi_out(s);
+	} else if (strncmp(cmd, "MIDI NOTE_ON ", 13) == 0) {
+		char lily[16];
+		unsigned int vel;
+		if (sscanf(cmd, "MIDI NOTE_ON %15s VELOCITY:%u", lily, &vel) == 2) {
+			int note = lily_to_note(lily);
+			if (note < 0)
+				out_status("Invalid note: %s", lily);
+			else if (!s->midi_out)
+				out_status("No MIDI output connected");
+			else {
+				unsigned char msg[3] = {0x90,
+				    (unsigned char)note,
+				    (unsigned char)(vel & 0x7FU)};
+				rtmidi_out_send_message(s->midi_out, msg, 3);
+			}
+		} else {
+			out_status("Usage: MIDI NOTE_ON <pitch> VELOCITY:<v>");
+		}
+	} else if (strncmp(cmd, "MIDI NOTE_OFF ", 14) == 0) {
+		char lily[16];
+		if (sscanf(cmd, "MIDI NOTE_OFF %15s", lily) == 1) {
+			int note = lily_to_note(lily);
+			if (note < 0)
+				out_status("Invalid note: %s", lily);
+			else if (!s->midi_out)
+				out_status("No MIDI output connected");
+			else {
+				unsigned char msg[3] = {0x80,
+				    (unsigned char)note, 0};
+				rtmidi_out_send_message(s->midi_out, msg, 3);
+			}
+		} else {
+			out_status("Usage: MIDI NOTE_OFF <pitch>");
+		}
 	} else if (strncmp(cmd, "MIDI", 4) == 0) {
 		out_status("Unknown MIDI command: %s", cmd);
 	}
