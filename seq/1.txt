@@ -2,6 +2,7 @@ title: Purcell bars 31-37
 key: G
 time: 3/2
 bpm: 120
+bar: 31
 
 bassline = {
   g2 fis2p e2

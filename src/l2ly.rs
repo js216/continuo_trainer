@@ -46,6 +46,7 @@ fn main() {
     let title = extract_field(&content, "title");
     let key = extract_field(&content, "key");
     let time = extract_field(&content, "time");
+    let bar: u32 = extract_field(&content, "bar").parse().unwrap_or(1);
     let bassline = extract_block(&content, "bassline");
     let figures = extract_block(&content, "figures");
     let melody = extract_block(&content, "melody");
@@ -66,6 +67,13 @@ fn main() {
         r"\cadenzaOn".to_string()
     } else {
         format!(r"\time {}", time)
+    };
+
+    // Optional starting bar number: if different from 1, set it in the score.
+    let bar_directive = if bar != 1 {
+        format!(r"\set Score.currentBarNumber = #{}", bar)
+    } else {
+        String::new()
     };
 
     // Generate LilyPond document
@@ -96,6 +104,7 @@ passingNoteSolidus = \markup
       \clef treble
       \key {key_ly} \major
       {time_directive}
+      {bar_directive}
       {melody}
     }}
     \new Staff = "continuo" {{
@@ -118,6 +127,7 @@ passingNoteSolidus = \markup
         header_block = header_block,
         key_ly = key_ly,
         time_directive = time_directive,
+        bar_directive = bar_directive,
         melody = melody_to_ly(&melody),
         bassline = bassline_to_ly(&bassline),
         figures = figures_to_ly(&figures, &bassline),
