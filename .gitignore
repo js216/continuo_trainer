@@ -1,19 +1,4 @@
-*.d
-*.o
 *.swp
-*.log
-*.db
-*.ini
-
-imgui_continuo/continuo_trainer
-imgui_continuo/compile_commands.json
-
-imgui_continuo/test/*
-!imgui_continuo/test/*.h
-!imgui_continuo/test/*.c
-!imgui_continuo/test/*.cpp
-!imgui_continuo/test/*.txt
-
 *.pdf
 *.png
 
