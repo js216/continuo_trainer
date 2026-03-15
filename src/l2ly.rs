@@ -70,19 +70,27 @@ fn main() {
         h
     };
 
-    // Optional time signature: chunk files have no time field, so we use
-    // \cadenzaOn which suppresses automatic barlines.
+    // Optional time signature.  When present, also emit \partial if the chunk
+    // starts mid-bar (partial: field holds remaining sixteenths in first bar).
+    let partial: u32 = extract_field(&content, "partial").parse().unwrap_or(0);
     let time_directive = if time.is_empty() {
         r"\cadenzaOn".to_string()
+    } else if partial > 0 {
+        format!("\\time {}\n      \\partial {}", time, sixteenths_to_duration(partial))
     } else {
         format!(r"\time {}", time)
     };
 
-    // Optional starting bar number: if different from 1, set it in the score.
-    let bar_directive = if bar != 1 {
-        format!(r"\set Score.currentBarNumber = #{}", bar)
-    } else {
+    // Bar number directive: only meaningful when a time signature is present.
+    // Always set currentBarNumber (even for bar 1) and override break-visibility
+    // so that bar 1 is rendered — LilyPond suppresses it by default.
+    let bar_directive = if time.is_empty() {
         String::new()
+    } else {
+        format!(
+            "\\override Score.BarNumber.break-visibility = #all-visible\n      \\set Score.currentBarNumber = #{}",
+            bar
+        )
     };
 
     // Generate LilyPond document
@@ -285,4 +293,29 @@ fn interval_to_ly(s: &str) -> String {
     } else {
         format!("{}{}", num, acc)
     }
+}
+
+// Convert a duration expressed in sixteenth-note units to a LilyPond duration
+// string (e.g. 16 → "1", 12 → "2.", 8 → "2").  Panics for values that cannot
+// be expressed as a single note value with at most two dots.
+fn sixteenths_to_duration(n: u32) -> String {
+    match n {
+        1 => "16",
+        2 => "8",
+        3 => "8.",
+        4 => "4",
+        6 => "4.",
+        7 => "4..",
+        8 => "2",
+        12 => "2.",
+        14 => "2..",
+        16 => "1",
+        24 => "1.",
+        28 => "1..",
+        _ => panic!(
+            "partial bar of {} sixteenths cannot be expressed as a single LilyPond duration",
+            n
+        ),
+    }
+    .to_string()
 }

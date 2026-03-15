@@ -214,6 +214,22 @@ local function chunk_bar(bass, time_sig, lesson_bar, start_idx)
 	return lesson_bar + math.floor(offset / bar_len)
 end
 
+-- Remaining sixteenths in the partial first bar of a chunk starting at start_idx
+-- (1-based).  Returns 0 if the chunk starts exactly on a bar line.
+local function chunk_partial_sixteenths(bass, time_sig, start_idx)
+	if start_idx == 1 then return 0 end
+	local bar_len = bar_sixteenths(time_sig)
+	local offset, last_dur = 0, 4
+	for i = 1, start_idx - 1 do
+		local d = dur_sixteenths(bass[i])
+		if d then last_dur = d end
+		offset = offset + last_dur
+	end
+	local offset_in_bar = offset % bar_len
+	if offset_in_bar == 0 then return 0 end
+	return bar_len - offset_in_bar
+end
+
 -- ── chunk file I/O ───────────────────────────────────────────────────────────
 
 local function write_chunk(hash, content)
@@ -233,12 +249,14 @@ end
 -- ── chunk file construction ───────────────────────────────────────────────────
 
 -- Build the seq-format text for the slice bass[s..e] (1-based, inclusive).
-local function build_chunk_content(key, title, composer, skill, bar, bass, passing, figures, melody, s, e)
+local function build_chunk_content(key, title, composer, time_sig, skill, bar, partial, bass, passing, figures, melody, s, e)
 	local lines = {}
 	if title ~= "" then lines[#lines + 1] = "title: " .. title end
 	if composer ~= "" then lines[#lines + 1] = "composer: " .. composer end
 	lines[#lines + 1] = "key: " .. key
+	if time_sig ~= "" then lines[#lines + 1] = "time: " .. time_sig end
 	if bar ~= 1 then lines[#lines + 1] = "bar: " .. bar end
+	if partial > 0 then lines[#lines + 1] = "partial: " .. partial end
 	lines[#lines + 1] = "skills: " .. skill
 	lines[#lines + 1] = ""
 	lines[#lines + 1] = "bassline = {"
@@ -330,7 +348,8 @@ local function process_lesson(lesson_n, key, time_sig, lesson_bar, title, compos
 		local skills_str = table.concat(skills, " ")
 
 		local bar = chunk_bar(bass, time_sig, lesson_bar, s)
-		local content = build_chunk_content(key, title, composer, skills_str, bar, bass, passing, figures, melody, s, e)
+		local partial = chunk_partial_sixteenths(bass, time_sig, s)
+		local content = build_chunk_content(key, title, composer, time_sig, skills_str, bar, partial, bass, passing, figures, melody, s, e)
 		content = content:gsub("\r\n", "\n"):gsub("\r", "\n")
 		local hash = sha1(content)
 		write_chunk(hash, content)
