@@ -159,6 +159,7 @@ fn is_passing(token: &str) -> bool {
 
 struct Lesson {
     title: String,
+    composer: String,
     key: String,
     time: String,
     bpm: u32,
@@ -170,6 +171,7 @@ struct Lesson {
 
 fn parse_lesson(content: &str) -> Lesson {
     let mut title = String::new();
+    let mut composer = String::new();
     let mut key = String::new();
     let mut time = String::new();
     let mut bpm = 0u32;
@@ -186,6 +188,10 @@ fn parse_lesson(content: &str) -> Lesson {
         }
         if l.starts_with("title:") {
             title = l[6..].trim().to_string();
+            continue;
+        }
+        if l.starts_with("composer:") {
+            composer = l[9..].trim().to_string();
             continue;
         }
         if l.starts_with("key:") {
@@ -230,6 +236,7 @@ fn parse_lesson(content: &str) -> Lesson {
     }
     Lesson {
         title,
+        composer,
         key,
         time,
         bpm,
@@ -289,6 +296,9 @@ fn emit(n: usize, lesson: &Lesson, melody_groups: &[String]) {
         "LESSON {} {} {} {} {} {}",
         n, lesson.key, lesson.time, lesson.bpm, lesson.bar, lesson.title
     );
+    if !lesson.composer.is_empty() {
+        println!("COMPOSER {}", lesson.composer);
+    }
     for i in 0..lesson.bass.len() {
         let (tok, passing) = if is_passing(&lesson.bass[i]) {
             (lesson.bass[i].trim_end_matches('p'), true)

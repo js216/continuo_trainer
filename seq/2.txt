@@ -1,4 +1,5 @@
-title: Purcell bars 38-42
+title: An Evening Hymn
+composer: Henry Purcell
 key: G
 time: 3/2
 bpm: 120

@@ -55,6 +55,8 @@ local CONTEXT_RIGHT = 1
 
 io.stdout:setvbuf("line") -- flush after every CHUNK line so stats.lua sees them promptly
 
+os.execute("mkdir -p chn")
+
 -- ── helpers ──────────────────────────────────────────────────────────────────
 
 local function die(fmt, ...)
@@ -212,11 +214,29 @@ local function chunk_bar(bass, time_sig, lesson_bar, start_idx)
 	return lesson_bar + math.floor(offset / bar_len)
 end
 
+-- ── chunk file I/O ───────────────────────────────────────────────────────────
+
+local function write_chunk(hash, content)
+	local path = "chn/" .. hash .. ".txt"
+	local existing = io.open(path, "rb")
+	if existing then
+		local old = existing:read("*a")
+		existing:close()
+		if old ~= content then die("hash collision on %s", path) end
+		return
+	end
+	local f = assert(io.open(path, "wb"))
+	f:write(content)
+	f:close()
+end
+
 -- ── chunk file construction ───────────────────────────────────────────────────
 
 -- Build the seq-format text for the slice bass[s..e] (1-based, inclusive).
-local function build_chunk_content(key, skill, bar, bass, passing, figures, melody, s, e)
+local function build_chunk_content(key, title, composer, skill, bar, bass, passing, figures, melody, s, e)
 	local lines = {}
+	if title ~= "" then lines[#lines + 1] = "title: " .. title end
+	if composer ~= "" then lines[#lines + 1] = "composer: " .. composer end
 	lines[#lines + 1] = "key: " .. key
 	if bar ~= 1 then lines[#lines + 1] = "bar: " .. bar end
 	lines[#lines + 1] = "skills: " .. skill
@@ -275,7 +295,7 @@ end
 
 -- ── per-lesson processing ─────────────────────────────────────────────────────
 
-local function process_lesson(lesson_n, key, time_sig, lesson_bar, bass, passing, figures, melody)
+local function process_lesson(lesson_n, key, time_sig, lesson_bar, title, composer, bass, passing, figures, melody)
 	local N = #bass
 	local hearts = identify_hearts(figures)
 
@@ -310,9 +330,10 @@ local function process_lesson(lesson_n, key, time_sig, lesson_bar, bass, passing
 		local skills_str = table.concat(skills, " ")
 
 		local bar = chunk_bar(bass, time_sig, lesson_bar, s)
-		local content = build_chunk_content(key, skills_str, bar, bass, passing, figures, melody, s, e)
+		local content = build_chunk_content(key, title, composer, skills_str, bar, bass, passing, figures, melody, s, e)
 		content = content:gsub("\r\n", "\n"):gsub("\r", "\n")
 		local hash = sha1(content)
+		write_chunk(hash, content)
 		print(
 			string.format(
 				"CHUNK LESSON:%d HEART:%d-%d LEN:%d HASH:%s KEY:%s BAR:%d SKILLS:%s BASSLINE:%s FIGURE:%s MELODY:%s",
@@ -339,7 +360,7 @@ local in_chunk_session = false -- true while processing a CHUNK_SESSION stream
 
 local function flush()
 	if current then
-		process_lesson(current.n, current.key, current.time, current.bar, current.bass, current.passing, current.figures, current.melody)
+		process_lesson(current.n, current.key, current.time, current.bar, current.title, current.composer, current.bass, current.passing, current.figures, current.melody)
 		current = nil
 	end
 end
@@ -364,6 +385,13 @@ for line in io.lines() do
 		goto continue
 	end
 
+	-- COMPOSER <text>  (emitted by load right after LESSON when non-empty)
+	local comp = line:match("^COMPOSER (.+)$")
+	if comp then
+		if current then current.composer = comp end
+		goto continue
+	end
+
 	-- LESSON <n> <key> <time> <bpm> <bar> <title>
 	local n, key, time_sig, bpm_s, bar_s = line:match("^LESSON (%S+) (%S+) (%S+) (%S+) (%S+)")
 	if n then
@@ -375,10 +403,13 @@ for line in io.lines() do
 		local num = tonumber(n)
 		if num then
 			flush() -- safety flush in case LESSON_END was missing
+			local title = line:match("^LESSON %S+ %S+ %S+ %S+ %S+ (.+)$") or ""
 			current = {
 				n = num, key = key,
 				time = time_sig or "4/4",
 				bar = tonumber(bar_s) or 1,
+				title = title,
+				composer = "",
 				bass = {}, passing = {}, figures = {}, melody = {},
 			}
 		end

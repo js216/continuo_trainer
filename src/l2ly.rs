@@ -44,6 +44,7 @@ fn main() {
 
     // Extract fields
     let title = extract_field(&content, "title");
+    let composer = extract_field(&content, "composer");
     let key = extract_field(&content, "key");
     let time = extract_field(&content, "time");
     let bar: u32 = extract_field(&content, "bar").parse().unwrap_or(1);
@@ -54,11 +55,19 @@ fn main() {
     // LilyPond requires lowercase pitch names for \key
     let key_ly = key.to_lowercase();
 
-    // Optional \header block: omitted entirely for chunk files (no title).
-    let header_block = if title.is_empty() {
+    // Optional \header block: omitted entirely when neither title nor composer present.
+    let header_block = if title.is_empty() && composer.is_empty() {
         String::new()
     } else {
-        format!("\\header {{\n  title = \"{}\"\n}}\n\n", title)
+        let mut h = String::from("\\header {\n");
+        if !title.is_empty() {
+            h.push_str(&format!("  title = \"{}\"\n", title));
+        }
+        if !composer.is_empty() {
+            h.push_str(&format!("  composer = \"{}\"\n", composer));
+        }
+        h.push_str("}\n\n");
+        h
     };
 
     // Optional time signature: chunk files have no time field, so we use
