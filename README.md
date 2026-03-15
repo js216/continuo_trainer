@@ -177,3 +177,5 @@ Remove Prev/Next buttons; only the Suggest button remains for navigation.
 - each chunk should have independent and transitive properties: independent are
   adjusted only when chunk is practiced directly, and transitive ones are
   adjusted when a lower-lever chunk is played
+- combine into a single rust program without losing modularity, testability
+- make a web app
