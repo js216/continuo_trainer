@@ -170,7 +170,6 @@ Remove Prev/Next buttons; only the Suggest button remains for navigation.
 - add all lessons from Handel, Purcell, Couperin
 - overlearning: require 5-10, depending on how many mistakes made recently
   (exponential moving average)
-- add a software synth
 - mistakes hurt power
 - slow exp decay of mastery on startup using `last_played` (or, better yet,
   `last_updated_mastery` to distinguish playing from mere algorithmic

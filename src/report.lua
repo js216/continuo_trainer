@@ -161,10 +161,7 @@ local n_chunks = 0
 for _ in pairs(chunks) do
 	n_chunks = n_chunks + 1
 end
-print(string.format(
-	"Total   lessons: %d   chunks: %d   practice time: %s",
-	n_lessons, n_chunks, fmt_dur(total_secs)
-))
+print(string.format("Total   lessons: %d   chunks: %d   practice time: %s", n_lessons, n_chunks, fmt_dur(total_secs)))
 
 -- ── skills ────────────────────────────────────────────────────────────────────
 -- Aggregate per-skill stats by reading each chn/<hash>.txt file.
@@ -216,13 +213,21 @@ end)
 if #skill_names > 0 then
 	print()
 	print(string.format("SKILLS (%d)", #skill_names))
-	print(string.format("  %-10s  %4s  %-7s  %-7s  %-5s  %s",
-		"Skill", "N", "Mastery", "Power", "Pass", "Fail"))
+	print(string.format("  %-10s  %4s  %-7s  %-7s  %-5s  %s", "Skill", "N", "Mastery", "Power", "Pass", "Fail"))
 	print(string.rep("-", 50))
 	for _, sname in ipairs(skill_names) do
 		local ss = skill_stats[sname]
-		print(string.format("  %-10s  %4d  %6.1f%%  %6.1f%%  %5d  %5d",
-			sname, ss.n, ss.m_sum / ss.n, ss.p_sum / ss.n, ss.pass, ss.fail))
+		print(
+			string.format(
+				"  %-10s  %4d  %6.1f%%  %6.1f%%  %5d  %5d",
+				sname,
+				ss.n,
+				ss.m_sum / ss.n,
+				ss.p_sum / ss.n,
+				ss.pass,
+				ss.fail
+			)
+		)
 	end
 end
 
@@ -240,8 +245,21 @@ end)
 if #lesson_ids > 0 then
 	print()
 	print(string.format("LESSONS (%d)", #lesson_ids))
-	print(string.format("  %-4s  %-7s  %-7s  %-4s  %-4s  %-4s  %-4s  %-4s  %-7s  %s",
-		"ID", "Mastery", "Power", "Ivl", "Ease", "EMA", "Pass", "Fail", "Time", "Last"))
+	print(
+		string.format(
+			"  %-4s  %-7s  %-7s  %-4s  %-4s  %-4s  %-4s  %-4s  %-7s  %s",
+			"ID",
+			"Mastery",
+			"Power",
+			"Ivl",
+			"Ease",
+			"EMA",
+			"Pass",
+			"Fail",
+			"Time",
+			"Last"
+		)
+	)
 	print(string.rep("-", 75))
 	for _, id in ipairs(lesson_ids) do
 		local l = lessons[id]
@@ -250,14 +268,22 @@ if #lesson_ids > 0 then
 		local elapsed = days_since(l.last_date)
 		local ivl = math.floor(l.ivl or 0)
 		local due = (ivl > 0 and elapsed and elapsed >= ivl) and " *" or ""
-		print(string.format(
-			"  %-4s  %6.1f%%  %6.1f%%  %4d  %4.2f  %4.2f  %4d  %4d  %7s  %s%s",
-			id, mastery_pct, power_pct, ivl,
-			l.ease or (alg.ease_initial or 2.5),
-			l.ema_pass or 0,
-			l.n_pass_tot or 0, l.n_fail_tot or 0,
-			fmt_dur(l.total_duration or 0),
-			l.last_date or "--", due))
+		print(
+			string.format(
+				"  %-4s  %6.1f%%  %6.1f%%  %4d  %4.2f  %4.2f  %4d  %4d  %7s  %s%s",
+				id,
+				mastery_pct,
+				power_pct,
+				ivl,
+				l.ease or (alg.ease_initial or 2.5),
+				l.ema_pass or 0,
+				l.n_pass_tot or 0,
+				l.n_fail_tot or 0,
+				fmt_dur(l.total_duration or 0),
+				l.last_date or "--",
+				due
+			)
+		)
 	end
 end
 
@@ -281,8 +307,20 @@ end)
 if #chunk_hashes > 0 then
 	print()
 	print(string.format("CHUNKS (%d)", #chunk_hashes))
-	print(string.format("  %-10s  %-7s  %-7s  %-4s  %-4s  %-4s  %-4s  %-4s  %s",
-		"Hash", "Mastery", "Power", "Ivl", "Ease", "EMA", "Pass", "Fail", "Last"))
+	print(
+		string.format(
+			"  %-10s  %-7s  %-7s  %-4s  %-4s  %-4s  %-4s  %-4s  %s",
+			"Hash",
+			"Mastery",
+			"Power",
+			"Ivl",
+			"Ease",
+			"EMA",
+			"Pass",
+			"Fail",
+			"Last"
+		)
+	)
 	print(string.rep("-", 72))
 	for _, h in ipairs(chunk_hashes) do
 		local c = chunks[h]
@@ -291,12 +329,20 @@ if #chunk_hashes > 0 then
 		local ivl = math.floor(c.ivl or 0)
 		local elapsed = days_since(c.last_date)
 		local due = (ivl > 0 and elapsed and elapsed >= ivl) and " *" or ""
-		print(string.format(
-			"  %-10s  %6.1f%%  %6.1f%%  %4d  %4.2f  %4.2f  %4d  %4d  %s%s",
-			h:sub(1, 10), mastery_pct, power_pct, ivl,
-			c.ease or (alg.ease_initial or 2.5),
-			c.ema_pass or 0,
-			c.n_pass_tot or 0, c.n_fail_tot or 0,
-			c.last_date or "--", due))
+		print(
+			string.format(
+				"  %-10s  %6.1f%%  %6.1f%%  %4d  %4.2f  %4.2f  %4d  %4d  %s%s",
+				h:sub(1, 10),
+				mastery_pct,
+				power_pct,
+				ivl,
+				c.ease or (alg.ease_initial or 2.5),
+				c.ema_pass or 0,
+				c.n_pass_tot or 0,
+				c.n_fail_tot or 0,
+				c.last_date or "--",
+				due
+			)
+		)
 	end
 end

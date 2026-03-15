@@ -78,7 +78,9 @@ end
 
 local function has_crlf(path)
 	local f = io.open(path, "rb")
-	if not f then return false end
+	if not f then
+		return false
+	end
 	local content = f:read("*a")
 	f:close()
 	return content:find("\r\n") ~= nil
@@ -121,15 +123,18 @@ end
 local function check_line_endings(cases)
 	local bad = {}
 	for _, c in ipairs(cases) do
-		local in_file  = TST_DIR .. "/" .. c.prog .. "_" .. c.num_str .. "_in.txt"
+		local in_file = TST_DIR .. "/" .. c.prog .. "_" .. c.num_str .. "_in.txt"
 		local arg_file = TST_DIR .. "/" .. c.prog .. "_" .. c.num_str .. "_arg_in.txt"
-		if has_crlf(in_file)  then bad[#bad+1] = in_file  end
-		if file_exists(arg_file) and has_crlf(arg_file) then bad[#bad+1] = arg_file end
+		if has_crlf(in_file) then
+			bad[#bad + 1] = in_file
+		end
+		if file_exists(arg_file) and has_crlf(arg_file) then
+			bad[#bad + 1] = arg_file
+		end
 	end
 	if #bad > 0 then
 		for _, f in ipairs(bad) do
-			print(RED .. "FAIL" .. RESET .. " line-endings: " .. f
-			      .. " has CRLF — run: sed -i 's/\\r//' " .. f)
+			print(RED .. "FAIL" .. RESET .. " line-endings: " .. f .. " has CRLF — run: sed -i 's/\\r//' " .. f)
 		end
 		status = 1
 	end
@@ -138,8 +143,12 @@ end
 local function resolve_exec(prog, label)
 	local bin_path = BIN_DIR .. "/" .. prog
 	local src_path = SRC_DIR .. "/" .. prog .. ".lua"
-	if file_exists(bin_path) then return bin_path end
-	if file_exists(src_path) then return "lua " .. src_path end
+	if file_exists(bin_path) then
+		return bin_path
+	end
+	if file_exists(src_path) then
+		return "lua " .. src_path
+	end
 	io.stderr:write(RED .. "FAIL" .. RESET .. ": No executable or source found for " .. label .. "\n")
 	status = 1
 	return nil
@@ -147,9 +156,9 @@ end
 
 -- (2)/(3) Run one test case, optionally converting input to DOS on the fly.
 local function run_case(prog, num_str, dos_mode)
-	local in_file  = TST_DIR .. "/" .. prog .. "_" .. num_str .. "_in.txt"
+	local in_file = TST_DIR .. "/" .. prog .. "_" .. num_str .. "_in.txt"
 	local out_file = TST_DIR .. "/" .. prog .. "_" .. num_str .. "_out.txt"
-	local label    = prog .. "_" .. num_str .. (dos_mode and " [dos]" or "")
+	local label = prog .. "_" .. num_str .. (dos_mode and " [dos]" or "")
 
 	if not file_exists(out_file) then
 		io.stderr:write(RED .. "FAIL" .. RESET .. ": Missing output file: " .. out_file .. "\n")
@@ -158,13 +167,15 @@ local function run_case(prog, num_str, dos_mode)
 	end
 
 	local exec_cmd = resolve_exec(prog, label)
-	if not exec_cmd then return end
+	if not exec_cmd then
+		return
+	end
 
-	local arg_in_file  = TST_DIR .. "/" .. prog .. "_" .. num_str .. "_arg_in.txt"
-	local arg_file     = TST_DIR .. "/" .. prog .. "_" .. num_str .. "_arg.txt"
+	local arg_in_file = TST_DIR .. "/" .. prog .. "_" .. num_str .. "_arg_in.txt"
+	local arg_file = TST_DIR .. "/" .. prog .. "_" .. num_str .. "_arg.txt"
 	local arg_out_file = TST_DIR .. "/" .. prog .. "_" .. num_str .. "_arg_out.txt"
-	local tmp_arg      = nil
-	local extra_arg    = ""
+	local tmp_arg = nil
+	local extra_arg = ""
 	local check_arg_out = false
 
 	if file_exists(arg_in_file) then
@@ -190,8 +201,7 @@ local function run_case(prog, num_str, dos_mode)
 		stdin_cmd = "cat " .. in_file
 	end
 
-	local cmd = stdin_cmd .. " | " .. exec_cmd .. extra_arg
-	              .. " | diff -u - " .. out_file .. " >/dev/null 2>&1"
+	local cmd = stdin_cmd .. " | " .. exec_cmd .. extra_arg .. " | diff -u - " .. out_file .. " >/dev/null 2>&1"
 
 	local ok = os.execute(cmd)
 	local arg_ok = true
@@ -203,7 +213,9 @@ local function run_case(prog, num_str, dos_mode)
 		arg_ok = (r == true or r == 0)
 		os.remove(stripped)
 	end
-	if tmp_arg then os.remove(tmp_arg) end
+	if tmp_arg then
+		os.remove(tmp_arg)
+	end
 
 	if (ok == true or ok == 0) and arg_ok then
 		print(GREEN .. "OK" .. RESET .. " " .. label)
@@ -221,7 +233,9 @@ local function main()
 	local cases = collect_cases()
 
 	table.sort(cases, function(a, b)
-		if a.prog ~= b.prog then return a.prog < b.prog end
+		if a.prog ~= b.prog then
+			return a.prog < b.prog
+		end
 		return a.num < b.num
 	end)
 
@@ -229,10 +243,14 @@ local function main()
 	check_line_endings(cases)
 
 	-- (2) Unix pass
-	for _, c in ipairs(cases) do run_case(c.prog, c.num_str, false) end
+	for _, c in ipairs(cases) do
+		run_case(c.prog, c.num_str, false)
+	end
 
 	-- (3) DOS pass
-	for _, c in ipairs(cases) do run_case(c.prog, c.num_str, true) end
+	for _, c in ipairs(cases) do
+		run_case(c.prog, c.num_str, true)
+	end
 end
 
 main()

@@ -42,8 +42,8 @@
 // EMITTED (stdout, to bin/load and stats.lua)
 //     LOAD_LESSON <n>       Load lesson n.
 //     LOAD_CHUNK <hash>     Load chunk file chn/<hash>.txt.
-//     SUGGEST_LESSON        Request the best item to practice (chunk or lesson).
-//     QUERY_STATS           Request a stats refresh (at 2:00 AM).
+//     SUGGEST_LESSON        Request the best item to practice (chunk or
+//     lesson). QUERY_STATS           Request a stats refresh (at 2:00 AM).
 //     KARAOKE_ON            Enable karaoke mode.
 //     KARAOKE_OFF           Disable karaoke mode.
 //
@@ -101,7 +101,8 @@ struct status_line {
 struct state {
 	bool running = true;
 	int current_lesson = 1;
-	char current_chunk[64] = ""; // non-empty while a chunk session is active
+	char current_chunk[64] =
+	    ""; // non-empty while a chunk session is active
 	struct Square squares[MAX_LINES];
 	int num_squares = 0;
 	int num_notes = 0;
@@ -399,7 +400,8 @@ static void handle_suggestion(const char *buf)
 	if (cp) {
 		char hash[64] = "";
 		sscanf(cp, "chunk=%63s", hash);
-		strncpy(state.current_chunk, hash, sizeof(state.current_chunk) - 1);
+		strncpy(state.current_chunk, hash,
+			sizeof(state.current_chunk) - 1);
 		state.current_chunk[sizeof(state.current_chunk) - 1] = '\0';
 		printf("LOAD_CHUNK %s\n", hash);
 		fflush(stdout);
@@ -409,8 +411,8 @@ static void handle_suggestion(const char *buf)
 		const char *sp = strstr(buf, "skills=");
 		if (sp)
 			sscanf(sp, "skills=%23s", skills);
-		snprintf(state.status.suggestion, sizeof(state.status.suggestion),
-			 "chunk: %s", skills);
+		snprintf(state.status.suggestion,
+			 sizeof(state.status.suggestion), "chunk: %s", skills);
 		state.status.suggestion_time = glfwGetTime();
 		return;
 	}
@@ -535,9 +537,11 @@ static void show_music(void)
 
 	char desired[128];
 	if (state.current_chunk[0])
-		snprintf(desired, sizeof(desired), "chn/%s.png", state.current_chunk);
+		snprintf(desired, sizeof(desired), "chn/%s.png",
+			 state.current_chunk);
 	else
-		snprintf(desired, sizeof(desired), "seq/%d.png", state.current_lesson);
+		snprintf(desired, sizeof(desired), "seq/%d.png",
+			 state.current_lesson);
 
 	if (!img || strcmp(img_path, desired) != 0) {
 		if (LoadImage(desired, &img, &iw, &ih))

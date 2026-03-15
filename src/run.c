@@ -360,7 +360,8 @@ static void *thr_fanin_sub(void *arg)
 		len += (size_t)n;
 		char *start = buf;
 		char *nl;
-		while ((nl = memchr(start, '\n', len - (size_t)(start - buf)))) {
+		while (
+		    (nl = memchr(start, '\n', len - (size_t)(start - buf)))) {
 			size_t line_len = (size_t)(nl - start) + 1;
 			pthread_mutex_lock(a->mu);
 			ssize_t nw = write(a->dst_wr, start, line_len);

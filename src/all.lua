@@ -26,7 +26,7 @@
 --      CHUNK_NAME <hash> <level>   One per unique chunk (level 0 or 1).
 --      ALL_SCANNED                 Emitted once after a clean scan.
 
-local CONTEXT_LEFT  = 1
+local CONTEXT_LEFT = 1
 local CONTEXT_RIGHT = 1
 
 local function die(fmt, ...)
@@ -45,7 +45,9 @@ local function sha1(content)
 	local line = pipe:read("*l")
 	pipe:close()
 	os.remove(tmp)
-	if not line then die("sha1sum failed") end
+	if not line then
+		die("sha1sum failed")
+	end
 	return line:match("^(%x+)") or die("sha1sum output not recognised: %s", line)
 end
 
@@ -57,7 +59,9 @@ local function write_chunk(hash, content)
 	if existing then
 		local old = existing:read("*a")
 		existing:close()
-		if old ~= content then die("hash collision on %s", path) end
+		if old ~= content then
+			die("hash collision on %s", path)
+		end
 		return
 	end
 	local f = assert(io.open(path, "wb"))
@@ -69,28 +73,62 @@ end
 
 local function parse_seq(content)
 	local r = {
-		title = "", composer = "", key = "C", time = "4/4", bpm = 120, bar = 1,
-		bass_lines = {}, fig_lines = {}, mel_lines = {},
+		title = "",
+		composer = "",
+		key = "C",
+		time = "4/4",
+		bpm = 120,
+		bar = 1,
+		bass_lines = {},
+		fig_lines = {},
+		mel_lines = {},
 	}
 	local mode = ""
 	for line in (content .. "\n"):gmatch("([^\n]*)\n") do
 		if mode == "" then
 			local v
 			v = line:match("^title:%s*(.-)%s*$")
-			if v and v ~= "" then r.title = v; goto cont end
+			if v and v ~= "" then
+				r.title = v
+				goto cont
+			end
 			v = line:match("^composer:%s*(.-)%s*$")
-			if v and v ~= "" then r.composer = v; goto cont end
+			if v and v ~= "" then
+				r.composer = v
+				goto cont
+			end
 			v = line:match("^key:%s*(.-)%s*$")
-			if v and v ~= "" then r.key = v; goto cont end
+			if v and v ~= "" then
+				r.key = v
+				goto cont
+			end
 			v = line:match("^time:%s*(.-)%s*$")
-			if v and v ~= "" then r.time = v; goto cont end
+			if v and v ~= "" then
+				r.time = v
+				goto cont
+			end
 			v = line:match("^bpm:%s*(.-)%s*$")
-			if v and v ~= "" then r.bpm = tonumber(v) or r.bpm; goto cont end
+			if v and v ~= "" then
+				r.bpm = tonumber(v) or r.bpm
+				goto cont
+			end
 			v = line:match("^bar:%s*(.-)%s*$")
-			if v and v ~= "" then r.bar = tonumber(v) or r.bar; goto cont end
-			if line:match("^bassline") then mode = "bass"; goto cont end
-			if line:match("^figures")  then mode = "fig";  goto cont end
-			if line:match("^melody")   then mode = "mel";  goto cont end
+			if v and v ~= "" then
+				r.bar = tonumber(v) or r.bar
+				goto cont
+			end
+			if line:match("^bassline") then
+				mode = "bass"
+				goto cont
+			end
+			if line:match("^figures") then
+				mode = "fig"
+				goto cont
+			end
+			if line:match("^melody") then
+				mode = "mel"
+				goto cont
+			end
 		elseif line:match("^}") then
 			mode = ""
 		elseif not line:match("^%s*$") then
@@ -111,24 +149,38 @@ end
 
 local function build_level0_content(seq)
 	local lines = {}
-	if seq.title    ~= "" then lines[#lines + 1] = "title: "    .. seq.title    end
-	if seq.composer ~= "" then lines[#lines + 1] = "composer: " .. seq.composer end
+	if seq.title ~= "" then
+		lines[#lines + 1] = "title: " .. seq.title
+	end
+	if seq.composer ~= "" then
+		lines[#lines + 1] = "composer: " .. seq.composer
+	end
 	lines[#lines + 1] = "key: " .. seq.key
-	if seq.time ~= "" then lines[#lines + 1] = "time: " .. seq.time end
+	if seq.time ~= "" then
+		lines[#lines + 1] = "time: " .. seq.time
+	end
 	lines[#lines + 1] = "bpm: " .. seq.bpm
-	if seq.bar ~= 1   then lines[#lines + 1] = "bar: "  .. seq.bar  end
+	if seq.bar ~= 1 then
+		lines[#lines + 1] = "bar: " .. seq.bar
+	end
 	lines[#lines + 1] = "level: 0"
 	lines[#lines + 1] = ""
 	lines[#lines + 1] = "bassline = {"
-	for _, l in ipairs(seq.bass_lines) do lines[#lines + 1] = l end
+	for _, l in ipairs(seq.bass_lines) do
+		lines[#lines + 1] = l
+	end
 	lines[#lines + 1] = "}"
 	lines[#lines + 1] = ""
 	lines[#lines + 1] = "figures = {"
-	for _, l in ipairs(seq.fig_lines) do lines[#lines + 1] = l end
+	for _, l in ipairs(seq.fig_lines) do
+		lines[#lines + 1] = l
+	end
 	lines[#lines + 1] = "}"
 	lines[#lines + 1] = ""
 	lines[#lines + 1] = "melody = {"
-	for _, l in ipairs(seq.mel_lines) do lines[#lines + 1] = l end
+	for _, l in ipairs(seq.mel_lines) do
+		lines[#lines + 1] = l
+	end
 	lines[#lines + 1] = "}"
 	lines[#lines + 1] = ""
 	return table.concat(lines, "\n")
@@ -140,36 +192,63 @@ local function fig_nums(fig)
 	local nums = {}
 	for token in fig:gmatch("[^/]+") do
 		local n = token:match("^[#bn]*(%d+)$")
-		if n then nums[tonumber(n)] = true end
+		if n then
+			nums[tonumber(n)] = true
+		end
 	end
 	return nums
 end
 
-local function has_num(fig, n) return fig_nums(fig)[n] == true end
+local function has_num(fig, n)
+	return fig_nums(fig)[n] == true
+end
 
 local function is_suspension_4(fig)
-	if fig == "0" then return false end
+	if fig == "0" then
+		return false
+	end
 	return has_num(fig, 4) and not has_num(fig, 6)
 end
 
 local function is_3_resolution(fig)
-	if fig == "0" then return true end
-	if fig:match("^[#bn]+$") then return true end
+	if fig == "0" then
+		return true
+	end
+	if fig:match("^[#bn]+$") then
+		return true
+	end
 	return has_num(fig, 3)
 end
 
 local function skill_of_single(fig)
-	if fig == "0"            then return "root" end
-	if fig:match("^[#bn]+$") then return "root" end
-	if has_num(fig, 6) and has_num(fig, 4) then return "6/4" end
-	if has_num(fig, 6) and has_num(fig, 5) then return "6/5" end
-	if has_num(fig, 4) and has_num(fig, 3) then return "4/3" end
-	if has_num(fig, 4) and has_num(fig, 2) then return "4/2" end
-	if has_num(fig, 7) then return "7"   end
-	if has_num(fig, 6) then return "6"   end
-	if has_num(fig, 2) then return "2"   end
-	if not has_num(fig, 6) and not has_num(fig, 7)
-	   and not has_num(fig, 4) and not has_num(fig, 2) then
+	if fig == "0" then
+		return "root"
+	end
+	if fig:match("^[#bn]+$") then
+		return "root"
+	end
+	if has_num(fig, 6) and has_num(fig, 4) then
+		return "6/4"
+	end
+	if has_num(fig, 6) and has_num(fig, 5) then
+		return "6/5"
+	end
+	if has_num(fig, 4) and has_num(fig, 3) then
+		return "4/3"
+	end
+	if has_num(fig, 4) and has_num(fig, 2) then
+		return "4/2"
+	end
+	if has_num(fig, 7) then
+		return "7"
+	end
+	if has_num(fig, 6) then
+		return "6"
+	end
+	if has_num(fig, 2) then
+		return "2"
+	end
+	if not has_num(fig, 6) and not has_num(fig, 7) and not has_num(fig, 4) and not has_num(fig, 2) then
 		return "root"
 	end
 	return "other"
@@ -196,64 +275,113 @@ end
 local function dur_sixteenths(token)
 	local s = token:gsub("^[a-z]+", ""):gsub("^[',]+", "")
 	local num_str = s:match("^(%d+)")
-	if not num_str then return nil end
+	if not num_str then
+		return nil
+	end
 	local base_map = { [1] = 16, [2] = 8, [4] = 4, [8] = 2, [16] = 1 }
 	local base = base_map[tonumber(num_str)]
-	if not base then return nil end
+	if not base then
+		return nil
+	end
 	local after = s:sub(#num_str + 1)
 	local dots = 0
 	for c in after:gmatch(".") do
-		if c == "." then dots = dots + 1 else break end
+		if c == "." then
+			dots = dots + 1
+		else
+			break
+		end
 	end
 	local total, add = base, base
-	for _ = 1, dots do add = math.floor(add / 2); total = total + add end
+	for _ = 1, dots do
+		add = math.floor(add / 2)
+		total = total + add
+	end
 	return total
 end
 
 local function bar_sixteenths(time_sig)
 	local n, d = time_sig:match("^(%d+)/(%d+)$")
-	if not n then return 16 end
+	if not n then
+		return 16
+	end
 	return tonumber(n) * math.floor(16 / tonumber(d))
 end
 
 local function chunk_bar(bass, time_sig, lesson_bar, start_idx)
-	if start_idx == 1 then return lesson_bar end
+	if start_idx == 1 then
+		return lesson_bar
+	end
 	local bar_len = bar_sixteenths(time_sig)
 	local offset, last_dur = 0, 4
 	for i = 1, start_idx - 1 do
 		local d = dur_sixteenths(bass[i])
-		if d then last_dur = d end
+		if d then
+			last_dur = d
+		end
 		offset = offset + last_dur
 	end
 	return lesson_bar + math.floor(offset / bar_len)
 end
 
 local function chunk_partial_sixteenths(bass, time_sig, start_idx)
-	if start_idx == 1 then return 0 end
+	if start_idx == 1 then
+		return 0
+	end
 	local bar_len = bar_sixteenths(time_sig)
 	local offset, last_dur = 0, 4
 	for i = 1, start_idx - 1 do
 		local d = dur_sixteenths(bass[i])
-		if d then last_dur = d end
+		if d then
+			last_dur = d
+		end
 		offset = offset + last_dur
 	end
 	local offset_in_bar = offset % bar_len
-	if offset_in_bar == 0 then return 0 end
+	if offset_in_bar == 0 then
+		return 0
+	end
 	return bar_len - offset_in_bar
 end
 
 -- ── level-1 chunk content ─────────────────────────────────────────────────────
 
-local function build_chunk_content(key, title, composer, time_sig, bpm, skill, bar, partial,
-                                   bass, passing, figures, melody, s, e)
+local function build_chunk_content(
+	key,
+	title,
+	composer,
+	time_sig,
+	bpm,
+	skill,
+	bar,
+	partial,
+	bass,
+	passing,
+	figures,
+	melody,
+	s,
+	e
+)
 	local lines = {}
-	if title    ~= "" then lines[#lines + 1] = "title: "    .. title    end
-	if composer ~= "" then lines[#lines + 1] = "composer: " .. composer end
+	if title ~= "" then
+		lines[#lines + 1] = "title: " .. title
+	end
+	if composer ~= "" then
+		lines[#lines + 1] = "composer: " .. composer
+	end
 	lines[#lines + 1] = "key: " .. key
-	if time_sig ~= "" then lines[#lines + 1] = "time: " .. time_sig end
-	if bpm and bpm > 0 then lines[#lines + 1] = "bpm: " .. bpm end
-	if bar ~= 1     then lines[#lines + 1] = "bar: "     .. bar     end
-	if partial > 0  then lines[#lines + 1] = "partial: " .. partial end
+	if time_sig ~= "" then
+		lines[#lines + 1] = "time: " .. time_sig
+	end
+	if bpm and bpm > 0 then
+		lines[#lines + 1] = "bpm: " .. bpm
+	end
+	if bar ~= 1 then
+		lines[#lines + 1] = "bar: " .. bar
+	end
+	if partial > 0 then
+		lines[#lines + 1] = "partial: " .. partial
+	end
 	lines[#lines + 1] = "skills: " .. skill
 	lines[#lines + 1] = "level: 1"
 	lines[#lines + 1] = ""
@@ -285,13 +413,14 @@ end
 -- ── level-1 chunk generation ──────────────────────────────────────────────────
 
 -- Returns a list of hashes for every level-1 chunk written for this lesson.
-local function process_lesson(lesson_n, key, time_sig, bpm, lesson_bar, title, composer,
-                               bass, passing, figures, melody)
+local function process_lesson(lesson_n, key, time_sig, bpm, lesson_bar, title, composer, bass, passing, figures, melody)
 	local N = #bass
 	local hearts = identify_hearts(figures)
 	local note_heart = {}
 	for _, h in ipairs(hearts) do
-		for i = h.s, h.e do note_heart[i] = h end
+		for i = h.s, h.e do
+			note_heart[i] = h
+		end
 	end
 
 	local hashes = {}
@@ -299,20 +428,38 @@ local function process_lesson(lesson_n, key, time_sig, bpm, lesson_bar, title, c
 		local s = math.max(1, heart.s - CONTEXT_LEFT)
 		local e = math.min(N, heart.e + CONTEXT_RIGHT)
 
-		if passing[s] and s > 1 and not passing[1] then s = s - 1 end
+		if passing[s] and s > 1 and not passing[1] then
+			s = s - 1
+		end
 
 		local seen, skills = {}, {}
 		for i = s, e do
 			local sk = note_heart[i].skill
-			if not seen[sk] then seen[sk] = true; skills[#skills + 1] = sk end
+			if not seen[sk] then
+				seen[sk] = true
+				skills[#skills + 1] = sk
+			end
 		end
 		local skills_str = table.concat(skills, " ")
 
-		local bar     = chunk_bar(bass, time_sig, lesson_bar, s)
+		local bar = chunk_bar(bass, time_sig, lesson_bar, s)
 		local partial = chunk_partial_sixteenths(bass, time_sig, s)
 		local content = build_chunk_content(
-			key, title, composer, time_sig, bpm, skills_str, bar, partial,
-			bass, passing, figures, melody, s, e)
+			key,
+			title,
+			composer,
+			time_sig,
+			bpm,
+			skills_str,
+			bar,
+			partial,
+			bass,
+			passing,
+			figures,
+			melody,
+			s,
+			e
+		)
 		content = content:gsub("\r\n", "\n"):gsub("\r", "\n")
 		local hash = sha1(content)
 		write_chunk(hash, content)
@@ -328,39 +475,54 @@ local function load_lesson(n)
 	local cmd = string.format("printf 'LOAD_LESSON %d\\n' | bin/load", n)
 	local pipe = io.popen(cmd)
 	local lesson = {
-		n = n, key = "C", time = "4/4", bpm = 120, bar = 1,
-		title = "", composer = "",
-		bass = {}, passing = {}, figures = {}, melody = {},
+		n = n,
+		key = "C",
+		time = "4/4",
+		bpm = 120,
+		bar = 1,
+		title = "",
+		composer = "",
+		bass = {},
+		passing = {},
+		figures = {},
+		melody = {},
 	}
 	for line in pipe:lines() do
 		line = line:gsub("\r", "")
 
 		local comp = line:match("^COMPOSER (.+)$")
-		if comp then lesson.composer = comp; goto cont end
+		if comp then
+			lesson.composer = comp
+			goto cont
+		end
 
-		local n2, key, time_sig, bpm_s, bar_s =
-			line:match("^LESSON (%S+) (%S+) (%S+) (%S+) (%S+)")
+		local n2, key, time_sig, bpm_s, bar_s = line:match("^LESSON (%S+) (%S+) (%S+) (%S+) (%S+)")
 		if n2 then
-			lesson.key   = key
-			lesson.time  = time_sig or "4/4"
-			lesson.bpm   = tonumber(bpm_s) or 120
-			lesson.bar   = tonumber(bar_s) or 1
+			lesson.key = key
+			lesson.time = time_sig or "4/4"
+			lesson.bpm = tonumber(bpm_s) or 120
+			lesson.bar = tonumber(bar_s) or 1
 			lesson.title = line:match("^LESSON %S+ %S+ %S+ %S+ %S+ (.+)$") or ""
 			goto cont
 		end
 
 		local tok = line:match("^BASSNOTE %d+: (%S+)")
 		if tok then
-			lesson.bass[#lesson.bass + 1]       = tok
+			lesson.bass[#lesson.bass + 1] = tok
 			lesson.passing[#lesson.passing + 1] = line:match(" passing$") ~= nil
 			goto cont
 		end
 
 		local fig = line:match("^FIGURES %d+: (.+)$")
-		if fig then lesson.figures[#lesson.figures + 1] = fig; goto cont end
+		if fig then
+			lesson.figures[#lesson.figures + 1] = fig
+			goto cont
+		end
 
 		local mel = line:match("^MELODY %d+: (.+)$")
-		if mel then lesson.melody[#lesson.melody + 1] = mel end
+		if mel then
+			lesson.melody[#lesson.melody + 1] = mel
+		end
 
 		::cont::
 	end
@@ -375,7 +537,9 @@ local function collect_lessons()
 	local pipe = io.popen("ls seq/*.txt 2>/dev/null")
 	for name in pipe:lines() do
 		local n = name:match("seq/(%d+)%.txt$")
-		if n then lessons[#lessons + 1] = tonumber(n) end
+		if n then
+			lessons[#lessons + 1] = tonumber(n)
+		end
 	end
 	pipe:close()
 	table.sort(lessons)
@@ -384,7 +548,9 @@ end
 
 local function scan_and_emit()
 	local lessons = collect_lessons()
-	if #lessons == 0 then die("no lesson files found in seq/") end
+	if #lessons == 0 then
+		die("no lesson files found in seq/")
+	end
 
 	os.execute("mkdir -p chn")
 
@@ -402,20 +568,29 @@ local function scan_and_emit()
 		local raw = f:read("*a")
 		f:close()
 		raw = raw:gsub("\r\n", "\n"):gsub("\r", "\n")
-		local seq      = parse_seq(raw)
+		local seq = parse_seq(raw)
 		local content0 = build_level0_content(seq)
-		local hash0    = sha1(content0)
+		local hash0 = sha1(content0)
 		write_chunk(hash0, content0)
 		live_chunks[hash0] = true
 		io.write("CHUNK_NAME " .. hash0 .. " 0\n")
 		io.flush()
 
 		-- ── level-1: skill-slice chunks ───────────────────────────────────────
-		local lesson  = load_lesson(n)
+		local lesson = load_lesson(n)
 		local hashes1 = process_lesson(
-			lesson.n, lesson.key, lesson.time, lesson.bpm, lesson.bar,
-			lesson.title, lesson.composer,
-			lesson.bass, lesson.passing, lesson.figures, lesson.melody)
+			lesson.n,
+			lesson.key,
+			lesson.time,
+			lesson.bpm,
+			lesson.bar,
+			lesson.title,
+			lesson.composer,
+			lesson.bass,
+			lesson.passing,
+			lesson.figures,
+			lesson.melody
+		)
 		for _, hash in ipairs(hashes1) do
 			live_chunks[hash] = true
 			io.write("CHUNK_NAME " .. hash .. " 1\n")
@@ -428,13 +603,17 @@ local function scan_and_emit()
 	local ls = io.popen("ls chn/*.txt 2>/dev/null")
 	for fpath in ls:lines() do
 		local hash = fpath:match("chn/(%x+)%.txt$")
-		if hash and not live_chunks[hash] then stale[#stale + 1] = hash end
+		if hash and not live_chunks[hash] then
+			stale[#stale + 1] = hash
+		end
 	end
 	ls:close()
 	if #stale > 0 then
 		table.sort(stale)
 		io.stderr:write("Error: stale chunk files in chn/ (not derived from any current lesson):\n")
-		for _, h in ipairs(stale) do io.stderr:write("  " .. h .. "\n") end
+		for _, h in ipairs(stale) do
+			io.stderr:write("  " .. h .. "\n")
+		end
 		os.exit(1)
 	end
 
@@ -450,5 +629,7 @@ scan_and_emit()
 
 for line in io.lines() do
 	line = line:gsub("\r", "")
-	if line == "RESCAN" then scan_and_emit() end
+	if line == "RESCAN" then
+		scan_and_emit()
+	end
 end

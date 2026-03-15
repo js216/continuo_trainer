@@ -99,7 +99,7 @@ local ALGORITHM_DEFAULTS = {
 	mastery_growth = 0.20, -- fraction of (score - mastery) gap closed per session
 	power_half_life = 0.693, -- ln(2): power reaches 50% of mastery at days_elapsed == ivl
 	mastery_points_per_pct = 2.5, -- points awarded per 1% normalised mastery gain
-	power_points_per_pct = 1.0,  -- points awarded per 1% normalised power gain
+	power_points_per_pct = 1.0, -- points awarded per 1% normalised power gain
 	bottleneck_thresh = 0.6, -- factor value below which it is considered a bottleneck
 	dominance_margin = 0.2, -- how much lower the bottleneck must be than the others
 	min_quality = 0.1, -- quality below this triggers a "raise quality" suggestion
@@ -459,8 +459,8 @@ end
 
 -- Forward declarations: populated as lines arrive, consumed by handle_suggest.
 local lesson_chunks_mem = {} -- { [l_id] = { {hash, heart_s, heart_e, len, skills}, ... } }
-local chunk_skills = {}      -- { [hash] = skills_str }  flat map for suggestions
-local scanned_chunks  = {}   -- chunks announced via CHUNK_NAME this session
+local chunk_skills = {} -- { [hash] = skills_str }  flat map for suggestions
+local scanned_chunks = {} -- chunks announced via CHUNK_NAME this session
 
 -------------------------------------------------------------------------------
 -- COMMAND HANDLERS
@@ -495,26 +495,24 @@ local function handle_suggest(stats)
 	end
 
 	if weakest_hash then
-		io.write(string.format(
-			"SUGGESTION chunk=%s skills=%s reason=weak_chunk\n",
-			weakest_hash, weakest_skills
-		))
+		io.write(string.format("SUGGESTION chunk=%s skills=%s reason=weak_chunk\n", weakest_hash, weakest_skills))
 		return
 	end
 	if new_hash then
-		io.write(string.format(
-			"SUGGESTION chunk=%s skills=%s reason=new_chunk\n",
-			new_hash, new_skills
-		))
+		io.write(string.format("SUGGESTION chunk=%s skills=%s reason=new_chunk\n", new_hash, new_skills))
 		return
 	end
 
 	-- No weak/new chunks: fall through to lesson selection.
 	local available = {}
 	for id in pairs(stats.lessons) do
-		if tonumber(id) then table.insert(available, id) end
+		if tonumber(id) then
+			table.insert(available, id)
+		end
 	end
-	table.sort(available, function(a, b) return tonumber(a) < tonumber(b) end)
+	table.sort(available, function(a, b)
+		return tonumber(a) < tonumber(b)
+	end)
 
 	if #available == 0 then
 		io.write("SUGGESTION none reason=no_lessons_available\n")
@@ -538,7 +536,9 @@ local function handle_suggest(stats)
 
 	for _, id in ipairs(known) do
 		local l = stats.lessons[id]
-		if (l.n_consecutive or 0) >= alg.max_consecutive then goto continue end
+		if (l.n_consecutive or 0) >= alg.max_consecutive then
+			goto continue
+		end
 		local ivl = l.ivl or 0
 		local last_date = l.last_date
 		local days_elapsed = 0
@@ -649,7 +649,7 @@ local function finalize(stats)
 		local res = update_entry(c, sd, alg)
 		stats.chunks[hash] = c
 		local points = normalize(res.m_delta, c) * alg.mastery_points_per_pct
-		            + normalize(res.p_delta, c) * alg.power_points_per_pct
+			+ normalize(res.p_delta, c) * alg.power_points_per_pct
 		stats.daily[today] = stats.daily[today] or { score = 0, duration = 0 }
 		stats.daily[today].score = stats.daily[today].score + points
 		stats.daily[today].duration = stats.daily[today].duration + sd.duration
@@ -658,14 +658,23 @@ local function finalize(stats)
 		local d = stats.daily[today]
 		local streak = calculate_streak(stats)
 		local suggestion = c.n_consecutive >= alg.max_consecutive and "try_another_lesson" or nil
-		io.write(string.format(
-			"STATS time=%.0f total_today=%.2f goal=%.2f total_duration_today=%.3f streak=%d"
-				.. " chunk=%s[ivl=%d,ease=%.2f,mastery=%.2f,power=%.2f]%s\n",
-			sd.time, d.score, alg.score_goal, d.duration, streak,
-			hash, math.floor(c.ivl or 0), c.ease or alg.ease_initial,
-			normalize(c.mastery or 0, c), normalize(power, c),
-			suggestion and (" suggestion=" .. suggestion) or ""
-		))
+		io.write(
+			string.format(
+				"STATS time=%.0f total_today=%.2f goal=%.2f total_duration_today=%.3f streak=%d"
+					.. " chunk=%s[ivl=%d,ease=%.2f,mastery=%.2f,power=%.2f]%s\n",
+				sd.time,
+				d.score,
+				alg.score_goal,
+				d.duration,
+				streak,
+				hash,
+				math.floor(c.ivl or 0),
+				c.ease or alg.ease_initial,
+				normalize(c.mastery or 0, c),
+				normalize(power, c),
+				suggestion and (" suggestion=" .. suggestion) or ""
+			)
+		)
 		current = nil
 		return
 	end
@@ -738,7 +747,7 @@ local function finalize(stats)
 
 	-- ── daily totals (lesson only) ────────────────────────────────────────────
 	local points = normalize(res.m_delta, l) * alg.mastery_points_per_pct
-	            + normalize(res.p_delta, l) * alg.power_points_per_pct
+		+ normalize(res.p_delta, l) * alg.power_points_per_pct
 	stats.daily[today] = stats.daily[today] or { score = 0, duration = 0 }
 	stats.daily[today].score = stats.daily[today].score + points
 	stats.daily[today].duration = stats.daily[today].duration + sd.duration
@@ -776,8 +785,13 @@ for line in io.lines() do
 		scanned_lessons[n] = true
 		local stats = load_stats(stats_file)
 		if not stats.lessons[n] then
-			stats.lessons[n] = { ease = stats.algorithm.ease_initial, ivl = 0,
-			                     mastery = 0, total_duration = 0, max_groups = 0 }
+			stats.lessons[n] = {
+				ease = stats.algorithm.ease_initial,
+				ivl = 0,
+				mastery = 0,
+				total_duration = 0,
+				max_groups = 0,
+			}
 			save_stats(stats_file, stats)
 		end
 	elseif line:match("^CHUNK_NAME ") then
@@ -786,8 +800,13 @@ for line in io.lines() do
 		scanned_chunks[h] = true
 		local stats = load_stats(stats_file)
 		if not stats.chunks[h] then
-			stats.chunks[h] = { ease = stats.algorithm.ease_initial, ivl = 0,
-			                    mastery = 0, total_duration = 0, max_groups = 0 }
+			stats.chunks[h] = {
+				ease = stats.algorithm.ease_initial,
+				ivl = 0,
+				mastery = 0,
+				total_duration = 0,
+				max_groups = 0,
+			}
 			save_stats(stats_file, stats)
 		end
 		if pending_suggest then

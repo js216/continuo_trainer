@@ -76,7 +76,11 @@ fn main() {
     let time_directive = if time.is_empty() {
         r"\cadenzaOn".to_string()
     } else if partial > 0 {
-        format!("\\time {}\n      \\partial {}", time, sixteenths_to_duration(partial))
+        format!(
+            "\\time {}\n      \\partial {}",
+            time,
+            sixteenths_to_duration(partial)
+        )
     } else {
         format!(r"\time {}", time)
     };

@@ -3,7 +3,7 @@ CPPFLAGS = -Ilib -Ilib/imgui -Ilib/imgui/backends
 CXXFLAGS = -std=c++11 -g -Wall -Wformat `pkg-config --cflags glfw3`
 LDLIBS = -lpthread -lutil -lrtmidi -lX11 -lm -lGL `pkg-config --static --libs glfw3`
 
-PROGS = chunk group load midi l2ly g2ly entry run gui karaoke
+PROGS = chunk group load midi l2ly g2ly entry run gui karaoke synth
 
 IMGUI = imgui.o imgui_demo.o imgui_draw.o imgui_tables.o imgui_widgets.o \
         backends/imgui_impl_glfw.o backends/imgui_impl_opengl3.o

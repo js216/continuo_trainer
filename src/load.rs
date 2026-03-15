@@ -345,7 +345,10 @@ fn load_and_emit_chunk(hash: &str) {
     let melody_groups = group_melody(&lesson.bass, &lesson.melody);
 
     println!("CHUNK_SESSION {}", hash);
-    println!("LESSON {} {} {} {} {}", hash, lesson.key, lesson.time, lesson.bpm, lesson.bar);
+    println!(
+        "LESSON {} {} {} {} {}",
+        hash, lesson.key, lesson.time, lesson.bpm, lesson.bar
+    );
     for i in 0..lesson.bass.len() {
         let (tok, passing) = if is_passing(&lesson.bass[i]) {
             (lesson.bass[i].trim_end_matches('p'), true)

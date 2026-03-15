@@ -207,7 +207,11 @@ fn write_data<W: Write>(
     hist: &Vec<Vec<String>>,
     dur_str: &str,
 ) -> io::Result<()> {
-    writeln!(w, "title: {}\nkey: {}\ntime: {}\nbpm: {}\n", title, key, time, bpm)?;
+    writeln!(
+        w,
+        "title: {}\nkey: {}\ntime: {}\nbpm: {}\n",
+        title, key, time, bpm
+    )?;
 
     let parts: Vec<&str> = time.split('/').collect();
     let beats_per_bar = parts[0].parse::<f32>().unwrap_or(4.0);
