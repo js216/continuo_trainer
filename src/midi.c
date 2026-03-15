@@ -665,7 +665,7 @@ static void handle_command(State *s, const char *line)
 	} else if (strncmp(cmd, "MIDI", 4) == 0) {
 		out_status("Unknown MIDI command: %s", cmd);
 	} else {
-	/* Lines not starting with MIDI are silently ignored */
+		/* Lines not starting with MIDI are silently ignored */
 		printf("%s", line);
 	}
 }

@@ -3,7 +3,7 @@ composer: Henry Purcell
 key: G
 time: 3/2
 bpm: 120
-bar: 1
+bar: 6
 
 bassline = {
   g2 fis2p e2
@@ -15,17 +15,16 @@ bassline = {
 
 figures = {
   0 0 6
-  6 0 0
-  0 0 6
+  6 0 6
+  6 0 6
   0 0 6
   6 4 3
 }
 
 melody = {
-  r2 r2 r2
-  r2 r2 r2
-  r2 r2 r2
-  r2 r2 r2
-  r2 r2 r2
+  d''1 r2
+  a'2. a'4 b'2
+  a'1.
+  a'1 b'2
+  e''4 d''4 c''4 b'4 a'4 g'4
 }
-

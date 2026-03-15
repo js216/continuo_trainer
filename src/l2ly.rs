@@ -7,10 +7,6 @@
 //     (.ly) document to stdout: melody in treble clef, bassline with figured
 //     bass in bass clef.
 //
-//     Chunk files (no title or time fields) are handled automatically:
-//     the \header block is omitted and \cadenzaOn replaces the time
-//     signature directive to suppress automatic bar lines.
-//
 // INPUT FORMAT
 //     A lesson file in seq/*.txt or chn/*.txt format.  Metadata as
 //     "key: value" lines; sections as brace-delimited blocks:
@@ -84,15 +80,19 @@ fn main() {
     } else {
         format!(r"\time {}", time)
     };
-
     // Bar number directive: only meaningful when a time signature is present.
-    // Always set currentBarNumber (even for bar 1) and override break-visibility
-    // so that bar 1 is rendered — LilyPond suppresses it by default.
+    // 1. Set the starting number.
+    // 2. break-visibility ##(#f #f #t) shows numbers only at the start of lines.
+    // 3. self-alignment-X = #0 (or #CENTER) centers the number over the clef/staff start.
+    // 4. barNumberVisibility = #all-bar-numbers-visible forces bar 1 to show up.
     let bar_directive = if time.is_empty() {
         String::new()
     } else {
         format!(
-            "\\override Score.BarNumber.break-visibility = #all-visible\n      \\set Score.currentBarNumber = #{}",
+            "\\set Score.currentBarNumber = #{}\n      \
+             \\override Score.BarNumber.break-visibility = ##(#f #f #t)\n      \
+             \\override Score.BarNumber.self-alignment-X = #CENTER\n      \
+             \\set Score.barNumberVisibility = #all-bar-numbers-visible",
             bar
         )
     };
