@@ -1,4 +1,4 @@
-LESSON 3 C 3/2 120 Simple Example
+LESSON 3 C 3/2 120 1 Simple Example
 BASSNOTE 0: c2
 FIGURES 0: 0
 MELODY 0: c'2

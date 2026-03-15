@@ -75,9 +75,10 @@ end
 
 -- Reconstruct chunk file content from parsed CHUNK line fields.
 -- Must produce byte-for-byte identical output to chunk.lua's build_chunk_content.
-local function build_content(key, skills, bassline, figures, melody)
+local function build_content(key, bar, skills, bassline, figures, melody)
 	local lines = {}
 	lines[#lines + 1] = "key: " .. key
+	if bar ~= 1 then lines[#lines + 1] = "bar: " .. bar end
 	lines[#lines + 1] = "skills: " .. skills
 	lines[#lines + 1] = ""
 	lines[#lines + 1] = "bassline = {"
@@ -101,6 +102,7 @@ end
 local function parse_chunk_line(line)
 	local hash        = line:match("HASH:(%x+)")
 	local key         = line:match("KEY:(%S+)")
+	local bar         = tonumber(line:match("BAR:(%d+)")) or 1
 	local skills      = line:match("SKILLS:(.-) BASSLINE:")
 	local bassline_str = line:match("BASSLINE:(%S+)")
 	local figure_str  = line:match("FIGURE:(%S+)")
@@ -111,6 +113,7 @@ local function parse_chunk_line(line)
 	return {
 		hash     = hash,
 		key      = key,
+		bar      = bar,
 		skills   = skills,
 		bassline = split(bassline_str, "|"),
 		figures  = split(figure_str,  "|"),
@@ -154,7 +157,7 @@ local function scan_and_emit()
 					io.stderr:write(string.format(
 						"warning: could not parse CHUNK line from lesson %d\n", n))
 				else
-					local content = build_content(f.key, f.skills, f.bassline, f.figures, f.melody)
+					local content = build_content(f.key, f.bar, f.skills, f.bassline, f.figures, f.melody)
 					local computed = sha1(content)
 					if computed ~= f.hash then
 						die("hash mismatch for chunk from lesson %d: computed %s, chunk.lua said %s",

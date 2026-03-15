@@ -172,12 +172,53 @@ local function identify_hearts(figures)
 	return hearts
 end
 
+-- ── bar-number helpers ────────────────────────────────────────────────────────
+
+-- Duration of a LilyPond note token in sixteenth-note units; nil if no digit.
+local function dur_sixteenths(token)
+	local s = token:gsub("^[a-z]+", ""):gsub("^[',]+", "") -- strip pitch + octave
+	local num_str = s:match("^(%d+)")
+	if not num_str then return nil end
+	local base_map = { [1] = 16, [2] = 8, [4] = 4, [8] = 2, [16] = 1 }
+	local base = base_map[tonumber(num_str)]
+	if not base then return nil end
+	local after = s:sub(#num_str + 1)
+	local dots = 0
+	for c in after:gmatch(".") do
+		if c == "." then dots = dots + 1 else break end
+	end
+	local total, add = base, base
+	for _ = 1, dots do add = math.floor(add / 2); total = total + add end
+	return total
+end
+
+-- Bar length in sixteenths for a "N/D" time signature (default 4/4 = 16).
+local function bar_sixteenths(time_sig)
+	local n, d = time_sig:match("^(%d+)/(%d+)$")
+	if not n then return 16 end
+	return tonumber(n) * math.floor(16 / tonumber(d))
+end
+
+-- Bar number of note at 1-based index start_idx, given lesson starting bar.
+local function chunk_bar(bass, time_sig, lesson_bar, start_idx)
+	if start_idx == 1 then return lesson_bar end
+	local bar_len = bar_sixteenths(time_sig)
+	local offset, last_dur = 0, 4
+	for i = 1, start_idx - 1 do
+		local d = dur_sixteenths(bass[i])
+		if d then last_dur = d end
+		offset = offset + last_dur
+	end
+	return lesson_bar + math.floor(offset / bar_len)
+end
+
 -- ── chunk file construction ───────────────────────────────────────────────────
 
 -- Build the seq-format text for the slice bass[s..e] (1-based, inclusive).
-local function build_chunk_content(key, skill, bass, passing, figures, melody, s, e)
+local function build_chunk_content(key, skill, bar, bass, passing, figures, melody, s, e)
 	local lines = {}
 	lines[#lines + 1] = "key: " .. key
+	if bar ~= 1 then lines[#lines + 1] = "bar: " .. bar end
 	lines[#lines + 1] = "skills: " .. skill
 	lines[#lines + 1] = ""
 	lines[#lines + 1] = "bassline = {"
@@ -234,7 +275,7 @@ end
 
 -- ── per-lesson processing ─────────────────────────────────────────────────────
 
-local function process_lesson(lesson_n, key, bass, passing, figures, melody)
+local function process_lesson(lesson_n, key, time_sig, lesson_bar, bass, passing, figures, melody)
 	local N = #bass
 	local hearts = identify_hearts(figures)
 
@@ -268,18 +309,20 @@ local function process_lesson(lesson_n, key, bass, passing, figures, melody)
 		end
 		local skills_str = table.concat(skills, " ")
 
-		local content = build_chunk_content(key, skills_str, bass, passing, figures, melody, s, e)
+		local bar = chunk_bar(bass, time_sig, lesson_bar, s)
+		local content = build_chunk_content(key, skills_str, bar, bass, passing, figures, melody, s, e)
 		content = content:gsub("\r\n", "\n"):gsub("\r", "\n")
 		local hash = sha1(content)
 		print(
 			string.format(
-				"CHUNK LESSON:%d HEART:%d-%d LEN:%d HASH:%s KEY:%s SKILLS:%s BASSLINE:%s FIGURE:%s MELODY:%s",
+				"CHUNK LESSON:%d HEART:%d-%d LEN:%d HASH:%s KEY:%s BAR:%d SKILLS:%s BASSLINE:%s FIGURE:%s MELODY:%s",
 				lesson_n,
 				heart.s - 1,
 				heart.e - 1,
 				e - s + 1,
 				hash,
 				key,
+				bar,
 				skills_str,
 				fmt_bassline(bass, passing, s, e),
 				fmt_figures(figures, s, e),
@@ -296,7 +339,7 @@ local in_chunk_session = false -- true while processing a CHUNK_SESSION stream
 
 local function flush()
 	if current then
-		process_lesson(current.n, current.key, current.bass, current.passing, current.figures, current.melody)
+		process_lesson(current.n, current.key, current.time, current.bar, current.bass, current.passing, current.figures, current.melody)
 		current = nil
 	end
 end
@@ -321,8 +364,8 @@ for line in io.lines() do
 		goto continue
 	end
 
-	-- LESSON <n> <key> <time> <title>
-	local n, key = line:match("^LESSON (%S+) (%S+)")
+	-- LESSON <n> <key> <time> <bpm> <bar> <title>
+	local n, key, time_sig, bpm_s, bar_s = line:match("^LESSON (%S+) (%S+) (%S+) (%S+) (%S+)")
 	if n then
 		if in_chunk_session then
 			-- The LESSON line from a chunk stream uses a hash id, not a number
@@ -332,7 +375,12 @@ for line in io.lines() do
 		local num = tonumber(n)
 		if num then
 			flush() -- safety flush in case LESSON_END was missing
-			current = { n = num, key = key, bass = {}, passing = {}, figures = {}, melody = {} }
+			current = {
+				n = num, key = key,
+				time = time_sig or "4/4",
+				bar = tonumber(bar_s) or 1,
+				bass = {}, passing = {}, figures = {}, melody = {},
+			}
 		end
 		goto continue
 	end

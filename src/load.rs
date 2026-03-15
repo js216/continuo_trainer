@@ -162,6 +162,7 @@ struct Lesson {
     key: String,
     time: String,
     bpm: u32,
+    bar: u32,
     bass: Vec<String>,
     figures: Vec<String>,
     melody: Vec<String>,
@@ -172,6 +173,7 @@ fn parse_lesson(content: &str) -> Lesson {
     let mut key = String::new();
     let mut time = String::new();
     let mut bpm = 0u32;
+    let mut bar = 1u32;
     let mut bass = Vec::new();
     let mut figures = Vec::new();
     let mut melody = Vec::new();
@@ -196,6 +198,10 @@ fn parse_lesson(content: &str) -> Lesson {
         }
         if l.starts_with("bpm:") {
             bpm = l[4..].trim().parse().unwrap_or(0);
+            continue;
+        }
+        if l.starts_with("bar:") {
+            bar = l[4..].trim().parse().unwrap_or(1);
             continue;
         }
         if l.starts_with("bassline") {
@@ -227,6 +233,7 @@ fn parse_lesson(content: &str) -> Lesson {
         key,
         time,
         bpm,
+        bar,
         bass,
         figures,
         melody,
@@ -279,8 +286,8 @@ fn group_melody(bass: &[String], melody: &[String]) -> Vec<String> {
 
 fn emit(n: usize, lesson: &Lesson, melody_groups: &[String]) {
     println!(
-        "LESSON {} {} {} {} {}",
-        n, lesson.key, lesson.time, lesson.bpm, lesson.title
+        "LESSON {} {} {} {} {} {}",
+        n, lesson.key, lesson.time, lesson.bpm, lesson.bar, lesson.title
     );
     for i in 0..lesson.bass.len() {
         let (tok, passing) = if is_passing(&lesson.bass[i]) {
@@ -328,7 +335,7 @@ fn load_and_emit_chunk(hash: &str) {
     let melody_groups = group_melody(&lesson.bass, &lesson.melody);
 
     println!("CHUNK_SESSION {}", hash);
-    println!("LESSON {} {} {} {}", hash, lesson.key, lesson.time, lesson.bpm);
+    println!("LESSON {} {} {} {} {}", hash, lesson.key, lesson.time, lesson.bpm, lesson.bar);
     for i in 0..lesson.bass.len() {
         let (tok, passing) = if is_passing(&lesson.bass[i]) {
             (lesson.bass[i].trim_end_matches('p'), true)
