@@ -54,13 +54,19 @@ local function normalize(raw, entry)
 end
 
 local function calculate_power(entry)
-	local mastery = entry.mastery or 0
+	-- Uses effective mastery (max of direct and transitive) and the more recent
+	-- of last_date / t_last_date, so transitive practice maintains power.
+	local mastery = math.max(entry.mastery or 0, entry.t_mastery or 0)
 	local ivl = entry.ivl or 0
-	local last_date = entry.last_date
-	if not last_date or ivl <= 0 then
+	local eff_last = entry.last_date
+	local t = entry.t_last_date
+	if t and (not eff_last or t > eff_last) then
+		eff_last = t
+	end
+	if not eff_last or ivl <= 0 then
 		return 0
 	end
-	local y, m, d = last_date:match("(%d+)-(%d+)-(%d+)")
+	local y, m, d = eff_last:match("(%d+)-(%d+)-(%d+)")
 	local last_ts = os.time({ year = y, month = m, day = d, hour = 12 })
 	local days_elapsed = math.floor(os.difftime(os.time(), last_ts) / 86400)
 	local half_life = alg.power_half_life or 0.693
@@ -254,48 +260,52 @@ table.sort(chunk_hashes, function(a, b)
 	return normalize(chunks[a].mastery or 0, chunks[a]) < normalize(chunks[b].mastery or 0, chunks[b])
 end)
 
--- Column widths: 2+8+2+1+2+16+2+7+2+7+2+4+2+4+2+4+2+10 = 79
+-- Column widths: 2+8+2+1+2+14+2+7+2+7+2+7+2+4+2+10 = 74
 if #chunk_hashes > 0 then
 	print()
 	print(string.format("CHUNKS (%d)", #chunk_hashes))
 	print(
 		string.format(
-			"  %-8s  %1s  %-16s  %-7s  %-7s  %4s  %4s  %4s  %s",
+			"  %-8s  %1s  %-14s  %-7s  %-7s  %-7s  %4s  %s",
 			"Hash",
 			"L",
 			"Title",
-			"Mastery",
+			"Dir%",
+			"Trn%",
 			"Power",
 			"Ivl",
-			"Pass",
-			"Fail",
 			"Last"
 		)
 	)
-	print(string.rep("-", 79))
+	print(string.rep("-", 74))
 	for _, h in ipairs(chunk_hashes) do
 		local c = chunks[h]
-		local mastery_pct = normalize(c.mastery or 0, c)
+		local dir_pct = normalize(c.mastery or 0, c)
+		local trn_pct = normalize(c.t_mastery or 0, c)
 		local power_pct = normalize(calculate_power(c), c)
 		local ivl = math.floor(c.ivl or 0)
-		local elapsed = days_since(c.last_date)
+		local eff_last = c.last_date
+		local t = c.t_last_date
+		if t and (not eff_last or t > eff_last) then
+			eff_last = t
+		end
+		local elapsed = days_since(eff_last)
 		local due = (ivl > 0 and elapsed and elapsed >= ivl) and " *" or ""
 		local title = chunk_meta[h].title
-		if #title > 16 then
-			title = title:sub(1, 15) .. "~"
+		if #title > 14 then
+			title = title:sub(1, 13) .. "~"
 		end
 		print(
 			string.format(
-				"  %-8s  %1d  %-16s  %6.1f%%  %6.1f%%  %4d  %4d  %4d  %s%s",
+				"  %-8s  %1d  %-14s  %6.1f%%  %6.1f%%  %6.1f%%  %4d  %s%s",
 				h:sub(1, 8),
 				c.level or 0,
 				title,
-				mastery_pct,
+				dir_pct,
+				trn_pct,
 				power_pct,
 				ivl,
-				c.n_pass_tot or 0,
-				c.n_fail_tot or 0,
-				c.last_date or "--",
+				eff_last or "--",
 				due
 			)
 		)

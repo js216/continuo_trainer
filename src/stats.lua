@@ -135,6 +135,26 @@ local function calculate_power(l_data, alg)
 	return math.min(mastery, mastery * stability)
 end
 
+-- Like calculate_power but uses effective (max of direct and transitive) mastery
+-- and last_date.  Used for scheduling decisions.
+local function calculate_effective_power(l_data, alg)
+	local mastery = math.max(l_data.mastery or 0, l_data.t_mastery or 0)
+	local ivl = l_data.ivl or 0
+	local eff_last = l_data.last_date
+	local t = l_data.t_last_date
+	if t and (not eff_last or t > eff_last) then
+		eff_last = t
+	end
+	if not eff_last or ivl <= 0 then
+		return 0
+	end
+	local y, m, d = eff_last:match("(%d+)-(%d+)-(%d+)")
+	local last_ts = os.time({ year = y, month = m, day = d, hour = 12 })
+	local days_elapsed = math.floor(os.difftime(os.time(), last_ts) / 86400)
+	local stability = math.exp(-alg.power_half_life * (math.max(0, days_elapsed) / ivl))
+	return math.min(mastery, mastery * stability)
+end
+
 local function calculate_streak(data)
 	local streak = 0
 	local current_ts = os.time()
@@ -394,6 +414,22 @@ local function update_entry(entry, sd, alg)
 	}
 end
 
+-- Transitive update: only touches t_mastery, t_last_date, and max_groups.
+-- Called when this chunk's material is covered as part of a parent session.
+-- Independent SRS fields (ease, ivl, n_pass, n_fail, ema_pass, best_avg) are
+-- left untouched.
+local function update_entry_transitive(entry, sd, alg)
+	local today = get_date_str()
+	if sd.groups > (entry.max_groups or 0) then
+		entry.max_groups = sd.groups
+	end
+	local old_t = entry.t_mastery or 0
+	if sd.accuracy >= alg.pass_accuracy and sd.score > old_t then
+		entry.t_mastery = old_t + (sd.score - old_t) * alg.mastery_growth
+	end
+	entry.t_last_date = today
+end
+
 -------------------------------------------------------------------------------
 -- OUTPUT HELPER
 -------------------------------------------------------------------------------
@@ -436,6 +472,7 @@ local function handle_suggest(stats)
 		local level = (c and c.level) or 0
 
 		-- Check level-0 eligibility: all children must be mastered (or none).
+		-- Uses effective mastery (max of direct and transitive) for the check.
 		if level == 0 then
 			local kids = children_of[h]
 			if not kids then
@@ -443,19 +480,20 @@ local function handle_suggest(stats)
 			end
 			for _, kh in ipairs(kids) do
 				local kc = stats.chunks[kh]
-				if not kc or normalize(kc.mastery or 0, kc) < alg.chunk_mastery_thresh then
+				local km = kc and math.max(kc.mastery or 0, kc.t_mastery or 0) or 0
+				if not kc or normalize(km, kc) < alg.chunk_mastery_thresh then
 					goto next_chunk
 				end
 			end
 		end
 
-		if not c or not c.last_date then
+		if not c or (not c.last_date and not c.t_last_date) then
 			if not new_hash then
 				new_hash, new_skills = h, chunk_skills[h] or "?"
 			end
-		elseif (c.n_consecutive or 0) < alg.max_consecutive then
-			local m_pct = normalize(c.mastery or 0, c)
-			local p_pct = normalize(calculate_power(c, alg), c)
+		elseif not c.last_date or (c.n_consecutive or 0) < alg.max_consecutive then
+			local m_pct = normalize(math.max(c.mastery or 0, c.t_mastery or 0), c)
+			local p_pct = normalize(calculate_effective_power(c, alg), c)
 			if m_pct < alg.chunk_mastery_thresh or p_pct < alg.chunk_power_thresh then
 				local score = m_pct + p_pct
 				if score < weakest_score then
@@ -676,7 +714,7 @@ for line in io.lines() do
 			goto continue
 		end
 
-		-- Finalize query: update each child's stats entry.
+		-- Finalize query: transitively update each child's stats entry.
 		local stats = load_stats(stats_file)
 		for _, ci in ipairs(child_list) do
 			local abs_s = pending.abs_s + ci.s
@@ -686,7 +724,7 @@ for line in io.lines() do
 				local alg = stats.algorithm
 				local c = stats.chunks[ci.hash]
 					or { ease = alg.ease_initial, ivl = 0, mastery = 0, total_duration = 0, max_groups = 0 }
-				update_entry(c, sd, alg)
+				update_entry_transitive(c, sd, alg)
 				stats.chunks[ci.hash] = c
 			end
 			pending_children[ci.hash] = { results = pending.results, abs_s = abs_s, abs_e = abs_e }
