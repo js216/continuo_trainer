@@ -83,7 +83,8 @@ local ALGORITHM_DEFAULTS = {
 	dominance_margin = 0.2, -- how much lower the bottleneck must be than the others
 	min_quality = 0.1, -- quality below this triggers a "raise quality" suggestion
 	mastery_score_frac = 0.9, -- score must be >= this fraction of mastery to say "already mastered"
-	max_consecutive = 10, -- consecutive attempts before "try_another_lesson"
+	overlearn_min = 5, -- min consecutive attempts before suggesting another chunk (ema_pass = 1)
+	overlearn_max = 15, -- max consecutive attempts before suggesting another chunk (ema_pass = 0)
 	weak_ema_thresh = 0.8, -- ema_pass below this marks a lesson as "needs_work"
 	ease_initial = 2.5, -- starting ease factor for new lessons
 	ease_min = 1.3, -- minimum ease factor
@@ -491,7 +492,7 @@ local function handle_suggest(stats)
 			if not new_hash then
 				new_hash, new_skills = h, chunk_skills[h] or "?"
 			end
-		elseif not c.last_date or (c.n_consecutive or 0) < alg.max_consecutive then
+		elseif not c.last_date or (c.n_consecutive or 0) < alg.overlearn_min + (alg.overlearn_max - alg.overlearn_min) * (1.0 - (c.ema_pass or 1.0)) then
 			local m_pct = normalize(math.max(c.mastery or 0, c.t_mastery or 0), c)
 			local p_pct = normalize(calculate_effective_power(c, alg), c)
 			if m_pct < alg.chunk_mastery_thresh or p_pct < alg.chunk_power_thresh then
@@ -567,7 +568,9 @@ local function finalize(stats)
 	local power = calculate_power(c, alg)
 	local d = stats.daily[today]
 	local streak = calculate_streak(stats)
-	local suggestion = c.n_consecutive >= alg.max_consecutive and "try_another_lesson" or nil
+	local ema = c.ema_pass or 1.0
+	local required = alg.overlearn_min + (alg.overlearn_max - alg.overlearn_min) * (1.0 - ema)
+	local suggestion = c.n_consecutive >= required and "try_another_lesson" or nil
 	io.write(
 		string.format(
 			"STATS time=%.0f total_today=%.2f goal=%.2f total_duration_today=%.3f streak=%d"
