@@ -85,6 +85,7 @@ local ALGORITHM_DEFAULTS = {
 	mastery_score_frac = 0.9, -- score must be >= this fraction of mastery to say "already mastered"
 	overlearn_min = 5, -- min consecutive attempts before suggesting another chunk (ema_pass = 1)
 	overlearn_max = 15, -- max consecutive attempts before suggesting another chunk (ema_pass = 0)
+	mistake_power_penalty = 0.15, -- power_factor multiplied by (1-penalty) per failed session
 	weak_ema_thresh = 0.8, -- ema_pass below this marks a lesson as "needs_work"
 	ease_initial = 2.5, -- starting ease factor for new lessons
 	ease_min = 1.3, -- minimum ease factor
@@ -133,7 +134,7 @@ local function calculate_power(l_data, alg)
 	local days_elapsed = math.floor(os.difftime(os.time(), last_ts) / 86400)
 
 	local stability = math.exp(-alg.power_half_life * (math.max(0, days_elapsed) / ivl))
-	return math.min(mastery, mastery * stability)
+	return math.min(mastery, mastery * stability) * (l_data.power_factor or 1.0)
 end
 
 -- Like calculate_power but uses effective (max of direct and transitive) mastery
@@ -153,7 +154,7 @@ local function calculate_effective_power(l_data, alg)
 	local last_ts = os.time({ year = y, month = m, day = d, hour = 12 })
 	local days_elapsed = math.floor(os.difftime(os.time(), last_ts) / 86400)
 	local stability = math.exp(-alg.power_half_life * (math.max(0, days_elapsed) / ivl))
-	return math.min(mastery, mastery * stability)
+	return math.min(mastery, mastery * stability) * (l_data.power_factor or 1.0)
 end
 
 local function calculate_streak(data)
@@ -558,6 +559,18 @@ local function finalize(stats)
 	end
 	alg.last_lesson_scored = hash
 	local res = update_entry(c, sd, alg)
+	-- Collect failed group IDs and apply power_factor penalty.
+	local failed_groups = {}
+	for i, r in pairs(current.results) do
+		if r.status == "FAIL" then
+			failed_groups[i] = true
+		end
+	end
+	if sd.accuracy == 100 then
+		c.power_factor = 1.0
+	else
+		c.power_factor = math.max(0, (c.power_factor or 1.0) * (1.0 - alg.mistake_power_penalty))
+	end
 	stats.chunks[hash] = c
 	local points = normalize(res.m_delta, c) * alg.mastery_points_per_pct
 		+ normalize(res.p_delta, c) * alg.power_points_per_pct
@@ -591,7 +604,7 @@ local function finalize(stats)
 	local saved_results = current.results
 	local saved_max_bass_id = current.max_bass_id
 	current = nil
-	pending_children[hash] = { results = saved_results, abs_s = 0, abs_e = saved_max_bass_id }
+	pending_children[hash] = { results = saved_results, abs_s = 0, abs_e = saved_max_bass_id, failed_groups = failed_groups }
 	io.write("QUERY_CHILDREN " .. hash .. "\n")
 end
 
@@ -712,18 +725,33 @@ for line in io.lines() do
 
 		-- Finalize query: transitively update each child's stats entry.
 		local stats = load_stats(stats_file)
+		local failed_groups = pending.failed_groups or {}
 		for _, ci in ipairs(child_list) do
 			local abs_s = pending.abs_s + ci.s
 			local abs_e = pending.abs_s + ci.e
 			local sd = compute_score_data(pending.results, abs_s, abs_e)
+			local alg = stats.algorithm
+			local c = stats.chunks[ci.hash]
+				or { ease = alg.ease_initial, ivl = 0, mastery = 0, total_duration = 0, max_groups = 0 }
 			if sd then
-				local alg = stats.algorithm
-				local c = stats.chunks[ci.hash]
-					or { ease = alg.ease_initial, ivl = 0, mastery = 0, total_duration = 0, max_groups = 0 }
 				update_entry_transitive(c, sd, alg)
-				stats.chunks[ci.hash] = c
 			end
-			pending_children[ci.hash] = { results = pending.results, abs_s = abs_s, abs_e = abs_e }
+			-- Apply power_factor: penalise if any failed group falls in this child's range,
+			-- reset to 1.0 if the sub-range was clean.
+			local child_has_fail = false
+			for gi in pairs(failed_groups) do
+				if gi >= abs_s and gi <= abs_e then
+					child_has_fail = true
+					break
+				end
+			end
+			if child_has_fail then
+				c.power_factor = math.max(0, (c.power_factor or 1.0) * (1.0 - alg.mistake_power_penalty))
+			else
+				c.power_factor = 1.0
+			end
+			stats.chunks[ci.hash] = c
+			pending_children[ci.hash] = { results = pending.results, abs_s = abs_s, abs_e = abs_e, failed_groups = failed_groups }
 			io.write("QUERY_CHILDREN " .. ci.hash .. "\n")
 		end
 		save_stats(stats_file, stats)
