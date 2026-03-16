@@ -14,7 +14,7 @@ PNG = $(patsubst %.txt,%.png,$(wildcard seq/*.txt)) $(patsubst %.txt,%.png,$(wil
 all: $(addprefix bin/,$(PROGS))
 
 bin/%: src/%.c | bin
-	$(CC) $(CFLAGS) $< -o $@ $(LDLIBS)
+	$(CC) $(CPPFLAGS) $(CFLAGS) $< -o $@ $(LDLIBS)
 
 bin/gui: src/gui.cpp $(IMGUI_OBJ) | $(PNG) bin
 	$(CXX) $(CPPFLAGS) $(CXXFLAGS) $^ -o $@ $(LDLIBS)
@@ -24,7 +24,7 @@ bin/%: src/%.rs | bin
 
 %.png: %.ly
 	lilypond --png -dpreview -o $(@:.png=) $<
-	magick $(@:.png=).preview.png -trim +repage -bordercolor white -border 10x20 $@
+	convert $(@:.png=).preview.png -trim +repage -bordercolor white -border 10x20 $@
 	rm $(@:.png=).preview.png
 
 %.pdf: %.ly
