@@ -475,68 +475,6 @@ local function process_lesson(lesson_n, key, time_sig, bpm, lesson_bar, title, c
 	return hashes
 end
 
--- ── bin/load integration ──────────────────────────────────────────────────────
-
--- Call bin/load for lesson n; parse its output into a lesson data table.
-local function load_lesson(n)
-	local cmd = string.format("printf 'LOAD_LESSON %d\\n' | bin/load", n)
-	local pipe = io.popen(cmd)
-	local lesson = {
-		n = n,
-		key = "C",
-		time = "4/4",
-		bpm = 120,
-		bar = 1,
-		title = "",
-		composer = "",
-		bass = {},
-		passing = {},
-		figures = {},
-		melody = {},
-	}
-	for line in pipe:lines() do
-		line = line:gsub("\r", "")
-
-		local comp = line:match("^COMPOSER (.+)$")
-		if comp then
-			lesson.composer = comp
-			goto cont
-		end
-
-		local n2, key, time_sig, bpm_s, bar_s = line:match("^LESSON (%S+) (%S+) (%S+) (%S+) (%S+)")
-		if n2 then
-			lesson.key = key
-			lesson.time = time_sig or "4/4"
-			lesson.bpm = tonumber(bpm_s) or 120
-			lesson.bar = tonumber(bar_s) or 1
-			lesson.title = line:match("^LESSON %S+ %S+ %S+ %S+ %S+ (.+)$") or ""
-			goto cont
-		end
-
-		local tok = line:match("^BASSNOTE %d+: (%S+)")
-		if tok then
-			lesson.bass[#lesson.bass + 1] = tok
-			lesson.passing[#lesson.passing + 1] = line:match(" passing$") ~= nil
-			goto cont
-		end
-
-		local fig = line:match("^FIGURES %d+: (.+)$")
-		if fig then
-			lesson.figures[#lesson.figures + 1] = fig
-			goto cont
-		end
-
-		local mel = line:match("^MELODY %d+: (.+)$")
-		if mel then
-			lesson.melody[#lesson.melody + 1] = mel
-		end
-
-		::cont::
-	end
-	pipe:close()
-	return lesson
-end
-
 -- ── LOAD_CHUNK: parse chunk file and emit protocol ───────────────────────────
 
 local function is_passing_tok(tok)
@@ -701,6 +639,48 @@ local function load_chunk(hash)
 	end
 	io.write("LESSON_END\n")
 	io.flush()
+end
+
+-- ── native seq-file parsing for level-1 chunk generation ─────────────────────
+
+local function load_lesson(n)
+	local path = string.format("seq/%d.txt", n)
+	local f = assert(io.open(path, "rb"))
+	local content = f:read("*a")
+	f:close()
+	content = content:gsub("\r\n", "\n"):gsub("\r", "\n")
+
+	local raw = parse_chunk(content)
+
+	-- Detect and strip passing-note marker from bass tokens.
+	local bass = {}
+	local passing = {}
+	for _, tok in ipairs(raw.bass) do
+		local p = is_passing_tok(tok)
+		bass[#bass + 1] = p and tok:sub(1, -2) or tok
+		passing[#passing + 1] = p
+	end
+
+	-- Group melody tokens across bass notes.
+	local groups = group_melody_tokens(raw.bass, raw.melody)
+	local melody = {}
+	for i = 1, #groups do
+		melody[i] = groups[i] ~= "" and groups[i] or "-"
+	end
+
+	return {
+		n = n,
+		key = raw.key,
+		time = raw.time,
+		bpm = raw.bpm,
+		bar = raw.bar,
+		title = raw.title,
+		composer = raw.composer,
+		bass = bass,
+		passing = passing,
+		figures = raw.figures,
+		melody = melody,
+	}
 end
 
 -- ── lesson scanning ───────────────────────────────────────────────────────────

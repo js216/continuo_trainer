@@ -14,13 +14,13 @@
 // KEYBOARD SHORTCUTS
 //     ESC   Close the window and exit.
 //     Q     Clear the current lesson display.
-//     R     Reload: re-emit LOAD_LESSON or LOAD_CHUNK for the current item.
-//     P     Previous lesson (exits chunk mode).
-//     N     Next lesson (exits chunk mode).
+//     R     Reload: re-emit LOAD_CHUNK for the current item.
+//     P     Previous level-0 chunk.
+//     N     Next level-0 chunk.
 //     S     Emit SUGGEST_LESSON to get the best item to practice next.
 //     K     Toggle karaoke mode (emits KARAOKE_ON / KARAOKE_OFF).
 //
-// RECEIVED (stdin, from stats.lua, bin/load, and bin/karaoke)
+// RECEIVED (stdin, from stats.lua, all.lua, and bin/karaoke)
 //     BASSNOTE <i>: <token> [passing]
 //         Updates the expected note count for progress-square sizing.
 //     RESULT <i> TIME:<t> OK|FAIL [<message>]
@@ -39,8 +39,7 @@
 //     SUGGESTION none reason=<token>
 //         Flashes the reason string without changing lesson.
 //
-// EMITTED (stdout, to bin/load and stats.lua)
-//     LOAD_LESSON <n>       Load lesson n.
+// EMITTED (stdout, to all.lua and stats.lua)
 //     LOAD_CHUNK <hash>     Load chunk file chn/<hash>.txt.
 //     SUGGEST_LESSON        Request the best item to practice (chunk or
 //     lesson). QUERY_STATS           Request a stats refresh (at 2:00 AM).
@@ -100,9 +99,12 @@ struct status_line {
 
 struct state {
 	bool running = true;
-	int current_lesson = 1;
+	char level0_hashes[256][64]; // level-0 chunk hashes in arrival order
+	int num_level0 = 0;
+	int current_level0_idx = 0;
+	bool initial_load_done = false;
 	char current_chunk[64] =
-	    ""; // non-empty while a chunk session is active
+	    ""; // non-empty while a chunk session is active (from SUGGESTION)
 	struct Square squares[MAX_LINES];
 	int num_squares = 0;
 	int num_notes = 0;
@@ -137,67 +139,40 @@ static void reload_lesson(void)
 {
 	if (state.current_chunk[0])
 		printf("LOAD_CHUNK %s\n", state.current_chunk);
-	else
-		printf("LOAD_LESSON %d\n", state.current_lesson);
+	else if (state.num_level0 > 0)
+		printf("LOAD_CHUNK %s\n",
+		       state.level0_hashes[state.current_level0_idx]);
+	fflush(stdout);
 	clear_status();
-}
-
-static int count_lessons(void)
-{
-	// Count contiguous seq/1.png, seq/2.png, ... with no gaps.
-	int n = 0;
-	for (;;) {
-		char path[64];
-		snprintf(path, sizeof(path), "seq/%d.png", n + 1);
-		if (access(path, F_OK) != 0)
-			break;
-		n++;
-	}
-	if (n == 0)
-		return 0;
-
-	// Check for gaps: any file beyond n that exists is a gap.
-	for (int i = 1; i <= n + 8; i++) { // check a few past the end
-		char path[64];
-		snprintf(path, sizeof(path), "seq/%d.png", i);
-		bool exists = (access(path, F_OK) == 0);
-		bool expected = (i <= n);
-		if (exists && !expected) {
-			fprintf(stderr,
-				"ERROR: gap in lesson files: seq/%d.png "
-				"missing but seq/%d.png exists\n",
-				n + 1, i);
-			exit(1);
-		}
-	}
-	return n;
 }
 
 static void next_lesson(void)
 {
-	printf("KARAOKE_OFF\n");
-
-	int total = count_lessons();
-	if (total < 1)
+	if (state.num_level0 < 1)
 		return;
-	state.current_lesson = (state.current_lesson % total) + 1;
+	printf("KARAOKE_OFF\n");
+	state.current_level0_idx =
+	    (state.current_level0_idx + 1) % state.num_level0;
 	state.current_chunk[0] = '\0';
 	state.karaoke_on = false;
-	printf("LOAD_LESSON %d\n", state.current_lesson);
+	printf("LOAD_CHUNK %s\n",
+	       state.level0_hashes[state.current_level0_idx]);
+	fflush(stdout);
 	clear_status();
 }
 
 static void prev_lesson(void)
 {
-	printf("KARAOKE_OFF\n");
-
-	int total = count_lessons();
-	if (total < 1)
+	if (state.num_level0 < 1)
 		return;
-	state.current_lesson = ((state.current_lesson - 2 + total) % total) + 1;
+	printf("KARAOKE_OFF\n");
+	state.current_level0_idx =
+	    (state.current_level0_idx - 1 + state.num_level0) % state.num_level0;
 	state.current_chunk[0] = '\0';
 	state.karaoke_on = false;
-	printf("LOAD_LESSON %d\n", state.current_lesson);
+	printf("LOAD_CHUNK %s\n",
+	       state.level0_hashes[state.current_level0_idx]);
+	fflush(stdout);
 	clear_status();
 }
 
@@ -276,8 +251,9 @@ static void handle_result(const char *buf)
 		state.num_squares = id + 2;
 		if (state.current_chunk[0])
 			printf("LOAD_CHUNK %s\n", state.current_chunk);
-		else
-			printf("LOAD_LESSON %d\n", state.current_lesson);
+		else if (state.num_level0 > 0)
+			printf("LOAD_CHUNK %s\n",
+			       state.level0_hashes[state.current_level0_idx]);
 	}
 
 	if (!ok) {
@@ -419,15 +395,7 @@ static void handle_suggestion(const char *buf)
 
 	const char *p = strstr(buf, "lesson=");
 	if (p) {
-		int id = 0;
-		if (sscanf(p, "lesson=%d", &id) == 1 && id > 0) {
-			state.current_lesson = id;
-			printf("LOAD_LESSON %d\n", id);
-			fflush(stdout);
-			clear_status();
-		}
-		// Flash the reason regardless of whether the lesson jump
-		// succeeded.
+		// Flash the reason; LOAD_LESSON no longer used.
 		const char *r = strstr(buf, "reason=");
 		if (r) {
 			char reason[32] = "";
@@ -455,12 +423,34 @@ static void handle_suggestion(const char *buf)
 	}
 }
 
+static void handle_chunk_name(const char *buf)
+{
+	char hash[64];
+	int level;
+	if (sscanf(buf, "CHUNK_NAME %63s %d", hash, &level) != 2)
+		return;
+	if (level == 0 && state.num_level0 < 256) {
+		strncpy(state.level0_hashes[state.num_level0], hash, 63);
+		state.level0_hashes[state.num_level0][63] = '\0';
+		state.num_level0++;
+	}
+}
+
 static void parse_line(const char *buf)
 {
 	if (strncmp(buf, "KARAOKE_DONE", 12) == 0) {
 		state.karaoke_on = false;
 		return;
 	}
+	if (strncmp(buf, "ALL_SCANNED", 11) == 0) {
+		if (!state.initial_load_done && state.num_level0 > 0) {
+			printf("LOAD_CHUNK %s\n", state.level0_hashes[0]);
+			fflush(stdout);
+			state.initial_load_done = true;
+		}
+		return;
+	}
+	handle_chunk_name(buf);
 	handle_lesson(buf);
 	handle_result(buf);
 	handle_score(buf);
@@ -535,13 +525,15 @@ static void show_music(void)
 	static char img_path[128] = "";
 	static GLuint img = 0;
 
+	const char *hash = state.current_chunk[0]
+	    ? state.current_chunk
+	    : (state.num_level0 > 0
+	           ? state.level0_hashes[state.current_level0_idx]
+	           : "");
+	if (!hash[0])
+		return;
 	char desired[128];
-	if (state.current_chunk[0])
-		snprintf(desired, sizeof(desired), "chn/%s.png",
-			 state.current_chunk);
-	else
-		snprintf(desired, sizeof(desired), "seq/%d.png",
-			 state.current_lesson);
+	snprintf(desired, sizeof(desired), "chn/%s.png", hash);
 
 	if (!img || strcmp(img_path, desired) != 0) {
 		if (LoadImage(desired, &img, &iw, &ih))
@@ -676,15 +668,18 @@ static void show_status_line(void)
 {
 	const status_line &s = state.status;
 
-	// Lesson label: "L3" when no lesson data yet, "L3 12.3/5.4" when
-	// available.
+	// Chunk label: short hash + mastery/power when available.
+	const char *hash = state.current_chunk[0]
+	    ? state.current_chunk
+	    : (state.num_level0 > 0
+	           ? state.level0_hashes[state.current_level0_idx]
+	           : "");
 	char lesson_buf[48];
 	if (s.mastery > 0.0f || s.power > 0.0f)
-		snprintf(lesson_buf, sizeof(lesson_buf), "L%d %.1f/%.1f",
-			 state.current_lesson, s.mastery, s.power);
+		snprintf(lesson_buf, sizeof(lesson_buf), "%.8s %.1f/%.1f",
+			 hash, s.mastery, s.power);
 	else
-		snprintf(lesson_buf, sizeof(lesson_buf), "L%d",
-			 state.current_lesson);
+		snprintf(lesson_buf, sizeof(lesson_buf), "%.8s", hash);
 
 	// Points field.
 	char pts_buf[48];
@@ -885,8 +880,6 @@ int main(int, char **)
 
 	// Non-blocking stdin
 	fcntl(STDIN_FILENO, F_SETFL, fcntl(STDIN_FILENO, F_GETFL) | O_NONBLOCK);
-
-	reload_lesson();
 
 	// Main loop
 	while (!glfwWindowShouldClose(win) && state.running) {
