@@ -25,7 +25,7 @@
 --
 -- OUTPUT
 --      LESSON_NAME <n>             One per lesson, in ascending numeric order.
---      CHUNK_NAME <hash> <level>   One per unique chunk (level 0 or 1).
+--      CHUNK_NAME <hash> <level> [<skills>]  One per unique chunk; level-1 chunks include space-separated skills.
 --      ALL_SCANNED                 Emitted once after a clean scan.
 --      CHUNK_SESSION <hash>        Before LESSON/BASSNOTE/FIGURES/MELODY/LESSON_END.
 --      LESSON <hash> <key> <time> <bpm> <bar>
@@ -475,20 +475,20 @@ local function compute_children(key, time_sig, bpm, lesson_bar, title, composer,
 		write_chunk(hash, content)
 		if not seen_hashes[hash] then
 			seen_hashes[hash] = true
-			children[#children + 1] = { hash = hash, s = s, e = e }
+			children[#children + 1] = { hash = hash, s = s, e = e, skills = skills_str }
 		end
 	end
 	return children
 end
 
--- Returns a list of hashes for every level-1 chunk written for this lesson.
+-- Returns a list of {hash, skills} for every level-1 chunk written for this lesson.
 local function process_lesson(lesson_n, key, time_sig, bpm, lesson_bar, title, composer, bass, passing, figures, melody)
 	local children = compute_children(key, time_sig, bpm, lesson_bar, title, composer, bass, passing, figures, melody)
-	local hashes = {}
+	local result = {}
 	for _, c in ipairs(children) do
-		hashes[#hashes + 1] = c.hash
+		result[#result + 1] = { hash = c.hash, skills = c.skills }
 	end
-	return hashes
+	return result
 end
 
 -- ── LOAD_CHUNK: parse chunk file and emit protocol ───────────────────────────
@@ -790,7 +790,7 @@ local function scan_and_emit()
 
 		-- ── level-1: skill-slice chunks ───────────────────────────────────────
 		local lesson = load_lesson(n)
-		local hashes1 = process_lesson(
+		local chunks1 = process_lesson(
 			lesson.n,
 			lesson.key,
 			lesson.time,
@@ -803,9 +803,9 @@ local function scan_and_emit()
 			lesson.figures,
 			lesson.melody
 		)
-		for _, hash in ipairs(hashes1) do
-			live_chunks[hash] = true
-			io.write("CHUNK_NAME " .. hash .. " 1\n")
+		for _, c in ipairs(chunks1) do
+			live_chunks[c.hash] = true
+			io.write("CHUNK_NAME " .. c.hash .. " 1 " .. c.skills .. "\n")
 			io.flush()
 		end
 	end

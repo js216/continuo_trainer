@@ -451,7 +451,7 @@ local function print_stats_line(stats, timestamp)
 end
 
 -- Forward declarations: populated as lines arrive, consumed by handle_suggest.
-local chunk_skills = {} -- { [hash] = skills_str }  populated from chn/<hash>.txt on CHUNK_NAME
+local chunk_skills = {} -- { [hash] = skills_str }  populated from CHUNK_NAME line (level-1 only)
 local scanned_chunks = {} -- chunks announced via CHUNK_NAME this session
 
 -------------------------------------------------------------------------------
@@ -610,18 +610,11 @@ for line in io.lines() do
 		check_hash(h)
 		local level = tonumber(lv) or 0
 		scanned_chunks[h] = true
-		-- Populate chunk_skills from chunk file (used by handle_suggest)
+		-- Skills are emitted inline by all.lua (level-1 chunks only)
 		if not chunk_skills[h] then
-			local f = io.open("chn/" .. h .. ".txt", "r")
-			if f then
-				for fline in f:lines() do
-					local s = fline:match("^skills:%s*(.+)$")
-					if s then
-						chunk_skills[h] = s
-						break
-					end
-				end
-				f:close()
+			local skills_str = line:match("^CHUNK_NAME %S+ %d+ (.+)$")
+			if skills_str then
+				chunk_skills[h] = skills_str
 			end
 		end
 		local stats = load_stats(stats_file)
