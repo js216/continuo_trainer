@@ -86,6 +86,7 @@ local ALGORITHM_DEFAULTS = {
 	overlearn_min = 5, -- min consecutive attempts before suggesting another chunk (ema_pass = 1)
 	overlearn_max = 15, -- max consecutive attempts before suggesting another chunk (ema_pass = 0)
 	mistake_power_penalty = 0.15, -- power_factor multiplied by (1-penalty) per failed session
+	mastery_decay_half_life = 90, -- days for mastery to halve without a mastery-improving session
 	weak_ema_thresh = 0.8, -- ema_pass below this marks a lesson as "needs_work"
 	ease_initial = 2.5, -- starting ease factor for new lessons
 	ease_min = 1.3, -- minimum ease factor
@@ -379,6 +380,7 @@ local function update_entry(entry, sd, alg)
 	-- Mastery
 	if sd.accuracy >= alg.pass_accuracy and sd.score > old_mastery then
 		entry.mastery = old_mastery + (sd.score - old_mastery) * alg.mastery_growth * quality
+		entry.last_updated_mastery = today
 	end
 
 	-- SRS
@@ -428,8 +430,47 @@ local function update_entry_transitive(entry, sd, alg)
 	local old_t = entry.t_mastery or 0
 	if sd.accuracy >= alg.pass_accuracy and sd.score > old_t then
 		entry.t_mastery = old_t + (sd.score - old_t) * alg.mastery_growth
+		entry.last_updated_mastery = today
 	end
 	entry.t_last_date = today
+end
+
+-------------------------------------------------------------------------------
+-- STARTUP MASTERY DECAY
+-------------------------------------------------------------------------------
+
+local function apply_mastery_decay(stats)
+	local alg = stats.algorithm
+	local today = get_date_str()
+	local half_life = alg.mastery_decay_half_life
+	local changed = false
+	for _, c in pairs(stats.chunks) do
+		local lum = c.last_updated_mastery
+		if lum and half_life > 0 then
+			local y, mo, d = lum:match("(%d+)-(%d+)-(%d+)")
+			local last_ts = os.time({ year = y, month = mo, day = d, hour = 12 })
+			local days = math.max(0, math.floor(os.difftime(os.time(), last_ts) / 86400))
+			if days > 0 then
+				local factor = math.exp(-0.693 * days / half_life)
+				if (c.mastery or 0) > 0 then
+					c.mastery = (c.mastery or 0) * factor
+					changed = true
+				end
+				if (c.t_mastery or 0) > 0 then
+					c.t_mastery = (c.t_mastery or 0) * factor
+					changed = true
+				end
+			end
+		end
+		-- Always refresh the date so the next startup measures from today.
+		if lum then
+			c.last_updated_mastery = today
+			changed = true
+		end
+	end
+	if changed then
+		save_stats(stats_file, stats)
+	end
 end
 
 -------------------------------------------------------------------------------
@@ -613,6 +654,8 @@ end
 -------------------------------------------------------------------------------
 
 local pending_suggest = false -- defer SUGGEST_LESSON until first CHUNK_NAME arrives
+
+apply_mastery_decay(load_stats(stats_file))
 
 for line in io.lines() do
 	line = line:gsub("\r", "")
