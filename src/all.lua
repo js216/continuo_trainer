@@ -690,8 +690,18 @@ local function handle_query_children(hash)
 		melody[i] = groups[i] ~= "" and groups[i] or "-"
 	end
 
-	local children =
-		compute_children(raw.key, raw.time, raw.bpm, raw.bar, raw.title, raw.composer, bass, passing, raw.figures, melody)
+	local children = compute_children(
+		raw.key,
+		raw.time,
+		raw.bpm,
+		raw.bar,
+		raw.title,
+		raw.composer,
+		bass,
+		passing,
+		raw.figures,
+		melody
+	)
 	local parts = { hash }
 	for _, c in ipairs(children) do
 		parts[#parts + 1] = c.hash .. ":" .. (c.s - 1) .. ":" .. (c.e - 1)

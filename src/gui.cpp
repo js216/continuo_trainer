@@ -490,8 +490,8 @@ static void show_music(void)
 	const char *hash = state.current_chunk[0]
 	    ? state.current_chunk
 	    : (state.num_level0 > 0
-	           ? state.level0_hashes[state.current_level0_idx]
-	           : "");
+		   ? state.level0_hashes[state.current_level0_idx]
+		   : "");
 	if (!hash[0])
 		return;
 	char desired[128];
@@ -634,12 +634,12 @@ static void show_status_line(void)
 	const char *hash = state.current_chunk[0]
 	    ? state.current_chunk
 	    : (state.num_level0 > 0
-	           ? state.level0_hashes[state.current_level0_idx]
-	           : "");
+		   ? state.level0_hashes[state.current_level0_idx]
+		   : "");
 	char lesson_buf[48];
 	if (s.mastery > 0.0f || s.power > 0.0f)
-		snprintf(lesson_buf, sizeof(lesson_buf), "%.8s %.1f/%.1f",
-			 hash, s.mastery, s.power);
+		snprintf(lesson_buf, sizeof(lesson_buf), "%.8s %.1f/%.1f", hash,
+			 s.mastery, s.power);
 	else
 		snprintf(lesson_buf, sizeof(lesson_buf), "%.8s", hash);
 

@@ -484,14 +484,16 @@ local function print_stats_line(stats, timestamp)
 	local d = stats.daily[today] or { score = 0, duration = 0 }
 	local streak = calculate_streak(stats)
 
-	io.write(string.format(
-		"STATS time=%.0f total_today=%.2f goal=%.2f total_duration_today=%.3f streak=%d\n",
-		timestamp or os.time(),
-		d.score,
-		alg.score_goal,
-		d.duration,
-		streak
-	))
+	io.write(
+		string.format(
+			"STATS time=%.0f total_today=%.2f goal=%.2f total_duration_today=%.3f streak=%d\n",
+			timestamp or os.time(),
+			d.score,
+			alg.score_goal,
+			d.duration,
+			streak
+		)
+	)
 end
 
 -- Forward declarations: populated as lines arrive, consumed by handle_suggest/finalize.
@@ -525,8 +527,12 @@ local function compute_skill_rank(hash, skill_order_str)
 	local rank = -1
 	for sk in skills:gmatch("%S+") do
 		local r = order[sk]
-		if r == nil then r = n end -- unknown: sort last
-		if r > rank then rank = r end
+		if r == nil then
+			r = n
+		end -- unknown: sort last
+		if r > rank then
+			rank = r
+		end
 	end
 	return rank
 end
@@ -555,8 +561,10 @@ local function handle_suggest(stats)
 		end
 
 		local is_new = not c or (not c.last_date and not c.t_last_date)
-		local within_overlearn = c and c.last_date
-			and (c.n_consecutive or 0) < alg.overlearn_min + (alg.overlearn_max - alg.overlearn_min) * (1.0 - (c.ema_pass or 1.0))
+		local within_overlearn = c
+			and c.last_date
+			and (c.n_consecutive or 0)
+				< alg.overlearn_min + (alg.overlearn_max - alg.overlearn_min) * (1.0 - (c.ema_pass or 1.0))
 		local m_pct = c and normalize(math.max(c.mastery or 0, c.t_mastery or 0), c) or 0
 		local p_pct = c and normalize(calculate_effective_power(c, alg), c) or 0
 		local is_weak = m_pct < alg.chunk_mastery_thresh or p_pct < alg.chunk_power_thresh
@@ -575,18 +583,26 @@ local function handle_suggest(stats)
 
 	-- Sort: skill_rank ASC, level DESC, mastery+power ASC (weakest/newest first).
 	table.sort(candidates, function(a, b)
-		if a.skill_rank ~= b.skill_rank then return a.skill_rank < b.skill_rank end
-		if a.level ~= b.level then return a.level > b.level end
+		if a.skill_rank ~= b.skill_rank then
+			return a.skill_rank < b.skill_rank
+		end
+		if a.level ~= b.level then
+			return a.level > b.level
+		end
 		return a.score < b.score
 	end)
 
 	if #candidates > 0 then
 		local best = candidates[1]
 		local reason = best.is_new and "new_chunk" or "weak_chunk"
-		io.write(string.format(
-			"SUGGESTION chunk=%s skills=%s reason=%s\n",
-			best.hash, chunk_skills[best.hash] or "?", reason
-		))
+		io.write(
+			string.format(
+				"SUGGESTION chunk=%s skills=%s reason=%s\n",
+				best.hash,
+				chunk_skills[best.hash] or "?",
+				reason
+			)
+		)
 		return
 	end
 
@@ -667,7 +683,8 @@ local function finalize(stats)
 	local saved_results = current.results
 	local saved_max_bass_id = current.max_bass_id
 	current = nil
-	pending_children[hash] = { results = saved_results, abs_s = 0, abs_e = saved_max_bass_id, failed_groups = failed_groups }
+	pending_children[hash] =
+		{ results = saved_results, abs_s = 0, abs_e = saved_max_bass_id, failed_groups = failed_groups }
 	io.write("QUERY_CHILDREN " .. hash .. "\n")
 end
 
@@ -816,7 +833,8 @@ for line in io.lines() do
 				c.power_factor = 1.0
 			end
 			stats.chunks[ci.hash] = c
-			pending_children[ci.hash] = { results = pending.results, abs_s = abs_s, abs_e = abs_e, failed_groups = failed_groups }
+			pending_children[ci.hash] =
+				{ results = pending.results, abs_s = abs_s, abs_e = abs_e, failed_groups = failed_groups }
 			io.write("QUERY_CHILDREN " .. ci.hash .. "\n")
 		end
 		save_stats(stats_file, stats)
