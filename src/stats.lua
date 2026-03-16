@@ -3,13 +3,10 @@
 -- Copyright (c) 2026 Jakob Kastelic
 
 -- DESCRIPTION
---      Accumulates RESULT lines for the current lesson in memory.  When the
---      last RESULT arrives (or the lesson is abandoned), it computes accuracy,
---      score and timing, then updates Mastery, Power and SRS fields for both
---      the lesson and every chunk whose heart falls inside that lesson.
---
---      During a CHUNK_SESSION the same pipeline runs, but only stats.chunks
---      is updated; stats.lessons is left untouched.
+--      Accumulates RESULT lines for the current session in memory.  When the
+--      last RESULT arrives (or the session is abandoned), it computes accuracy,
+--      score and timing, then updates Mastery, Power and SRS fields for the
+--      chunk in stats.chunks.  Every session is a chunk session keyed by hash.
 --
 --      Mastery growth is gated by a quality score:
 --          quality = ema_pass × speed_factor × evenness_factor
@@ -23,38 +20,20 @@
 --              script returning a table; created on first write if absent.
 --
 -- INPUT
---      LESSON <n> <key> <time> <title>          from bin/load
---          Starts a new lesson accumulator.  During a CHUNK_SESSION, <n>
---          is the chunk hash; the accumulator is flagged is_chunk=true and
---          stats.lessons is not updated on completion.
---      BASSNOTE <i>: <token> [passing]          from bin/load
---      RESULT <i> TIME:<ms> OK|FAIL [msg]       from lua src/rules.lua
---      CHUNK LESSON:<n> HEART:<s>-<e> LEN:<l> HASH:<h> KEY:<k>
---            SKILLS:<s> BASSLINE:<b> FIGURE:<f> MELODY:<m>
---                                               from lua src/chunk.lua
---          Registers chunk metadata for the current lesson; used to update
---          per-chunk stats when the parent lesson is finalised.
---      CHUNK_SESSION <hash>                     from bin/load
---          Signals that the next LESSON is a chunk replay; suppresses
---          routes finalisation to stats.chunks.
---      LESSON_NAME <n>                          from lua src/all.lua
---          Ensures stats.lessons[n] exists with defaults; saves if new.
---          Records n as a known live lesson for ALL_SCANNED validation.
---      CHUNK_NAME <hash>                        from lua src/all.lua
---          Ensures stats.chunks[hash] exists with defaults; saves if new.
+--      LESSON <hash> <key> <time> <bpm> <bar>   from lua src/all.lua
+--          Starts a new session accumulator keyed by <hash>.
+--      BASSNOTE <i>: <token> [passing]           from lua src/all.lua
+--      RESULT <i> TIME:<ms> OK|FAIL [msg]        from lua src/rules.lua
+--      CHUNK_NAME <hash> <level>                 from lua src/all.lua
+--          Ensures stats.chunks[hash] exists with level field; saves if new.
 --          Records hash as a known live chunk for ALL_SCANNED validation.
---      ALL_SCANNED                              from lua src/all.lua
---          Verifies that every entry in stats.lessons and stats.chunks was
---          announced via LESSON_NAME / CHUNK_NAME.  Any unannounced (stale)
---          entry is reported to stderr and the process exits with code 1.
---      LOAD_LESSON <n>                          from bin/gui
---          Emits a STATS line for lesson n (no scoring).
---      QUERY_STATS                              from bin/gui
+--      ALL_SCANNED                               from lua src/all.lua
+--          Verifies every entry in stats.chunks was announced via CHUNK_NAME.
+--          Any unannounced (stale) entry is reported to stderr and exits 1.
+--      QUERY_STATS                               from bin/gui
 --          Emits a STATS line for the current daily totals.
---      SUGGEST_LESSON                           from bin/gui
---          Selects and emits the best item to practice: first checks all
---          known chunks for any that are weak or never played; falls back
---          to lesson selection if all chunks are mastered.
+--      SUGGEST_LESSON                            from bin/gui
+--          Selects and emits the best chunk to practice next.
 --
 -- OUTPUT
 --      After every completed lesson:
@@ -199,7 +178,6 @@ local function load_stats(path)
 			end
 		end
 		data.daily = data.daily or {}
-		data.lessons = data.lessons or {}
 		data.chunks = data.chunks or {}
 		return data
 	end
@@ -420,46 +398,24 @@ end
 -- OUTPUT HELPER
 -------------------------------------------------------------------------------
 
-local function print_stats_line(stats, l_id, timestamp, suggestion)
+local function print_stats_line(stats, timestamp)
 	local alg = stats.algorithm
 	local today = get_date_str()
 	local d = stats.daily[today] or { score = 0, duration = 0 }
 	local streak = calculate_streak(stats)
 
-	local output = string.format(
-		"STATS time=%.0f total_today=%.2f goal=%.2f total_duration_today=%.3f streak=%d",
+	io.write(string.format(
+		"STATS time=%.0f total_today=%.2f goal=%.2f total_duration_today=%.3f streak=%d\n",
 		timestamp or os.time(),
 		d.score,
 		alg.score_goal,
 		d.duration,
 		streak
-	)
-
-	if l_id and stats.lessons[l_id] then
-		local l = stats.lessons[l_id]
-		local power = calculate_power(l, alg)
-		output = output
-			.. string.format(
-				" lesson=%s[ivl=%d,ease=%.2f,tot_dur=%.3f,n_pass_tot=%d,n_fail_tot=%d,mastery=%.2f,power=%.2f]",
-				l_id,
-				math.tointeger(math.floor(l.ivl or 0)) or 0,
-				l.ease or alg.ease_initial,
-				l.total_duration or 0,
-				math.tointeger(l.n_pass_tot or 0) or 0,
-				math.tointeger(l.n_fail_tot or 0) or 0,
-				normalize(l.mastery or 0, l),
-				normalize(power, l)
-			)
-	end
-	if suggestion then
-		output = output .. " suggestion=" .. suggestion
-	end
-	io.write(output .. "\n")
+	))
 end
 
 -- Forward declarations: populated as lines arrive, consumed by handle_suggest.
-local lesson_chunks_mem = {} -- { [l_id] = { {hash, heart_s, heart_e, len, skills}, ... } }
-local chunk_skills = {} -- { [hash] = skills_str }  flat map for suggestions
+local chunk_skills = {} -- { [hash] = skills_str }  populated from chn/<hash>.txt on CHUNK_NAME
 local scanned_chunks = {} -- chunks announced via CHUNK_NAME this session
 
 -------------------------------------------------------------------------------
@@ -503,82 +459,6 @@ local function handle_suggest(stats)
 		return
 	end
 
-	-- No weak/new chunks: fall through to lesson selection.
-	local available = {}
-	for id in pairs(stats.lessons) do
-		if tonumber(id) then
-			table.insert(available, id)
-		end
-	end
-	table.sort(available, function(a, b)
-		return tonumber(a) < tonumber(b)
-	end)
-
-	if #available == 0 then
-		io.write("SUGGESTION none reason=no_lessons_available\n")
-		return
-	end
-
-	local known = {}
-	local new_lessons = {}
-	for _, id in ipairs(available) do
-		local l = stats.lessons[id]
-		if l and l.last_date then
-			table.insert(known, id)
-		else
-			table.insert(new_lessons, id)
-		end
-	end
-
-	local best_id = nil
-	local best_score = -math.huge
-	local best_type = nil
-
-	for _, id in ipairs(known) do
-		local l = stats.lessons[id]
-		if (l.n_consecutive or 0) >= alg.max_consecutive then
-			goto continue
-		end
-		local ivl = l.ivl or 0
-		local last_date = l.last_date
-		local days_elapsed = 0
-		if last_date then
-			local y, m, d = last_date:match("(%d+)-(%d+)-(%d+)")
-			local last_ts = os.time({ year = y, month = m, day = d, hour = 12 })
-			days_elapsed = math.floor(os.difftime(os.time(), last_ts) / 86400)
-		end
-
-		if ivl > 0 and days_elapsed >= ivl then
-			local score = days_elapsed / ivl
-			if best_type ~= "overdue" or score > best_score then
-				best_type = "overdue"
-				best_score = score
-				best_id = id
-			end
-		elseif best_type ~= "overdue" then
-			local ep = l.ema_pass or 0
-			if ep < alg.weak_ema_thresh then
-				local score = 1.0 - ep
-				if score > best_score then
-					best_score = score
-					best_id = id
-				end
-			end
-		end
-		::continue::
-	end
-
-	if best_id then
-		local reason = (best_type == "overdue") and "overdue" or "needs_work"
-		io.write("SUGGESTION lesson=" .. best_id .. " reason=" .. reason .. "\n")
-		return
-	end
-
-	if #new_lessons > 0 then
-		io.write("SUGGESTION lesson=" .. new_lessons[1] .. " reason=new_lesson\n")
-		return
-	end
-
 	io.write("SUGGESTION none reason=all_up_to_date\n")
 end
 
@@ -587,34 +467,6 @@ end
 -------------------------------------------------------------------------------
 
 local current = nil -- { id, max_bass_id, results={[i]={status,time}} }
-
-local function handle_chunk(line)
-	local n, s, e, h = line:match("^CHUNK LESSON:(%d+) HEART:(%d+)-(%d+) %S+ HASH:(%x+)")
-	if not (n and s and e and h) then
-		return
-	end
-	check_hash(h)
-	scanned_chunks[h] = true
-	local len = tonumber(line:match("LEN:(%d+)")) or 1
-	local skills = line:match("SKILLS:(.-) BASSLINE:") or "?"
-	chunk_skills[h] = skills
-	local l_id = tostring(tonumber(n))
-	if not lesson_chunks_mem[l_id] then
-		lesson_chunks_mem[l_id] = {}
-	end
-	for _, ci in ipairs(lesson_chunks_mem[l_id]) do
-		if ci.hash == h then
-			return
-		end
-	end
-	lesson_chunks_mem[l_id][#lesson_chunks_mem[l_id] + 1] = {
-		hash = h,
-		heart_s = tonumber(s),
-		heart_e = tonumber(e),
-		len = len,
-		skills = skills,
-	}
-end
 
 -------------------------------------------------------------------------------
 -- LESSON FINALISATION
@@ -634,138 +486,45 @@ local function finalize(stats)
 
 	local alg = stats.algorithm
 	local today = get_date_str()
+	local hash = tostring(current.id)
 
-	-- ── chunk session: update stats.chunks only ───────────────────────────────
-	if current.is_chunk then
-		local hash = tostring(current.id)
-		local c = stats.chunks[hash]
-			or { ease = alg.ease_initial, ivl = 0, mastery = 0, total_duration = 0, max_groups = 0 }
-		if alg.last_lesson_scored ~= hash then
-			c.n_consecutive = 1
-		else
-			c.n_consecutive = (c.n_consecutive or 0) + 1
-		end
-		alg.last_lesson_scored = hash
-		local res = update_entry(c, sd, alg)
-		stats.chunks[hash] = c
-		local points = normalize(res.m_delta, c) * alg.mastery_points_per_pct
-			+ normalize(res.p_delta, c) * alg.power_points_per_pct
-		stats.daily[today] = stats.daily[today] or { score = 0, duration = 0 }
-		stats.daily[today].score = stats.daily[today].score + points
-		stats.daily[today].duration = stats.daily[today].duration + sd.duration
-		save_stats(stats_file, stats)
-		local power = calculate_power(c, alg)
-		local d = stats.daily[today]
-		local streak = calculate_streak(stats)
-		local suggestion = c.n_consecutive >= alg.max_consecutive and "try_another_lesson" or nil
-		io.write(
-			string.format(
-				"STATS time=%.0f total_today=%.2f goal=%.2f total_duration_today=%.3f streak=%d"
-					.. " chunk=%s[ivl=%d,ease=%.2f,mastery=%.2f,power=%.2f]%s\n",
-				sd.time,
-				d.score,
-				alg.score_goal,
-				d.duration,
-				streak,
-				hash,
-				math.floor(c.ivl or 0),
-				c.ease or alg.ease_initial,
-				normalize(c.mastery or 0, c),
-				normalize(power, c),
-				suggestion and (" suggestion=" .. suggestion) or ""
-			)
-		)
-		current = nil
-		return
-	end
-
-	local l_id = tostring(current.id)
-
-	-- ── lesson entry ──────────────────────────────────────────────────────────
-	local l = stats.lessons[l_id]
+	local c = stats.chunks[hash]
 		or { ease = alg.ease_initial, ivl = 0, mastery = 0, total_duration = 0, max_groups = 0 }
-
-	if alg.last_lesson_scored ~= l_id then
-		l.n_consecutive = 1
+	if alg.last_lesson_scored ~= hash then
+		c.n_consecutive = 1
 	else
-		l.n_consecutive = (l.n_consecutive or 0) + 1
+		c.n_consecutive = (c.n_consecutive or 0) + 1
 	end
-	alg.last_lesson_scored = l_id
-
-	local res = update_entry(l, sd, alg)
-	stats.lessons[l_id] = l
-
-	-- ── suggestion (lesson only) ──────────────────────────────────────────────
-	local suggestion = nil
-	if sd.accuracy < alg.pass_accuracy then
-		suggestion = "try_again"
-	else
-		local factors = {
-			{ name = "be_more_consistent", val = l.ema_pass },
-			{ name = "play_faster", val = res.speed_factor },
-			{ name = "play_more_evenly", val = res.evenness_factor },
-		}
-		local min_val, min_idx = math.huge, nil
-		for i, f in ipairs(factors) do
-			if f.val < min_val then
-				min_val = f.val
-				min_idx = i
-			end
-		end
-		if min_idx and min_val < alg.bottleneck_thresh then
-			local dominant = true
-			for i, f in ipairs(factors) do
-				if i ~= min_idx and (f.val - min_val) < alg.dominance_margin then
-					dominant = false
-					break
-				end
-			end
-			if dominant then
-				suggestion = factors[min_idx].name
-			end
-		end
-		if suggestion == nil then
-			if sd.score <= res.old_mastery then
-				if res.old_mastery > 0 and sd.score >= res.old_mastery * alg.mastery_score_frac then
-					suggestion = "already_mastered"
-				end
-			elseif res.quality < alg.min_quality then
-				local weakest, wval = "be_more_consistent", l.ema_pass
-				if res.speed_factor < wval then
-					weakest, wval = "play_faster", res.speed_factor
-				end
-				if res.evenness_factor < wval then
-					weakest = "play_more_evenly"
-				end
-				suggestion = "raise_quality_" .. weakest
-			end
-		end
-	end
-	if l.n_consecutive >= alg.max_consecutive then
-		suggestion = "try_another_lesson"
-	end
-
-	-- ── daily totals (lesson only) ────────────────────────────────────────────
-	local points = normalize(res.m_delta, l) * alg.mastery_points_per_pct
-		+ normalize(res.p_delta, l) * alg.power_points_per_pct
+	alg.last_lesson_scored = hash
+	local res = update_entry(c, sd, alg)
+	stats.chunks[hash] = c
+	local points = normalize(res.m_delta, c) * alg.mastery_points_per_pct
+		+ normalize(res.p_delta, c) * alg.power_points_per_pct
 	stats.daily[today] = stats.daily[today] or { score = 0, duration = 0 }
 	stats.daily[today].score = stats.daily[today].score + points
 	stats.daily[today].duration = stats.daily[today].duration + sd.duration
-
-	-- ── chunk entries ─────────────────────────────────────────────────────────
-	for _, ci in ipairs(lesson_chunks_mem[l_id] or {}) do
-		local c = stats.chunks[ci.hash]
-			or { ease = alg.ease_initial, ivl = 0, mastery = 0, total_duration = 0, max_groups = ci.len }
-		local chunk_sd = compute_score_data(current.results, ci.heart_s, ci.heart_e)
-		if chunk_sd then
-			update_entry(c, chunk_sd, alg)
-		end
-		stats.chunks[ci.hash] = c
-	end
-
 	save_stats(stats_file, stats)
-	print_stats_line(stats, l_id, sd.time, suggestion)
-
+	local power = calculate_power(c, alg)
+	local d = stats.daily[today]
+	local streak = calculate_streak(stats)
+	local suggestion = c.n_consecutive >= alg.max_consecutive and "try_another_lesson" or nil
+	io.write(
+		string.format(
+			"STATS time=%.0f total_today=%.2f goal=%.2f total_duration_today=%.3f streak=%d"
+				.. " chunk=%s[ivl=%d,ease=%.2f,mastery=%.2f,power=%.2f]%s\n",
+			sd.time,
+			d.score,
+			alg.score_goal,
+			d.duration,
+			streak,
+			hash,
+			math.floor(c.ivl or 0),
+			c.ease or alg.ease_initial,
+			normalize(c.mastery or 0, c),
+			normalize(power, c),
+			suggestion and (" suggestion=" .. suggestion) or ""
+		)
+	)
 	current = nil
 end
 
@@ -773,19 +532,38 @@ end
 -- MAIN LOOP
 -------------------------------------------------------------------------------
 
-local in_chunk_session = false
-local pending_suggest = false -- defer SUGGEST_LESSON until first CHUNK arrives
-local scanned_lessons = {} -- lessons announced via LESSON_NAME this session
+local pending_suggest = false -- defer SUGGEST_LESSON until first CHUNK_NAME arrives
 
 for line in io.lines() do
 	line = line:gsub("\r", "")
-	-- LESSON_NAME / CHUNK_NAME: emitted by all.lua; initialise entries if absent
-	if line:match("^LESSON_NAME ") then
-		local n = line:match("^LESSON_NAME (%S+)")
-		scanned_lessons[n] = true
+
+	-- CHUNK_NAME: emitted by all.lua; initialise entry if absent; load skills
+	if line:match("^CHUNK_NAME ") then
+		local h, lv = line:match("^CHUNK_NAME (%S+) (%d+)")
+		if not h then
+			goto continue
+		end
+		check_hash(h)
+		local level = tonumber(lv) or 0
+		scanned_chunks[h] = true
+		-- Populate chunk_skills from chunk file (used by handle_suggest)
+		if not chunk_skills[h] then
+			local f = io.open("chn/" .. h .. ".txt", "r")
+			if f then
+				for fline in f:lines() do
+					local s = fline:match("^skills:%s*(.+)$")
+					if s then
+						chunk_skills[h] = s
+						break
+					end
+				end
+				f:close()
+			end
+		end
 		local stats = load_stats(stats_file)
-		if not stats.lessons[n] then
-			stats.lessons[n] = {
+		if not stats.chunks[h] then
+			stats.chunks[h] = {
+				level = level,
 				ease = stats.algorithm.ease_initial,
 				ivl = 0,
 				mastery = 0,
@@ -793,20 +571,8 @@ for line in io.lines() do
 				max_groups = 0,
 			}
 			save_stats(stats_file, stats)
-		end
-	elseif line:match("^CHUNK_NAME ") then
-		local h = line:match("^CHUNK_NAME (%S+)")
-		check_hash(h)
-		scanned_chunks[h] = true
-		local stats = load_stats(stats_file)
-		if not stats.chunks[h] then
-			stats.chunks[h] = {
-				ease = stats.algorithm.ease_initial,
-				ivl = 0,
-				mastery = 0,
-				total_duration = 0,
-				max_groups = 0,
-			}
+		elseif stats.chunks[h].level == nil then
+			stats.chunks[h].level = level
 			save_stats(stats_file, stats)
 		end
 		if pending_suggest then
@@ -814,38 +580,17 @@ for line in io.lines() do
 			handle_suggest(load_stats(stats_file))
 		end
 
-	-- CHUNK: register chunk metadata in memory (no disk I/O)
-	elseif line:match("^CHUNK ") then
-		handle_chunk(line)
-		if pending_suggest then
-			pending_suggest = false
-			local stats = load_stats(stats_file)
-			handle_suggest(stats)
-		end
-
-	-- CHUNK_SESSION: the next LESSON is a chunk replay, not a real lesson
-	elseif line:match("^CHUNK_SESSION ") then
-		check_hash(line:match("^CHUNK_SESSION (%S+)"))
-		in_chunk_session = true
-
-	-- LESSON: new lesson starting; finalise any abandoned in-progress lesson
+	-- LESSON: new session starting; finalise any abandoned in-progress session
 	elseif line:match("^LESSON ") then
-		if in_chunk_session then
-			-- chunk replay: track notes for RESULT scoring only
-			local chunk_id = line:match("^LESSON (%S+)")
-			check_hash(chunk_id)
-			current = { id = chunk_id, max_bass_id = -1, results = {}, is_chunk = true }
-			in_chunk_session = false
-		else
-			if current and current.max_bass_id >= 0 and not current.results[current.max_bass_id] then
-				local stats = load_stats(stats_file)
-				finalize(stats)
-			end
-			local n = line:match("^LESSON (%S+)")
-			current = { id = n, max_bass_id = -1, results = {} }
+		local chunk_id = line:match("^LESSON (%S+)")
+		check_hash(chunk_id)
+		if current and current.max_bass_id >= 0 and not current.results[current.max_bass_id] then
+			local stats = load_stats(stats_file)
+			finalize(stats)
 		end
+		current = { id = chunk_id, max_bass_id = -1, results = {} }
 
-	-- BASSNOTE: track highest index to know when the lesson is complete
+	-- BASSNOTE: track highest index to know when the session is complete
 	elseif line:match("^BASSNOTE ") then
 		if current then
 			local bid = tonumber(line:match("^BASSNOTE (%d+):"))
@@ -875,14 +620,9 @@ for line in io.lines() do
 	elseif line:match("^QUERY_STATS") then
 		local stats = load_stats(stats_file)
 		print_stats_line(stats)
-	elseif line:match("^LOAD_LESSON") then
-		local stats = load_stats(stats_file)
-		print_stats_line(stats, line:match("LOAD_LESSON (%S+)"))
 	elseif line:match("^SUGGEST_LESSON") then
-		-- If no chunks registered yet (all.lua still running), defer until
-		-- the first CHUNK_NAME or CHUNK line arrives.
-		local has_chunks = next(scanned_chunks) ~= nil
-		if has_chunks then
+		-- Defer until first CHUNK_NAME arrives if all.lua is still scanning.
+		if next(scanned_chunks) ~= nil then
 			local stats = load_stats(stats_file)
 			handle_suggest(stats)
 		else
@@ -891,11 +631,6 @@ for line in io.lines() do
 	elseif line:match("^ALL_SCANNED") then
 		local stats = load_stats(stats_file)
 		local stale = {}
-		for id in pairs(stats.lessons) do
-			if tonumber(id) and not scanned_lessons[tostring(id)] then
-				stale[#stale + 1] = "lesson:" .. id
-			end
-		end
 		for h in pairs(stats.chunks) do
 			if not scanned_chunks[h] then
 				stale[#stale + 1] = "chunk:" .. h
@@ -903,13 +638,14 @@ for line in io.lines() do
 		end
 		if #stale > 0 then
 			table.sort(stale)
-			io.stderr:write("Error: stale entries in stats (not present in current lesson set):\n")
+			io.stderr:write("Error: stale entries in stats (not present in current chunk set):\n")
 			for _, s in ipairs(stale) do
 				io.stderr:write("  " .. s .. "\n")
 			end
 			os.exit(1)
 		end
 	end
+	::continue::
 end
 
 -- Handle a lesson that was still in progress at EOF
