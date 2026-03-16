@@ -1,0 +1,31 @@
+title: An Evening Hymn
+composer: Henry Purcell
+key: G
+time: 3/2
+bpm: 120
+bar: 43
+
+bassline = {
+  d2 cis2p b,2
+  cis2 b,2p a,2
+  b,2 a,2p g,2
+  a,2 g,2p fis,2
+  g,2 a,2 a,2
+}
+
+figures = {
+  0 0 6
+  6 0 #3/6
+  7 0 0
+  # 0 6
+  0 4 #
+}
+
+melody = {
+  d'1 r2
+  a'1 a'4 a'4
+  a'1.
+  a'1.
+  a'2 g'2 fis'4 g'4
+}
+
