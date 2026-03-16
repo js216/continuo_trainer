@@ -87,6 +87,7 @@ local ALGORITHM_DEFAULTS = {
 	overlearn_max = 15, -- max consecutive attempts before suggesting another chunk (ema_pass = 0)
 	mistake_power_penalty = 0.15, -- power_factor multiplied by (1-penalty) per failed session
 	mastery_decay_half_life = 90, -- days for mastery to halve without a mastery-improving session
+	skill_order = "", -- space-separated skill names; lower index = introduced earlier
 	weak_ema_thresh = 0.8, -- ema_pass below this marks a lesson as "needs_work"
 	ease_initial = 2.5, -- starting ease factor for new lessons
 	ease_min = 1.3, -- minimum ease factor
@@ -506,21 +507,39 @@ local all_scanned_received = false
 -- COMMAND HANDLERS
 -------------------------------------------------------------------------------
 
+-- Returns the skill rank of a chunk: the highest index of any of its skills in
+-- the skill_order string.  Chunks with no skills (level-0) get rank -1 so they
+-- are suggested last within the same level group.  Unknown skills get rank
+-- equal to the length of the ordering (appended at validation time).
+local function compute_skill_rank(hash, skill_order_str)
+	local skills = chunk_skills[hash]
+	if not skills or skills == "" then
+		return -1
+	end
+	local order = {}
+	local n = 0
+	for sk in skill_order_str:gmatch("%S+") do
+		order[sk] = n
+		n = n + 1
+	end
+	local rank = -1
+	for sk in skills:gmatch("%S+") do
+		local r = order[sk]
+		if r == nil then r = n end -- unknown: sort last
+		if r > rank then rank = r end
+	end
+	return rank
+end
+
 local function handle_suggest(stats)
 	local alg = stats.algorithm
-
-	-- Scan all known chunks for any that are weak or never played.
-	-- A level-N chunk is eligible only when all level-(N+1) children are mastered.
-	local weakest_hash, weakest_skills = nil, nil
-	local weakest_score = math.huge
-	local new_hash, new_skills = nil, nil
+	local candidates = {}
 
 	for h in pairs(scanned_chunks) do
 		local c = stats.chunks[h]
 		local level = (c and c.level) or 0
 
-		-- Check level-0 eligibility: all children must be mastered (or none).
-		-- Uses effective mastery (max of direct and transitive) for the check.
+		-- Check level-0 eligibility: all children must be mastered.
 		if level == 0 then
 			local kids = children_of[h]
 			if not kids then
@@ -535,31 +554,39 @@ local function handle_suggest(stats)
 			end
 		end
 
-		if not c or (not c.last_date and not c.t_last_date) then
-			if not new_hash then
-				new_hash, new_skills = h, chunk_skills[h] or "?"
-			end
-		elseif not c.last_date or (c.n_consecutive or 0) < alg.overlearn_min + (alg.overlearn_max - alg.overlearn_min) * (1.0 - (c.ema_pass or 1.0)) then
-			local m_pct = normalize(math.max(c.mastery or 0, c.t_mastery or 0), c)
-			local p_pct = normalize(calculate_effective_power(c, alg), c)
-			if m_pct < alg.chunk_mastery_thresh or p_pct < alg.chunk_power_thresh then
-				local score = m_pct + p_pct
-				if score < weakest_score then
-					weakest_score = score
-					weakest_hash = h
-					weakest_skills = chunk_skills[h] or "?"
-				end
-			end
+		local is_new = not c or (not c.last_date and not c.t_last_date)
+		local within_overlearn = c and c.last_date
+			and (c.n_consecutive or 0) < alg.overlearn_min + (alg.overlearn_max - alg.overlearn_min) * (1.0 - (c.ema_pass or 1.0))
+		local m_pct = c and normalize(math.max(c.mastery or 0, c.t_mastery or 0), c) or 0
+		local p_pct = c and normalize(calculate_effective_power(c, alg), c) or 0
+		local is_weak = m_pct < alg.chunk_mastery_thresh or p_pct < alg.chunk_power_thresh
+
+		if is_new or (within_overlearn and is_weak) then
+			candidates[#candidates + 1] = {
+				hash = h,
+				skill_rank = compute_skill_rank(h, alg.skill_order),
+				level = level,
+				score = m_pct + p_pct,
+				is_new = is_new,
+			}
 		end
 		::next_chunk::
 	end
 
-	if weakest_hash then
-		io.write(string.format("SUGGESTION chunk=%s skills=%s reason=weak_chunk\n", weakest_hash, weakest_skills))
-		return
-	end
-	if new_hash then
-		io.write(string.format("SUGGESTION chunk=%s skills=%s reason=new_chunk\n", new_hash, new_skills))
+	-- Sort: skill_rank ASC, level DESC, mastery+power ASC (weakest/newest first).
+	table.sort(candidates, function(a, b)
+		if a.skill_rank ~= b.skill_rank then return a.skill_rank < b.skill_rank end
+		if a.level ~= b.level then return a.level > b.level end
+		return a.score < b.score
+	end)
+
+	if #candidates > 0 then
+		local best = candidates[1]
+		local reason = best.is_new and "new_chunk" or "weak_chunk"
+		io.write(string.format(
+			"SUGGESTION chunk=%s skills=%s reason=%s\n",
+			best.hash, chunk_skills[best.hash] or "?", reason
+		))
 		return
 	end
 
@@ -821,6 +848,27 @@ for line in io.lines() do
 				io.stderr:write("  " .. s .. "\n")
 			end
 			os.exit(1)
+		end
+		-- Validate skill_order: every skill used by any chunk must appear in it.
+		local order_set = {}
+		for sk in stats.algorithm.skill_order:gmatch("%S+") do
+			order_set[sk] = true
+		end
+		local missing = {}
+		for _, sk_str in pairs(chunk_skills) do
+			for sk in sk_str:gmatch("%S+") do
+				if not order_set[sk] then
+					order_set[sk] = true -- avoid duplicates
+					missing[#missing + 1] = sk
+				end
+			end
+		end
+		if #missing > 0 then
+			table.sort(missing)
+			io.stderr:write("Warning: skills not in skill_order, appending: " .. table.concat(missing, " ") .. "\n")
+			local sep = stats.algorithm.skill_order == "" and "" or " "
+			stats.algorithm.skill_order = stats.algorithm.skill_order .. sep .. table.concat(missing, " ")
+			save_stats(stats_file, stats)
 		end
 		all_scanned_received = true
 		-- Query children for every level-0 chunk to build the children_of map.
