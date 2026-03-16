@@ -493,9 +493,14 @@ local function print_stats_line(stats, timestamp)
 	))
 end
 
--- Forward declarations: populated as lines arrive, consumed by handle_suggest.
+-- Forward declarations: populated as lines arrive, consumed by handle_suggest/finalize.
 local chunk_skills = {} -- { [hash] = skills_str }  populated from CHUNK_NAME line (level-1 only)
 local scanned_chunks = {} -- chunks announced via CHUNK_NAME this session
+local current = nil -- { id, max_bass_id, results={[i]={status,time}} }
+local pending_children = {} -- [hash] = {results, abs_s, abs_e}; awaiting CHILDREN response
+local children_of = {} -- [hash] = {child_hash, ...} built from CHILDREN responses
+local pending_child_queries = 0 -- outstanding startup QUERY_CHILDREN from ALL_SCANNED
+local all_scanned_received = false
 
 -------------------------------------------------------------------------------
 -- COMMAND HANDLERS
@@ -560,16 +565,6 @@ local function handle_suggest(stats)
 
 	io.write("SUGGESTION none reason=all_up_to_date\n")
 end
-
--------------------------------------------------------------------------------
--- IN-MEMORY LESSON ACCUMULATOR
--------------------------------------------------------------------------------
-
-local current = nil -- { id, max_bass_id, results={[i]={status,time}} }
-local pending_children = {} -- [hash] = {results, abs_s, abs_e}; awaiting CHILDREN response
-local children_of = {} -- [hash] = {child_hash, ...} built from CHILDREN responses
-local pending_child_queries = 0 -- outstanding startup QUERY_CHILDREN from ALL_SCANNED
-local all_scanned_received = false
 
 -------------------------------------------------------------------------------
 -- LESSON FINALISATION
