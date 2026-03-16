@@ -15,8 +15,6 @@
 //     ESC   Close the window and exit.
 //     Q     Clear the current lesson display.
 //     R     Reload: re-emit LOAD_CHUNK for the current item.
-//     P     Previous level-0 chunk.
-//     N     Next level-0 chunk.
 //     S     Emit SUGGEST_LESSON to get the best item to practice next.
 //     K     Toggle karaoke mode (emits KARAOKE_ON / KARAOKE_OFF).
 //
@@ -146,36 +144,6 @@ static void reload_lesson(void)
 	clear_status();
 }
 
-static void next_lesson(void)
-{
-	if (state.num_level0 < 1)
-		return;
-	printf("KARAOKE_OFF\n");
-	state.current_level0_idx =
-	    (state.current_level0_idx + 1) % state.num_level0;
-	state.current_chunk[0] = '\0';
-	state.karaoke_on = false;
-	printf("LOAD_CHUNK %s\n",
-	       state.level0_hashes[state.current_level0_idx]);
-	fflush(stdout);
-	clear_status();
-}
-
-static void prev_lesson(void)
-{
-	if (state.num_level0 < 1)
-		return;
-	printf("KARAOKE_OFF\n");
-	state.current_level0_idx =
-	    (state.current_level0_idx - 1 + state.num_level0) % state.num_level0;
-	state.current_chunk[0] = '\0';
-	state.karaoke_on = false;
-	printf("LOAD_CHUNK %s\n",
-	       state.level0_hashes[state.current_level0_idx]);
-	fflush(stdout);
-	clear_status();
-}
-
 static void suggest_lesson(void)
 {
 	printf("KARAOKE_OFF\n");
@@ -206,12 +174,6 @@ static void key_callback(GLFWwindow *window, int key, int scancode, int action,
 			break;
 		case GLFW_KEY_R:
 			reload_lesson();
-			break;
-		case GLFW_KEY_P:
-			prev_lesson();
-			break;
-		case GLFW_KEY_N:
-			next_lesson();
 			break;
 		case GLFW_KEY_S:
 			suggest_lesson();
@@ -443,8 +405,8 @@ static void parse_line(const char *buf)
 		return;
 	}
 	if (strncmp(buf, "ALL_SCANNED", 11) == 0) {
-		if (!state.initial_load_done && state.num_level0 > 0) {
-			printf("LOAD_CHUNK %s\n", state.level0_hashes[0]);
+		if (!state.initial_load_done) {
+			printf("SUGGEST_LESSON\n");
 			fflush(stdout);
 			state.initial_load_done = true;
 		}
@@ -805,14 +767,6 @@ static void gui_main(void)
 	ImGui::SameLine();
 	if (ImGui::Button("[R]eload"))
 		reload_lesson();
-
-	ImGui::SameLine();
-	if (ImGui::Button("[P]rev"))
-		prev_lesson();
-
-	ImGui::SameLine();
-	if (ImGui::Button("[N]ext"))
-		next_lesson();
 
 	ImGui::SameLine();
 	if (ImGui::Button("[S]uggest"))
