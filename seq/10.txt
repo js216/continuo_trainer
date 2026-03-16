@@ -28,4 +28,3 @@ melody = {
   a'1.
   a'2 g'2 fis'4 g'4
 }
-
