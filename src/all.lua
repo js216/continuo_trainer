@@ -18,13 +18,20 @@
 --      a long-lived process (e.g. bin/gui) to keep it alive.
 --
 -- INPUT
---      RESCAN      Repeat the full scan-and-emit cycle.
+--      RESCAN              Repeat the full scan-and-emit cycle.
+--      LOAD_CHUNK <hash>   Load chn/<hash>.txt and emit the lesson protocol.
 --      (all other lines are silently ignored)
 --
 -- OUTPUT
 --      LESSON_NAME <n>             One per lesson, in ascending numeric order.
 --      CHUNK_NAME <hash> <level>   One per unique chunk (level 0 or 1).
 --      ALL_SCANNED                 Emitted once after a clean scan.
+--      CHUNK_SESSION <hash>        Before LESSON/BASSNOTE/FIGURES/MELODY/LESSON_END.
+--      LESSON <hash> <key> <time> <bpm> <bar>
+--      BASSNOTE <i>: <token> [passing]
+--      FIGURES <i>: <token>
+--      MELODY <i>: <tokens|-|>
+--      LESSON_END
 
 local CONTEXT_LEFT = 1
 local CONTEXT_RIGHT = 1
@@ -530,6 +537,172 @@ local function load_lesson(n)
 	return lesson
 end
 
+-- ── LOAD_CHUNK: parse chunk file and emit protocol ───────────────────────────
+
+local function is_passing_tok(tok)
+	if tok:sub(-1) ~= "p" then
+		return false
+	end
+	local pre = tok:sub(-2, -2)
+	return pre:match("%d") ~= nil or pre == "."
+end
+
+local function parse_chunk(content)
+	local r = {
+		title = "",
+		composer = "",
+		key = "C",
+		time = "4/4",
+		bpm = 120,
+		bar = 1,
+		bass = {},
+		figures = {},
+		melody = {},
+	}
+	local mode = ""
+	for line in (content .. "\n"):gmatch("([^\n]*)\n") do
+		local l = line:match("^%s*(.-)%s*$")
+		if l == "" then
+			goto cont
+		end
+		if mode == "" then
+			local v
+			v = l:match("^title:%s*(.-)%s*$")
+			if v and v ~= "" then
+				r.title = v
+				goto cont
+			end
+			v = l:match("^composer:%s*(.-)%s*$")
+			if v and v ~= "" then
+				r.composer = v
+				goto cont
+			end
+			v = l:match("^key:%s*(.-)%s*$")
+			if v and v ~= "" then
+				r.key = v
+				goto cont
+			end
+			v = l:match("^time:%s*(.-)%s*$")
+			if v and v ~= "" then
+				r.time = v
+				goto cont
+			end
+			v = l:match("^bpm:%s*(%d+)%s*$")
+			if v then
+				r.bpm = tonumber(v) or r.bpm
+				goto cont
+			end
+			v = l:match("^bar:%s*(%d+)%s*$")
+			if v then
+				r.bar = tonumber(v) or r.bar
+				goto cont
+			end
+			if l:match("^bassline") then
+				mode = "bass"
+				goto cont
+			end
+			if l:match("^figures") then
+				mode = "fig"
+				goto cont
+			end
+			if l:match("^melody") then
+				mode = "mel"
+				goto cont
+			end
+		elseif l:match("^}") then
+			mode = ""
+		else
+			for tok in l:gmatch("%S+") do
+				if mode == "bass" then
+					r.bass[#r.bass + 1] = tok
+				elseif mode == "fig" then
+					r.figures[#r.figures + 1] = tok
+				elseif mode == "mel" then
+					r.melody[#r.melody + 1] = tok
+				end
+			end
+		end
+		::cont::
+	end
+	return r
+end
+
+local function group_melody_tokens(bass, melody)
+	local last_dur = 4
+	local bass_durs = {}
+	for i, tok in ipairs(bass) do
+		local d = dur_sixteenths(tok)
+		if d then
+			last_dur = d
+		end
+		bass_durs[i] = last_dur
+	end
+
+	local groups = {}
+	for i = 1, #bass do
+		groups[i] = ""
+	end
+
+	local mel_idx = 1
+	local last_mel_dur = 4
+	local bass_total = 0
+	local mel_total = 0
+
+	for bi, bd in ipairs(bass_durs) do
+		bass_total = bass_total + bd
+		while mel_total < bass_total and mel_idx <= #melody do
+			local tok = melody[mel_idx]
+			local d = dur_sixteenths(tok)
+			if d then
+				last_mel_dur = d
+			else
+				d = last_mel_dur
+			end
+			if groups[bi] ~= "" then
+				groups[bi] = groups[bi] .. " "
+			end
+			groups[bi] = groups[bi] .. tok
+			mel_total = mel_total + d
+			mel_idx = mel_idx + 1
+		end
+	end
+	return groups
+end
+
+local function load_chunk(hash)
+	local path = "chn/" .. hash .. ".txt"
+	local f = io.open(path, "rb")
+	if not f then
+		die("Cannot read %s", path)
+	end
+	local content = f:read("*a")
+	f:close()
+
+	local lesson = parse_chunk(content)
+	if #lesson.bass ~= #lesson.figures then
+		die("Length mismatch in %s: bass=%d figures=%d", path, #lesson.bass, #lesson.figures)
+	end
+
+	local groups = group_melody_tokens(lesson.bass, lesson.melody)
+
+	io.write("CHUNK_SESSION " .. hash .. "\n")
+	io.write(string.format("LESSON %s %s %s %d %d\n", hash, lesson.key, lesson.time, lesson.bpm, lesson.bar))
+	for i, tok in ipairs(lesson.bass) do
+		local passing = is_passing_tok(tok)
+		local clean = passing and tok:sub(1, -2) or tok
+		if passing then
+			io.write(string.format("BASSNOTE %d: %s passing\n", i - 1, clean))
+		else
+			io.write(string.format("BASSNOTE %d: %s\n", i - 1, clean))
+		end
+		io.write(string.format("FIGURES %d: %s\n", i - 1, lesson.figures[i]))
+		local mel = groups[i]
+		io.write(string.format("MELODY %d: %s\n", i - 1, mel ~= "" and mel or "-"))
+	end
+	io.write("LESSON_END\n")
+	io.flush()
+end
+
 -- ── lesson scanning ───────────────────────────────────────────────────────────
 
 local function collect_lessons()
@@ -631,5 +804,10 @@ for line in io.lines() do
 	line = line:gsub("\r", "")
 	if line == "RESCAN" then
 		scan_and_emit()
+	else
+		local hash = line:match("^LOAD_CHUNK (%S+)$")
+		if hash then
+			load_chunk(hash)
+		end
 	end
 end
