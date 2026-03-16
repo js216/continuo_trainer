@@ -426,12 +426,29 @@ local function handle_suggest(stats)
 	local alg = stats.algorithm
 
 	-- Scan all known chunks for any that are weak or never played.
+	-- A level-N chunk is eligible only when all level-(N+1) children are mastered.
 	local weakest_hash, weakest_skills = nil, nil
 	local weakest_score = math.huge
 	local new_hash, new_skills = nil, nil
 
 	for h in pairs(scanned_chunks) do
 		local c = stats.chunks[h]
+		local level = (c and c.level) or 0
+
+		-- Check level-0 eligibility: all children must be mastered (or none).
+		if level == 0 then
+			local kids = children_of[h]
+			if not kids then
+				goto next_chunk -- children map not ready yet
+			end
+			for _, kh in ipairs(kids) do
+				local kc = stats.chunks[kh]
+				if not kc or normalize(kc.mastery or 0, kc) < alg.chunk_mastery_thresh then
+					goto next_chunk
+				end
+			end
+		end
+
 		if not c or not c.last_date then
 			if not new_hash then
 				new_hash, new_skills = h, chunk_skills[h] or "?"
@@ -448,6 +465,7 @@ local function handle_suggest(stats)
 				end
 			end
 		end
+		::next_chunk::
 	end
 
 	if weakest_hash then
@@ -468,6 +486,9 @@ end
 
 local current = nil -- { id, max_bass_id, results={[i]={status,time}} }
 local pending_children = {} -- [hash] = {results, abs_s, abs_e}; awaiting CHILDREN response
+local children_of = {} -- [hash] = {child_hash, ...} built from CHILDREN responses
+local pending_child_queries = 0 -- outstanding startup QUERY_CHILDREN from ALL_SCANNED
+local all_scanned_received = false
 
 -------------------------------------------------------------------------------
 -- LESSON FINALISATION
@@ -580,11 +601,6 @@ for line in io.lines() do
 			stats.chunks[h].level = level
 			save_stats(stats_file, stats)
 		end
-		if pending_suggest then
-			pending_suggest = false
-			handle_suggest(load_stats(stats_file))
-		end
-
 	-- LESSON: new session starting; finalise any abandoned in-progress session
 	elseif line:match("^LESSON ") then
 		local chunk_id = line:match("^LESSON (%S+)")
@@ -621,35 +637,60 @@ for line in io.lines() do
 			end
 		end
 
-	-- CHILDREN: downward-finalize child slices from a completed parent session
+	-- CHILDREN: response to QUERY_CHILDREN; handles both startup map-building
+	--           and downward finalize after a completed parent session.
 	elseif line:match("^CHILDREN ") then
 		local phash = line:match("^CHILDREN (%S+)")
 		if not phash then
 			goto continue
 		end
+
+		-- Parse child descriptors from the line.
+		local suffix = line:sub(#"CHILDREN " + #phash + 1)
+		local child_list = {}
+		for child_entry in suffix:gmatch("%S+") do
+			local ch, rs, re = child_entry:match("^(%x+):(%d+):(%d+)$")
+			if ch then
+				child_list[#child_list + 1] = { hash = ch, s = tonumber(rs), e = tonumber(re) }
+			end
+		end
+
+		-- Always update the children_of map.
+		children_of[phash] = {}
+		for _, ci in ipairs(child_list) do
+			children_of[phash][#children_of[phash] + 1] = ci.hash
+		end
+
 		local pending = pending_children[phash]
 		pending_children[phash] = nil
+
 		if not pending then
+			-- Startup query: decrement counter; resolve any deferred suggest.
+			if pending_child_queries > 0 then
+				pending_child_queries = pending_child_queries - 1
+			end
+			if pending_child_queries == 0 and pending_suggest then
+				pending_suggest = false
+				handle_suggest(load_stats(stats_file))
+			end
 			goto continue
 		end
+
+		-- Finalize query: update each child's stats entry.
 		local stats = load_stats(stats_file)
-		local suffix = line:sub(#"CHILDREN " + #phash + 1)
-		for child_entry in suffix:gmatch("%S+") do
-			local child_hash, rel_s_str, rel_e_str = child_entry:match("^(%x+):(%d+):(%d+)$")
-			if child_hash then
-				local abs_s = pending.abs_s + tonumber(rel_s_str)
-				local abs_e = pending.abs_s + tonumber(rel_e_str)
-				local sd = compute_score_data(pending.results, abs_s, abs_e)
-				if sd then
-					local alg = stats.algorithm
-					local c = stats.chunks[child_hash]
-						or { ease = alg.ease_initial, ivl = 0, mastery = 0, total_duration = 0, max_groups = 0 }
-					update_entry(c, sd, alg)
-					stats.chunks[child_hash] = c
-				end
-				pending_children[child_hash] = { results = pending.results, abs_s = abs_s, abs_e = abs_e }
-				io.write("QUERY_CHILDREN " .. child_hash .. "\n")
+		for _, ci in ipairs(child_list) do
+			local abs_s = pending.abs_s + ci.s
+			local abs_e = pending.abs_s + ci.e
+			local sd = compute_score_data(pending.results, abs_s, abs_e)
+			if sd then
+				local alg = stats.algorithm
+				local c = stats.chunks[ci.hash]
+					or { ease = alg.ease_initial, ivl = 0, mastery = 0, total_duration = 0, max_groups = 0 }
+				update_entry(c, sd, alg)
+				stats.chunks[ci.hash] = c
 			end
+			pending_children[ci.hash] = { results = pending.results, abs_s = abs_s, abs_e = abs_e }
+			io.write("QUERY_CHILDREN " .. ci.hash .. "\n")
 		end
 		save_stats(stats_file, stats)
 
@@ -658,8 +699,8 @@ for line in io.lines() do
 		local stats = load_stats(stats_file)
 		print_stats_line(stats)
 	elseif line:match("^SUGGEST_LESSON") then
-		-- Defer until first CHUNK_NAME arrives if all.lua is still scanning.
-		if next(scanned_chunks) ~= nil then
+		-- Defer until ALL_SCANNED received and children_of map is fully built.
+		if all_scanned_received and pending_child_queries == 0 then
 			local stats = load_stats(stats_file)
 			handle_suggest(stats)
 		else
@@ -680,6 +721,19 @@ for line in io.lines() do
 				io.stderr:write("  " .. s .. "\n")
 			end
 			os.exit(1)
+		end
+		all_scanned_received = true
+		-- Query children for every level-0 chunk to build the children_of map.
+		for h in pairs(scanned_chunks) do
+			local c = stats.chunks[h]
+			if c and (c.level or 0) == 0 then
+				pending_child_queries = pending_child_queries + 1
+				io.write("QUERY_CHILDREN " .. h .. "\n")
+			end
+		end
+		if pending_child_queries == 0 and pending_suggest then
+			pending_suggest = false
+			handle_suggest(stats)
 		end
 	end
 	::continue::
