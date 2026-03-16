@@ -18,8 +18,9 @@
 --      a long-lived process (e.g. bin/gui) to keep it alive.
 --
 -- INPUT
---      RESCAN              Repeat the full scan-and-emit cycle.
---      LOAD_CHUNK <hash>   Load chn/<hash>.txt and emit the lesson protocol.
+--      RESCAN                  Repeat the full scan-and-emit cycle.
+--      LOAD_CHUNK <hash>       Load chn/<hash>.txt and emit the lesson protocol.
+--      QUERY_CHILDREN <hash>   Emit CHILDREN line for the given chunk.
 --      (all other lines are silently ignored)
 --
 -- OUTPUT
@@ -419,8 +420,9 @@ end
 
 -- ── level-1 chunk generation ──────────────────────────────────────────────────
 
--- Returns a list of hashes for every level-1 chunk written for this lesson.
-local function process_lesson(lesson_n, key, time_sig, bpm, lesson_bar, title, composer, bass, passing, figures, melody)
+-- Compute children for a set of lesson arrays.
+-- Returns a list of {hash, s, e} (1-indexed, deduped by hash).
+local function compute_children(key, time_sig, bpm, lesson_bar, title, composer, bass, passing, figures, melody)
 	local N = #bass
 	local hearts = identify_hearts(figures)
 	local note_heart = {}
@@ -430,7 +432,8 @@ local function process_lesson(lesson_n, key, time_sig, bpm, lesson_bar, title, c
 		end
 	end
 
-	local hashes = {}
+	local children = {}
+	local seen_hashes = {}
 	for _, heart in ipairs(hearts) do
 		local s = math.max(1, heart.s - CONTEXT_LEFT)
 		local e = math.min(N, heart.e + CONTEXT_RIGHT)
@@ -470,7 +473,20 @@ local function process_lesson(lesson_n, key, time_sig, bpm, lesson_bar, title, c
 		content = content:gsub("\r\n", "\n"):gsub("\r", "\n")
 		local hash = sha1(content)
 		write_chunk(hash, content)
-		hashes[#hashes + 1] = hash
+		if not seen_hashes[hash] then
+			seen_hashes[hash] = true
+			children[#children + 1] = { hash = hash, s = s, e = e }
+		end
+	end
+	return children
+end
+
+-- Returns a list of hashes for every level-1 chunk written for this lesson.
+local function process_lesson(lesson_n, key, time_sig, bpm, lesson_bar, title, composer, bass, passing, figures, melody)
+	local children = compute_children(key, time_sig, bpm, lesson_bar, title, composer, bass, passing, figures, melody)
+	local hashes = {}
+	for _, c in ipairs(children) do
+		hashes[#hashes + 1] = c.hash
 	end
 	return hashes
 end
@@ -641,6 +657,49 @@ local function load_chunk(hash)
 	io.flush()
 end
 
+-- ── QUERY_CHILDREN: emit child slice descriptors for a chunk ─────────────────
+
+local function handle_query_children(hash)
+	local path = "chn/" .. hash .. ".txt"
+	local f = io.open(path, "rb")
+	if not f then
+		die("Cannot read %s", path)
+	end
+	local content = f:read("*a")
+	f:close()
+
+	-- Only level-0 chunks have children; for others emit empty CHILDREN.
+	local level = tonumber(content:match("level:%s*(%d+)") or "")
+	if not level or level ~= 0 then
+		io.write("CHILDREN " .. hash .. "\n")
+		io.flush()
+		return
+	end
+
+	local raw = parse_chunk(content)
+	local bass = {}
+	local passing = {}
+	for _, tok in ipairs(raw.bass) do
+		local p = is_passing_tok(tok)
+		bass[#bass + 1] = p and tok:sub(1, -2) or tok
+		passing[#passing + 1] = p
+	end
+	local groups = group_melody_tokens(raw.bass, raw.melody)
+	local melody = {}
+	for i = 1, #groups do
+		melody[i] = groups[i] ~= "" and groups[i] or "-"
+	end
+
+	local children =
+		compute_children(raw.key, raw.time, raw.bpm, raw.bar, raw.title, raw.composer, bass, passing, raw.figures, melody)
+	local parts = { hash }
+	for _, c in ipairs(children) do
+		parts[#parts + 1] = c.hash .. ":" .. (c.s - 1) .. ":" .. (c.e - 1)
+	end
+	io.write("CHILDREN " .. table.concat(parts, " ") .. "\n")
+	io.flush()
+end
+
 -- ── native seq-file parsing for level-1 chunk generation ─────────────────────
 
 local function load_lesson(n)
@@ -788,6 +847,11 @@ for line in io.lines() do
 		local hash = line:match("^LOAD_CHUNK (%S+)$")
 		if hash then
 			load_chunk(hash)
+		else
+			hash = line:match("^QUERY_CHILDREN (%S+)$")
+			if hash then
+				handle_query_children(hash)
+			end
 		end
 	end
 end

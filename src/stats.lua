@@ -467,6 +467,7 @@ end
 -------------------------------------------------------------------------------
 
 local current = nil -- { id, max_bass_id, results={[i]={status,time}} }
+local pending_children = {} -- [hash] = {results, abs_s, abs_e}; awaiting CHILDREN response
 
 -------------------------------------------------------------------------------
 -- LESSON FINALISATION
@@ -525,7 +526,11 @@ local function finalize(stats)
 			suggestion and (" suggestion=" .. suggestion) or ""
 		)
 	)
+	local saved_results = current.results
+	local saved_max_bass_id = current.max_bass_id
 	current = nil
+	pending_children[hash] = { results = saved_results, abs_s = 0, abs_e = saved_max_bass_id }
+	io.write("QUERY_CHILDREN " .. hash .. "\n")
 end
 
 -------------------------------------------------------------------------------
@@ -615,6 +620,38 @@ for line in io.lines() do
 				end
 			end
 		end
+
+	-- CHILDREN: downward-finalize child slices from a completed parent session
+	elseif line:match("^CHILDREN ") then
+		local phash = line:match("^CHILDREN (%S+)")
+		if not phash then
+			goto continue
+		end
+		local pending = pending_children[phash]
+		pending_children[phash] = nil
+		if not pending then
+			goto continue
+		end
+		local stats = load_stats(stats_file)
+		local suffix = line:sub(#"CHILDREN " + #phash + 1)
+		for child_entry in suffix:gmatch("%S+") do
+			local child_hash, rel_s_str, rel_e_str = child_entry:match("^(%x+):(%d+):(%d+)$")
+			if child_hash then
+				local abs_s = pending.abs_s + tonumber(rel_s_str)
+				local abs_e = pending.abs_s + tonumber(rel_e_str)
+				local sd = compute_score_data(pending.results, abs_s, abs_e)
+				if sd then
+					local alg = stats.algorithm
+					local c = stats.chunks[child_hash]
+						or { ease = alg.ease_initial, ivl = 0, mastery = 0, total_duration = 0, max_groups = 0 }
+					update_entry(c, sd, alg)
+					stats.chunks[child_hash] = c
+				end
+				pending_children[child_hash] = { results = pending.results, abs_s = abs_s, abs_e = abs_e }
+				io.write("QUERY_CHILDREN " .. child_hash .. "\n")
+			end
+		end
+		save_stats(stats_file, stats)
 
 	-- GUI commands
 	elseif line:match("^QUERY_STATS") then

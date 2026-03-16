@@ -18,6 +18,7 @@ lua src/rules.lua -> bin/gui;
 lua src/stats.lua log/stats.log -> bin/gui;
 bin/gui -> lua src/stats.lua log/stats.log;
 bin/gui -> lua src/all.lua;
+lua src/stats.lua log/stats.log -> lua src/all.lua;
 bin/gui -> bin/karaoke;
 
 // logging
