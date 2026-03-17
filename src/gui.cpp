@@ -12,11 +12,11 @@
 //     non-blocking so the UI remains responsive.
 //
 // KEYBOARD SHORTCUTS
-//     ESC   Close the window and exit.
-//     Q     Clear the current lesson display.
-//     R     Reload: re-emit LOAD_CHUNK for the current item.
-//     S     Emit SUGGEST_LESSON to get the best item to practice next.
-//     K     Toggle karaoke mode (emits KARAOKE_ON / KARAOKE_OFF).
+//     ESC         Close the window and exit.
+//     Q           Clear the current lesson display.
+//     R           Reload: re-emit LOAD_CHUNK for the current item.
+//     S / SPACE   Emit SUGGEST_LESSON to get the best item to practice next.
+//     K           Toggle karaoke mode (emits KARAOKE_ON / KARAOKE_OFF).
 //
 // RECEIVED (stdin, from stats.lua, all.lua, and bin/karaoke)
 //     BASSNOTE <i>: <token> [passing]
@@ -58,6 +58,7 @@
 #include <ctime>
 #include <ctype.h>
 #include <fcntl.h>
+#include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -84,6 +85,7 @@ struct status_line {
 
 	// today
 	int pts = 0;
+	float goal = 0.0f;
 	int pts_delta = 0; // points earned on the last completed lesson
 	double pts_delta_time =
 	    -1e9; // initialised far in the past; never triggers on startup
@@ -177,6 +179,7 @@ static void key_callback(GLFWwindow *window, int key, int scancode, int action,
 			reload_lesson();
 			break;
 		case GLFW_KEY_S:
+		case GLFW_KEY_SPACE:
 			suggest_lesson();
 			break;
 		case GLFW_KEY_K:
@@ -266,8 +269,10 @@ static void handle_stats(const char *buf)
 		sscanf(p, "total_today=%f", &total);
 
 	p = strstr(buf, "goal=");
-	if (p)
+	if (p) {
 		sscanf(p, "goal=%f", &goal);
+		state.status.goal = goal;
+	}
 
 	p = strstr(buf, "streak=");
 	if (p)
@@ -619,90 +624,71 @@ static const char *expand_suggestion(const char *s)
 	return s; // fallback: show the raw token
 }
 
-static void show_status_line(void)
+static void show_stats_bar(void)
 {
 	const status_line &s = state.status;
 
-	// Chunk label: short hash + mastery/power when available.
 	const char *hash = state.current_chunk[0]
 	    ? state.current_chunk
 	    : (state.num_level0 > 0
 		   ? state.level0_hashes[state.current_level0_idx]
 		   : "");
-	char lesson_buf[48];
-	if (s.mastery > 0.0f || s.power > 0.0f)
-		snprintf(lesson_buf, sizeof(lesson_buf), "%.8s %.1f/%.1f", hash,
-			 s.mastery, s.power);
-	else
-		snprintf(lesson_buf, sizeof(lesson_buf), "%.8s", hash);
 
-	// Points field.
-	char pts_buf[48];
-	snprintf(pts_buf, sizeof(pts_buf), "%d pts", s.pts);
-
-	// Build the full status text.
-	char text_buf[256];
-	if (s.goal_met) {
-		if (s.slowest != 0.0f)
-			snprintf(text_buf, sizeof(text_buf),
-				 "%s: %g%% %.1fs | %s | streak: %d", lesson_buf,
-				 s.acc, s.slowest, pts_buf, s.streak);
-		else
-			snprintf(text_buf, sizeof(text_buf),
-				 "%s | %s | streak: %d", lesson_buf, pts_buf,
-				 s.streak);
-	} else {
-		if (s.slowest != 0.0f)
-			snprintf(text_buf, sizeof(text_buf),
-				 "%s: %g%% %.1fs | %s", lesson_buf, s.acc,
-				 s.slowest, pts_buf);
-		else
-			snprintf(text_buf, sizeof(text_buf), "%s | %s",
-				 lesson_buf, pts_buf);
-	}
-
-	float text_w = ImGui::CalcTextSize(text_buf).x;
-
-	// If a suggestion arrived recently, override the status text for 1
-	// second.
-	const char *display_text = text_buf;
-	char suggestion_buf[64] = "";
-	double age = glfwGetTime() - s.suggestion_time;
-	if (s.suggestion[0] != '\0' && age < 1.0) {
-		strncpy(suggestion_buf, expand_suggestion(s.suggestion),
-			sizeof(suggestion_buf) - 1);
-		display_text = suggestion_buf;
-		text_w = ImGui::CalcTextSize(display_text).x;
-	}
-
-	// Ideal position: right edge of text aligns with right edge of the
-	// image. The image is rendered at the window's content origin (x =
-	// window_x + padding), so its right edge is at that same x plus
-	// state.image_width.
-	float content_x =
-	    ImGui::GetWindowPos().x + ImGui::GetWindowContentRegionMin().x;
-	float right_edge = content_x + (float)state.image_width;
-	float ideal_x = right_edge - text_w;
-
-	// Fallback position: just after the buttons (current cursor after
-	// SameLine).
 	ImGui::SameLine();
-	float after_buttons_x = ImGui::GetCursorScreenPos().x;
-
-	// Use whichever is further right (i.e. don't collide into buttons).
-	float text_x = (ideal_x > after_buttons_x) ? ideal_x : after_buttons_x;
-
-	ImGui::SetCursorScreenPos(
-	    ImVec2(text_x, ImGui::GetCursorScreenPos().y));
-
-	if (s.suggestion[0] != '\0' && age < 1.0)
-		ImGui::TextColored(ImVec4(1.0f, 0.85f, 0.1f, 1.0f), "%s",
-				   display_text);
-	else if (s.goal_met)
-		ImGui::TextColored(ImVec4(0.0f, 1.0f, 0.4f, 1.0f), "%s",
-				   display_text);
+	if (hash[0])
+		ImGui::Text("%.8s", hash);
 	else
-		ImGui::TextUnformatted(display_text);
+		ImGui::Text("--");
+
+	float bar_w = 70.0f;
+	float bar_h = ImGui::GetFrameHeight() * 0.55f;
+
+	// Mastery bar (green)
+	char m_label[16];
+	snprintf(m_label, sizeof(m_label), "M %.1f", s.mastery);
+	float m_frac = fminf(s.mastery / 100.0f, 1.0f);
+	ImGui::SameLine();
+	ImGui::PushStyleColor(ImGuiCol_PlotHistogram,
+			      ImVec4(0.2f, 0.8f, 0.3f, 1.0f));
+	ImGui::ProgressBar(m_frac, ImVec2(bar_w, bar_h), m_label);
+	ImGui::PopStyleColor();
+
+	// Power bar (orange)
+	char p_label[16];
+	snprintf(p_label, sizeof(p_label), "P %.1f", s.power);
+	float p_frac = fminf(s.power / 100.0f, 1.0f);
+	ImGui::SameLine();
+	ImGui::PushStyleColor(ImGuiCol_PlotHistogram,
+			      ImVec4(0.9f, 0.6f, 0.1f, 1.0f));
+	ImGui::ProgressBar(p_frac, ImVec2(bar_w, bar_h), p_label);
+	ImGui::PopStyleColor();
+
+	// Daily goal: progress bar or streak
+	ImGui::SameLine();
+	if (s.goal_met) {
+		ImGui::TextColored(ImVec4(0.0f, 1.0f, 0.4f, 1.0f),
+				   "streak: %d", s.streak);
+	} else {
+		char d_label[16];
+		snprintf(d_label, sizeof(d_label), "%d pts", s.pts);
+		float d_frac = (s.goal > 0.0f)
+		    ? fminf((float)s.pts / s.goal, 1.0f)
+		    : 0.0f;
+		ImGui::PushStyleColor(ImGuiCol_PlotHistogram,
+				      ImVec4(0.2f, 0.5f, 0.9f, 1.0f));
+		ImGui::ProgressBar(d_frac, ImVec2(bar_w, bar_h), d_label);
+		ImGui::PopStyleColor();
+	}
+}
+
+static void show_info_line(void)
+{
+	const status_line &s = state.status;
+	double age = glfwGetTime() - s.suggestion_time;
+	if (s.suggestion[0] == '\0' || age >= 1.0)
+		return;
+	const char *text = expand_suggestion(s.suggestion);
+	ImGui::TextColored(ImVec4(1.0f, 0.85f, 0.1f, 1.0f), "%s", text);
 }
 
 static void show_celebration(void)
@@ -753,6 +739,7 @@ static void show_celebration(void)
 
 static void gui_main(void)
 {
+	// ── Row 1: buttons + stats bar ────────────────────────────────────────
 	ImGui::SameLine();
 	if (ImGui::Button("[Q]uit"))
 		quit_lesson();
@@ -775,13 +762,26 @@ static void gui_main(void)
 	if (karaoke_was_on)
 		ImGui::PopStyleColor();
 
-	show_status_line();
+	show_stats_bar();
+
+	// ── Content ───────────────────────────────────────────────────────────
 	show_music();
 	show_squares();
 
 	if (state.explanation[0] != '\0')
 		ImGui::TextUnformatted(state.explanation);
 
+	// ── Push info line to bottom ──────────────────────────────────────────
+	float line_h = ImGui::GetTextLineHeightWithSpacing();
+	float pad_y = ImGui::GetStyle().WindowPadding.y;
+	float win_bottom =
+	    ImGui::GetWindowPos().y + ImGui::GetWindowSize().y - pad_y;
+	float cursor_y = ImGui::GetCursorScreenPos().y;
+	float remaining = win_bottom - cursor_y - line_h;
+	if (remaining > 0.0f)
+		ImGui::Dummy(ImVec2(0.0f, remaining));
+
+	show_info_line();
 	show_celebration();
 	check_new_day();
 }
