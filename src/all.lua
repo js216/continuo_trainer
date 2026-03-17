@@ -486,7 +486,7 @@ local function process_lesson(lesson_n, key, time_sig, bpm, lesson_bar, title, c
 	local children = compute_children(key, time_sig, bpm, lesson_bar, title, composer, bass, passing, figures, melody)
 	local result = {}
 	for _, c in ipairs(children) do
-		result[#result + 1] = { hash = c.hash, skills = c.skills }
+		result[#result + 1] = { hash = c.hash, skills = c.skills, s = c.s, e = c.e }
 	end
 	return result
 end
@@ -813,11 +813,17 @@ local function scan_and_emit()
 			lesson.figures,
 			lesson.melody
 		)
+		local child_parts = { hash0 }
 		for _, c in ipairs(chunks1) do
 			live_chunks[c.hash] = true
 			io.write("CHUNK_NAME " .. c.hash .. " 1 " .. c.skills .. "\n")
 			io.flush()
+			child_parts[#child_parts + 1] = c.hash .. ":" .. (c.s - 1) .. ":" .. (c.e - 1)
 		end
+		-- Emit parent→children mapping so stats.lua can persist it without a
+		-- QUERY_CHILDREN round-trip at startup.
+		io.write("CHILDREN " .. table.concat(child_parts, " ") .. "\n")
+		io.flush()
 	end
 
 	-- ── stale-file check ──────────────────────────────────────────────────────
@@ -846,8 +852,6 @@ end
 -- ── main ──────────────────────────────────────────────────────────────────────
 
 io.stdout:setvbuf("line")
-
-scan_and_emit()
 
 for line in io.lines() do
 	line = line:gsub("\r", "")

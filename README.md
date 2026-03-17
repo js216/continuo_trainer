@@ -8,8 +8,13 @@ style while adapting exercises through spaced repetition and gamified learning.
 
 ### Usage
 
+First, make sure all chunks are up to date:
+
     cd continuo_trainer
-    make
+    make index all
+
+Then, open the program and practice:
+
     bin/run src/play.dot
 
 ### Implementation
@@ -21,20 +26,12 @@ standard input and output. (See `play.dot` for the graph.)
 
 Select the first item from the following paragraphs and present a thorough
 implementation plan, then confirm with me before implementing. When I give the
-ho ahead to implement, remove the paragaph from this file and prepare a commit
+go ahead to implement, remove the paragaph from this file and prepare a commit
 message for me to accept or reject. You are allowed to "read ahead" to prepare a
 plan that will make sense in light of the future edits, but each edit show be
 entirely self-contained and working and usable.
 
 ---
-
-Don't rescan at every startup. Currently, startup is very slow because we rescan
-all chunks. Instead, chunking will be done a single time through the command
-line `lua src/all.lua | lua src/stats.lua statsfile.log` or similar, at which
-time we also run the Lilypond makefile recipe to make the scheet music PNGs, and
-verify there are no stale chunks in the stats log (print all stale entries in
-such case). To keep the startup fast, stats only needs to read the stats file
-and select the most appropriate thing to practice first thing.
 
 The chunk shown on boot should be the same as chunk shown when [S]uggest button
 pressed. Currently, pressing [S] shows a chunk which is different from the chunk

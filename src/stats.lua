@@ -541,9 +541,8 @@ local function handle_suggest(stats)
 	local alg = stats.algorithm
 	local candidates = {}
 
-	for h in pairs(scanned_chunks) do
-		local c = stats.chunks[h]
-		local level = (c and c.level) or 0
+	for h, c in pairs(stats.chunks) do
+		local level = c.level or 0
 
 		-- Check level-0 eligibility: all children must be mastered.
 		if level == 0 then
@@ -698,14 +697,26 @@ end
 -- MAIN LOOP
 -------------------------------------------------------------------------------
 
-local pending_suggest = false -- defer SUGGEST_LESSON until first CHUNK_NAME arrives
+local pending_suggest = false -- defer SUGGEST_LESSON until children_of map is ready
 
-apply_mastery_decay(load_stats(stats_file))
+local init_stats = load_stats(stats_file)
+apply_mastery_decay(init_stats)
+
+-- Fast startup: pre-populate from stats file; no scan or QUERY_CHILDREN needed.
+for h, c in pairs(init_stats.chunks) do
+	if c.skills and c.skills ~= "" then
+		chunk_skills[h] = c.skills
+	end
+	if c.children then
+		children_of[h] = c.children
+	end
+end
+all_scanned_received = true
 
 for line in io.lines() do
 	line = line:gsub("\r", "")
 
-	-- CHUNK_NAME: emitted by all.lua; initialise entry if absent; load skills
+	-- CHUNK_NAME: emitted by all.lua; initialise entry if absent; persist skills
 	if line:match("^CHUNK_NAME ") then
 		local h, lv = line:match("^CHUNK_NAME (%S+) (%d+)")
 		if not h then
@@ -714,14 +725,12 @@ for line in io.lines() do
 		check_hash(h)
 		local level = tonumber(lv) or 0
 		scanned_chunks[h] = true
-		-- Skills are emitted inline by all.lua (level-1 chunks only)
-		if not chunk_skills[h] then
-			local skills_str = line:match("^CHUNK_NAME %S+ %d+ (.+)$")
-			if skills_str then
-				chunk_skills[h] = skills_str
-			end
+		local skills_str = line:match("^CHUNK_NAME %S+ %d+ (.+)$")
+		if skills_str and not chunk_skills[h] then
+			chunk_skills[h] = skills_str
 		end
 		local stats = load_stats(stats_file)
+		local needs_save = false
 		if not stats.chunks[h] then
 			stats.chunks[h] = {
 				level = level,
@@ -731,9 +740,17 @@ for line in io.lines() do
 				total_duration = 0,
 				max_groups = 0,
 			}
-			save_stats(stats_file, stats)
+			needs_save = true
 		elseif stats.chunks[h].level == nil then
 			stats.chunks[h].level = level
+			needs_save = true
+		end
+		-- Persist skills so startup can read them without a rescan.
+		if skills_str and stats.chunks[h].skills ~= skills_str then
+			stats.chunks[h].skills = skills_str
+			needs_save = true
+		end
+		if needs_save then
 			save_stats(stats_file, stats)
 		end
 	-- LESSON: new session starting; finalise any abandoned in-progress session
@@ -800,7 +817,19 @@ for line in io.lines() do
 		pending_children[phash] = nil
 
 		if not pending then
-			-- Startup query: decrement counter; resolve any deferred suggest.
+			-- Proactive CHILDREN from all.lua during scan: persist child hashes
+			-- so startup can rebuild children_of without any QUERY_CHILDREN.
+			if #child_list > 0 then
+				local stats = load_stats(stats_file)
+				if stats.chunks[phash] then
+					local arr = {}
+					for _, ci in ipairs(child_list) do
+						arr[#arr + 1] = ci.hash
+					end
+					stats.chunks[phash].children = arr
+					save_stats(stats_file, stats)
+				end
+			end
 			if pending_child_queries > 0 then
 				pending_child_queries = pending_child_queries - 1
 			end
@@ -862,16 +891,19 @@ for line in io.lines() do
 		local stale = {}
 		for h in pairs(stats.chunks) do
 			if not scanned_chunks[h] then
-				stale[#stale + 1] = "chunk:" .. h
+				stale[#stale + 1] = h
 			end
 		end
 		if #stale > 0 then
 			table.sort(stale)
-			io.stderr:write("Error: stale entries in stats (not present in current chunk set):\n")
-			for _, s in ipairs(stale) do
-				io.stderr:write("  " .. s .. "\n")
+			io.stderr:write("Warning: stale chunks in stats (not in current lesson set):\n")
+			for _, h in ipairs(stale) do
+				io.stderr:write("  chunk:" .. h .. "\n")
+				stats.chunks[h] = nil
+				chunk_skills[h] = nil
+				children_of[h] = nil
 			end
-			os.exit(1)
+			save_stats(stats_file, stats)
 		end
 		-- Validate skill_order: every skill used by any chunk must appear in it.
 		local order_set = {}
@@ -895,14 +927,7 @@ for line in io.lines() do
 			save_stats(stats_file, stats)
 		end
 		all_scanned_received = true
-		-- Query children for every level-0 chunk to build the children_of map.
-		for h in pairs(scanned_chunks) do
-			local c = stats.chunks[h]
-			if c and (c.level or 0) == 0 then
-				pending_child_queries = pending_child_queries + 1
-				io.write("QUERY_CHILDREN " .. h .. "\n")
-			end
-		end
+		-- all.lua emits CHILDREN proactively during scan; no QUERY_CHILDREN needed.
 		if pending_child_queries == 0 and pending_suggest then
 			pending_suggest = false
 			handle_suggest(stats)

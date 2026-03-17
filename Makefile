@@ -36,7 +36,7 @@ bin/%: src/%.rs | bin
 bin:
 	mkdir -p bin
 
-.PHONY: format test clean pdf
+.PHONY: format test clean pdf index
 
 pdf: $(patsubst %.txt,%.pdf,$(wildcard seq/*.txt))
 	@mkdir -p tmp
@@ -50,6 +50,9 @@ format:
 
 test:
 	lua src/tst.lua tst bin src
+
+index: $(patsubst %.txt,%.png,$(wildcard seq/*.txt))
+	echo RESCAN | lua src/all.lua | lua src/stats.lua log/stats.log
 
 clean:
 	rm -rf bin tmp seq/*.pdf seq/*.png chn/*.ly chn/*.png $(IMGUI_OBJ)
