@@ -381,8 +381,37 @@ local function parse_figures(s)
 	return deduped
 end
 
-local function figure_to_pc(fig, bass_pc, key)
+-- Semitone values of the natural (unaltered) letter names, in scale-degree order.
+local NATURAL_PCS = { 0, 2, 4, 5, 7, 9, 11 } -- C D E F G A B
+
+local function figure_to_pc(fig, bass_pc, bass_letter_idx, key)
 	local deg = ((fig.deg - 1) % 7) + 1
+	if fig.acc ~= 0 then
+		-- Accidental present: apply it to the natural (white-key) note at
+		-- degree `deg` above the bass letter, ignoring the key signature.
+		-- e.g. "#" above D (bass_pc=2): natural 3rd above D is F (pc 5),
+		-- +1 semitone = F# (pc 6).  We find the bass letter by locating its
+		-- natural pc in NATURAL_PCS, then stepping `deg-1` letters up.
+		local bass_natural_idx = nil
+		local bass_natural_pc = rem_euclid(bass_pc, 12)
+		for i, np in ipairs(NATURAL_PCS) do
+			if np == bass_natural_pc then
+				bass_natural_idx = i
+				break
+			end
+		end
+		if bass_natural_idx == nil then
+			-- Bass is altered (e.g. fis); use the letter index passed in.
+			bass_natural_idx = bass_letter_idx
+		end
+		if bass_natural_idx == nil then
+			goto key_based
+		end
+		local target_idx = ((bass_natural_idx - 1 + (deg - 1)) % 7) + 1
+		return rem_euclid(NATURAL_PCS[target_idx] + fig.acc, 12)
+	end
+	::key_based::
+	-- No accidental (or altered bass fallback): use the key-adjusted diatonic pitch.
 	local bass_deg = nil
 	for i, pc in ipairs(key.scale_pcs) do
 		if pc == bass_pc then
@@ -394,8 +423,7 @@ local function figure_to_pc(fig, bass_pc, key)
 		return nil
 	end
 	local target_deg = (bass_deg + (deg - 1)) % 7
-	local diatonic_pc = key.scale_pcs[target_deg + 1]
-	return rem_euclid(diatonic_pc + fig.acc, 12)
+	return key.scale_pcs[target_deg + 1]
 end
 
 -- ---------------------------------------------------------------------------
@@ -538,7 +566,7 @@ local function rule_check_realization(ctx)
 	local allowed = set_new({ bass_pc })
 
 	for _, fig in ipairs(g.figures) do
-		local pc = figure_to_pc(fig, bass_pc, key)
+		local pc = figure_to_pc(fig, bass_pc, g.bass_letter_idx, key)
 		if pc then
 			set_insert(allowed, pc)
 		else
@@ -641,7 +669,7 @@ local function rule_realization_complete(ctx)
 	end
 
 	for _, fig in ipairs(g.figures) do
-		local required_pc = figure_to_pc(fig, bass_pc, key)
+		local required_pc = figure_to_pc(fig, bass_pc, g.bass_letter_idx, key)
 		if not required_pc then
 			return true, nil
 		end
@@ -686,6 +714,7 @@ local function parse_group(line)
 	local id = 0
 	local passing = line:find("passing") ~= nil
 	local bass = 0
+	local bass_letter_idx = nil -- 1-based index into NATURAL_PCS for the bass letter
 	local bass_notated_raw = ""
 	local figures = parse_figures("0")
 	local figures_raw = ""
@@ -717,6 +746,11 @@ local function parse_group(line)
 		v = t:match("^BASS_ACTUAL:(.+)$")
 		if v then
 			bass = to_semitone(v) or 0
+			-- Extract the letter index (1-based into NATURAL_PCS) from the
+			-- pitch name, stripping duration digits/dots then accidental suffixes.
+			local letter_str = v:gsub("[%d%.]+$", ""):sub(1, 1):lower()
+			local letter_map = { c = 1, d = 2, e = 3, f = 4, g = 5, a = 6, b = 7 }
+			bass_letter_idx = letter_map[letter_str]
 		end
 
 		v = t:match("^FIGURES:(.+)$")
@@ -771,6 +805,7 @@ local function parse_group(line)
 		id = id,
 		passing = passing,
 		bass = bass,
+		bass_letter_idx = bass_letter_idx,
 		bass_notated = bass_notated,
 		bass_notated_raw = bass_notated_raw,
 		figures = figures,
