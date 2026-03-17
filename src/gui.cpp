@@ -634,14 +634,37 @@ static void show_stats_bar(void)
 		   ? state.level0_hashes[state.current_level0_idx]
 		   : "");
 
-	ImGui::SameLine();
-	if (hash[0])
-		ImGui::Text("%.8s", hash);
-	else
-		ImGui::Text("--");
+	char hash8[9];
+	snprintf(hash8, sizeof(hash8), "%.8s", hash[0] ? hash : "--");
 
 	float bar_w = 70.0f;
 	float bar_h = ImGui::GetFrameHeight();
+	float sp = ImGui::GetStyle().ItemSpacing.x;
+
+	// Pre-compute last-item width for total width calculation
+	char streak_buf[32] = "";
+	float last_w;
+	if (s.goal_met) {
+		snprintf(streak_buf, sizeof(streak_buf), "streak: %d",
+			 s.streak);
+		last_w = ImGui::CalcTextSize(streak_buf).x;
+	} else {
+		last_w = bar_w;
+	}
+	float total_w = ImGui::CalcTextSize(hash8).x + sp + bar_w + sp +
+	    bar_w + sp + last_w;
+
+	// Right-align to image edge; fall back to after buttons
+	float content_x =
+	    ImGui::GetWindowPos().x + ImGui::GetWindowContentRegionMin().x;
+	float ideal_x = content_x + (float)state.image_width - total_w;
+	ImGui::SameLine();
+	float after_buttons_x = ImGui::GetCursorScreenPos().x;
+	float start_x = (ideal_x > after_buttons_x) ? ideal_x : after_buttons_x;
+	ImGui::SetCursorScreenPos(ImVec2(start_x, ImGui::GetCursorScreenPos().y));
+
+	// Chunk hash
+	ImGui::TextUnformatted(hash8);
 
 	// Mastery bar (green)
 	char m_label[16];
@@ -666,8 +689,8 @@ static void show_stats_bar(void)
 	// Daily goal: progress bar or streak
 	ImGui::SameLine();
 	if (s.goal_met) {
-		ImGui::TextColored(ImVec4(0.0f, 1.0f, 0.4f, 1.0f),
-				   "streak: %d", s.streak);
+		ImGui::TextColored(ImVec4(0.0f, 1.0f, 0.4f, 1.0f), "%s",
+				   streak_buf);
 	} else {
 		char d_label[16];
 		snprintf(d_label, sizeof(d_label), "%d pts", s.pts);
