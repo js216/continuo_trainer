@@ -120,6 +120,8 @@ static void clear_status(void)
 	state.num_squares = 0;
 	state.explanation[0] = '\0';
 	state.status.slowest = 0;
+	state.status.mastery = 0.0f;
+	state.status.power = 0.0f;
 }
 
 static void quit_lesson(void)
@@ -808,9 +810,20 @@ int main(int, char **)
 
 	// Create window with graphics context
 	GLFWwindow *win =
-	    glfwCreateWindow(1280, 800, "Trainer", nullptr, nullptr);
+	    glfwCreateWindow(800, 480, "Trainer", nullptr, nullptr);
 	if (win == nullptr)
 		return 1;
+
+	// Center the window on the primary monitor
+	{
+		GLFWmonitor *monitor = glfwGetPrimaryMonitor();
+		const GLFWvidmode *mode = glfwGetVideoMode(monitor);
+		int win_w, win_h;
+		glfwGetWindowSize(win, &win_w, &win_h);
+		glfwSetWindowPos(win, (mode->width - win_w) / 2,
+				 (mode->height - win_h) / 2);
+	}
+
 	glfwMakeContextCurrent(win);
 	glfwSetKeyCallback(win, key_callback);
 	glfwSwapInterval(1); // Enable vsync

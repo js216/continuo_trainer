@@ -82,7 +82,7 @@ local ALGORITHM_DEFAULTS = {
 	bottleneck_thresh = 0.6, -- factor value below which it is considered a bottleneck
 	dominance_margin = 0.2, -- how much lower the bottleneck must be than the others
 	min_quality = 0.1, -- quality below this triggers a "raise quality" suggestion
-	mastery_score_frac = 0.9, -- score must be >= this fraction of mastery to say "already mastered"
+	power_score_frac = 0.7, -- skip suggesting a chunk whose power is already >= this fraction of its mastery
 	overlearn_min = 5, -- min consecutive attempts before suggesting another chunk (ema_pass = 1)
 	overlearn_max = 15, -- max consecutive attempts before suggesting another chunk (ema_pass = 0)
 	mistake_power_penalty = 0.15, -- power_factor multiplied by (1-penalty) per failed session
@@ -567,6 +567,12 @@ local function handle_suggest(stats)
 				< alg.overlearn_min + (alg.overlearn_max - alg.overlearn_min) * (1.0 - (c.ema_pass or 1.0))
 		local m_pct = c and normalize(math.max(c.mastery or 0, c.t_mastery or 0), c) or 0
 		local p_pct = c and normalize(calculate_effective_power(c, alg), c) or 0
+
+		-- Skip chunks whose power is already sufficiently high relative to mastery.
+		if c and m_pct > 0 and p_pct >= alg.power_score_frac * m_pct then
+			goto next_chunk
+		end
+
 		local is_weak = m_pct < alg.chunk_mastery_thresh or p_pct < alg.chunk_power_thresh
 
 		if is_new or (within_overlearn and is_weak) then

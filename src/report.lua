@@ -165,28 +165,22 @@ print(string.format("Total   chunks: %d   practice time: %s", n_chunks, fmt_dur(
 
 -- ── read chunk metadata (title + skills) in one pass ─────────────────────────
 
-local chunk_meta = {} -- [hash] = {title, skills}
+local chunk_meta = {} -- [hash] = {skills}
 for h in pairs(chunks) do
-	local title, skills
+	local skills
 	local f = io.open("chn/" .. h .. ".txt", "r")
 	if f then
 		for line in f:lines() do
-			if not title then
-				title = line:match("^title:%s*(.-)%s*$")
-				if title == "" then
-					title = nil
-				end
-			end
 			if not skills then
 				skills = line:match("^skills:%s*(.+)$")
 			end
-			if title and skills then
+			if skills then
 				break
 			end
 		end
 		f:close()
 	end
-	chunk_meta[h] = { title = title or "", skills = skills or "" }
+	chunk_meta[h] = { skills = skills or "" }
 end
 
 -- ── skills ────────────────────────────────────────────────────────────────────
@@ -260,24 +254,27 @@ table.sort(chunk_hashes, function(a, b)
 	return normalize(chunks[a].mastery or 0, chunks[a]) < normalize(chunks[b].mastery or 0, chunks[b])
 end)
 
--- Column widths: 2+8+2+1+2+14+2+7+2+7+2+7+2+4+2+10 = 74
+-- Fixed columns up to Skills: ~78 chars; skills fill remaining space to 120.
 if #chunk_hashes > 0 then
 	print()
 	print(string.format("CHUNKS (%d)", #chunk_hashes))
 	print(
 		string.format(
-			"  %-8s  %1s  %-14s  %-7s  %-7s  %-7s  %4s  %s",
+			"  %-8s  %1s  %-7s  %-7s  %-7s  %4s  %-10s  %5s  %5s  %5s  %s",
 			"Hash",
 			"L",
-			"Title",
 			"Dir%",
 			"Trn%",
 			"Power",
 			"Ivl",
-			"Last"
+			"Last",
+			"Pass",
+			"Fail",
+			"Rate",
+			"Skills"
 		)
 	)
-	print(string.rep("-", 74))
+	print(string.rep("-", 80))
 	for _, h in ipairs(chunk_hashes) do
 		local c = chunks[h]
 		local dir_pct = normalize(c.mastery or 0, c)
@@ -290,24 +287,36 @@ if #chunk_hashes > 0 then
 			eff_last = t
 		end
 		local elapsed = days_since(eff_last)
-		local due = (ivl > 0 and elapsed and elapsed >= ivl) and " *" or ""
-		local title = chunk_meta[h].title
-		if #title > 14 then
-			title = title:sub(1, 13) .. "~"
-		end
-		print(
-			string.format(
-				"  %-8s  %1d  %-14s  %6.1f%%  %6.1f%%  %6.1f%%  %4d  %s%s",
-				h:sub(1, 8),
-				c.level or 0,
-				title,
-				dir_pct,
-				trn_pct,
-				power_pct,
-				ivl,
-				eff_last or "--",
-				due
-			)
+		local due = (ivl > 0 and elapsed and elapsed >= ivl) and "*" or " "
+		local pass = c.n_pass_tot or 0
+		local fail = c.n_fail_tot or 0
+		local total = pass + fail
+		local rate = total > 0 and string.format("%4.0f%%", (pass / total) * 100) or "  -- "
+		local fixed = string.format(
+			"  %-8s  %1d  %6.1f%%  %6.1f%%  %6.1f%%  %4d  %s%s  %5d  %5d  %s",
+			h:sub(1, 8),
+			c.level or 0,
+			dir_pct,
+			trn_pct,
+			power_pct,
+			ivl,
+			eff_last or "--        ",
+			due,
+			pass,
+			fail,
+			rate
 		)
+		local skills = chunk_meta[h].skills
+		local line = fixed
+		if skills ~= "" then
+			local remaining = 120 - #fixed - 2
+			if remaining > 0 then
+				if #skills > remaining then
+					skills = skills:sub(1, remaining - 1) .. "~"
+				end
+				line = fixed .. "  " .. skills
+			end
+		end
+		print(line)
 	end
 end
