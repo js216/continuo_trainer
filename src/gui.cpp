@@ -641,7 +641,7 @@ static void show_stats_bar(void)
 		ImGui::Text("--");
 
 	float bar_w = 70.0f;
-	float bar_h = ImGui::GetFrameHeight() * 0.55f;
+	float bar_h = ImGui::GetFrameHeight();
 
 	// Mastery bar (green)
 	char m_label[16];

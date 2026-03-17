@@ -9,14 +9,14 @@ IMGUI = imgui.o imgui_demo.o imgui_draw.o imgui_tables.o imgui_widgets.o \
         backends/imgui_impl_glfw.o backends/imgui_impl_opengl3.o
 
 IMGUI_OBJ = $(patsubst %,lib/imgui/%,$(IMGUI))
-PNG = $(patsubst %.txt,%.png,$(wildcard seq/*.txt)) $(patsubst %.txt,%.png,$(wildcard chn/*.txt))
+PNG = $(patsubst %.txt,%.png,$(wildcard chn/*.txt))
 
-all: $(addprefix bin/,$(PROGS))
+all: $(addprefix bin/,$(PROGS)) $(PNG)
 
 bin/%: src/%.c | bin
 	$(CC) $(CPPFLAGS) $(CFLAGS) $< -o $@ $(LDLIBS)
 
-bin/gui: src/gui.cpp $(IMGUI_OBJ) | $(PNG) bin
+bin/gui: src/gui.cpp $(IMGUI_OBJ) | bin
 	$(CXX) $(CPPFLAGS) $(CXXFLAGS) $^ -o $@ $(LDLIBS)
 
 bin/%: src/%.rs | bin
@@ -51,9 +51,9 @@ format:
 test:
 	lua src/tst.lua tst bin src
 
-index: $(patsubst %.txt,%.png,$(wildcard seq/*.txt))
-	rm -f chn/*.txt
+index:
+	rm -f chn/*
 	echo RESCAN | lua src/all.lua | lua src/stats.lua log/stats.log
 
 clean:
-	rm -rf bin tmp seq/*.pdf seq/*.png chn/*.ly chn/*.png $(IMGUI_OBJ)
+	rm -rf bin tmp seq/*.pdf chn/* $(IMGUI_OBJ)

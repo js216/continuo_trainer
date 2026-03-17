@@ -11,7 +11,8 @@ style while adapting exercises through spaced repetition and gamified learning.
 First, make sure all chunks are up to date:
 
     cd continuo_trainer
-    make index all
+    make index
+    make all
 
 Then, open the program and practice:
 
