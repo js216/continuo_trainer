@@ -33,21 +33,6 @@ entirely self-contained and working and usable.
 
 ---
 
-Schedule full leson first and then chunks only if needed. This represents a
-partial inversion of the current scheduling algorithm which goes from highest
-level to lowest. Instead, display the lowest level (probably level 0) chunk
-which needs to be practiced (meaning it's mastery/power is low). Always show the
-chunks with easiest skills first, so that the app takes the player through a
-progression of skill levels. If there's a chunk that's not mastered yet, prefer
-it over brand new (never practiced) chunk. After the user plays a level-n chunk,
-stats.lua can tell which level-(n+1) subchunks are easy and which are hard
-(based on mistakes made and relative speed): the scheduling algorithm should
-advance the SRS properties for the easy ones, so that they won't be shown soon,
-and prioritize the hard ones, so that next time [S] is pressed, these hard ones
-will be shown. In other words, let the user play big lessons which are musically
-more meaningful, but if they make mistakes, let them drill the parts where the
-mistakes happen.
-
 Change chunking algorithm: no more skill-based "heart" chunking, instead, do
 3-level chunking: level-0 is just the base seq/ lesson, level-1 chunks are less
 than or equal to 3.5 bars long, level-2 chunks are at least 1.5 bars long. No

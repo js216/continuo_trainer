@@ -544,37 +544,18 @@ local function handle_suggest(stats)
 	for h, c in pairs(stats.chunks) do
 		local level = c.level or 0
 
-		-- Check level-0 eligibility: all children must be mastered.
-		if level == 0 then
-			local kids = children_of[h]
-			if not kids then
-				goto next_chunk -- children map not ready yet
-			end
-			for _, kh in ipairs(kids) do
-				local kc = stats.chunks[kh]
-				local km = kc and math.max(kc.mastery or 0, kc.t_mastery or 0) or 0
-				if not kc or normalize(km, kc) < alg.chunk_mastery_thresh then
-					goto next_chunk
-				end
-			end
-		end
-
-		local is_new = not c or (not c.last_date and not c.t_last_date)
-		local within_overlearn = c
-			and c.last_date
-			and (c.n_consecutive or 0)
-				< alg.overlearn_min + (alg.overlearn_max - alg.overlearn_min) * (1.0 - (c.ema_pass or 1.0))
-		local m_pct = c and normalize(math.max(c.mastery or 0, c.t_mastery or 0), c) or 0
-		local p_pct = c and normalize(calculate_effective_power(c, alg), c) or 0
+		local is_new = not c.last_date and not c.t_last_date
+		local m_pct = normalize(math.max(c.mastery or 0, c.t_mastery or 0), c)
+		local p_pct = normalize(calculate_effective_power(c, alg), c)
 
 		-- Skip chunks whose power is already sufficiently high relative to mastery.
-		if c and m_pct > 0 and p_pct >= alg.power_score_frac * m_pct then
+		if m_pct > 0 and p_pct >= alg.power_score_frac * m_pct then
 			goto next_chunk
 		end
 
 		local is_weak = m_pct < alg.chunk_mastery_thresh or p_pct < alg.chunk_power_thresh
 
-		if is_new or (within_overlearn and is_weak) then
+		if is_new or is_weak then
 			candidates[#candidates + 1] = {
 				hash = h,
 				skill_rank = compute_skill_rank(h, alg.skill_order),
@@ -586,13 +567,18 @@ local function handle_suggest(stats)
 		::next_chunk::
 	end
 
-	-- Sort: skill_rank ASC, level DESC, mastery+power ASC, hash ASC (deterministic).
+	-- Sort: skill_rank ASC, level ASC (lower levels first — prefer full lessons over
+	-- drill chunks), not-new before new (prefer in-progress over untouched),
+	-- mastery+power ASC (weakest first), hash ASC (deterministic tiebreaker).
 	table.sort(candidates, function(a, b)
 		if a.skill_rank ~= b.skill_rank then
 			return a.skill_rank < b.skill_rank
 		end
 		if a.level ~= b.level then
-			return a.level > b.level
+			return a.level < b.level
+		end
+		if a.is_new ~= b.is_new then
+			return not a.is_new
 		end
 		if a.score ~= b.score then
 			return a.score < b.score
@@ -869,6 +855,23 @@ for line in io.lines() do
 				c.power_factor = math.max(0, (c.power_factor or 1.0) * (1.0 - alg.mistake_power_penalty))
 			else
 				c.power_factor = 1.0
+			end
+			-- Update SRS scheduling from the parent session result so that the
+			-- scheduling algorithm works uniformly across all levels: a clean
+			-- sub-range advances the review interval (child won't surface soon),
+			-- a failed sub-range resets it to 1 day (child surfaces next session).
+			if sd then
+				if not child_has_fail and sd.accuracy == 100 then
+					if (c.ivl or 0) == 0 then
+						c.ivl = alg.ivl_first
+					else
+						c.ivl = math.min(alg.ivl_max, math.ceil(c.ivl * (c.ease or alg.ease_initial)))
+					end
+					c.ease = math.min(alg.ease_max, (c.ease or alg.ease_initial) + alg.ease_pass_delta)
+				elseif child_has_fail then
+					c.ivl = 1
+					c.ease = math.max(alg.ease_min, (c.ease or alg.ease_initial) - alg.ease_fail_delta)
+				end
 			end
 			stats.chunks[ci.hash] = c
 			pending_children[ci.hash] =
