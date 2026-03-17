@@ -34,9 +34,6 @@
 --      MELODY <i>: <tokens|-|>
 --      LESSON_END
 
-local CONTEXT_LEFT = 1
-local CONTEXT_RIGHT = 1
-
 local function die(fmt, ...)
 	io.stderr:write(string.format("Error: " .. fmt, ...) .. "\n")
 	os.exit(1)
@@ -316,6 +313,78 @@ local function bar_sixteenths(time_sig)
 	return tonumber(n) * math.floor(16 / tonumber(d))
 end
 
+local function build_offsets(bass)
+	local offsets = {}
+	local cum = 0
+	local last_dur = 4
+	for i, tok in ipairs(bass) do
+		offsets[i] = cum
+		local d = dur_sixteenths(tok)
+		if d then
+			last_dur = d
+		end
+		cum = cum + last_dur
+	end
+	offsets[#bass + 1] = cum
+	return offsets
+end
+
+local function bar_split(time_sig, ps, pe, offsets, step_bars)
+	local bar_len = bar_sixteenths(time_sig)
+	local ps_time = offsets[ps]
+	local pe_time = offsets[pe + 1]
+	local step = step_bars * bar_len
+	local chunks = {}
+	local k = 0
+
+	while true do
+		local chunk_start_time = ps_time + k * step
+		if chunk_start_time >= pe_time then
+			break
+		end
+
+		-- First note at or after chunk_start_time
+		local s = pe
+		for i = ps, pe do
+			if offsets[i] >= chunk_start_time then
+				s = i
+				break
+			end
+		end
+
+		local next_boundary = ps_time + (k + 1) * step
+		if next_boundary >= pe_time then
+			chunks[#chunks + 1] = { s = s, e = pe }
+			break
+		end
+
+		-- Last note starting before next_boundary + 0.5*bar_len
+		local cut_time = next_boundary + math.floor(bar_len / 2)
+		local e = s
+		for i = s, pe do
+			if offsets[i] < cut_time then
+				e = i
+			else
+				break
+			end
+		end
+		chunks[#chunks + 1] = { s = s, e = e }
+		k = k + 1
+	end
+
+	-- Merge trailing chunk that is shorter than 1.5 bars into the previous one
+	if #chunks >= 2 then
+		local last = chunks[#chunks]
+		local last_dur = offsets[last.e + 1] - offsets[last.s]
+		if last_dur < math.floor(bar_len * 3 / 2) then
+			chunks[#chunks - 1].e = last.e
+			chunks[#chunks] = nil
+		end
+	end
+
+	return chunks
+end
+
 local function chunk_bar(bass, time_sig, lesson_bar, start_idx)
 	if start_idx == 1 then
 		return lesson_bar
@@ -360,7 +429,7 @@ local function build_chunk_content(
 	composer,
 	time_sig,
 	bpm,
-	skill,
+	level,
 	bar,
 	partial,
 	bass,
@@ -390,8 +459,7 @@ local function build_chunk_content(
 	if partial > 0 then
 		lines[#lines + 1] = "partial: " .. partial
 	end
-	lines[#lines + 1] = "skills: " .. skill
-	lines[#lines + 1] = "level: 1"
+	lines[#lines + 1] = "level: " .. level
 	lines[#lines + 1] = ""
 	lines[#lines + 1] = "bassline = {"
 	for i = s, e do
@@ -418,36 +486,28 @@ local function build_chunk_content(
 	return table.concat(lines, "\n")
 end
 
--- ── level-1 chunk generation ──────────────────────────────────────────────────
+-- ── bar-based chunk generation ────────────────────────────────────────────────
 
--- Compute children for a set of lesson arrays.
--- Returns a list of {hash, s, e} (1-indexed, deduped by hash).
-local function compute_children(key, time_sig, bpm, lesson_bar, title, composer, bass, passing, figures, melody)
-	local N = #bass
-	local hearts = identify_hearts(figures)
-	local note_heart = {}
-	for _, h in ipairs(hearts) do
-		for i = h.s, h.e do
-			note_heart[i] = h
-		end
-	end
-
+-- Returns a list of {hash, s, e, skills} (1-indexed, deduped by hash).
+local function compute_bar_children(level, key, time_sig, bpm, lesson_bar, title, composer, bass, passing, figures, melody, ps, pe, offsets, step_bars)
+	local splits = bar_split(time_sig, ps, pe, offsets, step_bars)
 	local children = {}
 	local seen_hashes = {}
-	for _, heart in ipairs(hearts) do
-		local s = math.max(1, heart.s - CONTEXT_LEFT)
-		local e = math.min(N, heart.e + CONTEXT_RIGHT)
 
-		if passing[s] and s > 1 and not passing[1] then
-			s = s - 1
-		end
+	for _, sp in ipairs(splits) do
+		local s, e = sp.s, sp.e
 
-		local seen, skills = {}, {}
+		-- Extract skills from this slice's figures
+		local slice_figs = {}
 		for i = s, e do
-			local sk = note_heart[i].skill
-			if not seen[sk] then
-				seen[sk] = true
-				skills[#skills + 1] = sk
+			slice_figs[i - s + 1] = figures[i]
+		end
+		local hearts = identify_hearts(slice_figs)
+		local seen_sk, skills = {}, {}
+		for _, h in ipairs(hearts) do
+			if not seen_sk[h.skill] then
+				seen_sk[h.skill] = true
+				skills[#skills + 1] = h.skill
 			end
 		end
 		local skills_str = table.concat(skills, " ")
@@ -460,7 +520,7 @@ local function compute_children(key, time_sig, bpm, lesson_bar, title, composer,
 			composer,
 			time_sig,
 			bpm,
-			skills_str,
+			level,
 			bar,
 			partial,
 			bass,
@@ -479,16 +539,6 @@ local function compute_children(key, time_sig, bpm, lesson_bar, title, composer,
 		end
 	end
 	return children
-end
-
--- Returns a list of {hash, skills} for every level-1 chunk written for this lesson.
-local function process_lesson(lesson_n, key, time_sig, bpm, lesson_bar, title, composer, bass, passing, figures, melody)
-	local children = compute_children(key, time_sig, bpm, lesson_bar, title, composer, bass, passing, figures, melody)
-	local result = {}
-	for _, c in ipairs(children) do
-		result[#result + 1] = { hash = c.hash, skills = c.skills, s = c.s, e = c.e }
-	end
-	return result
 end
 
 -- ── LOAD_CHUNK: parse chunk file and emit protocol ───────────────────────────
@@ -668,9 +718,8 @@ local function handle_query_children(hash)
 	local content = f:read("*a")
 	f:close()
 
-	-- Only level-0 chunks have children; for others emit empty CHILDREN.
 	local level = tonumber(content:match("level:%s*(%d+)") or "")
-	if not level or level ~= 0 then
+	if not level or level >= 2 then
 		io.write("CHILDREN " .. hash .. "\n")
 		io.flush()
 		return
@@ -690,7 +739,13 @@ local function handle_query_children(hash)
 		melody[i] = groups[i] ~= "" and groups[i] or "-"
 	end
 
-	local children = compute_children(
+	local N = #bass
+	local offsets = build_offsets(bass)
+	local step_bars = (level == 0) and 3 or 1
+	local child_level = level + 1
+
+	local children = compute_bar_children(
+		child_level,
 		raw.key,
 		raw.time,
 		raw.bpm,
@@ -700,7 +755,11 @@ local function handle_query_children(hash)
 		bass,
 		passing,
 		raw.figures,
-		melody
+		melody,
+		1,
+		N,
+		offsets,
+		step_bars
 	)
 	local parts = { hash }
 	for _, c in ipairs(children) do
@@ -798,10 +857,13 @@ local function scan_and_emit()
 		io.write("CHUNK_NAME " .. hash0 .. " 0\n")
 		io.flush()
 
-		-- ── level-1: skill-slice chunks ───────────────────────────────────────
+		-- ── level-1: 3-bar chunks; level-2: 1-bar chunks ─────────────────────
 		local lesson = load_lesson(n)
-		local chunks1 = process_lesson(
-			lesson.n,
+		local N = #lesson.bass
+		local offsets = build_offsets(lesson.bass)
+
+		local chunks1 = compute_bar_children(
+			1,
 			lesson.key,
 			lesson.time,
 			lesson.bpm,
@@ -811,18 +873,48 @@ local function scan_and_emit()
 			lesson.bass,
 			lesson.passing,
 			lesson.figures,
-			lesson.melody
+			lesson.melody,
+			1,
+			N,
+			offsets,
+			3
 		)
-		local child_parts = { hash0 }
-		for _, c in ipairs(chunks1) do
-			live_chunks[c.hash] = true
-			io.write("CHUNK_NAME " .. c.hash .. " 1 " .. c.skills .. "\n")
+		local child1_parts = { hash0 }
+		for _, c1 in ipairs(chunks1) do
+			live_chunks[c1.hash] = true
+			io.write("CHUNK_NAME " .. c1.hash .. " 1 " .. c1.skills .. "\n")
 			io.flush()
-			child_parts[#child_parts + 1] = c.hash .. ":" .. (c.s - 1) .. ":" .. (c.e - 1)
+
+			local chunks2 = compute_bar_children(
+				2,
+				lesson.key,
+				lesson.time,
+				lesson.bpm,
+				lesson.bar,
+				lesson.title,
+				lesson.composer,
+				lesson.bass,
+				lesson.passing,
+				lesson.figures,
+				lesson.melody,
+				c1.s,
+				c1.e,
+				offsets,
+				1
+			)
+			local child2_parts = { c1.hash }
+			for _, c2 in ipairs(chunks2) do
+				live_chunks[c2.hash] = true
+				io.write("CHUNK_NAME " .. c2.hash .. " 2 " .. c2.skills .. "\n")
+				io.flush()
+				child2_parts[#child2_parts + 1] = c2.hash .. ":" .. (c2.s - 1) .. ":" .. (c2.e - 1)
+			end
+			io.write("CHILDREN " .. table.concat(child2_parts, " ") .. "\n")
+			io.flush()
+
+			child1_parts[#child1_parts + 1] = c1.hash .. ":" .. (c1.s - 1) .. ":" .. (c1.e - 1)
 		end
-		-- Emit parent→children mapping so stats.lua can persist it without a
-		-- QUERY_CHILDREN round-trip at startup.
-		io.write("CHILDREN " .. table.concat(child_parts, " ") .. "\n")
+		io.write("CHILDREN " .. table.concat(child1_parts, " ") .. "\n")
 		io.flush()
 	end
 
