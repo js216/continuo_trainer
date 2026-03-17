@@ -74,123 +74,6 @@ local function write_chunk(hash, content)
 	f:close()
 end
 
--- ── seq file parsing ──────────────────────────────────────────────────────────
-
-local function parse_seq(content)
-	local r = {
-		title = "",
-		composer = "",
-		key = "C",
-		time = "4/4",
-		bpm = 120,
-		bar = 1,
-		bass_lines = {},
-		fig_lines = {},
-		mel_lines = {},
-	}
-	local mode = ""
-	for line in (content .. "\n"):gmatch("([^\n]*)\n") do
-		if mode == "" then
-			local v
-			v = line:match("^title:%s*(.-)%s*$")
-			if v and v ~= "" then
-				r.title = v
-				goto cont
-			end
-			v = line:match("^composer:%s*(.-)%s*$")
-			if v and v ~= "" then
-				r.composer = v
-				goto cont
-			end
-			v = line:match("^key:%s*(.-)%s*$")
-			if v and v ~= "" then
-				r.key = v
-				goto cont
-			end
-			v = line:match("^time:%s*(.-)%s*$")
-			if v and v ~= "" then
-				r.time = v
-				goto cont
-			end
-			v = line:match("^bpm:%s*(.-)%s*$")
-			if v and v ~= "" then
-				r.bpm = tonumber(v) or r.bpm
-				goto cont
-			end
-			v = line:match("^bar:%s*(.-)%s*$")
-			if v and v ~= "" then
-				r.bar = tonumber(v) or r.bar
-				goto cont
-			end
-			if line:match("^bassline") then
-				mode = "bass"
-				goto cont
-			end
-			if line:match("^figures") then
-				mode = "fig"
-				goto cont
-			end
-			if line:match("^melody") then
-				mode = "mel"
-				goto cont
-			end
-		elseif line:match("^}") then
-			mode = ""
-		elseif not line:match("^%s*$") then
-			if mode == "bass" then
-				r.bass_lines[#r.bass_lines + 1] = line
-			elseif mode == "fig" then
-				r.fig_lines[#r.fig_lines + 1] = line
-			elseif mode == "mel" then
-				r.mel_lines[#r.mel_lines + 1] = line
-			end
-		end
-		::cont::
-	end
-	return r
-end
-
--- ── level-0 chunk content ─────────────────────────────────────────────────────
-
-local function build_level0_content(seq)
-	local lines = {}
-	if seq.title ~= "" then
-		lines[#lines + 1] = "title: " .. seq.title
-	end
-	if seq.composer ~= "" then
-		lines[#lines + 1] = "composer: " .. seq.composer
-	end
-	lines[#lines + 1] = "key: " .. seq.key
-	if seq.time ~= "" then
-		lines[#lines + 1] = "time: " .. seq.time
-	end
-	lines[#lines + 1] = "bpm: " .. seq.bpm
-	if seq.bar ~= 1 then
-		lines[#lines + 1] = "bar: " .. seq.bar
-	end
-	lines[#lines + 1] = "level: 0"
-	lines[#lines + 1] = ""
-	lines[#lines + 1] = "bassline = {"
-	for _, l in ipairs(seq.bass_lines) do
-		lines[#lines + 1] = l
-	end
-	lines[#lines + 1] = "}"
-	lines[#lines + 1] = ""
-	lines[#lines + 1] = "figures = {"
-	for _, l in ipairs(seq.fig_lines) do
-		lines[#lines + 1] = l
-	end
-	lines[#lines + 1] = "}"
-	lines[#lines + 1] = ""
-	lines[#lines + 1] = "melody = {"
-	for _, l in ipairs(seq.mel_lines) do
-		lines[#lines + 1] = l
-	end
-	lines[#lines + 1] = "}"
-	lines[#lines + 1] = ""
-	return table.concat(lines, "\n")
-end
-
 -- ── skill detection ───────────────────────────────────────────────────────────
 
 local function fig_nums(fig)
@@ -843,14 +726,28 @@ local function scan_and_emit()
 	local live_chunks = {}
 
 	for _, n in ipairs(lessons) do
+		local lesson = load_lesson(n)
+		local N = #lesson.bass
+		local offsets = build_offsets(lesson.bass)
+
 		-- ── level-0: full lesson as a chunk ──────────────────────────────────
-		local path = string.format("seq/%d.txt", n)
-		local f = assert(io.open(path, "rb"))
-		local raw = f:read("*a")
-		f:close()
-		raw = raw:gsub("\r\n", "\n"):gsub("\r", "\n")
-		local seq = parse_seq(raw)
-		local content0 = build_level0_content(seq)
+		local content0 = build_chunk_content(
+			lesson.key,
+			lesson.title,
+			lesson.composer,
+			lesson.time,
+			lesson.bpm,
+			0,
+			lesson.bar,
+			0,
+			lesson.bass,
+			lesson.passing,
+			lesson.figures,
+			lesson.melody,
+			1,
+			N
+		)
+		content0 = content0:gsub("\r\n", "\n"):gsub("\r", "\n")
 		local hash0 = sha1(content0)
 		write_chunk(hash0, content0)
 		live_chunks[hash0] = true
@@ -858,9 +755,6 @@ local function scan_and_emit()
 		io.flush()
 
 		-- ── level-1: 3-bar chunks; level-2: 1-bar chunks ─────────────────────
-		local lesson = load_lesson(n)
-		local N = #lesson.bass
-		local offsets = build_offsets(lesson.bass)
 
 		local chunks1 = compute_bar_children(
 			1,
