@@ -586,7 +586,7 @@ local function handle_suggest(stats)
 		::next_chunk::
 	end
 
-	-- Sort: skill_rank ASC, level DESC, mastery+power ASC (weakest/newest first).
+	-- Sort: skill_rank ASC, level DESC, mastery+power ASC, hash ASC (deterministic).
 	table.sort(candidates, function(a, b)
 		if a.skill_rank ~= b.skill_rank then
 			return a.skill_rank < b.skill_rank
@@ -594,7 +594,10 @@ local function handle_suggest(stats)
 		if a.level ~= b.level then
 			return a.level > b.level
 		end
-		return a.score < b.score
+		if a.score ~= b.score then
+			return a.score < b.score
+		end
+		return a.hash < b.hash
 	end)
 
 	if #candidates > 0 then

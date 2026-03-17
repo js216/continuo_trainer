@@ -33,12 +33,6 @@ entirely self-contained and working and usable.
 
 ---
 
-The chunk shown on boot should be the same as chunk shown when [S]uggest button
-pressed. Currently, pressing [S] shows a chunk which is different from the chunk
-shown after quitting and restarting the app---that's not good. The scheduling
-algorithm should always precesily determine which is the "next" chunk; the
-algorithm is deterministic and so should be the app.
-
 Schedule full leson first and then chunks only if needed. This represents a
 partial inversion of the current scheduling algorithm which goes from highest
 level to lowest. Instead, display the lowest level (probably level 0) chunk
@@ -79,6 +73,9 @@ the GUI, the info messages ("Try something else", "Good job", ...).
 ### Later potential features
 
 "Journey" GUI: skill progression unlocking.
+
+Unravel the play.dot graph so that the data flow is linear pipes as much as
+possible rather than branching or loops.
 
 Translate into Rust
 

@@ -100,7 +100,6 @@ struct state {
 	char level0_hashes[256][64]; // level-0 chunk hashes in arrival order
 	int num_level0 = 0;
 	int current_level0_idx = 0;
-	bool initial_load_done = false;
 	char current_chunk[64] =
 	    ""; // non-empty while a chunk session is active (from SUGGESTION)
 	struct Square squares[MAX_LINES];
@@ -404,14 +403,6 @@ static void parse_line(const char *buf)
 {
 	if (strncmp(buf, "KARAOKE_DONE", 12) == 0) {
 		state.karaoke_on = false;
-		return;
-	}
-	if (strncmp(buf, "ALL_SCANNED", 11) == 0) {
-		if (!state.initial_load_done) {
-			printf("SUGGEST_LESSON\n");
-			fflush(stdout);
-			state.initial_load_done = true;
-		}
 		return;
 	}
 	handle_chunk_name(buf);
@@ -847,6 +838,10 @@ int main(int, char **)
 
 	// Non-blocking stdin
 	fcntl(STDIN_FILENO, F_SETFL, fcntl(STDIN_FILENO, F_GETFL) | O_NONBLOCK);
+
+	// Request the first suggestion immediately; stats.lua is ready at startup.
+	printf("SUGGEST_LESSON\n");
+	fflush(stdout);
 
 	// Main loop
 	while (!glfwWindowShouldClose(win) && state.running) {
