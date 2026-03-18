@@ -97,8 +97,8 @@ local ALGORITHM_DEFAULTS = {
 	ivl_first = 1, -- interval (days) after first perfect pass
 	ivl_second = 6, -- interval (days) after second consecutive perfect pass
 	ivl_max = 365, -- maximum interval (days); caps runaway SRS growth
-	chunk_mastery_thresh = 60, -- normalised % below which a chunk needs practice
-	chunk_power_thresh = 40, -- normalised % below which a chunk needs practice
+	chunk_mastery_thresh = 80, -- normalised % below which a chunk needs practice
+	chunk_power_thresh = 70, -- normalised % below which a chunk needs practice
 }
 
 local stats_file = arg[1]
@@ -478,20 +478,36 @@ end
 -- OUTPUT HELPER
 -------------------------------------------------------------------------------
 
-local function print_stats_line(stats, timestamp)
+local function print_stats_line(stats, timestamp, chunk_hash)
 	local alg = stats.algorithm
 	local today = get_date_str()
 	local d = stats.daily[today] or { score = 0, duration = 0 }
 	local streak = calculate_streak(stats)
-
+	local chunk_str = ""
+	if chunk_hash then
+		local c = stats.chunks[chunk_hash]
+		if c then
+			local power = calculate_effective_power(c, alg)
+			local mastery = math.max(c.mastery or 0, c.t_mastery or 0)
+			chunk_str = string.format(
+				" chunk=%s[ivl=%d,ease=%.2f,mastery=%.2f,power=%.2f]",
+				chunk_hash,
+				math.floor(c.ivl or 0),
+				c.ease or alg.ease_initial,
+				normalize(mastery, c),
+				normalize(power, c)
+			)
+		end
+	end
 	io.write(
 		string.format(
-			"STATS time=%.0f total_today=%.2f goal=%.2f total_duration_today=%.3f streak=%d\n",
+			"STATS time=%.0f total_today=%.2f goal=%.2f total_duration_today=%.3f streak=%d%s\n",
 			timestamp or os.time(),
 			d.score,
 			alg.score_goal,
 			d.duration,
-			streak
+			streak,
+			chunk_str
 		)
 	)
 end
@@ -500,6 +516,7 @@ end
 local chunk_skills = {} -- { [hash] = skills_str }  populated from CHUNK_NAME line (level-1 only)
 local scanned_chunks = {} -- chunks announced via CHUNK_NAME this session
 local current = nil -- { id, max_bass_id, results={[i]={status,time}} }
+local current_loaded = nil -- hash most recently loaded via LOAD_CHUNK
 local pending_children = {} -- [hash] = {results, abs_s, abs_e}; awaiting CHILDREN response
 local children_of = {} -- [hash] = {child_hash, ...} built from CHILDREN responses
 local pending_child_queries = 0 -- outstanding startup QUERY_CHILDREN from ALL_SCANNED
@@ -537,10 +554,11 @@ local function compute_skill_rank(hash, skill_order_str)
 	return rank
 end
 
-local function handle_suggest(stats)
+-- Returns the hash of the best chunk to suggest, or nil. No output.
+local function suggest_best_hash(stats)
 	local alg = stats.algorithm
-	local best_unmastered = nil -- highest level, then lowest power, among practiced-but-not-mastered
-	local best_new = nil -- lowest level, then lowest skill_rank, among never-touched
+	local best_unmastered = nil
+	local best_new = nil
 	local all_practiced_mastered = true
 
 	for h, c in pairs(stats.chunks) do
@@ -574,27 +592,29 @@ local function handle_suggest(stats)
 		end
 	end
 
-	local best, reason
 	if not all_practiced_mastered then
-		best = best_unmastered
-		reason = "weak_chunk"
+		return best_unmastered and best_unmastered.hash or nil
 	elseif best_new then
-		best = best_new
-		reason = "new_chunk"
+		return best_new.hash
 	end
+	return nil
+end
 
-	if best then
+local function handle_suggest(stats)
+	local best_hash = suggest_best_hash(stats)
+	if best_hash then
+		local c = stats.chunks[best_hash]
+		local is_new = not c.last_date and not c.t_last_date
 		io.write(
 			string.format(
 				"SUGGESTION chunk=%s skills=%s reason=%s\n",
-				best.hash,
-				chunk_skills[best.hash] or "?",
-				reason
+				best_hash,
+				chunk_skills[best_hash] or "?",
+				is_new and "new_chunk" or "weak_chunk"
 			)
 		)
 		return
 	end
-
 	io.write("SUGGESTION none reason=all_up_to_date\n")
 end
 
@@ -651,7 +671,13 @@ local function finalize(stats)
 	local streak = calculate_streak(stats)
 	local ema = c.ema_pass or 1.0
 	local required = alg.overlearn_min + (alg.overlearn_max - alg.overlearn_min) * (1.0 - ema)
-	local suggestion = c.n_consecutive >= required and "try_another_lesson" or nil
+	local suggestion = nil
+	if c.n_consecutive >= required then
+		local best = suggest_best_hash(stats)
+		if best and best ~= hash then
+			suggestion = "try_another_lesson"
+		end
+	end
 	io.write(
 		string.format(
 			"STATS time=%.0f total_today=%.2f goal=%.2f total_duration_today=%.3f streak=%d"
@@ -737,6 +763,15 @@ for line in io.lines() do
 		if needs_save then
 			save_stats(stats_file, stats)
 		end
+	-- LOAD_CHUNK: track which chunk is loaded; emit its current stats immediately
+	elseif line:match("^LOAD_CHUNK ") then
+		local h = line:match("^LOAD_CHUNK (%S+)")
+		if h then
+			current_loaded = h
+			local stats = load_stats(stats_file)
+			print_stats_line(stats, nil, current_loaded)
+		end
+
 	-- LESSON: new session starting; finalise any abandoned in-progress session
 	elseif line:match("^LESSON ") then
 		local chunk_id = line:match("^LESSON (%S+)")
@@ -878,7 +913,7 @@ for line in io.lines() do
 	-- GUI commands
 	elseif line:match("^QUERY_STATS") then
 		local stats = load_stats(stats_file)
-		print_stats_line(stats)
+		print_stats_line(stats, nil, current_loaded)
 	elseif line:match("^SUGGEST_LESSON") then
 		-- Defer until ALL_SCANNED received and children_of map is fully built.
 		if all_scanned_received and pending_child_queries == 0 then
