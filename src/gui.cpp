@@ -12,10 +12,9 @@
 //     non-blocking so the UI remains responsive.
 //
 // KEYBOARD SHORTCUTS
-//     ESC         Close the window and exit.
-//     Q           Clear the current lesson display.
+//     ESC / X     Close the current lesson display (X also clicks the X button).
 //     R           Reload: re-emit LOAD_CHUNK for the current item.
-//     S / SPACE   Emit SUGGEST_LESSON to get the best item to practice next.
+//     SPACE       Emit SUGGEST_LESSON to get the best item to practice next.
 //     K           Toggle karaoke mode (emits KARAOKE_ON / KARAOKE_OFF).
 //
 // RECEIVED (stdin, from stats.lua, all.lua, and bin/karaoke)
@@ -91,6 +90,10 @@ struct status_line {
 	    -1e9; // initialised far in the past; never triggers on startup
 	bool goal_met = false;
 	int streak = 0;
+
+	// thresholds from STATS line
+	float mastery_thresh = 80.0f;
+	float power_thresh = 70.0f;
 
 	// coaching suggestion from last STATS line
 	char suggestion[32] = "";
@@ -171,13 +174,12 @@ static void key_callback(GLFWwindow *window, int key, int scancode, int action,
 		case GLFW_KEY_ESCAPE:
 			glfwSetWindowShouldClose(window, GLFW_TRUE);
 			break;
-		case GLFW_KEY_Q:
+		case GLFW_KEY_X:
 			quit_lesson();
 			break;
 		case GLFW_KEY_R:
 			reload_lesson();
 			break;
-		case GLFW_KEY_S:
 		case GLFW_KEY_SPACE:
 			suggest_lesson();
 			break;
@@ -277,8 +279,16 @@ static void handle_stats(const char *buf)
 	if (p)
 		sscanf(p, "streak=%d", &state.status.streak);
 
-	// mastery= and power= live inside the lesson bracket, e.g.
-	// lesson=3[ivl=6,ease=2.60,tot_dur=12.345,mastery=18.50,power=9.20]
+	p = strstr(buf, "mastery_thresh=");
+	if (p)
+		sscanf(p, "mastery_thresh=%f", &state.status.mastery_thresh);
+
+	p = strstr(buf, "power_thresh=");
+	if (p)
+		sscanf(p, "power_thresh=%f", &state.status.power_thresh);
+
+	// mastery= and power= live inside the chunk/lesson bracket, e.g.
+	// chunk=<hash>[ivl=6,ease=2.60,mastery=18.50,power=9.20]
 	p = strstr(buf, "mastery=");
 	if (p)
 		sscanf(p, "mastery=%f", &state.status.mastery);
@@ -611,7 +621,7 @@ static const char *expand_suggestion(const char *s)
 	if (strcmp(s, "raise_quality_play_more_evenly") == 0)
 		return "Good score! Even up your tempo to grow mastery.";
 	if (strcmp(s, "try_another_lesson") == 0)
-		return "Great effort! Try another lesson now.";
+		return "Press SPACE for a new lesson.";
 	if (strcmp(s, "no_lessons_available") == 0)
 		return "No lessons found in seq/.";
 	if (strcmp(s, "all_up_to_date") == 0)
@@ -631,52 +641,36 @@ static void show_stats_bar(void)
 
 	float bar_w = 70.0f;
 	float bar_h = ImGui::GetFrameHeight();
-	float sp = ImGui::GetStyle().ItemSpacing.x;
 
-	// Pre-compute last-item width for total width calculation
-	char streak_buf[32] = "";
-	float last_w;
-	if (s.goal_met) {
-		snprintf(streak_buf, sizeof(streak_buf), "Streak: %d",
-			 s.streak);
-		last_w = ImGui::CalcTextSize(streak_buf).x;
-	} else {
-		last_w = bar_w;
-	}
-	float total_w = bar_w + sp + bar_w + sp + last_w;
-
-	// Right-align to image edge; fall back to after buttons
-	float content_x =
-	    ImGui::GetWindowPos().x + ImGui::GetWindowContentRegionMin().x;
-	float ideal_x = content_x + (float)state.image_width - total_w;
-	ImGui::SameLine();
-	float after_buttons_x = ImGui::GetCursorScreenPos().x;
-	float start_x = (ideal_x > after_buttons_x) ? ideal_x : after_buttons_x;
-	ImGui::SetCursorScreenPos(
-	    ImVec2(start_x, ImGui::GetCursorScreenPos().y));
-
-	// Mastery bar (green)
+	// Mastery bar: green if at/above thresh, amber otherwise
 	char m_label[16];
 	snprintf(m_label, sizeof(m_label), "M %.1f", s.mastery);
 	float m_frac = fminf(s.mastery / 100.0f, 1.0f);
+	bool m_ok = s.mastery >= s.mastery_thresh;
 	ImGui::PushStyleColor(ImGuiCol_PlotHistogram,
-			      ImVec4(0.2f, 0.8f, 0.3f, 1.0f));
+			      m_ok ? ImVec4(0.2f, 0.8f, 0.3f, 1.0f)
+				   : ImVec4(0.8f, 0.5f, 0.1f, 1.0f));
 	ImGui::ProgressBar(m_frac, ImVec2(bar_w, bar_h), m_label);
 	ImGui::PopStyleColor();
 
-	// Power bar (orange)
+	// Power bar: green if at/above thresh, amber otherwise
 	char p_label[16];
 	snprintf(p_label, sizeof(p_label), "P %.1f", s.power);
 	float p_frac = fminf(s.power / 100.0f, 1.0f);
+	bool p_ok = s.power >= s.power_thresh;
 	ImGui::SameLine();
 	ImGui::PushStyleColor(ImGuiCol_PlotHistogram,
-			      ImVec4(0.9f, 0.6f, 0.1f, 1.0f));
+			      p_ok ? ImVec4(0.2f, 0.8f, 0.3f, 1.0f)
+				   : ImVec4(0.9f, 0.6f, 0.1f, 1.0f));
 	ImGui::ProgressBar(p_frac, ImVec2(bar_w, bar_h), p_label);
 	ImGui::PopStyleColor();
 
 	// Daily goal: progress bar or streak
 	ImGui::SameLine();
 	if (s.goal_met) {
+		char streak_buf[32];
+		snprintf(streak_buf, sizeof(streak_buf), "Streak: %d",
+			 s.streak);
 		ImGui::TextColored(ImVec4(0.0f, 1.0f, 0.4f, 1.0f), "%s",
 				   streak_buf);
 	} else {
@@ -695,7 +689,7 @@ static void show_info_line(void)
 {
 	const status_line &s = state.status;
 	double age = glfwGetTime() - s.suggestion_time;
-	bool show_msg = (s.suggestion[0] != '\0' && age < 1.0);
+	bool show_msg = (s.suggestion[0] != '\0' && age < 3.0);
 	if (show_msg) {
 		const char *text = expand_suggestion(s.suggestion);
 		ImGui::TextColored(ImVec4(1.0f, 0.85f, 0.1f, 1.0f), "%s",
@@ -775,19 +769,24 @@ static void show_celebration(void)
 
 static void gui_main(void)
 {
-	// ── Row 1: buttons + stats bar
-	// ────────────────────────────────────────
-	ImGui::SameLine();
-	if (ImGui::Button("[Q]uit"))
-		quit_lesson();
+	// ── Row 1: stats bars (left) + buttons (right)
+	// ───────────────────────────────────────────────
+	show_stats_bar();
 
+	// Right-align the buttons: [R]eload  [K]araoke  X
+	ImGuiStyle &style = ImGui::GetStyle();
+	float sp = style.ItemSpacing.x;
+	float fp = style.FramePadding.x;
+	float reload_w = ImGui::CalcTextSize("[R]eload").x + fp * 2;
+	float karaoke_w = ImGui::CalcTextSize("[K]araoke").x + fp * 2;
+	float x_w = ImGui::CalcTextSize("X").x + fp * 2;
+	float total_btn_w = reload_w + sp + karaoke_w + sp + x_w;
+	float margin = style.WindowPadding.x;
 	ImGui::SameLine();
+	ImGui::SetCursorPosX(ImGui::GetWindowWidth() - margin - total_btn_w);
+
 	if (ImGui::Button("[R]eload"))
 		reload_lesson();
-
-	ImGui::SameLine();
-	if (ImGui::Button("[S]uggest"))
-		suggest_lesson();
 
 	ImGui::SameLine();
 	bool karaoke_was_on = state.karaoke_on;
@@ -799,7 +798,9 @@ static void gui_main(void)
 	if (karaoke_was_on)
 		ImGui::PopStyleColor();
 
-	show_stats_bar();
+	ImGui::SameLine();
+	if (ImGui::Button("X"))
+		quit_lesson();
 
 	// ── Content
 	// ───────────────────────────────────────────────────────────

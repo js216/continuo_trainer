@@ -501,12 +501,14 @@ local function print_stats_line(stats, timestamp, chunk_hash)
 	end
 	io.write(
 		string.format(
-			"STATS time=%.0f total_today=%.2f goal=%.2f total_duration_today=%.3f streak=%d%s\n",
+			"STATS time=%.0f total_today=%.2f goal=%.2f total_duration_today=%.3f streak=%d mastery_thresh=%d power_thresh=%d%s\n",
 			timestamp or os.time(),
 			d.score,
 			alg.score_goal,
 			d.duration,
 			streak,
+			alg.chunk_mastery_thresh,
+			alg.chunk_power_thresh,
 			chunk_str
 		)
 	)
@@ -682,12 +684,15 @@ local function finalize(stats)
 	io.write(
 		string.format(
 			"STATS time=%.0f total_today=%.2f goal=%.2f total_duration_today=%.3f streak=%d"
+				.. " mastery_thresh=%d power_thresh=%d"
 				.. " chunk=%s[ivl=%d,ease=%.2f,mastery=%.2f,power=%.2f]%s\n",
 			sd.time,
 			d.score,
 			alg.score_goal,
 			d.duration,
 			streak,
+			alg.chunk_mastery_thresh,
+			alg.chunk_power_thresh,
 			hash,
 			math.floor(c.ivl or 0),
 			c.ease or alg.ease_initial,
