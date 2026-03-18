@@ -665,23 +665,24 @@ static void show_stats_bar(void)
 	ImGui::ProgressBar(p_frac, ImVec2(bar_w, bar_h), p_label);
 	ImGui::PopStyleColor();
 
-	// Daily goal: progress bar or streak
+	// Daily goal: always show progress bar; streak to the right when met
+	char d_label[16];
+	snprintf(d_label, sizeof(d_label), "%d pts", s.pts);
+	float d_frac =
+	    (s.goal > 0.0f) ? fminf((float)s.pts / s.goal, 1.0f) : 0.0f;
 	ImGui::SameLine();
-	if (s.goal_met) {
+	ImGui::PushStyleColor(ImGuiCol_PlotHistogram,
+			      s.goal_met ? ImVec4(0.0f, 0.8f, 0.3f, 1.0f)
+					 : ImVec4(0.2f, 0.5f, 0.9f, 1.0f));
+	ImGui::ProgressBar(d_frac, ImVec2(bar_w, bar_h), d_label);
+	ImGui::PopStyleColor();
+	if (s.goal_met && s.streak > 0) {
 		char streak_buf[32];
 		snprintf(streak_buf, sizeof(streak_buf), "Streak: %d",
 			 s.streak);
+		ImGui::SameLine();
 		ImGui::TextColored(ImVec4(0.0f, 1.0f, 0.4f, 1.0f), "%s",
 				   streak_buf);
-	} else {
-		char d_label[16];
-		snprintf(d_label, sizeof(d_label), "%d pts", s.pts);
-		float d_frac =
-		    (s.goal > 0.0f) ? fminf((float)s.pts / s.goal, 1.0f) : 0.0f;
-		ImGui::PushStyleColor(ImGuiCol_PlotHistogram,
-				      ImVec4(0.2f, 0.5f, 0.9f, 1.0f));
-		ImGui::ProgressBar(d_frac, ImVec2(bar_w, bar_h), d_label);
-		ImGui::PopStyleColor();
 	}
 }
 
