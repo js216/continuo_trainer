@@ -163,87 +163,196 @@ for _, c in pairs(chunks) do
 end
 print(string.format("Total   chunks: %d   practice time: %s", n_chunks, fmt_dur(total_secs)))
 
--- ── read chunk metadata (title + skills) in one pass ─────────────────────────
+-- ── algorithm parameters ──────────────────────────────────────────────────────
 
-local chunk_meta = {} -- [hash] = {skills}
-for h in pairs(chunks) do
-	local skills
-	local f = io.open("chn/" .. h .. ".txt", "r")
-	if f then
-		for line in f:lines() do
-			if not skills then
-				skills = line:match("^skills:%s*(.+)$")
-			end
-			if skills then
-				break
-			end
+local param_order = {
+	"score_goal",
+	"ema_alpha",
+	"pass_accuracy",
+	"mastery_growth",
+	"power_half_life",
+	"mastery_points_per_pct",
+	"power_points_per_pct",
+	"bottleneck_thresh",
+	"dominance_margin",
+	"min_quality",
+	"power_score_frac",
+	"overlearn_min",
+	"overlearn_max",
+	"mistake_power_penalty",
+	"mastery_decay_half_life",
+	"weak_ema_thresh",
+	"ease_initial",
+	"ease_min",
+	"ease_max",
+	"ease_pass_delta",
+	"ease_fail_delta",
+	"ivl_first",
+	"ivl_second",
+	"ivl_max",
+	"chunk_mastery_thresh",
+	"chunk_power_thresh",
+	"skill_order",
+}
+
+if next(alg) then
+	print()
+	print("ALGORITHM PARAMETERS")
+	print(string.rep("-", 60))
+	local in_order = {}
+	for _, k in ipairs(param_order) do
+		in_order[k] = true
+		local v = alg[k]
+		if v ~= nil then
+			local vs = type(v) == "number"
+					and (math.floor(v) == v and tostring(math.floor(v)) or string.format("%.4g", v))
+				or tostring(v)
+			print(string.format("  %-28s  %s", k, vs))
 		end
-		f:close()
 	end
-	chunk_meta[h] = { skills = skills or "" }
+	local extra = {}
+	for k in pairs(alg) do
+		if not in_order[k] then
+			extra[#extra + 1] = k
+		end
+	end
+	table.sort(extra)
+	for _, k in ipairs(extra) do
+		local v = alg[k]
+		local vs = type(v) == "number" and (math.floor(v) == v and tostring(math.floor(v)) or string.format("%.4g", v))
+			or tostring(v)
+		print(string.format("  %-28s  %s", k, vs))
+	end
 end
 
--- ── skills ────────────────────────────────────────────────────────────────────
--- Level-1 chunks have a skills: field; level-0 do not.
+-- ── per-skill stats ───────────────────────────────────────────────────────────
 
-local skill_stats = {} -- [skill] = {n, m_sum, p_sum, pass, fail}
+local skill_stats = {}
 for h, c in pairs(chunks) do
-	local skills_str = chunk_meta[h].skills
-	if skills_str ~= "" then
+	local skills_str = chunks[h].skills
+	if skills_str and skills_str ~= "" then
 		local m_pct = normalize(c.mastery or 0, c)
 		local p_pct = normalize(calculate_power(c), c)
+		local practiced = (c.n_pass_tot or 0) + (c.n_fail_tot or 0) > 0
 		for skill in skills_str:gmatch("%S+") do
 			local ss = skill_stats[skill]
 			if not ss then
-				ss = { n = 0, m_sum = 0, p_sum = 0, pass = 0, fail = 0 }
+				ss = {
+					n_chunks = 0,
+					n_practiced = 0,
+					m_sum = 0,
+					p_sum = 0,
+					pass = 0,
+					fail = 0,
+					ema_sum = 0,
+					ema_n = 0,
+					ease_sum = 0,
+					ease_n = 0,
+					best_avg_sum = 0,
+					best_avg_n = 0,
+					dur_sum = 0,
+				}
 				skill_stats[skill] = ss
 			end
-			ss.n = ss.n + 1
+			ss.n_chunks = ss.n_chunks + 1
 			ss.m_sum = ss.m_sum + m_pct
 			ss.p_sum = ss.p_sum + p_pct
 			ss.pass = ss.pass + (c.n_pass_tot or 0)
 			ss.fail = ss.fail + (c.n_fail_tot or 0)
+			ss.dur_sum = ss.dur_sum + (c.total_duration or 0)
+			if practiced then
+				ss.n_practiced = ss.n_practiced + 1
+			end
+			if c.ema_pass then
+				ss.ema_sum = ss.ema_sum + c.ema_pass
+				ss.ema_n = ss.ema_n + 1
+			end
+			if c.ease then
+				ss.ease_sum = ss.ease_sum + c.ease
+				ss.ease_n = ss.ease_n + 1
+			end
+			if c.best_avg then
+				ss.best_avg_sum = ss.best_avg_sum + c.best_avg
+				ss.best_avg_n = ss.best_avg_n + 1
+			end
 		end
 	end
 end
 
 local skill_names = {}
 for s in pairs(skill_stats) do
-	table.insert(skill_names, s)
+	skill_names[#skill_names + 1] = s
 end
--- Weakest first (lowest average mastery).
+local sk_rank, sk_n = {}, 0
+for sk in (alg.skill_order or ""):gmatch("%S+") do
+	sk_rank[sk] = sk_n
+	sk_n = sk_n + 1
+end
 table.sort(skill_names, function(a, b)
-	return (skill_stats[a].m_sum / skill_stats[a].n) < (skill_stats[b].m_sum / skill_stats[b].n)
+	local ra = sk_rank[a] or sk_n
+	local rb = sk_rank[b] or sk_n
+	if ra ~= rb then
+		return ra < rb
+	end
+	return a < b
 end)
 
--- Column widths: 2+10+2+4+2+7+2+7+2+5+2+5 = 50
 if #skill_names > 0 then
 	print()
 	print(string.format("SKILLS (%d)", #skill_names))
-	print(string.format("  %-10s  %4s  %-7s  %-7s  %-5s  %s", "Skill", "N", "Mastery", "Power", "Pass", "Fail"))
-	print(string.rep("-", 50))
+	print("  Chunks: practiced/total.  Mastery/Power: avg % across chunks.")
+	print("  Rate: pass/(pass+fail) sessions.  EMA: avg smoothed pass rate.")
+	print("  Ease: avg SRS multiplier.  Speed: avg personal-best transition time.  Time: total practice.")
+	print()
+	print(
+		string.format(
+			"  %-10s  %11s  %-7s  %-7s  %5s  %5s  %5s  %5s  %5s  %7s  %8s",
+			"Skill",
+			"Chunks",
+			"Mastery",
+			"Power",
+			"Pass",
+			"Fail",
+			"Rate",
+			"EMA",
+			"Ease",
+			"Speed",
+			"Time"
+		)
+	)
+	print(string.rep("-", 95))
 	for _, sname in ipairs(skill_names) do
 		local ss = skill_stats[sname]
+		local total = ss.pass + ss.fail
+		local rate = total > 0 and string.format("%4.0f%%", ss.pass / total * 100) or "  -- "
+		local ema = ss.ema_n > 0 and string.format("%4.0f%%", ss.ema_sum / ss.ema_n * 100) or "  -- "
+		local ease = ss.ease_n > 0 and string.format("%.2f", ss.ease_sum / ss.ease_n) or "  -- "
+		local speed = ss.best_avg_n > 0 and string.format("%5.3fs", ss.best_avg_sum / ss.best_avg_n) or "    --"
 		print(
 			string.format(
-				"  %-10s  %4d  %6.1f%%  %6.1f%%  %5d  %5d",
+				"  %-10s  %5d/%-5d  %6.1f%%  %6.1f%%  %5d  %5d  %s  %s  %s  %s  %s",
 				sname,
-				ss.n,
-				ss.m_sum / ss.n,
-				ss.p_sum / ss.n,
+				ss.n_practiced,
+				ss.n_chunks,
+				ss.m_sum / ss.n_chunks,
+				ss.p_sum / ss.n_chunks,
 				ss.pass,
-				ss.fail
+				ss.fail,
+				rate,
+				ema,
+				ease,
+				speed,
+				fmt_dur(ss.dur_sum)
 			)
 		)
 	end
 end
 
 -- ── chunks ────────────────────────────────────────────────────────────────────
--- Unified table: all levels together, sorted by level then mastery ascending.
 
 local chunk_hashes = {}
 for h in pairs(chunks) do
-	table.insert(chunk_hashes, h)
+	chunk_hashes[#chunk_hashes + 1] = h
 end
 table.sort(chunk_hashes, function(a, b)
 	local la = chunks[a].level or 0
@@ -254,27 +363,64 @@ table.sort(chunk_hashes, function(a, b)
 	return normalize(chunks[a].mastery or 0, chunks[a]) < normalize(chunks[b].mastery or 0, chunks[b])
 end)
 
--- Fixed columns up to Skills: ~78 chars; skills fill remaining space to 120.
 if #chunk_hashes > 0 then
+	local ema_window = alg.ema_alpha and string.format("~%.0f", 1.0 / alg.ema_alpha) or "?"
+	local ease_init = alg.ease_initial or 2.5
+	local ease_min = alg.ease_min or 1.3
+	local ease_max = alg.ease_max or 3.5
+
 	print()
 	print(string.format("CHUNKS (%d)", #chunk_hashes))
+	print()
+	print("  Column legend:")
+	print("    Hash     First 8 hex chars of the chunk's SHA-1 ID")
+	print("    L        Level: 0=full lesson, 1=3-bar drill, 2=1-bar drill")
+	print("    Dir%     Direct mastery: scored from sessions on this chunk itself")
+	print("    Trn%     Transitive mastery: inferred from practice of parent chunks")
+	print("    Power    Retention: mastery decayed by time elapsed vs review interval")
+	print("    Pass     Total all-correct sessions")
+	print("    Fail     Total sessions with at least one error")
+	print("    Rate     Pass / (Pass+Fail)")
 	print(
 		string.format(
-			"  %-8s  %1s  %-7s  %-7s  %-7s  %4s  %-10s  %5s  %5s  %5s  %s",
+			"    EMA      Exponential moving average of pass rate (%s-session window, alpha=%s)",
+			ema_window,
+			tostring(alg.ema_alpha or "?")
+		)
+	)
+	print(
+		string.format(
+			"    Ease     SRS ease multiplier (initial=%.1f, min=%.1f, max=%.1f; falls on fail, rises on pass)",
+			ease_init,
+			ease_min,
+			ease_max
+		)
+	)
+	print("    Ivl      SRS review interval in days (* = review overdue)")
+	print("    BestAvg  Fastest recorded average inter-note transition time")
+	print("    PFac     Power factor: penalty for failed sub-ranges (100%=clean)")
+	print("    Last     Date of most recent practice (direct or transitive)")
+	print()
+	print(
+		string.format(
+			"  %-8s  %1s  %-7s  %-7s  %-7s  %5s  %5s  %5s  %5s  %5s  %4s  %7s  %5s  %-10s",
 			"Hash",
 			"L",
 			"Dir%",
 			"Trn%",
 			"Power",
-			"Ivl",
-			"Last",
 			"Pass",
 			"Fail",
 			"Rate",
-			"Skills"
+			"EMA",
+			"Ease",
+			"Ivl",
+			"BestAvg",
+			"PFac",
+			"Last"
 		)
 	)
-	print(string.rep("-", 80))
+	print(string.rep("-", 100))
 	for _, h in ipairs(chunk_hashes) do
 		local c = chunks[h]
 		local dir_pct = normalize(c.mastery or 0, c)
@@ -291,32 +437,30 @@ if #chunk_hashes > 0 then
 		local pass = c.n_pass_tot or 0
 		local fail = c.n_fail_tot or 0
 		local total = pass + fail
-		local rate = total > 0 and string.format("%4.0f%%", (pass / total) * 100) or "  -- "
-		local fixed = string.format(
-			"  %-8s  %1d  %6.1f%%  %6.1f%%  %6.1f%%  %4d  %s%s  %5d  %5d  %s",
-			h:sub(1, 8),
-			c.level or 0,
-			dir_pct,
-			trn_pct,
-			power_pct,
-			ivl,
-			eff_last or "--        ",
-			due,
-			pass,
-			fail,
-			rate
+		local rate = total > 0 and string.format("%4.0f%%", pass / total * 100) or "  -- "
+		local ema = c.ema_pass and string.format("%4.0f%%", c.ema_pass * 100) or "  -- "
+		local ease = string.format("%.2f", c.ease or 0)
+		local best_avg = c.best_avg and string.format("%5.3fs", c.best_avg) or "    --"
+		local pfac = c.power_factor and string.format("%4.0f%%", c.power_factor * 100) or "  -- "
+		print(
+			string.format(
+				"  %-8s  %1d  %6.1f%%  %6.1f%%  %6.1f%%  %5d  %5d  %s  %s  %s  %4d%s  %s  %s  %s",
+				h:sub(1, 8),
+				c.level or 0,
+				dir_pct,
+				trn_pct,
+				power_pct,
+				pass,
+				fail,
+				rate,
+				ema,
+				ease,
+				ivl,
+				due,
+				best_avg,
+				pfac,
+				eff_last or "--"
+			)
 		)
-		local skills = chunk_meta[h].skills
-		local line = fixed
-		if skills ~= "" then
-			local remaining = 120 - #fixed - 2
-			if remaining > 0 then
-				if #skills > remaining then
-					skills = skills:sub(1, remaining - 1) .. "~"
-				end
-				line = fixed .. "  " .. skills
-			end
-		end
-		print(line)
 	end
 end
