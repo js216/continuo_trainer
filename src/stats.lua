@@ -548,8 +548,10 @@ local function handle_suggest(stats)
 		local m_pct = normalize(math.max(c.mastery or 0, c.t_mastery or 0), c)
 		local p_pct = normalize(calculate_effective_power(c, alg), c)
 
-		-- Skip chunks whose power is already sufficiently high relative to mastery.
-		if m_pct > 0 and p_pct >= alg.power_score_frac * m_pct then
+		-- Skip chunks whose power is already sufficiently high relative to mastery,
+		-- but only once mastery itself is substantial -- a chunk with tiny mastery
+		-- is not "done" regardless of its power retention.
+		if m_pct >= alg.chunk_mastery_thresh and p_pct >= alg.power_score_frac * m_pct then
 			goto next_chunk
 		end
 
@@ -585,6 +587,24 @@ local function handle_suggest(stats)
 		end
 		return a.hash < b.hash
 	end)
+
+	-- Do not suggest a new chunk when any same-level chunk has been practiced
+	-- but not yet mastered.
+	local inprogress_levels = {}
+	for _, cd in ipairs(candidates) do
+		if not cd.is_new then
+			inprogress_levels[cd.level] = true
+		end
+	end
+	if next(inprogress_levels) then
+		local filtered = {}
+		for _, cd in ipairs(candidates) do
+			if not (cd.is_new and inprogress_levels[cd.level]) then
+				filtered[#filtered + 1] = cd
+			end
+		end
+		candidates = filtered
+	end
 
 	if #candidates > 0 then
 		local best = candidates[1]

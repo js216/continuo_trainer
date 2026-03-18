@@ -52,7 +52,7 @@ test:
 	lua src/tst.lua tst bin src
 
 index:
-	rm -f chn/*
+	rm -f chn/*.txt
 	echo RESCAN | lua src/all.lua | lua src/stats.lua log/stats.log
 
 clean:

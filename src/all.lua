@@ -369,6 +369,25 @@ local function build_chunk_content(
 	return table.concat(lines, "\n")
 end
 
+-- ── skill helpers ────────────────────────────────────────────────────────────
+
+-- Returns a space-separated skills string for figures[s..e] (1-indexed).
+local function skills_for_figures(figures, s, e)
+	local slice = {}
+	for i = s, e do
+		slice[#slice + 1] = figures[i]
+	end
+	local hearts = identify_hearts(slice)
+	local seen, skills = {}, {}
+	for _, h in ipairs(hearts) do
+		if not seen[h.skill] then
+			seen[h.skill] = true
+			skills[#skills + 1] = h.skill
+		end
+	end
+	return table.concat(skills, " ")
+end
+
 -- ── bar-based chunk generation ────────────────────────────────────────────────
 
 -- Returns a list of {hash, s, e, skills} (1-indexed, deduped by hash).
@@ -396,20 +415,7 @@ local function compute_bar_children(
 	for _, sp in ipairs(splits) do
 		local s, e = sp.s, sp.e
 
-		-- Extract skills from this slice's figures
-		local slice_figs = {}
-		for i = s, e do
-			slice_figs[i - s + 1] = figures[i]
-		end
-		local hearts = identify_hearts(slice_figs)
-		local seen_sk, skills = {}, {}
-		for _, h in ipairs(hearts) do
-			if not seen_sk[h.skill] then
-				seen_sk[h.skill] = true
-				skills[#skills + 1] = h.skill
-			end
-		end
-		local skills_str = table.concat(skills, " ")
+		local skills_str = skills_for_figures(figures, s, e)
 
 		local bar = chunk_bar(bass, time_sig, lesson_bar, s)
 		local partial = chunk_partial_sixteenths(bass, time_sig, s)
@@ -766,8 +772,9 @@ local function scan_and_emit()
 		content0 = content0:gsub("\r\n", "\n"):gsub("\r", "\n")
 		local hash0 = sha1(content0)
 		write_chunk(hash0, content0)
+		local skills0 = skills_for_figures(lesson.figures, 1, N)
 		live_chunks[hash0] = true
-		io.write("CHUNK_NAME " .. hash0 .. " 0\n")
+		io.write("CHUNK_NAME " .. hash0 .. " 0 " .. skills0 .. "\n")
 		io.flush()
 
 		-- ── level-1: 3-bar chunks; level-2: 1-bar chunks ─────────────────────
