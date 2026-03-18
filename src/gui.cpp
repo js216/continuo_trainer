@@ -651,8 +651,8 @@ static void show_stats_bar(void)
 	} else {
 		last_w = bar_w;
 	}
-	float total_w = ImGui::CalcTextSize(hash8).x + sp + bar_w + sp +
-	    bar_w + sp + last_w;
+	float total_w = ImGui::CalcTextSize(hash8).x + sp + bar_w + sp + bar_w +
+	    sp + last_w;
 
 	// Right-align to image edge; fall back to after buttons
 	float content_x =
@@ -661,7 +661,8 @@ static void show_stats_bar(void)
 	ImGui::SameLine();
 	float after_buttons_x = ImGui::GetCursorScreenPos().x;
 	float start_x = (ideal_x > after_buttons_x) ? ideal_x : after_buttons_x;
-	ImGui::SetCursorScreenPos(ImVec2(start_x, ImGui::GetCursorScreenPos().y));
+	ImGui::SetCursorScreenPos(
+	    ImVec2(start_x, ImGui::GetCursorScreenPos().y));
 
 	// Chunk hash
 	ImGui::TextUnformatted(hash8);
@@ -694,9 +695,8 @@ static void show_stats_bar(void)
 	} else {
 		char d_label[16];
 		snprintf(d_label, sizeof(d_label), "%d pts", s.pts);
-		float d_frac = (s.goal > 0.0f)
-		    ? fminf((float)s.pts / s.goal, 1.0f)
-		    : 0.0f;
+		float d_frac =
+		    (s.goal > 0.0f) ? fminf((float)s.pts / s.goal, 1.0f) : 0.0f;
 		ImGui::PushStyleColor(ImGuiCol_PlotHistogram,
 				      ImVec4(0.2f, 0.5f, 0.9f, 1.0f));
 		ImGui::ProgressBar(d_frac, ImVec2(bar_w, bar_h), d_label);
@@ -762,7 +762,8 @@ static void show_celebration(void)
 
 static void gui_main(void)
 {
-	// ── Row 1: buttons + stats bar ────────────────────────────────────────
+	// ── Row 1: buttons + stats bar
+	// ────────────────────────────────────────
 	ImGui::SameLine();
 	if (ImGui::Button("[Q]uit"))
 		quit_lesson();
@@ -787,14 +788,16 @@ static void gui_main(void)
 
 	show_stats_bar();
 
-	// ── Content ───────────────────────────────────────────────────────────
+	// ── Content
+	// ───────────────────────────────────────────────────────────
 	show_music();
 	show_squares();
 
 	if (state.explanation[0] != '\0')
 		ImGui::TextUnformatted(state.explanation);
 
-	// ── Push info line to bottom ──────────────────────────────────────────
+	// ── Push info line to bottom
+	// ──────────────────────────────────────────
 	float line_h = ImGui::GetTextLineHeightWithSpacing();
 	float pad_y = ImGui::GetStyle().WindowPadding.y;
 	float win_bottom =
@@ -862,7 +865,8 @@ int main(int, char **)
 	// Non-blocking stdin
 	fcntl(STDIN_FILENO, F_SETFL, fcntl(STDIN_FILENO, F_GETFL) | O_NONBLOCK);
 
-	// Request the first suggestion immediately; stats.lua is ready at startup.
+	// Request the first suggestion immediately; stats.lua is ready at
+	// startup.
 	printf("SUGGEST_LESSON\n");
 	fflush(stdout);
 

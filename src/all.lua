@@ -372,7 +372,23 @@ end
 -- ── bar-based chunk generation ────────────────────────────────────────────────
 
 -- Returns a list of {hash, s, e, skills} (1-indexed, deduped by hash).
-local function compute_bar_children(level, key, time_sig, bpm, lesson_bar, title, composer, bass, passing, figures, melody, ps, pe, offsets, step_bars)
+local function compute_bar_children(
+	level,
+	key,
+	time_sig,
+	bpm,
+	lesson_bar,
+	title,
+	composer,
+	bass,
+	passing,
+	figures,
+	melody,
+	ps,
+	pe,
+	offsets,
+	step_bars
+)
 	local splits = bar_split(time_sig, ps, pe, offsets, step_bars)
 	local children = {}
 	local seen_hashes = {}
