@@ -539,76 +539,51 @@ end
 
 local function handle_suggest(stats)
 	local alg = stats.algorithm
-	local candidates = {}
+	local best_unmastered = nil -- highest level, then lowest power, among practiced-but-not-mastered
+	local best_new = nil -- lowest level, then lowest skill_rank, among never-touched
+	local all_practiced_mastered = true
 
 	for h, c in pairs(stats.chunks) do
-		local level = c.level or 0
-
 		local is_new = not c.last_date and not c.t_last_date
 		local m_pct = normalize(math.max(c.mastery or 0, c.t_mastery or 0), c)
-		local p_pct = normalize(calculate_effective_power(c, alg), c)
+		local level = c.level or 0
 
-		-- Skip chunks whose power is already sufficiently high relative to mastery,
-		-- but only once mastery itself is substantial -- a chunk with tiny mastery
-		-- is not "done" regardless of its power retention.
-		if m_pct >= alg.chunk_mastery_thresh and p_pct >= alg.power_score_frac * m_pct then
-			goto next_chunk
-		end
-
-		local is_weak = m_pct < alg.chunk_mastery_thresh or p_pct < alg.chunk_power_thresh
-
-		if is_new or is_weak then
-			candidates[#candidates + 1] = {
-				hash = h,
-				skill_rank = compute_skill_rank(h, alg.skill_order),
-				level = level,
-				score = m_pct + p_pct,
-				is_new = is_new,
-			}
-		end
-		::next_chunk::
-	end
-
-	-- Sort: skill_rank ASC, level ASC (lower levels first — prefer full lessons over
-	-- drill chunks), not-new before new (prefer in-progress over untouched),
-	-- mastery+power ASC (weakest first), hash ASC (deterministic tiebreaker).
-	table.sort(candidates, function(a, b)
-		if a.skill_rank ~= b.skill_rank then
-			return a.skill_rank < b.skill_rank
-		end
-		if a.level ~= b.level then
-			return a.level < b.level
-		end
-		if a.is_new ~= b.is_new then
-			return not a.is_new
-		end
-		if a.score ~= b.score then
-			return a.score < b.score
-		end
-		return a.hash < b.hash
-	end)
-
-	-- Do not suggest a new chunk when any same-level chunk has been practiced
-	-- but not yet mastered.
-	local inprogress_levels = {}
-	for _, cd in ipairs(candidates) do
-		if not cd.is_new then
-			inprogress_levels[cd.level] = true
-		end
-	end
-	if next(inprogress_levels) then
-		local filtered = {}
-		for _, cd in ipairs(candidates) do
-			if not (cd.is_new and inprogress_levels[cd.level]) then
-				filtered[#filtered + 1] = cd
+		if is_new then
+			local sr = compute_skill_rank(h, alg.skill_order)
+			if
+				not best_new
+				or level < best_new.level
+				or (level == best_new.level and sr < best_new.skill_rank)
+				or (level == best_new.level and sr == best_new.skill_rank and h < best_new.hash)
+			then
+				best_new = { hash = h, level = level, skill_rank = sr }
+			end
+		else
+			if m_pct < alg.chunk_mastery_thresh then
+				all_practiced_mastered = false
+				local p = calculate_effective_power(c, alg)
+				if
+					not best_unmastered
+					or level > best_unmastered.level
+					or (level == best_unmastered.level and p < best_unmastered.p)
+					or (level == best_unmastered.level and p == best_unmastered.p and h < best_unmastered.hash)
+				then
+					best_unmastered = { hash = h, level = level, p = p }
+				end
 			end
 		end
-		candidates = filtered
 	end
 
-	if #candidates > 0 then
-		local best = candidates[1]
-		local reason = best.is_new and "new_chunk" or "weak_chunk"
+	local best, reason
+	if not all_practiced_mastered then
+		best = best_unmastered
+		reason = "weak_chunk"
+	elseif best_new then
+		best = best_new
+		reason = "new_chunk"
+	end
+
+	if best then
 		io.write(
 			string.format(
 				"SUGGESTION chunk=%s skills=%s reason=%s\n",
