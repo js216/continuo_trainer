@@ -645,7 +645,7 @@ static void show_stats_bar(void)
 	char streak_buf[32] = "";
 	float last_w;
 	if (s.goal_met) {
-		snprintf(streak_buf, sizeof(streak_buf), "streak: %d",
+		snprintf(streak_buf, sizeof(streak_buf), "Streak: %d",
 			 s.streak);
 		last_w = ImGui::CalcTextSize(streak_buf).x;
 	} else {

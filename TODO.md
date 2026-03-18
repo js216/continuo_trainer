@@ -1,13 +1,11 @@
-### Implement one paragraph at a time
+Centralize I/O
 
-### Maybe later
-
-"Journey" GUI: skill progression unlocking.
-
-Unravel the play.dot graph so that the data flow is linear pipes as much as
-possible rather than branching or loops.
+REST API in all/stats/gui for resource management
 
 Translate into Rust
 
-Convert into reactor pattern (read about it)
+Combine the front-end logic as a single app (no_std?)
 
+Convert gui/synth/midi to js/html/css
+
+Make a web app
