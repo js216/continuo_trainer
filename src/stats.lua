@@ -607,8 +607,9 @@ local function handle_suggest(stats)
 		local is_new = not c.last_date and not c.t_last_date
 		io.write(
 			string.format(
-				"SUGGESTION chunk=%s skills=%s reason=%s\n",
+				"SUGGESTION chunk=%s level=%d skills=%s reason=%s\n",
 				best_hash,
+				c.level or 0,
 				chunk_skills[best_hash] or "?",
 				is_new and "new_chunk" or "weak_chunk"
 			)

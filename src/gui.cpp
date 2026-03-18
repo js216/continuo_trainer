@@ -114,6 +114,7 @@ struct state {
 	bool stats_initialized = false; // true after first STATS line;
 					// suppresses startup celebration
 	bool karaoke_on = false;
+	int current_chunk_level = -1; // level from last SUGGESTION chunk= line
 } state;
 
 static void clear_status(void)
@@ -121,8 +122,6 @@ static void clear_status(void)
 	state.num_squares = 0;
 	state.explanation[0] = '\0';
 	state.status.slowest = 0;
-	state.status.mastery = 0.0f;
-	state.status.power = 0.0f;
 }
 
 static void quit_lesson(void)
@@ -347,6 +346,8 @@ static void handle_suggestion(const char *buf)
 		strncpy(state.current_chunk, hash,
 			sizeof(state.current_chunk) - 1);
 		state.current_chunk[sizeof(state.current_chunk) - 1] = '\0';
+		const char *lp = strstr(buf, "level=");
+		state.current_chunk_level = lp ? atoi(lp + 6) : -1;
 		printf("LOAD_CHUNK %s\n", hash);
 		fflush(stdout);
 		clear_status();
@@ -628,15 +629,6 @@ static void show_stats_bar(void)
 {
 	const status_line &s = state.status;
 
-	const char *hash = state.current_chunk[0]
-	    ? state.current_chunk
-	    : (state.num_level0 > 0
-		   ? state.level0_hashes[state.current_level0_idx]
-		   : "");
-
-	char hash8[9];
-	snprintf(hash8, sizeof(hash8), "%.8s", hash[0] ? hash : "--");
-
 	float bar_w = 70.0f;
 	float bar_h = ImGui::GetFrameHeight();
 	float sp = ImGui::GetStyle().ItemSpacing.x;
@@ -651,8 +643,7 @@ static void show_stats_bar(void)
 	} else {
 		last_w = bar_w;
 	}
-	float total_w = ImGui::CalcTextSize(hash8).x + sp + bar_w + sp + bar_w +
-	    sp + last_w;
+	float total_w = bar_w + sp + bar_w + sp + last_w;
 
 	// Right-align to image edge; fall back to after buttons
 	float content_x =
@@ -664,14 +655,10 @@ static void show_stats_bar(void)
 	ImGui::SetCursorScreenPos(
 	    ImVec2(start_x, ImGui::GetCursorScreenPos().y));
 
-	// Chunk hash
-	ImGui::TextUnformatted(hash8);
-
 	// Mastery bar (green)
 	char m_label[16];
 	snprintf(m_label, sizeof(m_label), "M %.1f", s.mastery);
 	float m_frac = fminf(s.mastery / 100.0f, 1.0f);
-	ImGui::SameLine();
 	ImGui::PushStyleColor(ImGuiCol_PlotHistogram,
 			      ImVec4(0.2f, 0.8f, 0.3f, 1.0f));
 	ImGui::ProgressBar(m_frac, ImVec2(bar_w, bar_h), m_label);
@@ -708,10 +695,36 @@ static void show_info_line(void)
 {
 	const status_line &s = state.status;
 	double age = glfwGetTime() - s.suggestion_time;
-	if (s.suggestion[0] == '\0' || age >= 1.0)
+	bool show_msg = (s.suggestion[0] != '\0' && age < 1.0);
+	if (show_msg) {
+		const char *text = expand_suggestion(s.suggestion);
+		ImGui::TextColored(ImVec4(1.0f, 0.85f, 0.1f, 1.0f), "%s",
+				   text);
+		ImGui::SameLine();
+	}
+
+	const char *hash;
+	int lvl;
+	if (state.current_chunk[0]) {
+		hash = state.current_chunk;
+		lvl = state.current_chunk_level;
+	} else if (state.num_level0 > 0) {
+		hash = state.level0_hashes[state.current_level0_idx];
+		lvl = 0;
+	} else {
 		return;
-	const char *text = expand_suggestion(s.suggestion);
-	ImGui::TextColored(ImVec4(1.0f, 0.85f, 0.1f, 1.0f), "%s", text);
+	}
+
+	char label[20];
+	if (lvl >= 0)
+		snprintf(label, sizeof(label), "%d:%.8s", lvl, hash);
+	else
+		snprintf(label, sizeof(label), "%.8s", hash);
+
+	float text_w = ImGui::CalcTextSize(label).x;
+	float margin = ImGui::GetStyle().WindowPadding.x;
+	ImGui::SetCursorPosX(ImGui::GetWindowWidth() - margin - text_w);
+	ImGui::TextDisabled("%s", label);
 }
 
 static void show_celebration(void)
