@@ -774,7 +774,8 @@ static void gui_main(void)
 	// ───────────────────────────────────────────────
 	show_stats_bar();
 
-	// Right-align the buttons: [R]eload  [K]araoke  X
+	// Right-align the buttons so X's right edge meets the image right edge,
+	// falling back to just after the stats bar if the image is too narrow.
 	ImGuiStyle &style = ImGui::GetStyle();
 	float sp = style.ItemSpacing.x;
 	float fp = style.FramePadding.x;
@@ -782,9 +783,12 @@ static void gui_main(void)
 	float karaoke_w = ImGui::CalcTextSize("[K]araoke").x + fp * 2;
 	float x_w = ImGui::CalcTextSize("X").x + fp * 2;
 	float total_btn_w = reload_w + sp + karaoke_w + sp + x_w;
-	float margin = style.WindowPadding.x;
+	float image_right_x = ImGui::GetWindowContentRegionMin().x +
+			      (float)state.image_width;
+	float ideal_x = image_right_x - total_btn_w;
 	ImGui::SameLine();
-	ImGui::SetCursorPosX(ImGui::GetWindowWidth() - margin - total_btn_w);
+	float after_bars_x = ImGui::GetCursorPosX();
+	ImGui::SetCursorPosX((ideal_x > after_bars_x) ? ideal_x : after_bars_x);
 
 	if (ImGui::Button("[R]eload"))
 		reload_lesson();
