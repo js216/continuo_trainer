@@ -487,8 +487,8 @@ local function print_stats_line(stats, timestamp, chunk_hash)
 	if chunk_hash then
 		local c = stats.chunks[chunk_hash]
 		if c then
-			local power = calculate_effective_power(c, alg)
-			local mastery = math.max(c.mastery or 0, c.t_mastery or 0)
+			local power = calculate_power(c, alg)
+			local mastery = c.mastery or 0
 			chunk_str = string.format(
 				" chunk=%s[ivl=%d,ease=%.2f,mastery=%.2f,power=%.2f]",
 				chunk_hash,
