@@ -643,6 +643,7 @@ local function finalize(stats)
 
 	local total_beats = current.total_beats or 0.0
 	local ref_bpm = current.ref_bpm or 120.0
+	local time_denom = current.time_denom or 4
 
 	local c = stats.chunks[hash]
 		or { ease = alg.ease_initial, ivl = 0, mastery = 0, total_duration = 0, max_groups = 0 }
@@ -667,7 +668,7 @@ local function finalize(stats)
 	end
 	-- Update EMA BPM from actual play duration this session.
 	if sd.duration > 0 and total_beats > 0 then
-		local actual_bpm = total_beats * 60.0 / sd.duration
+		local actual_bpm = total_beats * (time_denom / 4.0) * 60.0 / sd.duration
 		c.ema_bpm = alg.ema_alpha * actual_bpm + (1.0 - alg.ema_alpha) * (c.ema_bpm or ref_bpm)
 	end
 	stats.chunks[hash] = c
@@ -794,8 +795,11 @@ for line in io.lines() do
 			finalize(load_stats(stats_file))
 		end
 		-- LESSON <hash> <key> <time> <bpm> <bar>
+		-- File BPM is already in denominator-beat units (e.g. 120 in 3/2 = 120 half notes/min).
 		local ref_bpm = tonumber(line:match("^LESSON %S+ %S+ %S+ (%S+)")) or 120.0
-		current = { id = chunk_id, max_bass_id = -1, results = {}, ref_bpm = ref_bpm, total_beats = 0.0 }
+		local time_str = line:match("^LESSON %S+ %S+ (%S+)")
+		local time_denom = tonumber(time_str and time_str:match("/(%d+)")) or 4
+		current = { id = chunk_id, max_bass_id = -1, results = {}, ref_bpm = ref_bpm, time_denom = time_denom, total_beats = 0.0 }
 		-- Issue BPM for karaoke: use EMA if available, otherwise the reference BPM
 		local bpm_stats = load_stats(stats_file)
 		local bpm_chunk = bpm_stats.chunks[chunk_id]

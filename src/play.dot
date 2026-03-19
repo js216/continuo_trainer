@@ -35,5 +35,5 @@ bin/gui           -> tee -a log/gui.log;
 //lua src/all.lua -> STDOUT;
 //bin/group -> STDOUT;
 //lua src/rules.lua -> STDOUT;
-//lua src/stats.lua log/stats.log -> STDOUT;
+lua src/stats.lua log/stats.log -> STDOUT;
 //bin/gui -> STDOUT;

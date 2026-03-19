@@ -22,7 +22,7 @@ struct SharedState {
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
-fn parse_token(tok: &str) -> Option<Note> {
+fn parse_token(tok: &str, beats_denominator: u32) -> Option<Note> {
     let tok = tok.replace('~', "");
     if tok.is_empty() {
         return None;
@@ -100,7 +100,7 @@ fn parse_token(tok: &str) -> Option<Note> {
     }
 
     let dot_factor = (f64::powi(2.0, dots + 1) - 1.0) / f64::powi(2.0, dots);
-    let beats = (4.0 / dur_num) * dot_factor;
+    let beats = (beats_denominator as f64 / dur_num) * dot_factor;
 
     Some(Note {
         lily,
@@ -138,15 +138,15 @@ fn main() {
             let stop_ref = Arc::clone(&stop_signal);
 
             last_handle = Some(thread::spawn(move || {
-                let (bpm, beats_per_bar, beats_denominator, melody) = {
+                let (bpm, beats_per_bar, melody) = {
                     let s = state_ref.lock().unwrap();
-                    (s.bpm, s.beats_per_bar, s.beats_denominator, s.melody.clone())
+                    (s.bpm, s.beats_per_bar, s.melody.clone())
                 };
 
                 // Count-in: one click per beat in the time signature.
-                // Beat duration = note value of one beat at the current BPM.
-                // e.g. 3/2 → half-note beats → (4/2) × (60/bpm) seconds each.
-                let beat_click_secs = (4.0 / beats_denominator as f64) * (60.0 / bpm);
+                // BPM is in denominator-beat units (60 BPM in 3/2 = 1 half note/s),
+                // so the click interval is simply 60/bpm seconds.
+                let beat_click_secs = 60.0 / bpm;
                 let click_on = Duration::from_millis(30);
                 let click_off = Duration::from_secs_f64((beat_click_secs - 0.030_f64).max(0.0));
                 for _ in 0..beats_per_bar {
@@ -236,8 +236,9 @@ fn main() {
         } else if line.starts_with("MELODY ") {
             if let Some((_, content)) = line.split_once(": ") {
                 let mut s = state.lock().unwrap();
+                let denom = s.beats_denominator;
                 for tok in content.split_whitespace() {
-                    if let Some(n) = parse_token(tok) {
+                    if let Some(n) = parse_token(tok, denom) {
                         s.melody.push(n);
                     }
                 }
