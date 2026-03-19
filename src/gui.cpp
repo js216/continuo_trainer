@@ -118,6 +118,7 @@ struct state {
 					// suppresses startup celebration
 	bool karaoke_on = false;
 	int current_chunk_level = -1; // level from last SUGGESTION chunk= line
+	float bpm = 120.0f;           // current BPM; updated by BPM command
 } state;
 
 static void clear_status(void)
@@ -419,6 +420,12 @@ static void parse_line(const char *buf)
 {
 	if (strncmp(buf, "KARAOKE_DONE", 12) == 0) {
 		state.karaoke_on = false;
+		return;
+	}
+	if (strncmp(buf, "BPM ", 4) == 0) {
+		float bpm;
+		if (sscanf(buf + 4, "%f", &bpm) == 1 && bpm > 0.0f)
+			state.bpm = bpm;
 		return;
 	}
 	handle_chunk_name(buf);
@@ -790,15 +797,19 @@ static void gui_main(void)
 	// ───────────────────────────────────────────────
 	show_stats_bar();
 
-	// Right-align the buttons so X's right edge meets the image right edge,
+	// Right-align the controls so X's right edge meets the image right edge,
 	// falling back to just after the stats bar if the image is too narrow.
+	// Order: [BPM±] [K]araoke [R]eload X
 	ImGuiStyle &style = ImGui::GetStyle();
 	float sp = style.ItemSpacing.x;
 	float fp = style.FramePadding.x;
-	float reload_w = ImGui::CalcTextSize("[R]eload").x + fp * 2;
+	float bpm_text_w = ImGui::CalcTextSize("9999").x + fp * 2;
+	float bpm_step_w = ImGui::GetFrameHeight();
+	float bpm_total_w = bpm_text_w + bpm_step_w * 2;
 	float karaoke_w = ImGui::CalcTextSize("[K]araoke").x + fp * 2;
+	float reload_w = ImGui::CalcTextSize("[R]eload").x + fp * 2;
 	float x_w = ImGui::CalcTextSize("X").x + fp * 2;
-	float total_btn_w = reload_w + sp + karaoke_w + sp + x_w;
+	float total_btn_w = bpm_total_w + sp + karaoke_w + sp + reload_w + sp + x_w;
 	float image_right_x = ImGui::GetWindowContentRegionMin().x +
 			      (float)state.image_width;
 	float ideal_x = image_right_x - total_btn_w;
@@ -806,8 +817,18 @@ static void gui_main(void)
 	float after_bars_x = ImGui::GetCursorPosX();
 	ImGui::SetCursorPosX((ideal_x > after_bars_x) ? ideal_x : after_bars_x);
 
-	if (ImGui::Button("[R]eload"))
-		reload_lesson();
+	// BPM spinbox: text field wide enough for 3 digits with ±1/±10 step buttons
+	int bpm_int = (int)(state.bpm + 0.5f);
+	ImGui::SetNextItemWidth(bpm_total_w);
+	if (ImGui::InputInt("##bpm", &bpm_int, 1, 10)) {
+		if (bpm_int < 1)
+			bpm_int = 1;
+		if (bpm_int > 999)
+			bpm_int = 999;
+		state.bpm = (float)bpm_int;
+		printf("BPM %.2f\n", state.bpm);
+		fflush(stdout);
+	}
 
 	ImGui::SameLine();
 	bool karaoke_was_on = state.karaoke_on;
@@ -818,6 +839,10 @@ static void gui_main(void)
 		toggle_karaoke();
 	if (karaoke_was_on)
 		ImGui::PopStyleColor();
+
+	ImGui::SameLine();
+	if (ImGui::Button("[R]eload"))
+		reload_lesson();
 
 	ImGui::SameLine();
 	if (ImGui::Button("X"))

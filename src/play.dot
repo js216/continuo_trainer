@@ -21,6 +21,7 @@ bin/gui -> lua src/stats.lua log/stats.log;
 bin/gui -> lua src/all.lua;
 lua src/stats.lua log/stats.log -> lua src/all.lua;
 bin/gui -> bin/karaoke;
+bin/karaoke -> bin/gui;
 
 // logging
 lua src/all.lua   -> tee -a log/all.log;
