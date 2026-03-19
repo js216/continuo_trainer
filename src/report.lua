@@ -139,16 +139,11 @@ local goal_frac = math.min(1.0, today_score / goal)
 print(string.format("=== Continuo Trainer  %s ===", today))
 print(
 	string.format(
-		"Today   score %6.1f / %-6.0f [%s] %d%%",
+		"Today   score %6.1f / %-6.0f [%s] %d%%  time %-8s  streak: %d day%s",
 		today_score,
 		goal,
-		bar(goal_frac, 20),
-		math.floor(goal_frac * 100)
-	)
-)
-print(
-	string.format(
-		"        time  %-8s   streak: %d day%s",
+		bar(goal_frac, 10),
+		math.floor(goal_frac * 100),
 		fmt_dur(today_data.duration or 0),
 		streak,
 		streak == 1 and "" or "s"
@@ -397,13 +392,14 @@ if #chunk_hashes > 0 then
 		)
 	)
 	print("    Ivl      SRS review interval in days (* = review overdue)")
+	print("    BPM      Tempo EMA in beats per minute (from timed passing sessions)")
 	print("    BestAvg  Fastest recorded average inter-note transition time")
 	print("    PFac     Power factor: penalty for failed sub-ranges (100%=clean)")
 	print("    Last     Date of most recent practice (direct or transitive)")
 	print()
 	print(
 		string.format(
-			"  %-8s  %1s  %-7s  %-7s  %-7s  %5s  %5s  %5s  %5s  %5s  %4s  %7s  %5s  %-10s",
+			"  %-8s  %1s  %-7s  %-7s  %-7s  %5s  %5s  %5s  %5s  %5s  %4s  %5s  %7s  %5s  %-10s",
 			"Hash",
 			"L",
 			"Dir%",
@@ -415,12 +411,13 @@ if #chunk_hashes > 0 then
 			"EMA",
 			"Ease",
 			"Ivl",
+			"BPM",
 			"BestAvg",
 			"PFac",
 			"Last"
 		)
 	)
-	print(string.rep("-", 100))
+	print(string.rep("-", 107))
 	for _, h in ipairs(chunk_hashes) do
 		local c = chunks[h]
 		local dir_pct = normalize(c.mastery or 0, c)
@@ -440,11 +437,12 @@ if #chunk_hashes > 0 then
 		local rate = total > 0 and string.format("%4.0f%%", pass / total * 100) or "  -- "
 		local ema = c.ema_pass and string.format("%4.0f%%", c.ema_pass * 100) or "  -- "
 		local ease = string.format("%.2f", c.ease or 0)
+		local bpm_str = c.ema_bpm and string.format("%5.0f", c.ema_bpm) or "   --"
 		local best_avg = c.best_avg and string.format("%5.3fs", c.best_avg) or "    --"
 		local pfac = c.power_factor and string.format("%4.0f%%", c.power_factor * 100) or "  -- "
 		print(
 			string.format(
-				"  %-8s  %1d  %6.1f%%  %6.1f%%  %6.1f%%  %5d  %5d  %s  %s  %s  %4d%s  %s  %s  %s",
+				"  %-8s  %1d  %6.1f%%  %6.1f%%  %6.1f%%  %5d  %5d  %s  %s  %s  %4d%s  %s  %s  %s  %s",
 				h:sub(1, 8),
 				c.level or 0,
 				dir_pct,
@@ -457,6 +455,7 @@ if #chunk_hashes > 0 then
 				ease,
 				ivl,
 				due,
+				bpm_str,
 				best_avg,
 				pfac,
 				eff_last or "--"
