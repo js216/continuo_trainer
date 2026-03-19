@@ -770,6 +770,22 @@ static void show_celebration(void)
 
 static void gui_main(void)
 {
+	ImGuiIO &io = ImGui::GetIO();
+	float display_w = io.DisplaySize.x;
+
+	// Center content using the previous-frame image width as column width.
+	float content_w =
+	    (state.image_width > 0) ? (float)state.image_width : display_w;
+	float offset_x = (content_w < display_w)
+			      ? floorf((display_w - content_w) * 0.5f)
+			      : 0.0f;
+	if (offset_x > 0.0f)
+		ImGui::SetCursorPosX(offset_x);
+
+	ImGui::BeginChild("##content", ImVec2(content_w, 0), false,
+			  ImGuiWindowFlags_NoScrollbar |
+			      ImGuiWindowFlags_NoScrollWithMouse);
+
 	// ── Row 1: stats bars (left) + buttons (right)
 	// ───────────────────────────────────────────────
 	show_stats_bar();
@@ -827,6 +843,9 @@ static void gui_main(void)
 		ImGui::Dummy(ImVec2(0.0f, remaining));
 
 	show_info_line();
+
+	ImGui::EndChild();
+
 	show_celebration();
 	check_new_day();
 }
