@@ -16,6 +16,7 @@ struct Note {
 struct SharedState {
     bpm: f64,
     beats_per_bar: u32,
+    beats_denominator: u32,
     melody: Vec<Note>,
 }
 
@@ -114,6 +115,7 @@ fn main() {
     let state = Arc::new(Mutex::new(SharedState {
         bpm: 120.0,
         beats_per_bar: 4,
+        beats_denominator: 4,
         melody: Vec::new(),
     }));
 
@@ -136,15 +138,17 @@ fn main() {
             let stop_ref = Arc::clone(&stop_signal);
 
             last_handle = Some(thread::spawn(move || {
-                let (bpm, beats_per_bar, melody) = {
+                let (bpm, beats_per_bar, beats_denominator, melody) = {
                     let s = state_ref.lock().unwrap();
-                    (s.bpm, s.beats_per_bar, s.melody.clone())
+                    (s.bpm, s.beats_per_bar, s.beats_denominator, s.melody.clone())
                 };
 
-                // Count-in: one short click per beat in the bar
-                let beat_secs = 60.0 / bpm;
+                // Count-in: one click per beat in the time signature.
+                // Beat duration = note value of one beat at the current BPM.
+                // e.g. 3/2 → half-note beats → (4/2) × (60/bpm) seconds each.
+                let beat_click_secs = (4.0 / beats_denominator as f64) * (60.0 / bpm);
                 let click_on = Duration::from_millis(30);
-                let click_off = Duration::from_secs_f64((beat_secs - 0.030_f64).max(0.0));
+                let click_off = Duration::from_secs_f64((beat_click_secs - 0.030_f64).max(0.0));
                 for _ in 0..beats_per_bar {
                     if stop_ref.load(Ordering::SeqCst) {
                         return;
@@ -196,24 +200,35 @@ fn main() {
             stop_signal.store(true, Ordering::SeqCst);
             println!("MIDI PANIC");
             let _ = io::stdout().flush();
+        } else if line.starts_with("BPM ") {
+            // BPM <value> — issued by stats.lua; overrides any previous BPM.
+            if let Some(bpm_str) = line.split_whitespace().nth(1) {
+                if let Ok(n) = bpm_str.parse::<f64>() {
+                    if n > 0.0 {
+                        state.lock().unwrap().bpm = n;
+                    }
+                }
+            }
         } else if line.starts_with("LESSON ") {
             let mut s = state.lock().unwrap();
             s.melody.clear();
             // LESSON <id> <key> <time> <bpm> [<title>]
+            // BPM is no longer read here; stats.lua issues a BPM command instead.
             let fields: Vec<&str> = line.split_whitespace().collect();
             if let Some(time_str) = fields.get(3) {
-                if let Some(num_str) = time_str.split('/').next() {
+                let parts: Vec<&str> = time_str.split('/').collect();
+                if let Some(num_str) = parts.first() {
                     if let Ok(n) = num_str.parse::<u32>() {
                         if n > 0 {
                             s.beats_per_bar = n;
                         }
                     }
                 }
-            }
-            if let Some(bpm_str) = fields.get(4) {
-                if let Ok(n) = bpm_str.parse::<f64>() {
-                    if n > 0.0 {
-                        s.bpm = n;
+                if let Some(den_str) = parts.get(1) {
+                    if let Ok(n) = den_str.parse::<u32>() {
+                        if n > 0 {
+                            s.beats_denominator = n;
+                        }
                     }
                 }
             }

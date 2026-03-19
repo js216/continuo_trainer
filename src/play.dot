@@ -10,6 +10,7 @@ bin/group         -> lua src/rules.lua;
 lua src/rules.lua -> lua src/stats.lua log/stats.log;
 lua src/all.lua   -> lua src/stats.lua log/stats.log;
 lua src/all.lua   -> bin/karaoke;
+lua src/stats.lua log/stats.log -> bin/karaoke;
 bin/karaoke       -> bin/midi;
 
 // GUI
