@@ -232,7 +232,7 @@ function parseLine(line) {
 
     if (line.startsWith("CHUNK_NAME "))   handleChunkName(line);
     if (line.startsWith("CHUNK_SESSION ")) handleChunkSession(line);
-    if (line.startsWith("LESSON "))       { state.numNotes = 0; group.handleLine(line); karaoke.handleLine(line); }
+    if (line.startsWith("LESSON "))       { state.numNotes = 0; group.handleLine(line); karaoke.handleLine(line); handleRulesLine(line); }
     if (line.startsWith("BASSNOTE "))     { handleBassnote(line); group.handleLine(line); }
     if (line.startsWith("FIGURES "))      group.handleLine(line);
     if (line.startsWith("MELODY "))       { group.handleLine(line); karaoke.handleLine(line); }
@@ -479,9 +479,9 @@ const karaoke = new Karaoke({
 // ── MIDI + group integration ───────────────────────────────────────────────────
 
 const group = new Group((groupLine) => {
-    const resultLine = evaluateGroup(groupLine);
-    parseLine(resultLine);    // update UI
-    wsSend(resultLine);       // forward to stats.lua
+    const resultLines = evaluateGroup(groupLine);
+    for (const line of resultLines.split("\n")) if (line) parseLine(line);
+    wsSend(resultLines);      // forward to stats.lua (server splits on newlines)
 });
 
 const midi = new MidiInput({
