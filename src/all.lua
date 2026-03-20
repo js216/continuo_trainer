@@ -746,6 +746,7 @@ local function scan_and_emit()
 	io.flush()
 
 	local live_chunks = {}
+	local json_index = {} -- hash → { level, skills, children=[{hash,s,e},...] }
 
 	for _, n in ipairs(lessons) do
 		local lesson = load_lesson(n)
@@ -774,6 +775,7 @@ local function scan_and_emit()
 		write_chunk(hash0, content0)
 		local skills0 = skills_for_figures(lesson.figures, 1, N)
 		live_chunks[hash0] = true
+		json_index[hash0] = { level = 0, skills = skills0, children = {} }
 		io.write("CHUNK_NAME " .. hash0 .. " 0 " .. skills0 .. "\n")
 		io.flush()
 
@@ -799,6 +801,10 @@ local function scan_and_emit()
 		local child1_parts = { hash0 }
 		for _, c1 in ipairs(chunks1) do
 			live_chunks[c1.hash] = true
+			-- Level-0 children: s/e are absolute 0-indexed in the lesson
+			json_index[hash0].children[#json_index[hash0].children + 1] =
+				{ hash = c1.hash, s = c1.s - 1, e = c1.e - 1 }
+			json_index[c1.hash] = { level = 1, skills = c1.skills, children = {} }
 			io.write("CHUNK_NAME " .. c1.hash .. " 1 " .. c1.skills .. "\n")
 			io.flush()
 
@@ -822,6 +828,11 @@ local function scan_and_emit()
 			local child2_parts = { c1.hash }
 			for _, c2 in ipairs(chunks2) do
 				live_chunks[c2.hash] = true
+				-- Level-1 children: s/e are relative 0-indexed within c1's notes
+				-- (matches what handle_query_children emits for the chunk's local array)
+				json_index[c1.hash].children[#json_index[c1.hash].children + 1] =
+					{ hash = c2.hash, s = c2.s - c1.s, e = c2.e - c1.s }
+				json_index[c2.hash] = { level = 2, skills = c2.skills, children = {} }
 				io.write("CHUNK_NAME " .. c2.hash .. " 2 " .. c2.skills .. "\n")
 				io.flush()
 				child2_parts[#child2_parts + 1] = c2.hash .. ":" .. (c2.s - 1) .. ":" .. (c2.e - 1)
@@ -834,6 +845,8 @@ local function scan_and_emit()
 		io.write("CHILDREN " .. table.concat(child1_parts, " ") .. "\n")
 		io.flush()
 	end
+
+	write_json_index(json_index)
 
 	-- ── stale-file check ──────────────────────────────────────────────────────
 	local stale = {}
@@ -856,6 +869,39 @@ local function scan_and_emit()
 
 	io.write("ALL_SCANNED\n")
 	io.flush()
+end
+
+-- ── JSON index ────────────────────────────────────────────────────────────────
+
+-- Write chn/index.json so the browser can serve chunks without all.lua.
+-- Each entry: { "level": n, "skills": "...", "children": [{"hash":"...","s":n,"e":n}, ...] }
+-- Children s/e are 0-indexed and relative to the chunk's own note array
+-- (same as what handle_query_children emits for its own-local notes).
+local function write_json_index(index)
+	local f = io.open("chn/index.json", "w")
+	if not f then return end
+	local hashes = {}
+	for h in pairs(index) do hashes[#hashes + 1] = h end
+	table.sort(hashes)
+	local function esc(s) return s:gsub('"', '\\"') end
+	f:write("{\n")
+	for i, h in ipairs(hashes) do
+		local c = index[h]
+		local child_parts = {}
+		for _, ch in ipairs(c.children or {}) do
+			child_parts[#child_parts + 1] = string.format(
+				'{"hash":"%s","s":%d,"e":%d}', ch.hash, ch.s, ch.e
+			)
+		end
+		f:write(string.format(
+			'  "%s":{"level":%d,"skills":"%s","children":[%s]}',
+			h, c.level, esc(c.skills or ""), table.concat(child_parts, ",")
+		))
+		if i < #hashes then f:write(",") end
+		f:write("\n")
+	end
+	f:write("}\n")
+	f:close()
 end
 
 -- ── main ──────────────────────────────────────────────────────────────────────

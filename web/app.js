@@ -151,16 +151,6 @@ const state = {
     karaokeOn: false,
 };
 
-// ── SSE + POST ─────────────────────────────────────────────────────────────────
-
-const events = new EventSource("/events");
-events.onopen    = () => stats.handleLine("SUGGEST_LESSON");
-events.onmessage = (e) => parseLine(e.data);
-
-function wsSend(line) {
-    fetch("/cmd", { method: "POST", body: line });
-}
-
 // ── actions ───────────────────────────────────────────────────────────────────
 
 function clearStatus() {
@@ -172,8 +162,8 @@ function clearStatus() {
 }
 
 function loadChunk(hash) {
-    wsSend(`LOAD_CHUNK ${hash}`);
     stats.handleLine(`LOAD_CHUNK ${hash}`);
+    all.loadChunk(hash);   // async fetch; emits CHUNK_SESSION/LESSON/etc. via parseLine
 }
 
 function reloadLesson() {
@@ -187,7 +177,6 @@ function quitLesson() {
         karaoke.stop();
         state.karaokeOn = false;
         updateKaraokeBtn();
-        wsSend("KARAOKE_OFF");
     }
     clearStatus();
 }
@@ -196,7 +185,6 @@ function suggestLesson() {
     karaoke.stop();
     state.karaokeOn = false;
     updateKaraokeBtn();
-    wsSend("KARAOKE_OFF");
     stats.handleLine("SUGGEST_LESSON");
 }
 
@@ -204,7 +192,6 @@ function toggleKaraoke() {
     state.karaokeOn = !state.karaokeOn;
     if (state.karaokeOn) karaoke.start(state.bpm);
     else                 karaoke.stop();
-    wsSend(state.karaokeOn ? "KARAOKE_ON" : "KARAOKE_OFF");
     updateKaraokeBtn();
 }
 
@@ -214,7 +201,6 @@ function setBpm(val) {
     val = Math.max(1, Math.min(999, Math.round(Number(val))));
     state.bpm = val;
     document.getElementById("bpm-val").value = val;
-    wsSend(`BPM ${val}.00`);
 }
 
 // ── message parsing ────────────────────────────────────────────────────────────
@@ -520,9 +506,14 @@ function selectMidiIn(id)  { midi.openInput(id); }
 function selectMidiOut(id) { midi.openOutput(id); }
 function setForward(checked) { midi.forward = checked; }
 
-// ── stats ──────────────────────────────────────────────────────────────────────
+// ── all + stats ────────────────────────────────────────────────────────────────
 
-const stats = new Stats(parseLine, wsSend);
+const all = new All(parseLine);
+
+const stats = new Stats(parseLine, (line) => {
+    // Route QUERY_CHILDREN from stats.js to all.js (synchronous, answered from index)
+    if (line.startsWith("QUERY_CHILDREN ")) all.queryChildren(line.split(" ")[1]);
+});
 
 // ── render loop ────────────────────────────────────────────────────────────────
 
@@ -537,6 +528,8 @@ function tick() {
 async function init() {
     await synth.init();
     await midi.init();
+    await all.init();           // loads index.json, emits CHUNK_NAME for all chunks
+    stats.handleLine("SUGGEST_LESSON");
     requestAnimationFrame(tick);
 }
 
