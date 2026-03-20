@@ -6,13 +6,14 @@
 // setVolume(0..1)  — 0 suspends the AudioContext entirely.
 
 const _SYNTH_WORKLET = `
+// state codes: 0=idle 1=attack 2=decay 3=sustain 4=release
 class SynthProcessor extends AudioWorkletProcessor {
     constructor() {
         super();
         this.voices = Array.from({length: 16}, () => ({
             freq: 0, targetF1: 0, targetF2: 0,
             phase1: 0, phase2: 0, lpf1: 0, lpf2: 0,
-            state: 'idle', envVol: 0, active: false,
+            state: 0, envVol: 0, active: false,
         }));
         // Defaults match synth.c
         this.p = {
@@ -30,19 +31,19 @@ class SynthProcessor extends AudioWorkletProcessor {
         const p = this.p;
         if (msg.type === 'noteOn') {
             for (const v of this.voices) {
-                if (v.state === 'idle') {
+                if (v.state === 0) {
                     v.freq     = msg.freq;
                     v.targetF1 = msg.freq * Math.pow(2, p.osc1Oct) * p.osc1Detune;
                     v.targetF2 = msg.freq * Math.pow(2, p.osc2Oct) * p.osc2Detune;
                     v.phase1 = v.phase2 = v.lpf1 = v.lpf2 = 0;
-                    v.envVol = 0; v.state = 'attack'; v.active = true;
+                    v.envVol = 0; v.state = 1; v.active = true;
                     break;
                 }
             }
         } else if (msg.type === 'noteOff') {
             for (const v of this.voices)
                 if (v.active && Math.abs(v.freq - msg.freq) < 0.1)
-                    v.state = 'release';
+                    v.state = 4;
         } else if (msg.type === 'set') {
             p[msg.param] = msg.value;
             if (['osc1Oct','osc2Oct','osc1Detune','osc2Detune'].includes(msg.param))
@@ -67,10 +68,10 @@ class SynthProcessor extends AudioWorkletProcessor {
             for (const v of this.voices) {
                 if (!v.active) continue;
 
-                // ADSR envelope
-                if      (v.state === 'attack')  { v.envVol += aStep; if (v.envVol >= 1)        { v.envVol = 1;         v.state = 'decay';   } }
-                else if (v.state === 'decay')   { v.envVol -= dStep; if (v.envVol <= p.sustain) { v.envVol = p.sustain; v.state = 'sustain'; } }
-                else if (v.state === 'release') { v.envVol -= rStep; if (v.envVol <= 0)         { v.envVol = 0; v.state = 'idle'; v.active = false; } }
+                // ADSR envelope (1=attack 2=decay 3=sustain 4=release)
+                if      (v.state === 1) { v.envVol += aStep; if (v.envVol >= 1)        { v.envVol = 1;         v.state = 2; } }
+                else if (v.state === 2) { v.envVol -= dStep; if (v.envVol <= p.sustain) { v.envVol = p.sustain; v.state = 3; } }
+                else if (v.state === 4) { v.envVol -= rStep; if (v.envVol <= 0)         { v.envVol = 0; v.state = 0; v.active = false; } }
 
                 // Osc 1: square wave + first-order LPF
                 v.phase1 += v.targetF1 / sr; if (v.phase1 >= 1) v.phase1 -= 1;
@@ -100,7 +101,7 @@ class Synth {
     }
 
     async init() {
-        this.ctx = new AudioContext({ sampleRate: 48000 });
+        this.ctx = new AudioContext({ sampleRate: 48000, latencyHint: 'interactive' });
         const blob = new Blob([_SYNTH_WORKLET], { type: "application/javascript" });
         await this.ctx.audioWorklet.addModule(URL.createObjectURL(blob));
         this.node = new AudioWorkletNode(this.ctx, "synth-processor", {
