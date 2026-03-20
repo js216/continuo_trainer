@@ -154,7 +154,7 @@ const state = {
 // ── SSE + POST ─────────────────────────────────────────────────────────────────
 
 const events = new EventSource("/events");
-events.onopen    = () => wsSend("SUGGEST_LESSON");
+events.onopen    = () => stats.handleLine("SUGGEST_LESSON");
 events.onmessage = (e) => parseLine(e.data);
 
 function wsSend(line) {
@@ -171,9 +171,14 @@ function clearStatus() {
     renderExplanations();
 }
 
+function loadChunk(hash) {
+    wsSend(`LOAD_CHUNK ${hash}`);
+    stats.handleLine(`LOAD_CHUNK ${hash}`);
+}
+
 function reloadLesson() {
     const hash = state.currentChunk || state.level0Hashes[state.currentLevel0Idx] || "";
-    if (hash) wsSend(`LOAD_CHUNK ${hash}`);
+    if (hash) loadChunk(hash);
     clearStatus();
 }
 
@@ -192,7 +197,7 @@ function suggestLesson() {
     state.karaokeOn = false;
     updateKaraokeBtn();
     wsSend("KARAOKE_OFF");
-    wsSend("SUGGEST_LESSON");
+    stats.handleLine("SUGGEST_LESSON");
 }
 
 function toggleKaraoke() {
@@ -230,13 +235,14 @@ function parseLine(line) {
         return;
     }
 
-    if (line.startsWith("CHUNK_NAME "))   handleChunkName(line);
+    if (line.startsWith("CHUNK_NAME "))   { handleChunkName(line); stats.handleLine(line); }
     if (line.startsWith("CHUNK_SESSION ")) handleChunkSession(line);
-    if (line.startsWith("LESSON "))       { state.numNotes = 0; group.handleLine(line); karaoke.handleLine(line); handleRulesLine(line); }
-    if (line.startsWith("BASSNOTE "))     { handleBassnote(line); group.handleLine(line); }
+    if (line.startsWith("LESSON "))       { state.numNotes = 0; group.handleLine(line); karaoke.handleLine(line); handleRulesLine(line); stats.handleLine(line); }
+    if (line.startsWith("BASSNOTE "))     { handleBassnote(line); group.handleLine(line); stats.handleLine(line); }
     if (line.startsWith("FIGURES "))      group.handleLine(line);
     if (line.startsWith("MELODY "))       { group.handleLine(line); karaoke.handleLine(line); }
     if (line.startsWith("RESULT "))       handleResult(line);
+    if (line.startsWith("CHILDREN "))     stats.handleLine(line);
     if (line.startsWith("STATS "))        handleStats(line);
     if (line.startsWith("SUGGESTION "))   handleSuggestion(line);
 }
@@ -288,7 +294,7 @@ function handleResult(line) {
         while (state.squares.length <= id + 1) state.squares.push(null);
         state.squares[id + 1] = "done";
         const hash = state.currentChunk || state.level0Hashes[state.currentLevel0Idx] || "";
-        if (hash) wsSend(`LOAD_CHUNK ${hash}`);
+        if (hash) loadChunk(hash);
     }
 
     renderSquares();
@@ -332,7 +338,7 @@ function handleSuggestion(line) {
         state.currentChunk = chunkM[1];
         const lvlM = line.match(/level=(\d+)/);
         state.currentChunkLevel = lvlM ? parseInt(lvlM[1]) : -1;
-        wsSend(`LOAD_CHUNK ${state.currentChunk}`);
+        loadChunk(state.currentChunk);
         clearStatus();
         const skillsM = line.match(/skills=(\S+)/);
         state.suggestion     = skillsM ? `chunk: ${skillsM[1]}` : "chunk";
@@ -480,8 +486,10 @@ const karaoke = new Karaoke({
 
 const group = new Group((groupLine) => {
     const resultLines = evaluateGroup(groupLine);
-    for (const line of resultLines.split("\n")) if (line) parseLine(line);
-    wsSend(resultLines);      // forward to stats.lua (server splits on newlines)
+    for (const line of resultLines.split("\n")) if (line) {
+        stats.handleLine(line);   // update stats first (finalize before loadChunk)
+        parseLine(line);
+    }
 });
 
 const midi = new MidiInput({
@@ -511,6 +519,10 @@ const midi = new MidiInput({
 function selectMidiIn(id)  { midi.openInput(id); }
 function selectMidiOut(id) { midi.openOutput(id); }
 function setForward(checked) { midi.forward = checked; }
+
+// ── stats ──────────────────────────────────────────────────────────────────────
+
+const stats = new Stats(parseLine, wsSend);
 
 // ── render loop ────────────────────────────────────────────────────────────────
 

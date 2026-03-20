@@ -10,8 +10,8 @@
 #   GET /<file>       → web/<file>
 #   GET /chn/<h>.png  → chn/<h>.png
 #   GET /chn/<h>.txt  → chn/<h>.txt
-#   GET /events       → SSE stream from all.lua + stats.lua
-#   POST /cmd         → line(s) forwarded to all.lua + stats.lua stdin
+#   GET /events       → SSE stream from all.lua
+#   POST /cmd         → line(s) forwarded to all.lua stdin
 
 import os
 import queue
@@ -28,35 +28,23 @@ WEB  = Path(__file__).resolve().parent         # web/
 _clients: set = set()
 _clients_lock = threading.Lock()
 
-all_proc   = None
-stats_proc = None
+all_proc = None
 
 # ── pipeline ───────────────────────────────────────────────────────────────────
 
 def start_pipeline():
-    global all_proc, stats_proc
+    global all_proc
     all_proc = subprocess.Popen(
         ["lua", "src/all.lua"],
         stdin=subprocess.PIPE, stdout=subprocess.PIPE,
         stderr=sys.stderr, cwd=ROOT,
     )
-    stats_proc = subprocess.Popen(
-        ["lua", "src/stats.lua", "log/stats.log"],
-        stdin=subprocess.PIPE, stdout=subprocess.PIPE,
-        stderr=sys.stderr, cwd=ROOT,
-    )
-    threading.Thread(target=_reader, args=(all_proc,   stats_proc), daemon=True).start()
-    threading.Thread(target=_reader, args=(stats_proc, all_proc),   daemon=True).start()
+    threading.Thread(target=_reader, args=(all_proc,), daemon=True).start()
 
 
-def _reader(src, peer):
-    """Read src stdout, tee to peer stdin and all SSE clients."""
+def _reader(src):
+    """Read src stdout and broadcast to all SSE clients."""
     for raw in src.stdout:
-        try:
-            peer.stdin.write(raw)
-            peer.stdin.flush()
-        except Exception:
-            pass
         _broadcast(raw.decode().rstrip("\n"))
 
 
@@ -73,12 +61,11 @@ def _broadcast(line: str):
 
 def _send(line: str):
     raw = (line.strip() + "\n").encode()
-    for proc in (all_proc, stats_proc):
-        try:
-            proc.stdin.write(raw)
-            proc.stdin.flush()
-        except Exception:
-            pass
+    try:
+        all_proc.stdin.write(raw)
+        all_proc.stdin.flush()
+    except Exception:
+        pass
 
 # ── HTTP handler ───────────────────────────────────────────────────────────────
 
