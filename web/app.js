@@ -343,7 +343,7 @@ function loadScoreImage(hash) {
     const img = document.getElementById("score-img");
     img.onload  = () => { img.style.display = "block"; };
     img.onerror = () => { img.style.display = "none";  };
-    img.src = `/chn/${hash}.png`;
+    img.src = `../chn/${hash}.png`;
 }
 
 // ── rendering ──────────────────────────────────────────────────────────────────
@@ -528,7 +528,7 @@ function tick() {
 async function init() {
     await synth.init();
     await midi.init();
-    await all.init();           // loads index.json, emits CHUNK_NAME for all chunks
+    all.init();                 // emits CHUNK_NAME for all chunks (synchronous)
     stats.handleLine("SUGGEST_LESSON");
     requestAnimationFrame(tick);
 }
