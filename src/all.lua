@@ -718,12 +718,12 @@ end
 
 -- ── JS chunk bundle ───────────────────────────────────────────────────────────
 
--- Write chn/chunks.js so the browser can work without any server-side logic.
+-- Write web/chunks.js so the browser can work without any server-side logic.
 -- Sets window.CHN_INDEX = { "<hash>": { level, skills, children, txt }, ... }
 -- where txt is the raw chunk file content (all.js parses it client-side).
 -- Children s/e are 0-indexed and relative to the chunk's own note array.
 local function write_chunks_js(index)
-	local f = io.open("chn/chunks.js", "w")
+	local f = io.open("web/chunks.js", "w")
 	if not f then return end
 	local hashes = {}
 	for h in pairs(index) do hashes[#hashes + 1] = h end
