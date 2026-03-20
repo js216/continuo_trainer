@@ -85,11 +85,14 @@ class Group {
         if (next && next.passing && this.bass !== null) {
             const exp = lilyToMidi(next.bassnote);
             if (exp !== null && midi === exp) {
-                this.onGroup(this._emit(this.groupId, this.bass, this.bassTime, this.chord));
-                this.chord = this.chord.filter(m => m !== this.bass);
+                // Capture and update state before onGroup so any reset inside
+                // onGroup (triggered by auto-restart) doesn't corrupt groupId.
+                const id = this.groupId, bass = this.bass, bassTime = this.bassTime, chord = this.chord;
+                this.chord = chord.filter(m => m !== bass);
                 this.groupId = nextId;
                 this.bass = null;
                 this.bassTime = 0;
+                this.onGroup(this._emit(id, bass, bassTime, chord));
             }
         }
         this.held[midi] = (this.held[midi] || 0) + 1;
@@ -103,9 +106,11 @@ class Group {
             delete this.held[midi];
         }
         if (Object.keys(this.held).length > 0 || this.bass === null) return;
-        this.onGroup(this._emit(this.groupId, this.bass, this.bassTime, this.chord));
-        this.groupId++;
-        this.bass = null; this.bassTime = 0; this.chord = [];
+        // Capture and update state before onGroup so any reset inside
+        // onGroup (triggered by auto-restart) doesn't corrupt groupId.
+        const id = this.groupId, bass = this.bass, bassTime = this.bassTime, chord = this.chord;
+        this.groupId++; this.bass = null; this.bassTime = 0; this.chord = [];
+        this.onGroup(this._emit(id, bass, bassTime, chord));
     }
 
     _emit(id, bass, bassTime, chord) {
@@ -458,6 +463,7 @@ document.addEventListener("keydown", (e) => {
         case "r": case "R": reloadLesson();  break;
         case " ":  e.preventDefault(); suggestLesson(); break;
         case "k": case "K": toggleKaraoke(); break;
+        case "s": case "S": showStats();     break;
     }
 });
 
@@ -465,7 +471,47 @@ document.addEventListener("keydown", (e) => {
 
 const synth = new Synth();
 
-function setSynthVolume(v) { synth.setVolume(parseFloat(v)); }
+// ── prefs (MIDI + synth settings) ─────────────────────────────────────────────
+
+const PREFS_KEY = "continuo_prefs";
+
+function savePrefs() {
+    try {
+        localStorage.setItem(PREFS_KEY, JSON.stringify({
+            midiInId:  document.getElementById("midi-in").value,
+            midiOutId: document.getElementById("midi-out").value,
+            forward:   document.getElementById("midi-forward").checked,
+            synthVol:  parseFloat(document.getElementById("synth-vol").value),
+        }));
+    } catch (_) {}
+}
+
+function loadPrefs() {
+    let p;
+    try { p = JSON.parse(localStorage.getItem(PREFS_KEY) || "{}"); } catch (_) { p = {}; }
+    if (p.synthVol !== undefined) {
+        document.getElementById("synth-vol").value = p.synthVol;
+        synth.setVolume(p.synthVol);
+    }
+    if (p.forward !== undefined) {
+        document.getElementById("midi-forward").checked = p.forward;
+        midi.forward = p.forward;
+    }
+    if (p.midiInId) {
+        const sel = document.getElementById("midi-in");
+        if ([...sel.options].some(o => o.value === p.midiInId)) {
+            sel.value = p.midiInId; midi.openInput(p.midiInId);
+        }
+    }
+    if (p.midiOutId) {
+        const sel = document.getElementById("midi-out");
+        if ([...sel.options].some(o => o.value === p.midiOutId)) {
+            sel.value = p.midiOutId; midi.openOutput(p.midiOutId);
+        }
+    }
+}
+
+function setSynthVolume(v) { synth.setVolume(parseFloat(v)); savePrefs(); }
 
 // ── karaoke ────────────────────────────────────────────────────────────────────
 
@@ -508,9 +554,9 @@ const midi = new MidiInput({
     },
 });
 
-function selectMidiIn(id)  { midi.openInput(id); }
-function selectMidiOut(id) { midi.openOutput(id); }
-function setForward(checked) { midi.forward = checked; }
+function selectMidiIn(id)    { midi.openInput(id);    savePrefs(); }
+function selectMidiOut(id)   { midi.openOutput(id);   savePrefs(); }
+function setForward(checked) { midi.forward = checked; savePrefs(); }
 
 // ── all + stats ────────────────────────────────────────────────────────────────
 
@@ -534,6 +580,7 @@ function tick() {
 async function init() {
     await synth.init();
     await midi.init();
+    loadPrefs();
     all.init();                 // emits CHUNK_NAME for all chunks (synchronous)
     stats.handleLine("SUGGEST_LESSON");
     requestAnimationFrame(tick);
