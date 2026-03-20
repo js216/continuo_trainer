@@ -155,7 +155,6 @@ const state = {
 
 function clearStatus() {
     state.squares     = [];
-    state.numNotes    = 0;
     state.explanation = "";
     renderSquares();
     renderExplanations();
@@ -170,6 +169,13 @@ function reloadLesson() {
     const hash = state.currentChunk || state.level0Hashes[state.currentLevel0Idx] || "";
     if (hash) loadChunk(hash);
     clearStatus();
+}
+
+function showStats() {
+    const raw = localStorage.getItem("continuo_stats") || "{}";
+    const win = window.open("", "_blank");
+    win.document.write(`<pre style="background:#1e2030;color:#d0d0d0;font-family:monospace;padding:12px;white-space:pre-wrap;word-break:break-all">${JSON.stringify(JSON.parse(raw), null, 2)}</pre>`);
+    win.document.close();
 }
 
 function quitLesson() {
