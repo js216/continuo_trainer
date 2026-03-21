@@ -177,10 +177,7 @@ function reloadLesson() {
 }
 
 function showStats() {
-    const raw = localStorage.getItem("continuo_stats") || "{}";
-    const win = window.open("", "_blank");
-    win.document.write(`<pre style="background:#1e2030;color:#d0d0d0;font-family:monospace;padding:12px;white-space:pre-wrap;word-break:break-all">${JSON.stringify(JSON.parse(raw), null, 2)}</pre>`);
-    win.document.close();
+    window.open("stats.html", "_blank");
 }
 
 function quitLesson() {

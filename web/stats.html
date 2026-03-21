@@ -1,0 +1,393 @@
+<!DOCTYPE html>
+<!-- SPDX-License-Identifier: MIT -->
+<!-- stats.html — Continuo Trainer: algorithm parameters and stats report -->
+<!-- Copyright (c) 2026 Jakob Kastelic -->
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Continuo Trainer — Stats</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  background: #1e2030; color: #d0d0d0;
+  font-family: monospace; font-size: 13px;
+  padding: 10px 14px;
+}
+h3 { color: #888; font-size: 12px; font-weight: normal;
+     letter-spacing: 1px; text-transform: uppercase;
+     margin: 10px 0 4px; border-bottom: 1px solid #2a2d40; padding-bottom: 3px; }
+button {
+  background: #2a2d40; color: #d0d0d0;
+  border: 1px solid #3a3d55; padding: 3px 9px;
+  cursor: pointer; font-family: monospace; font-size: 12px; border-radius: 2px;
+}
+button:hover { background: #353850; }
+button.primary { background: #1a5040; border-color: #2a7060; }
+button.primary:hover { background: #226050; }
+
+/* ── params table ── */
+#params-table { border-collapse: collapse; margin-bottom: 6px; }
+#params-table td { padding: 1px 6px; vertical-align: middle; }
+.pk  { color: #aaa; white-space: nowrap; padding-right: 10px; }
+.pdesc { color: #555; font-size: 11px; padding-right: 14px; min-width: 280px; }
+.pctl { white-space: nowrap; }
+input[type=number] {
+  background: #12141e; color: #d0d0d0;
+  border: 1px solid #3a3d55; padding: 2px 4px;
+  font-family: monospace; font-size: 12px; border-radius: 2px;
+  width: 76px; -moz-appearance: textfield;
+}
+input[type=number]::-webkit-outer-spin-button,
+input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
+input[type=text].wide {
+  background: #12141e; color: #d0d0d0;
+  border: 1px solid #3a3d55; padding: 2px 5px;
+  font-family: monospace; font-size: 12px; border-radius: 2px;
+  width: 380px;
+}
+input[type=range] { width: 150px; accent-color: #3366cc; vertical-align: middle; }
+.sval { display: inline-block; width: 42px; text-align: right; color: #bbb; font-size: 12px; }
+
+.btn-row { display: flex; gap: 8px; align-items: center; margin: 6px 0 8px; }
+#save-msg { color: #00cc66; font-size: 11px; }
+
+/* ── report ── */
+#report {
+  white-space: pre; font-size: 12px; line-height: 1.55;
+  color: #c8c8c8; margin-top: 4px;
+  padding-top: 8px; border-top: 1px solid #2a2d40;
+  overflow-x: auto;
+}
+</style>
+</head>
+<body>
+
+<h3>Algorithm Parameters</h3>
+<table id="params-table"></table>
+<div class="btn-row">
+  <button class="primary" onclick="saveParams()">Save parameters</button>
+  <button onclick="renderReport()">Refresh report</button>
+  <button onclick="openRawJson()">Open raw JSON</button>
+  <span id="save-msg"></span>
+</div>
+
+<div id="report"></div>
+
+<script>
+// ── constants ──────────────────────────────────────────────────────────────────
+const STATS_KEY = "continuo_stats";
+
+const ALG_DEF = {
+    score_goal:1000, ema_alpha:0.18, pass_accuracy:80, mastery_growth:0.20,
+    power_half_life:0.693, mastery_points_per_pct:2.5, power_points_per_pct:1.0,
+    bottleneck_thresh:0.6, dominance_margin:0.2, min_quality:0.1,
+    power_score_frac:0.7, overlearn_min:5, overlearn_max:15,
+    mistake_power_penalty:0.15, mastery_decay_half_life:90, weak_ema_thresh:0.8,
+    ease_initial:2.5, ease_min:1.3, ease_max:3.5, ease_pass_delta:0.1,
+    ease_fail_delta:0.2, ivl_first:1, ivl_second:6, ivl_max:365,
+    chunk_mastery_thresh:80, chunk_power_thresh:70,
+    skill_order:"root 6 4-3_sus 6/4 7 other",
+};
+
+// [key, description, type, min, max, step]  type: int|float|slider|pct|text
+const PARAMS = [
+  ["score_goal",             "Daily point target",                         "int"],
+  ["ema_alpha",              "Pass-rate EMA factor (~1/α sessions)",        "slider",0.01,0.5,0.01],
+  ["pass_accuracy",          "Min accuracy % to count as a pass",           "pct",0,100,1],
+  ["mastery_growth",         "Mastery growth rate per session",             "slider",0.01,1.0,0.01],
+  ["power_half_life",        "Power decay coeff (ln2≈0.693 → halves at ivl)","float"],
+  ["mastery_points_per_pct", "Points per 1% mastery gain",                  "float"],
+  ["power_points_per_pct",   "Points per 1% power gain",                    "float"],
+  ["bottleneck_thresh",      "Factor below which it is a bottleneck",       "slider",0,1,0.05],
+  ["dominance_margin",       "How much lower bottleneck must be",           "slider",0,1,0.05],
+  ["min_quality",            "Min quality for a suggestion",                "slider",0,1,0.05],
+  ["power_score_frac",       "Skip chunk if power ≥ this × mastery",        "slider",0,1,0.05],
+  ["overlearn_min",          "Min repeats before suggesting another chunk", "int"],
+  ["overlearn_max",          "Max repeats before forcing another chunk",    "int"],
+  ["mistake_power_penalty",  "Power penalty per failed session",            "slider",0,0.5,0.01],
+  ["mastery_decay_half_life","Days for mastery to halve at rest",           "int"],
+  ["weak_ema_thresh",        "EMA below this → needs_work suggestion",      "slider",0,1,0.05],
+  ["ease_initial",           "Starting SRS ease multiplier",                "float"],
+  ["ease_min",               "Minimum SRS ease multiplier",                 "float"],
+  ["ease_max",               "Maximum SRS ease multiplier",                 "float"],
+  ["ease_pass_delta",        "Ease increase on a perfect pass",             "float"],
+  ["ease_fail_delta",        "Ease decrease on a failed session",           "float"],
+  ["ivl_first",              "Review interval after 1st perfect pass (days)","int"],
+  ["ivl_second",             "Review interval after 2nd perfect pass (days)","int"],
+  ["ivl_max",                "Maximum review interval (days)",              "int"],
+  ["chunk_mastery_thresh",   "Mastery bar green threshold (%)",             "pct",0,100,1],
+  ["chunk_power_thresh",     "Power bar green threshold (%)",               "pct",0,100,1],
+  ["skill_order",            "Skill introduction order (space-separated)",  "text"],
+];
+
+// ── storage ───────────────────────────────────────────────────────────────────
+function loadStats() {
+    let d = {};
+    try { const r = localStorage.getItem(STATS_KEY); if (r) d = JSON.parse(r); } catch(_) {}
+    d.algorithm = d.algorithm || {};
+    for (const [k,v] of Object.entries(ALG_DEF)) if (d.algorithm[k] === undefined) d.algorithm[k] = v;
+    d.daily  = d.daily  || {};
+    d.chunks = d.chunks || {};
+    return d;
+}
+function saveData(d) { try { localStorage.setItem(STATS_KEY, JSON.stringify(d)); } catch(_) {} }
+
+// ── params table ──────────────────────────────────────────────────────────────
+function fmtSliderVal(v, step) {
+    const dec = step < 1 ? String(step).split(".")[1].length : 0;
+    return parseFloat(v).toFixed(dec);
+}
+
+function buildParamsTable() {
+    const alg = loadStats().algorithm;
+    const tbl = document.getElementById("params-table");
+    tbl.innerHTML = "";
+    for (const [key, desc, type, ...ex] of PARAMS) {
+        const val = alg[key] !== undefined ? alg[key] : ALG_DEF[key];
+        const tr = document.createElement("tr");
+
+        const tdK = document.createElement("td"); tdK.className = "pk"; tdK.textContent = key;
+        const tdD = document.createElement("td"); tdD.className = "pdesc"; tdD.textContent = desc;
+        const tdC = document.createElement("td"); tdC.className = "pctl";
+
+        if (type === "slider" || type === "pct") {
+            const [mn, mx, st] = ex;
+            const r = document.createElement("input"); r.type="range";
+            r.min=mn; r.max=mx; r.step=st; r.value=val; r.dataset.key=key;
+            const sv = document.createElement("span"); sv.className="sval";
+            sv.textContent = fmtSliderVal(val, st);
+            r.addEventListener("input", () => { sv.textContent = fmtSliderVal(r.value, st); });
+            tdC.appendChild(r); tdC.appendChild(sv);
+        } else if (type === "text") {
+            const inp = document.createElement("input"); inp.type="text"; inp.className="wide";
+            inp.value = val; inp.dataset.key = key;
+            tdC.appendChild(inp);
+        } else {
+            const inp = document.createElement("input"); inp.type="number";
+            inp.value = val; inp.step = type==="int" ? 1 : "any"; inp.min = 0;
+            inp.dataset.key = key;
+            tdC.appendChild(inp);
+        }
+
+        tr.appendChild(tdK); tr.appendChild(tdD); tr.appendChild(tdC);
+        tbl.appendChild(tr);
+    }
+}
+
+function saveParams() {
+    const stats = loadStats();
+    for (const [key,,type] of PARAMS) {
+        const el = document.querySelector(`[data-key="${key}"]`);
+        if (!el) continue;
+        if (type === "text")        stats.algorithm[key] = el.value.trim();
+        else if (type === "int")    stats.algorithm[key] = parseInt(el.value) || 0;
+        else                        stats.algorithm[key] = parseFloat(el.value) || 0;
+    }
+    saveData(stats);
+    const msg = document.getElementById("save-msg");
+    msg.textContent = "Saved.";
+    setTimeout(() => { msg.textContent = ""; }, 1500);
+    renderReport();
+}
+
+function openRawJson() {
+    const raw = localStorage.getItem(STATS_KEY) || "{}";
+    const win = window.open("", "_blank");
+    win.document.write(`<pre style="background:#1e2030;color:#d0d0d0;font-family:monospace;`
+        + `font-size:12px;padding:12px;white-space:pre-wrap;word-break:break-all">`
+        + JSON.stringify(JSON.parse(raw), null, 2) + `</pre>`);
+    win.document.close();
+}
+
+// ── report helpers ────────────────────────────────────────────────────────────
+const L = (s,n) => String(s).padStart(n);
+const R = (s,n) => String(s).padEnd(n);
+
+function normalize(raw, e) { const mg=e.max_groups||0; return mg>0?(raw/(mg*5))*100:0; }
+
+function daysElapsed(ds) {
+    if (!ds) return null;
+    const [y,m,d] = ds.split("-").map(Number);
+    return Math.max(0, Math.floor((Date.now()-Date.UTC(y,m-1,d,12))/86400000));
+}
+
+function calcPower(e, alg) {
+    const mastery = Math.max(e.mastery||0, e.t_mastery||0);
+    const ivl = e.ivl||0;
+    let eff = e.last_date, t = e.t_last_date;
+    if (t && (!eff||t>eff)) eff = t;
+    if (!eff||ivl<=0) return 0;
+    const days = daysElapsed(eff)||0;
+    return Math.min(mastery, mastery*Math.exp(-(alg.power_half_life||0.693)*days/ivl));
+}
+
+function calcStreak(data) {
+    const goal = data.algorithm.score_goal||1000;
+    const today = new Date().toISOString().slice(0,10);
+    let streak=0, ts=Date.now();
+    for(;;) {
+        const ds = new Date(ts).toISOString().slice(0,10);
+        if ((data.daily[ds]||{}).score >= goal) { streak++; ts-=86400000; }
+        else if (ds===today && streak===0) ts-=86400000;
+        else break;
+    }
+    return streak;
+}
+
+function fmtDur(s) {
+    if (!s||s<=0) return "--";
+    const h=Math.floor(s/3600), m=Math.floor((s%3600)/60), sec=Math.floor(s%60);
+    if (h>0) return `${h}h${String(m).padStart(2,"0")}m`;
+    if (m>0) return `${m}m${String(sec).padStart(2,"0")}s`;
+    return `${sec}s`;
+}
+
+function barStr(frac, w) {
+    const f = Math.max(0,Math.min(w,Math.round((frac||0)*w)));
+    return "#".repeat(f)+".".repeat(w-f);
+}
+
+function pctStr(n, w=3) { return L(Math.round(n), w)+"%"; }   // " 87%"
+function p1Str(n, w=6)  { return L(n.toFixed(1), w)+"%"; }    // "  12.3%"
+
+// ── report ────────────────────────────────────────────────────────────────────
+function renderReport() {
+    const data  = loadStats();
+    const alg   = data.algorithm;
+    const chunks = data.chunks;
+    const today = new Date().toISOString().slice(0,10);
+    const tod   = data.daily[today]||{score:0,duration:0};
+    const streak = calcStreak(data);
+    const goal   = alg.score_goal||1000;
+    const score  = tod.score||0;
+    const gFrac  = Math.min(1, score/goal);
+    const lines  = [];
+
+    lines.push(`=== Continuo Trainer  ${today} ===`);
+    lines.push(`Today   score ${L(score.toFixed(1),7)} / ${R(Math.floor(goal),6)} `
+             + `[${barStr(gFrac,10)}] ${L(Math.floor(gFrac*100),3)}%`
+             + `  time ${R(fmtDur(tod.duration||0),8)}  streak: ${streak} day${streak===1?"":"s"}`);
+    let totSecs=0, nC=0;
+    for (const c of Object.values(chunks)) { totSecs+=c.total_duration||0; nC++; }
+    lines.push(`Total   chunks: ${nC}   practice time: ${fmtDur(totSecs)}`);
+
+    // ── skills ──
+    const ss = {};
+    for (const [h,c] of Object.entries(chunks)) {
+        if (!c.skills) continue;
+        const mp = normalize(c.mastery||0, c), pp = normalize(calcPower(c,alg), c);
+        const prac = ((c.n_pass_tot||0)+(c.n_fail_tot||0))>0;
+        for (const sk of c.skills.split(/\s+/).filter(Boolean)) {
+            if (!ss[sk]) ss[sk]={n:0,np:0,mS:0,pS:0,pass:0,fail:0,eS:0,eN:0,easS:0,easN:0,bS:0,bN:0,dur:0};
+            const s=ss[sk]; s.n++; s.mS+=mp; s.pS+=pp;
+            s.pass+=c.n_pass_tot||0; s.fail+=c.n_fail_tot||0;
+            s.dur+=c.total_duration||0; if(prac)s.np++;
+            if(c.ema_pass!==undefined){s.eS+=c.ema_pass;s.eN++;}
+            if(c.ease!==undefined){s.easS+=c.ease;s.easN++;}
+            if(c.best_avg!==undefined){s.bS+=c.best_avg;s.bN++;}
+        }
+    }
+    const skOrder={};let skN=0;
+    for(const sk of (alg.skill_order||"").split(/\s+/).filter(Boolean)) skOrder[sk]=skN++;
+    const skNames = Object.keys(ss).sort((a,b)=>{
+        const ra=skOrder[a]??skN, rb=skOrder[b]??skN;
+        return ra!==rb?ra-rb:a<b?-1:1;
+    });
+
+    if (skNames.length>0) {
+        lines.push("");
+        lines.push(`SKILLS (${skNames.length})`);
+        lines.push("  Chunks: practiced/total.  Mastery/Power: avg % across chunks.");
+        lines.push("  Rate: pass/(pass+fail).  EMA: avg smoothed pass rate.");
+        lines.push("");
+        lines.push("  "+R("Skill",10)+"  "+L("Chunks",11)+"  "+R("Mastery",7)
+                  +"  "+R("Power",7)+"  "+L("Pass",5)+"  "+L("Fail",5)
+                  +"  "+L("Rate",5)+"  "+L("EMA",5)+"  "+L("Ease",5)
+                  +"  "+L("Speed",6)+"  "+L("Time",8));
+        lines.push("-".repeat(97));
+        for (const sn of skNames) {
+            const s=ss[sn], tot=s.pass+s.fail;
+            const rate = tot>0 ? pctStr(s.pass/tot*100) : "  --";
+            const ema  = s.eN>0 ? pctStr(s.eS/s.eN*100) : "  --";
+            const ease = s.easN>0 ? (s.easS/s.easN).toFixed(2) : "  --";
+            const spd  = s.bN>0 ? L((s.bS/s.bN).toFixed(3)+"s",6) : "    --";
+            lines.push("  "+R(sn,10)
+                +"  "+L(s.np,5)+"/"+R(s.n,5)
+                +"  "+p1Str(s.mS/s.n)+"  "+p1Str(s.pS/s.n)
+                +"  "+L(s.pass,5)+"  "+L(s.fail,5)
+                +"  "+L(rate,5)+"  "+L(ema,5)+"  "+L(ease,5)
+                +"  "+spd+"  "+L(fmtDur(s.dur),8));
+        }
+    }
+
+    // ── chunks ──
+    const eWin = alg.ema_alpha ? `~${Math.round(1/alg.ema_alpha)}` : "?";
+    const hashes = Object.keys(chunks).sort((a,b)=>{
+        const la=chunks[a].level||0, lb=chunks[b].level||0;
+        if (la!==lb) return la-lb;
+        return normalize(chunks[a].mastery||0,chunks[a])-normalize(chunks[b].mastery||0,chunks[b]);
+    });
+
+    if (hashes.length>0) {
+        lines.push("");
+        lines.push(`CHUNKS (${hashes.length})`);
+        lines.push("");
+        lines.push("  Column legend:");
+        lines.push("    Hash     First 8 hex chars of the SHA-1 ID");
+        lines.push("    L        Level: 0=full lesson, 1=3-bar drill, 2=1-bar drill");
+        lines.push("    Dir%     Direct mastery: scored from sessions on this chunk");
+        lines.push("    Trn%     Transitive mastery: inferred from practice of parent chunks");
+        lines.push("    Power    Retention: mastery decayed by time elapsed vs review interval");
+        lines.push("    Pass/Fail  Total all-correct / sessions-with-error");
+        lines.push("    Rate     Pass / (Pass+Fail)");
+        lines.push(`    EMA      Smoothed pass rate (${eWin}-session window, α=${alg.ema_alpha??"?"})`);
+        lines.push(`    Ease     SRS multiplier (init=${(alg.ease_initial||2.5).toFixed(1)}, `
+                  +`min=${(alg.ease_min||1.3).toFixed(1)}, max=${(alg.ease_max||3.5).toFixed(1)})`);
+        lines.push("    Ivl      SRS review interval in days (* = review overdue)");
+        lines.push("    BPM      Tempo EMA in beats per minute");
+        lines.push("    BestAvg  Fastest recorded average inter-note transition time");
+        lines.push("    PFac     Power factor: penalty for failed sub-ranges (100%=clean)");
+        lines.push("    Last     Date of most recent practice (direct or transitive)");
+        lines.push("");
+        lines.push("  "+R("Hash",8)+"  L"
+                  +"  "+R("Dir%",7)+"  "+R("Trn%",7)+"  "+R("Power",7)
+                  +"  "+L("Pass",5)+"  "+L("Fail",5)
+                  +"  "+L("Rate",5)+"  "+L("EMA",5)+"  "+L("Ease",5)
+                  +"  "+L("Ivl",5)+"  "+L("BPM",5)+"  "+L("BestAvg",7)
+                  +"  "+L("PFac",5)+"  Last");
+        lines.push("-".repeat(109));
+        for (const h of hashes) {
+            const c=chunks[h];
+            const dir   = normalize(c.mastery||0, c);
+            const trn   = normalize(c.t_mastery||0, c);
+            const pow   = normalize(calcPower(c,alg), c);
+            const ivl   = Math.floor(c.ivl||0);
+            let eff=c.last_date, tl=c.t_last_date;
+            if(tl&&(!eff||tl>eff)) eff=tl;
+            const el    = daysElapsed(eff);
+            const due   = ivl>0&&el!==null&&el>=ivl?"*":" ";
+            const pass=c.n_pass_tot||0, fail=c.n_fail_tot||0, tot=pass+fail;
+            const rate  = tot>0?pctStr(pass/tot*100):"  --";
+            const ema   = c.ema_pass!==undefined?pctStr(c.ema_pass*100):"  --";
+            const ease  = (c.ease||0).toFixed(2);
+            const bpm   = c.ema_bpm!==undefined?L(Math.round(c.ema_bpm),5):"   --";
+            const bavg  = c.best_avg!==undefined?L(c.best_avg.toFixed(3)+"s",7):"     --";
+            const pfac  = c.power_factor!==undefined?pctStr(c.power_factor*100):"  --";
+            lines.push("  "+R(h.slice(0,8),8)+"  "+(c.level||0)
+                +"  "+p1Str(dir)+"  "+p1Str(trn)+"  "+p1Str(pow)
+                +"  "+L(pass,5)+"  "+L(fail,5)
+                +"  "+L(rate,5)+"  "+L(ema,5)+"  "+L(ease,5)
+                +"  "+L(ivl,4)+due+"  "+bpm+"  "+bavg
+                +"  "+L(pfac,5)+"  "+(eff||"--"));
+        }
+    }
+
+    document.getElementById("report").textContent = lines.join("\n");
+}
+
+// ── init ──────────────────────────────────────────────────────────────────────
+buildParamsTable();
+renderReport();
+</script>
+</body>
+</html>
