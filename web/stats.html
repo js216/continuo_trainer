@@ -68,6 +68,8 @@ input[type=range] { width: 150px; accent-color: #3366cc; vertical-align: middle;
   <button class="primary" onclick="saveParams()">Save parameters</button>
   <button onclick="renderReport()">Refresh report</button>
   <button onclick="openRawJson()">Open raw JSON</button>
+  <button onclick="document.getElementById('json-upload').click()">Import JSON</button>
+  <input type="file" id="json-upload" accept=".json" style="display:none" onchange="importJson(this)">
   <span id="save-msg"></span>
 </div>
 
@@ -184,9 +186,7 @@ function saveParams() {
         else                        stats.algorithm[key] = parseFloat(el.value) || 0;
     }
     saveData(stats);
-    const msg = document.getElementById("save-msg");
-    msg.textContent = "Saved.";
-    setTimeout(() => { msg.textContent = ""; }, 1500);
+    showMsg("Saved.");
     renderReport();
 }
 
@@ -197,6 +197,33 @@ function openRawJson() {
         + `font-size:12px;padding:12px;white-space:pre-wrap;word-break:break-all">`
         + JSON.stringify(JSON.parse(raw), null, 2) + `</pre>`);
     win.document.close();
+}
+
+function showMsg(text, color) {
+    const el = document.getElementById("save-msg");
+    el.style.color = color || "#00cc66";
+    el.textContent = text;
+    setTimeout(() => { el.textContent = ""; el.style.color = ""; }, 2500);
+}
+
+function importJson(input) {
+    const file = input.files[0];
+    if (!file) return;
+    input.value = "";  // reset so the same file can be re-imported
+    const reader = new FileReader();
+    reader.onload = e => {
+        let data;
+        try { data = JSON.parse(e.target.result); }
+        catch(err) { showMsg("Import failed: " + err.message, "#ff6060"); return; }
+        if (typeof data !== "object" || !data.chunks) {
+            showMsg("Import failed: not a valid stats JSON", "#ff6060"); return;
+        }
+        localStorage.setItem(STATS_KEY, JSON.stringify(data));
+        buildParamsTable();
+        renderReport();
+        showMsg(`Imported ${Object.keys(data.chunks).length} chunks`);
+    };
+    reader.readAsText(file);
 }
 
 // ── report helpers ────────────────────────────────────────────────────────────
