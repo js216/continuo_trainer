@@ -299,7 +299,8 @@ class Stats {
         if (chunkHash && stats.chunks[chunkHash]) {
             const c     = stats.chunks[chunkHash];
             const power = this._calculatePower(c, alg);
-            chunkStr = ` chunk=${chunkHash}[ivl=${Math.floor(c.ivl || 0)},ease=${(c.ease || alg.ease_initial).toFixed(2)},mastery=${this._normalize(c.mastery || 0, c).toFixed(2)},power=${this._normalize(power, c).toFixed(2)}]`;
+            const effM  = Math.max(c.mastery || 0, c.t_mastery || 0);
+            chunkStr = ` chunk=${chunkHash}[ivl=${Math.floor(c.ivl || 0)},ease=${(c.ease || alg.ease_initial).toFixed(2)},mastery=${this._normalize(effM, c).toFixed(2)},power=${this._normalize(power, c).toFixed(2)}]`;
         }
         return `STATS time=${Math.round(Date.now() / 1000)} total_today=${d.score.toFixed(2)} goal=${alg.score_goal.toFixed(2)} total_duration_today=${d.duration.toFixed(3)} streak=${streak} mastery_thresh=${alg.chunk_mastery_thresh} power_thresh=${alg.chunk_power_thresh}${chunkStr}`;
     }
@@ -326,7 +327,7 @@ class Stats {
         let allPracticedMastered = true;
 
         for (const [h, c] of Object.entries(stats.chunks)) {
-            const isNew  = !c.last_date && !c.t_last_date;
+            const isNew  = !c.last_date;  // only direct play counts as "practiced"
             const mPct   = this._normalize(Math.max(c.mastery || 0, c.t_mastery || 0), c);
             const level  = c.level || 0;
 
@@ -359,7 +360,7 @@ class Stats {
         const best = this._suggestBestHash(stats);
         if (best) {
             const c     = stats.chunks[best];
-            const isNew = !c.last_date && !c.t_last_date;
+            const isNew = !c.last_date;
             this._onLine(`SUGGESTION chunk=${best} level=${c.level || 0} skills=${this._chunkSkills[best] || "?"} reason=${isNew ? "new_chunk" : "weak_chunk"}`);
         } else {
             this._onLine("SUGGESTION none reason=all_up_to_date");
@@ -420,7 +421,7 @@ class Stats {
         }
 
         this._onLine(
-            `STATS time=${Math.round(Date.now() / 1000)} total_today=${d.score.toFixed(2)} goal=${alg.score_goal.toFixed(2)} total_duration_today=${d.duration.toFixed(3)} streak=${streak} mastery_thresh=${alg.chunk_mastery_thresh} power_thresh=${alg.chunk_power_thresh} chunk=${hash}[ivl=${Math.floor(c.ivl || 0)},ease=${(c.ease || alg.ease_initial).toFixed(2)},mastery=${this._normalize(c.mastery || 0, c).toFixed(2)},power=${this._normalize(power, c).toFixed(2)}]${suggestion}`
+            `STATS time=${Math.round(Date.now() / 1000)} total_today=${d.score.toFixed(2)} goal=${alg.score_goal.toFixed(2)} total_duration_today=${d.duration.toFixed(3)} streak=${streak} mastery_thresh=${alg.chunk_mastery_thresh} power_thresh=${alg.chunk_power_thresh} chunk=${hash}[ivl=${Math.floor(c.ivl || 0)},ease=${(c.ease || alg.ease_initial).toFixed(2)},mastery=${this._normalize(Math.max(c.mastery || 0, c.t_mastery || 0), c).toFixed(2)},power=${this._normalize(power, c).toFixed(2)}]${suggestion}`
         );
 
         const savedResults   = cur.results;
