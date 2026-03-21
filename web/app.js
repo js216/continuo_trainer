@@ -448,7 +448,7 @@ function renderCelebration() {
     const t = age / DUR;
     el.style.display   = "block";
     el.style.opacity   = 1 - t;
-    el.style.transform = `translateX(-50%) translateY(${-t * 40}px)`;
+    el.style.transform = `translateY(calc(-50% - ${t * 40}px))`;
     el.style.color     = state.goalMet ? "#50ff78" : "#ffd228";
     el.textContent     = `+${state.ptsDelta} pts!`;
 }
