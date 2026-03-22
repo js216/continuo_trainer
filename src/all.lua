@@ -409,6 +409,8 @@ local function compute_bar_children(
 	step_bars
 )
 	local splits = bar_split(time_sig, ps, pe, offsets, step_bars)
+	-- A single split always covers the full parent range — identical to parent, skip.
+	if #splits <= 1 then return {} end
 	local children = {}
 	local seen_hashes = {}
 

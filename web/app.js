@@ -498,9 +498,10 @@ function handleSuggestion(line) {
 
 function loadScoreImage(hash) {
     const img = document.getElementById("score-img");
-    img.onload  = () => { img.style.display = "block"; };
-    img.onerror = () => { img.style.display = "none";  };
-    img.src = `../chn/${hash}.png`;
+    const bg  = document.getElementById("score-bg");
+    img.onload  = () => { img.classList.add("loaded"); bg.classList.add("loaded"); };
+    img.onerror = () => { img.classList.remove("loaded"); bg.classList.remove("loaded"); };
+    img.src = `../chn/${hash}.svg`;
 }
 
 // ── rendering ──────────────────────────────────────────────────────────────────

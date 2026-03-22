@@ -10,8 +10,9 @@ IMGUI = imgui.o imgui_demo.o imgui_draw.o imgui_tables.o imgui_widgets.o \
 
 IMGUI_OBJ = $(patsubst %,lib/imgui/%,$(IMGUI))
 PNG = $(patsubst %.txt,%.png,$(wildcard chn/*.txt))
+SVG = $(patsubst %.txt,%.svg,$(wildcard chn/*.txt))
 
-all: $(addprefix bin/,$(PROGS)) $(PNG)
+all: $(addprefix bin/,$(PROGS)) $(PNG) $(SVG)
 
 bin/%: src/%.c | bin
 	$(CC) $(CPPFLAGS) $(CFLAGS) $< -o $@ $(LDLIBS)
@@ -26,6 +27,10 @@ bin/%: src/%.rs | bin
 	lilypond --png -dpreview -o $(@:.png=) $<
 	convert $(@:.png=).preview.png -trim +repage -bordercolor white -border 10x20 $@
 	rm $(@:.png=).preview.png
+
+%.svg: %.ly
+	lilypond -dbackend=svg -dpreview -o $(@:.svg=) $<
+	mv $(@:.svg=).preview.svg $@
 
 %.pdf: %.ly
 	lilypond -o $(@:.pdf=) $^

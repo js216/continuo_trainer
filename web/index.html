@@ -122,6 +122,9 @@ button.active { background: #1a7040; border-color: #2a9050; }
 }
 
 #score-img { display: none; max-width: 100%; }
+#score-img.loaded { display: block; }
+#score-bg { display: none; background: white; padding: 10px 20px; }
+#score-bg.loaded { display: inline-block; }
 
 /* ── squares ── */
 #squares {
@@ -348,7 +351,7 @@ button.active { background: #1a7040; border-color: #2a9050; }
 <div id="workspace">
   <div id="left-pane">
     <div id="score-wrap">
-      <img id="score-img" alt="score">
+      <div id="score-bg"><img id="score-img" alt="score"></div>
       <div id="celebration"></div>
     </div>
     <div id="squares"></div>
