@@ -176,11 +176,110 @@ function reloadLesson() {
     clearStatus();
 }
 
-function showStats() {
-    window.open("stats.html", "_blank");
+// ── right pane: tabs (stats / events) ─────────────────────────────────────────
+
+const _rightTabs = [];   // ordered open tab ids
+let   _activeTab = null;
+
+function showStats()  { _rightTabs.includes('stats')  ? _closeRightTab('stats')  : _openRightTab('stats'); }
+function showEvents() { _rightTabs.includes('events') ? _closeRightTab('events') : _openRightTab('events'); }
+
+function _openRightTab(id) {
+    if (!_rightTabs.includes(id)) _rightTabs.push(id);
+    _activeTab = id;
+    if (id === 'stats') {
+        const fr = document.getElementById('stats-iframe');
+        if (!fr.src || fr.src === window.location.href) fr.src = 'stats.html';
+    }
+    _renderRightPane();
 }
 
-// ── events pane ────────────────────────────────────────────────────────────────
+function _closeRightTab(id) {
+    const idx = _rightTabs.indexOf(id);
+    if (idx < 0) return;
+    _rightTabs.splice(idx, 1);
+    if (_activeTab === id) _activeTab = _rightTabs[_rightTabs.length - 1] || null;
+    _renderRightPane();
+}
+
+function _activateTab(id) {
+    if (!_rightTabs.includes(id)) return;
+    _activeTab = id;
+    _renderRightPane();
+}
+
+function _renderRightPane() {
+    const pane    = document.getElementById('right-pane');
+    const divider = document.getElementById('divider');
+    const tabBar  = document.getElementById('right-tab-bar');
+    const leftPn  = document.getElementById('left-pane');
+
+    const hasTab = _rightTabs.length > 0;
+    pane.classList.toggle('open', hasTab);
+    divider.style.display = hasTab ? 'block' : 'none';
+
+    if (hasTab && !leftPn.style.width) {
+        // First open: set 50/50 split
+        leftPn.style.flex  = 'none';
+        leftPn.style.width = Math.round(document.getElementById('workspace').offsetWidth / 2) + 'px';
+    }
+    if (!hasTab) {
+        leftPn.style.flex  = '';
+        leftPn.style.width = '';
+    }
+
+    // Tab bar
+    tabBar.innerHTML = _rightTabs.map(id => {
+        const label = id[0].toUpperCase() + id.slice(1);
+        return `<div class="rtab${id === _activeTab ? ' active' : ''}" onclick="_activateTab('${id}')">`
+             + `${label}<button onclick="_closeRightTab('${id}');event.stopPropagation()">×</button></div>`;
+    }).join('');
+
+    // Show active content panel
+    document.getElementById('events-content').classList.toggle('active', _activeTab === 'events');
+    document.getElementById('stats-content').classList.toggle('active',  _activeTab === 'stats');
+
+    // Toolbar button highlights
+    const eb = document.getElementById('events-btn');
+    const sb = document.getElementById('stats-btn');
+    if (eb) eb.classList.toggle('active', _rightTabs.includes('events'));
+    if (sb) sb.classList.toggle('active',  _rightTabs.includes('stats'));
+}
+
+// ── draggable divider ──────────────────────────────────────────────────────────
+
+(function() {
+    const divider = document.getElementById('divider');
+    const leftPn  = document.getElementById('left-pane');
+    const ws      = document.getElementById('workspace');
+    let dragging = false, startX = 0, startW = 0;
+
+    const iframe = document.getElementById('stats-iframe');
+
+    divider.addEventListener('mousedown', e => {
+        dragging = true; startX = e.clientX; startW = leftPn.offsetWidth;
+        divider.classList.add('dragging');
+        document.body.style.cursor = document.body.style.userSelect = 'col-resize';
+        // Prevent iframe from swallowing mouse events during drag
+        iframe.style.pointerEvents = 'none';
+        e.preventDefault();
+    });
+    document.addEventListener('mousemove', e => {
+        if (!dragging) return;
+        const w = Math.max(80, Math.min(ws.offsetWidth - 80, startW + e.clientX - startX));
+        leftPn.style.flex  = 'none';
+        leftPn.style.width = w + 'px';
+    });
+    document.addEventListener('mouseup', () => {
+        if (!dragging) return;
+        dragging = false;
+        divider.classList.remove('dragging');
+        document.body.style.cursor = document.body.style.userSelect = '';
+        iframe.style.pointerEvents = '';
+    });
+})();
+
+// ── events log ────────────────────────────────────────────────────────────────
 
 let eventsFirstNoteTime = null;
 let eventsPrevNoteTime  = null;
@@ -199,19 +298,6 @@ function logEvent(text, cls) {
     log.appendChild(div);
     while (log.childElementCount > 500) log.removeChild(log.firstChild);
     log.scrollTop = log.scrollHeight;
-}
-
-function toggleEvents() {
-    const pane = document.getElementById('events-pane');
-    const btn  = document.getElementById('events-btn');
-    const open = pane.classList.toggle('open');
-    if (btn) btn.classList.toggle('active', open);
-}
-
-function closeEvents() {
-    document.getElementById('events-pane').classList.remove('open');
-    const btn = document.getElementById('events-btn');
-    if (btn) btn.classList.remove('active');
 }
 
 function quitLesson() {
@@ -495,7 +581,8 @@ document.addEventListener("keydown", (e) => {
         case "r": case "R": reloadLesson();  break;
         case " ":  e.preventDefault(); suggestLesson(); break;
         case "k": case "K": toggleKaraoke(); break;
-        case "s": case "S": showStats();     break;
+        case "s": case "S": showStats();      break;
+        case "e": case "E": showEvents();     break;
     }
 });
 

@@ -103,13 +103,22 @@ button.active { background: #1a7040; border-color: #2a9050; }
 #bpm-val::-webkit-outer-spin-button,
 #bpm-val::-webkit-inner-spin-button { -webkit-appearance: none; }
 
-/* ── content ── */
-#content {
+/* ── workspace: left pane + divider + right pane ── */
+#workspace {
   flex: 1;
-  overflow-y: auto;
+  display: flex;
+  flex-direction: row;
+  overflow: hidden;
+}
+
+/* ── left pane ── */
+#left-pane {
+  flex: 1;
+  min-width: 80px;
   display: flex;
   flex-direction: column;
   align-items: center;
+  overflow-y: auto;
   padding: 8px;
 }
 
@@ -147,46 +156,91 @@ button.active { background: #1a7040; border-color: #2a9050; }
   align-self: flex-start;
 }
 
-/* ── main split (left-pane + events-pane side by side) ── */
-#main-split {
-  display: flex;
+/* ── score wrapper (for relative-positioned celebration) ── */
+#score-wrap {
+  position: relative;
   width: 100%;
-  align-items: flex-start;
-}
-#left-pane {
-  flex: 1;
-  min-width: 0;
   display: flex;
-  flex-direction: column;
-  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
 }
 
-/* ── events pane ── */
-#events-pane {
+/* ── celebration overlay ── */
+#celebration {
+  position: absolute;
+  right: 2rem;
+  top: 50%;
+  font-size: 52px;
+  font-weight: bold;
+  text-shadow: 2px 2px 0 #000;
+  pointer-events: none;
+  display: none;
+  white-space: nowrap;
+}
+
+/* ── draggable divider ── */
+#divider {
+  width: 5px;
+  flex-shrink: 0;
+  background: #2a2d40;
+  cursor: col-resize;
+  display: none;
+}
+#divider:hover, #divider.dragging { background: #4a5070; }
+
+/* ── right pane ── */
+#right-pane {
+  flex: 1;
+  min-width: 80px;
   display: none;
   flex-direction: column;
-  width: 50%;
-  flex-shrink: 0;
-  border-left: 1px solid #2a2d40;
-  background: #12141e;
   overflow: hidden;
 }
-#events-pane.open { display: flex; }
-#events-header {
+#right-pane.open { display: flex; }
+
+/* ── tab bar ── */
+#right-tab-bar {
   display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 2px 6px;
+  align-items: stretch;
   background: #151825;
   border-bottom: 1px solid #2a2d40;
   flex-shrink: 0;
   font-size: 11px;
-  color: #888;
 }
+.rtab {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 10px;
+  cursor: pointer;
+  color: #777;
+  border-right: 1px solid #2a2d40;
+  user-select: none;
+}
+.rtab:hover { color: #aaa; background: #1a1d2e; }
+.rtab.active { color: #d0d0d0; background: #1e2030; }
+.rtab button {
+  padding: 0 3px;
+  font-size: 11px;
+  line-height: 1;
+  background: none;
+  border: none;
+  color: #555;
+}
+.rtab button:hover { color: #cc4444; background: none; }
+
+/* ── right pane content areas ── */
+#events-content {
+  display: none;
+  flex: 1;
+  flex-direction: column;
+  overflow: hidden;
+}
+#events-content.active { display: flex; }
+
 #events-log {
+  flex: 1;
   overflow-y: auto;
-  min-height: 60px;
-  max-height: 300px;
   padding: 3px 5px;
   font-size: 10px;
   font-family: monospace;
@@ -195,6 +249,20 @@ button.active { background: #1a7040; border-color: #2a9050; }
 .ev-on  { color: #88ff88; }
 .ev-off { color: #446644; }
 .ev-bpm { color: #ffcc44; }
+
+#stats-content {
+  display: none;
+  flex: 1;
+  overflow: hidden;
+}
+#stats-content.active { display: flex; }
+
+#stats-iframe {
+  flex: 1;
+  width: 100%;
+  height: 100%;
+  border: none;
+}
 
 /* ── info bar ── */
 #info-bar {
@@ -231,27 +299,6 @@ button.active { background: #1a7040; border-color: #2a9050; }
   font-size: 11px;
   margin-left: 4px;
   padding: 1px 3px;
-}
-
-/* ── score wrapper (for relative-positioned celebration) ── */
-#score-wrap {
-  position: relative;
-  width: 100%;
-  display: flex;
-  justify-content: center;
-}
-
-/* ── celebration overlay ── */
-#celebration {
-  position: absolute;
-  right: 2rem;
-  top: 50%;
-  font-size: 52px;
-  font-weight: bold;
-  text-shadow: 2px 2px 0 #000;
-  pointer-events: none;
-  display: none;
-  white-space: nowrap;
 }
 </style>
 </head>
@@ -294,27 +341,31 @@ button.active { background: #1a7040; border-color: #2a9050; }
     </div>
     <button id="karaoke-btn" onclick="toggleKaraoke()">[K]araoke</button>
     <button onclick="reloadLesson()">[R]eload</button>
-    <button onclick="showStats()">[S]tats</button>
+    <button id="stats-btn"  onclick="showStats()">[S]tats</button>
+    <button id="events-btn" onclick="showEvents()">[E]vents</button>
     <button onclick="quitLesson()">X</button>
   </div>
 </div>
 
-<div id="content">
-  <div id="score-wrap">
-    <img id="score-img" alt="score">
-    <div id="celebration"></div>
-  </div>
-  <div id="main-split">
-    <div id="left-pane">
-      <div id="squares"></div>
-      <div id="explanations"></div>
+<div id="workspace">
+  <div id="left-pane">
+    <div id="score-wrap">
+      <img id="score-img" alt="score">
+      <div id="celebration"></div>
     </div>
-    <div id="events-pane">
-      <div id="events-header">
-        <span>Events</span>
-        <button onclick="closeEvents()" title="Close">×</button>
-      </div>
+    <div id="squares"></div>
+    <div id="explanations"></div>
+  </div>
+
+  <div id="divider"></div>
+
+  <div id="right-pane">
+    <div id="right-tab-bar"></div>
+    <div id="events-content">
       <div id="events-log"></div>
+    </div>
+    <div id="stats-content">
+      <iframe id="stats-iframe"></iframe>
     </div>
   </div>
 </div>
@@ -330,7 +381,6 @@ button.active { background: #1a7040; border-color: #2a9050; }
   in <select id="midi-in"  onchange="selectMidiIn(this.value)"><option value="">—</option></select>
   out <select id="midi-out" onchange="selectMidiOut(this.value)"><option value="">—</option></select>
   <label><input type="checkbox" id="midi-forward" onchange="setForward(this.checked)"> forward</label>
-  <button id="events-btn" onclick="toggleEvents()">[E]vents</button>
   <span id="synth-ctrl">synth <input type="range" id="synth-vol" min="0" max="1" step="0.01" value="0"
     oninput="setSynthVolume(this.value)" title="Synth volume (0 = off)"></span>
 </div>
