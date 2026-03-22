@@ -181,8 +181,9 @@ function reloadLesson() {
 const _rightTabs = [];   // ordered open tab ids
 let   _activeTab = null;
 
-function showStats()  { _rightTabs.includes('stats')  ? _closeRightTab('stats')  : _openRightTab('stats'); }
-function showEvents() { _rightTabs.includes('events') ? _closeRightTab('events') : _openRightTab('events'); }
+function showStats()    { _rightTabs.includes('stats')    ? _closeRightTab('stats')    : _openRightTab('stats'); }
+function showEvents()   { _rightTabs.includes('events')   ? _closeRightTab('events')   : _openRightTab('events'); }
+function showSettings() { _rightTabs.includes('settings') ? _closeRightTab('settings') : _openRightTab('settings'); }
 
 function _openRightTab(id) {
     if (!_rightTabs.includes(id)) _rightTabs.push(id);
@@ -190,6 +191,10 @@ function _openRightTab(id) {
     if (id === 'stats') {
         const fr = document.getElementById('stats-iframe');
         if (!fr.src || fr.src === window.location.href) fr.src = 'stats.html';
+    }
+    if (id === 'settings') {
+        const fr = document.getElementById('settings-iframe');
+        if (!fr.src || fr.src === window.location.href) fr.src = 'settings.html';
     }
     _renderRightPane();
 }
@@ -206,6 +211,10 @@ function _activateTab(id) {
     if (!_rightTabs.includes(id)) return;
     _activeTab = id;
     _renderRightPane();
+    if (id === 'events') {
+        const log = document.getElementById('events-log');
+        if (log) log.scrollTop = log.scrollHeight;
+    }
 }
 
 function _renderRightPane() {
@@ -236,14 +245,17 @@ function _renderRightPane() {
     }).join('');
 
     // Show active content panel
-    document.getElementById('events-content').classList.toggle('active', _activeTab === 'events');
-    document.getElementById('stats-content').classList.toggle('active',  _activeTab === 'stats');
+    document.getElementById('events-content').classList.toggle('active',   _activeTab === 'events');
+    document.getElementById('stats-content').classList.toggle('active',    _activeTab === 'stats');
+    document.getElementById('settings-content').classList.toggle('active', _activeTab === 'settings');
 
     // Toolbar button highlights
     const eb = document.getElementById('events-btn');
     const sb = document.getElementById('stats-btn');
+    const tb = document.getElementById('settings-btn');
     if (eb) eb.classList.toggle('active', _rightTabs.includes('events'));
     if (sb) sb.classList.toggle('active',  _rightTabs.includes('stats'));
+    if (tb) tb.classList.toggle('active',  _rightTabs.includes('settings'));
 }
 
 // ── draggable divider ──────────────────────────────────────────────────────────
@@ -254,14 +266,13 @@ function _renderRightPane() {
     const ws      = document.getElementById('workspace');
     let dragging = false, startX = 0, startW = 0;
 
-    const iframe = document.getElementById('stats-iframe');
+    const iframes = () => document.querySelectorAll('#right-pane iframe');
 
     divider.addEventListener('mousedown', e => {
         dragging = true; startX = e.clientX; startW = leftPn.offsetWidth;
         divider.classList.add('dragging');
         document.body.style.cursor = document.body.style.userSelect = 'col-resize';
-        // Prevent iframe from swallowing mouse events during drag
-        iframe.style.pointerEvents = 'none';
+        iframes().forEach(f => f.style.pointerEvents = 'none');
         e.preventDefault();
     });
     document.addEventListener('mousemove', e => {
@@ -275,7 +286,7 @@ function _renderRightPane() {
         dragging = false;
         divider.classList.remove('dragging');
         document.body.style.cursor = document.body.style.userSelect = '';
-        iframe.style.pointerEvents = '';
+        iframes().forEach(f => f.style.pointerEvents = '');
     });
 })();
 
@@ -348,7 +359,10 @@ function parseLine(line) {
         karaoke.handleLine(line);
         return;
     }
-    if (line.startsWith("BPM_DBG ")) { logEvent(line.slice(8), 'ev-bpm'); return; }
+    if (line.startsWith("BPM_DBG "))  { logEvent(line.slice(8), 'ev-bpm'); return; }
+    if (line.startsWith("STATS "))    logEvent(line, 'ev-stat');
+    if (line.startsWith("RESULT "))   logEvent(line, 'ev-res' + (line.includes(' FAIL') ? ' fail' : ''));
+    if (line.startsWith("LESSON "))   logEvent('── ' + line, 'ev-stat');
 
     if (line.startsWith("CHUNK_NAME "))   { handleChunkName(line); stats.handleLine(line); }
     if (line.startsWith("CHUNK_SESSION ")) handleChunkSession(line);
@@ -581,8 +595,9 @@ document.addEventListener("keydown", (e) => {
         case "r": case "R": reloadLesson();  break;
         case " ":  e.preventDefault(); suggestLesson(); break;
         case "k": case "K": toggleKaraoke(); break;
-        case "s": case "S": showStats();      break;
-        case "e": case "E": showEvents();     break;
+        case "s": case "S": showStats();    break;
+        case "e": case "E": showEvents();   break;
+        case "t": case "T": showSettings(); break;
     }
 });
 

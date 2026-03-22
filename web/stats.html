@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <!-- SPDX-License-Identifier: MIT -->
-<!-- stats.html — Continuo Trainer: algorithm parameters and stats report -->
+<!-- stats.html — Continuo Trainer: stats report -->
 <!-- Copyright (c) 2026 Jakob Kastelic -->
 <html lang="en">
 <head>
@@ -25,32 +25,6 @@ button:hover { background: #353850; }
 button.primary { background: #1a5040; border-color: #2a7060; }
 button.primary:hover { background: #226050; }
 
-/* ── params table ── */
-#params-table { border-collapse: collapse; margin-bottom: 6px; width: 100%; table-layout: fixed; }
-#params-table td { padding: 1px 6px; vertical-align: middle; overflow: hidden; }
-.pk    { color: #aaa; white-space: nowrap; width: 175px; }
-.pdesc { color: #555; font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
-.pctl  { white-space: nowrap; width: 205px; }
-input[type=number] {
-  background: #12141e; color: #d0d0d0;
-  border: 1px solid #3a3d55; padding: 2px 4px;
-  font-family: monospace; font-size: 12px; border-radius: 2px;
-  width: 76px; -moz-appearance: textfield;
-}
-input[type=number]::-webkit-outer-spin-button,
-input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
-input[type=text].wide {
-  background: #12141e; color: #d0d0d0;
-  border: 1px solid #3a3d55; padding: 2px 5px;
-  font-family: monospace; font-size: 12px; border-radius: 2px;
-  width: 100%; min-width: 120px; max-width: 380px;
-}
-input[type=range] { width: 150px; accent-color: #3366cc; vertical-align: middle; }
-.sval { display: inline-block; width: 42px; text-align: right; color: #bbb; font-size: 12px; }
-
-.btn-row { display: flex; gap: 8px; align-items: center; margin: 6px 0 8px; }
-#save-msg { color: #00cc66; font-size: 11px; }
-
 /* ── report ── */
 #report {
   white-space: pre; font-size: 12px; line-height: 1.55;
@@ -62,67 +36,15 @@ input[type=range] { width: 150px; accent-color: #3366cc; vertical-align: middle;
 </head>
 <body>
 
-<h3>Algorithm Parameters</h3>
-<table id="params-table"></table>
 <div class="btn-row">
-  <button class="primary" onclick="saveParams()">Save parameters</button>
-  <button onclick="renderReport()">Refresh report</button>
-  <button onclick="openRawJson()">Open raw JSON</button>
-  <button onclick="document.getElementById('json-upload').click()">Import JSON</button>
-  <input type="file" id="json-upload" accept=".json" style="display:none" onchange="importJson(this)">
-  <span id="save-msg"></span>
+  <button onclick="renderReport()">Refresh</button>
 </div>
-
 <div id="report"></div>
 
 <script>
-// ── constants ──────────────────────────────────────────────────────────────────
+// ── constants / storage ───────────────────────────────────────────────────────
 const STATS_KEY = "continuo_stats";
 
-const ALG_DEF = {
-    score_goal:1000, ema_alpha:0.18, pass_accuracy:80, mastery_growth:0.20,
-    power_half_life:0.693, mastery_points_per_pct:2.5, power_points_per_pct:1.0,
-    bottleneck_thresh:0.6, dominance_margin:0.2, min_quality:0.1,
-    power_score_frac:0.7, overlearn_min:5, overlearn_max:15,
-    mistake_power_penalty:0.15, mastery_decay_half_life:90, weak_ema_thresh:0.8,
-    ease_initial:2.5, ease_min:1.3, ease_max:3.5, ease_pass_delta:0.1,
-    ease_fail_delta:0.2, ivl_first:1, ivl_second:6, ivl_max:365,
-    chunk_mastery_thresh:80, chunk_power_thresh:70,
-    skill_order:"root 6 4-3_sus 6/4 7 other",
-};
-
-// [key, description, type, min, max, step]  type: int|float|slider|pct|text
-const PARAMS = [
-  ["score_goal",             "Daily point target",                         "int"],
-  ["ema_alpha",              "Pass-rate EMA factor (~1/α sessions)",        "slider",0.01,0.5,0.01],
-  ["pass_accuracy",          "Min accuracy % to count as a pass",           "pct",0,100,1],
-  ["mastery_growth",         "Mastery growth rate per session",             "slider",0.01,1.0,0.01],
-  ["power_half_life",        "Power decay coeff (ln2≈0.693 → halves at ivl)","float"],
-  ["mastery_points_per_pct", "Points per 1% mastery gain",                  "float"],
-  ["power_points_per_pct",   "Points per 1% power gain",                    "float"],
-  ["bottleneck_thresh",      "Factor below which it is a bottleneck",       "slider",0,1,0.05],
-  ["dominance_margin",       "How much lower bottleneck must be",           "slider",0,1,0.05],
-  ["min_quality",            "Min quality for a suggestion",                "slider",0,1,0.05],
-  ["power_score_frac",       "Skip chunk if power ≥ this × mastery",        "slider",0,1,0.05],
-  ["overlearn_min",          "Min repeats before suggesting another chunk", "int"],
-  ["overlearn_max",          "Max repeats before forcing another chunk",    "int"],
-  ["mistake_power_penalty",  "Power penalty per failed session",            "slider",0,0.5,0.01],
-  ["mastery_decay_half_life","Days for mastery to halve at rest",           "int"],
-  ["weak_ema_thresh",        "EMA below this → needs_work suggestion",      "slider",0,1,0.05],
-  ["ease_initial",           "Starting SRS ease multiplier",                "float"],
-  ["ease_min",               "Minimum SRS ease multiplier",                 "float"],
-  ["ease_max",               "Maximum SRS ease multiplier",                 "float"],
-  ["ease_pass_delta",        "Ease increase on a perfect pass",             "float"],
-  ["ease_fail_delta",        "Ease decrease on a failed session",           "float"],
-  ["ivl_first",              "Review interval after 1st perfect pass (days)","int"],
-  ["ivl_second",             "Review interval after 2nd perfect pass (days)","int"],
-  ["ivl_max",                "Maximum review interval (days)",              "int"],
-  ["chunk_mastery_thresh",   "Mastery bar green threshold (%)",             "pct",0,100,1],
-  ["chunk_power_thresh",     "Power bar green threshold (%)",               "pct",0,100,1],
-  ["skill_order",            "Skill introduction order (space-separated)",  "text"],
-];
-
-// ── storage ───────────────────────────────────────────────────────────────────
 function loadStats() {
     let d = {};
     try { const r = localStorage.getItem(STATS_KEY); if (r) d = JSON.parse(r); } catch(_) {}
@@ -133,98 +55,6 @@ function loadStats() {
     return d;
 }
 function saveData(d) { try { localStorage.setItem(STATS_KEY, JSON.stringify(d)); } catch(_) {} }
-
-// ── params table ──────────────────────────────────────────────────────────────
-function fmtSliderVal(v, step) {
-    const dec = step < 1 ? String(step).split(".")[1].length : 0;
-    return parseFloat(v).toFixed(dec);
-}
-
-function buildParamsTable() {
-    const alg = loadStats().algorithm;
-    const tbl = document.getElementById("params-table");
-    tbl.innerHTML = "";
-    for (const [key, desc, type, ...ex] of PARAMS) {
-        const val = alg[key] !== undefined ? alg[key] : ALG_DEF[key];
-        const tr = document.createElement("tr");
-
-        const tdK = document.createElement("td"); tdK.className = "pk"; tdK.textContent = key;
-        const tdD = document.createElement("td"); tdD.className = "pdesc"; tdD.textContent = desc;
-        const tdC = document.createElement("td"); tdC.className = "pctl";
-
-        if (type === "slider" || type === "pct") {
-            const [mn, mx, st] = ex;
-            const r = document.createElement("input"); r.type="range";
-            r.min=mn; r.max=mx; r.step=st; r.value=val; r.dataset.key=key;
-            const sv = document.createElement("span"); sv.className="sval";
-            sv.textContent = fmtSliderVal(val, st);
-            r.addEventListener("input", () => { sv.textContent = fmtSliderVal(r.value, st); });
-            tdC.appendChild(r); tdC.appendChild(sv);
-        } else if (type === "text") {
-            const inp = document.createElement("input"); inp.type="text"; inp.className="wide";
-            inp.value = val; inp.dataset.key = key;
-            tdC.appendChild(inp);
-        } else {
-            const inp = document.createElement("input"); inp.type="number";
-            inp.value = val; inp.step = type==="int" ? 1 : "any"; inp.min = 0;
-            inp.dataset.key = key;
-            tdC.appendChild(inp);
-        }
-
-        tr.appendChild(tdK); tr.appendChild(tdD); tr.appendChild(tdC);
-        tbl.appendChild(tr);
-    }
-}
-
-function saveParams() {
-    const stats = loadStats();
-    for (const [key,,type] of PARAMS) {
-        const el = document.querySelector(`[data-key="${key}"]`);
-        if (!el) continue;
-        if (type === "text")        stats.algorithm[key] = el.value.trim();
-        else if (type === "int")    stats.algorithm[key] = parseInt(el.value) || 0;
-        else                        stats.algorithm[key] = parseFloat(el.value) || 0;
-    }
-    saveData(stats);
-    showMsg("Saved.");
-    renderReport();
-}
-
-function openRawJson() {
-    const raw = localStorage.getItem(STATS_KEY) || "{}";
-    const win = window.open("", "_blank");
-    win.document.write(`<pre style="background:#1e2030;color:#d0d0d0;font-family:monospace;`
-        + `font-size:12px;padding:12px;white-space:pre-wrap;word-break:break-all">`
-        + JSON.stringify(JSON.parse(raw), null, 2) + `</pre>`);
-    win.document.close();
-}
-
-function showMsg(text, color) {
-    const el = document.getElementById("save-msg");
-    el.style.color = color || "#00cc66";
-    el.textContent = text;
-    setTimeout(() => { el.textContent = ""; el.style.color = ""; }, 2500);
-}
-
-function importJson(input) {
-    const file = input.files[0];
-    if (!file) return;
-    input.value = "";  // reset so the same file can be re-imported
-    const reader = new FileReader();
-    reader.onload = e => {
-        let data;
-        try { data = JSON.parse(e.target.result); }
-        catch(err) { showMsg("Import failed: " + err.message, "#ff6060"); return; }
-        if (typeof data !== "object" || !data.chunks) {
-            showMsg("Import failed: not a valid stats JSON", "#ff6060"); return;
-        }
-        localStorage.setItem(STATS_KEY, JSON.stringify(data));
-        buildParamsTable();
-        renderReport();
-        showMsg(`Imported ${Object.keys(data.chunks).length} chunks`);
-    };
-    reader.readAsText(file);
-}
 
 // ── report helpers ────────────────────────────────────────────────────────────
 const L = (s,n) => String(s).padStart(n);
@@ -413,7 +243,6 @@ function renderReport() {
 }
 
 // ── init ──────────────────────────────────────────────────────────────────────
-buildParamsTable();
 renderReport();
 </script>
 </body>
