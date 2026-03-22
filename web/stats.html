@@ -49,9 +49,8 @@ function loadStats() {
     let d = {};
     try { const r = localStorage.getItem(STATS_KEY); if (r) d = JSON.parse(r); } catch(_) {}
     d.algorithm = d.algorithm || {};
-    for (const [k,v] of Object.entries(ALG_DEF)) if (d.algorithm[k] === undefined) d.algorithm[k] = v;
-    d.daily  = d.daily  || {};
-    d.chunks = d.chunks || {};
+    d.daily     = d.daily     || {};
+    d.chunks    = d.chunks    || {};
     return d;
 }
 function saveData(d) { try { localStorage.setItem(STATS_KEY, JSON.stringify(d)); } catch(_) {} }
