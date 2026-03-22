@@ -122,10 +122,11 @@ function chunkLabel(txt, level) {
     const barM   = txt && txt.match(/^bar:\s*(\d+)/m);
     const title  = titleM ? titleM[1].trim() : "(untitled)";
     const start  = barM ? parseInt(barM[1]) : null;
-    if (level === 0) return start !== null ? `${title} – bar ${start}` : title;
-    if (start === null) return "(?)";
     const n = countBars(txt);
-    return n !== null && n > 1 ? `bars ${start}-${start + n - 1}` : `bar ${start}`;
+    const barLabel = start === null ? null
+        : n !== null && n > 1 ? `bars ${start}-${start + n - 1}` : `bar ${start}`;
+    if (level === 0) return barLabel ? `${title} – ${barLabel}` : title;
+    return barLabel || "(?)";
 }
 
 function makeBar(pct, thresh, title) {
