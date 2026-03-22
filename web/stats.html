@@ -121,7 +121,7 @@ function chunkLabel(txt, level) {
     const titleM = txt && txt.match(/^title:\s*(.+)/m);
     const barM   = txt && txt.match(/^bar:\s*(\d+)/m);
     const title  = titleM ? titleM[1].trim() : "(untitled)";
-    const start  = barM ? parseInt(barM[1]) : null;
+    const start  = barM ? parseInt(barM[1]) : 1;
     const n = countBars(txt);
     const barLabel = start === null ? null
         : n !== null && n > 1 ? `bars ${start}-${start + n - 1}` : `bar ${start}`;

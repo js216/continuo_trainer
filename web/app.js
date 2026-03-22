@@ -168,6 +168,10 @@ function clearStatus() {
 function loadChunk(hash) {
     stats.handleLine(`LOAD_CHUNK ${hash}`);
     all.loadChunk(hash);   // async fetch; emits CHUNK_SESSION/LESSON/etc. via parseLine
+    state.currentChunk = hash;
+    const c = typeof CHN_INDEX !== "undefined" && CHN_INDEX[hash];
+    state.currentChunkLevel = c ? (c.level ?? -1) : -1;
+    renderInfoBar();
 }
 
 function reloadLesson() {
