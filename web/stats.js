@@ -402,6 +402,7 @@ class Stats {
             const bpmBeats  = cur.totalBeats - (cur.lastBeats || 0);
             const actualBpm = bpmBeats * (cur.timeDenom / 4.0) * 60.0 / sd.duration;
             c.ema_bpm = alg.ema_alpha * actualBpm + (1.0 - alg.ema_alpha) * (c.ema_bpm || cur.refBpm);
+            this._onLine(`BPM_DBG beats=${bpmBeats.toFixed(1)} dur=${sd.duration.toFixed(2)}s actual=${actualBpm.toFixed(1)} ema=${c.ema_bpm.toFixed(1)}`);
         }
 
         stats.chunks[hash] = c;

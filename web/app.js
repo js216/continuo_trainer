@@ -180,6 +180,40 @@ function showStats() {
     window.open("stats.html", "_blank");
 }
 
+// ── events pane ────────────────────────────────────────────────────────────────
+
+let eventsFirstNoteTime = null;
+let eventsPrevNoteTime  = null;
+
+function midiNoteName(n) {
+    const NAMES = ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
+    return NAMES[n % 12] + (Math.floor(n / 12) - 1);
+}
+
+function logEvent(text, cls) {
+    const log = document.getElementById('events-log');
+    if (!log) return;
+    const div = document.createElement('div');
+    div.textContent = text;
+    if (cls) div.className = cls;
+    log.appendChild(div);
+    while (log.childElementCount > 500) log.removeChild(log.firstChild);
+    log.scrollTop = log.scrollHeight;
+}
+
+function toggleEvents() {
+    const pane = document.getElementById('events-pane');
+    const btn  = document.getElementById('events-btn');
+    const open = pane.classList.toggle('open');
+    if (btn) btn.classList.toggle('active', open);
+}
+
+function closeEvents() {
+    document.getElementById('events-pane').classList.remove('open');
+    const btn = document.getElementById('events-btn');
+    if (btn) btn.classList.remove('active');
+}
+
 function quitLesson() {
     if (state.karaokeOn) {
         karaoke.stop();
@@ -228,10 +262,11 @@ function parseLine(line) {
         karaoke.handleLine(line);
         return;
     }
+    if (line.startsWith("BPM_DBG ")) { logEvent(line.slice(8), 'ev-bpm'); return; }
 
     if (line.startsWith("CHUNK_NAME "))   { handleChunkName(line); stats.handleLine(line); }
     if (line.startsWith("CHUNK_SESSION ")) handleChunkSession(line);
-    if (line.startsWith("LESSON "))       { state.numNotes = 0; group.handleLine(line); karaoke.handleLine(line); handleRulesLine(line); stats.handleLine(line); }
+    if (line.startsWith("LESSON "))       { state.numNotes = 0; eventsFirstNoteTime = null; eventsPrevNoteTime = null; group.handleLine(line); karaoke.handleLine(line); handleRulesLine(line); stats.handleLine(line); }
     if (line.startsWith("BASSNOTE "))     { handleBassnote(line); group.handleLine(line); stats.handleLine(line); }
     if (line.startsWith("FIGURES "))      group.handleLine(line);
     if (line.startsWith("MELODY "))       { group.handleLine(line); karaoke.handleLine(line); }
@@ -528,8 +563,20 @@ const group = new Group((groupLine) => {
 });
 
 const midi = new MidiInput({
-    onNoteOn(midiNote, _vel, t) { group.noteOn(midiNote, t); synth.noteOn(midiNote); },
-    onNoteOff(midiNote, _t)     { group.noteOff(midiNote);  synth.noteOff(midiNote); },
+    onNoteOn(midiNote, _vel, t) {
+        group.noteOn(midiNote, t);
+        synth.noteOn(midiNote);
+        if (eventsFirstNoteTime === null) eventsFirstNoteTime = t;
+        const rel   = ((t - eventsFirstNoteTime) / 1000).toFixed(3);
+        const delta = eventsPrevNoteTime !== null ? ` +${t - eventsPrevNoteTime}ms` : '';
+        eventsPrevNoteTime = t;
+        logEvent(`▶ ${midiNoteName(midiNote)}(${midiNote}) t=${rel}s${delta}`, 'ev-on');
+    },
+    onNoteOff(midiNote, _t) {
+        group.noteOff(midiNote);
+        synth.noteOff(midiNote);
+        logEvent(`◼ ${midiNoteName(midiNote)}`, 'ev-off');
+    },
     onDevicesChanged(inputs, outputs) {
         function repopulate(selId, devices, onSelect) {
             const sel  = document.getElementById(selId);

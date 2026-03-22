@@ -147,6 +147,55 @@ button.active { background: #1a7040; border-color: #2a9050; }
   align-self: flex-start;
 }
 
+/* ── main split (left-pane + events-pane side by side) ── */
+#main-split {
+  display: flex;
+  width: 100%;
+  align-items: flex-start;
+}
+#left-pane {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+/* ── events pane ── */
+#events-pane {
+  display: none;
+  flex-direction: column;
+  width: 260px;
+  min-width: 140px;
+  border-left: 1px solid #2a2d40;
+  background: #12141e;
+  overflow: hidden;
+}
+#events-pane.open { display: flex; }
+#events-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 2px 6px;
+  background: #151825;
+  border-bottom: 1px solid #2a2d40;
+  flex-shrink: 0;
+  font-size: 11px;
+  color: #888;
+}
+#events-log {
+  overflow-y: auto;
+  min-height: 60px;
+  max-height: 300px;
+  padding: 3px 5px;
+  font-size: 10px;
+  font-family: monospace;
+  line-height: 1.4;
+}
+.ev-on  { color: #88ff88; }
+.ev-off { color: #446644; }
+.ev-bpm { color: #ffcc44; }
+
 /* ── info bar ── */
 #info-bar {
   display: flex;
@@ -255,8 +304,19 @@ button.active { background: #1a7040; border-color: #2a9050; }
     <img id="score-img" alt="score">
     <div id="celebration"></div>
   </div>
-  <div id="squares"></div>
-  <div id="explanations"></div>
+  <div id="main-split">
+    <div id="left-pane">
+      <div id="squares"></div>
+      <div id="explanations"></div>
+    </div>
+    <div id="events-pane">
+      <div id="events-header">
+        <span>Events</span>
+        <button onclick="closeEvents()" title="Close">×</button>
+      </div>
+      <div id="events-log"></div>
+    </div>
+  </div>
 </div>
 
 <div id="info-bar">
@@ -270,6 +330,7 @@ button.active { background: #1a7040; border-color: #2a9050; }
   in <select id="midi-in"  onchange="selectMidiIn(this.value)"><option value="">—</option></select>
   out <select id="midi-out" onchange="selectMidiOut(this.value)"><option value="">—</option></select>
   <label><input type="checkbox" id="midi-forward" onchange="setForward(this.checked)"> forward</label>
+  <button id="events-btn" onclick="toggleEvents()">[E]vents</button>
   <span id="synth-ctrl">synth <input type="range" id="synth-vol" min="0" max="1" step="0.01" value="0"
     oninput="setSynthVolume(this.value)" title="Synth volume (0 = off)"></span>
 </div>
