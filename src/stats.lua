@@ -667,8 +667,11 @@ local function finalize(stats)
 		c.power_factor = math.max(0, (c.power_factor or 1.0) * (1.0 - alg.mistake_power_penalty))
 	end
 	-- Update EMA BPM from actual play duration this session.
-	if sd.duration > 0 and total_beats > 0 then
-		local actual_bpm = total_beats * (time_denom / 4.0) * 60.0 / sd.duration
+	-- Subtract last note's beats: sd.duration spans note[0]..note[N-1] onset = N-1 intervals.
+	local last_beats = current.last_beats or 0.0
+	local bpm_beats = total_beats - last_beats
+	if sd.duration > 0 and bpm_beats > 0 then
+		local actual_bpm = bpm_beats * (time_denom / 4.0) * 60.0 / sd.duration
 		c.ema_bpm = alg.ema_alpha * actual_bpm + (1.0 - alg.ema_alpha) * (c.ema_bpm or ref_bpm)
 	end
 	stats.chunks[hash] = c
@@ -799,7 +802,7 @@ for line in io.lines() do
 		local ref_bpm = tonumber(line:match("^LESSON %S+ %S+ %S+ (%S+)")) or 120.0
 		local time_str = line:match("^LESSON %S+ %S+ (%S+)")
 		local time_denom = tonumber(time_str and time_str:match("/(%d+)")) or 4
-		current = { id = chunk_id, max_bass_id = -1, results = {}, ref_bpm = ref_bpm, time_denom = time_denom, total_beats = 0.0 }
+		current = { id = chunk_id, max_bass_id = -1, results = {}, ref_bpm = ref_bpm, time_denom = time_denom, total_beats = 0.0, last_beats = 0.0 }
 		-- Issue BPM for karaoke: use EMA if available, otherwise the reference BPM
 		local bpm_stats = load_stats(stats_file)
 		local bpm_chunk = bpm_stats.chunks[chunk_id]
@@ -826,6 +829,7 @@ for line in io.lines() do
 						beats = beats * 1.5
 					end
 					current.total_beats = current.total_beats + beats
+					current.last_beats = beats
 				end
 			end
 		end

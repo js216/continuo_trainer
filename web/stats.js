@@ -397,7 +397,10 @@ class Stats {
 
         // Update EMA BPM
         if (sd.duration > 0 && cur.totalBeats > 0) {
-            const actualBpm = cur.totalBeats * (cur.timeDenom / 4.0) * 60.0 / sd.duration;
+            // Subtract last note's beats: duration spans from note[0] to note[N-1] onset,
+            // which is N-1 note durations, not N.
+            const bpmBeats  = cur.totalBeats - (cur.lastBeats || 0);
+            const actualBpm = bpmBeats * (cur.timeDenom / 4.0) * 60.0 / sd.duration;
             c.ema_bpm = alg.ema_alpha * actualBpm + (1.0 - alg.ema_alpha) * (c.ema_bpm || cur.refBpm);
         }
 
@@ -472,7 +475,7 @@ class Stats {
             // Finalise any abandoned in-progress session
             if (this._current && this._current.maxBassId >= 0 && !this._current.results[this._current.maxBassId])
                 this._finalize(this._load());
-            this._current = { id: chunkId, maxBassId: -1, results: {}, refBpm, timeDenom, totalBeats: 0 };
+            this._current = { id: chunkId, maxBassId: -1, results: {}, refBpm, timeDenom, totalBeats: 0, lastBeats: 0 };
             // Emit BPM: use EMA if available, otherwise reference BPM
             const bpmChunk = this._load().chunks[chunkId];
             const bpmOut   = (bpmChunk && bpmChunk.ema_bpm) || refBpm;
@@ -493,6 +496,7 @@ class Stats {
                         let beats = 4.0 / parseInt(dm[1]);
                         for (const _ of dm[2]) beats *= 1.5;
                         this._current.totalBeats += beats;
+                        this._current.lastBeats = beats;
                     }
                 }
             }
