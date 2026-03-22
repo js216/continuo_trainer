@@ -1,45 +1,68 @@
 <!DOCTYPE html>
 <!-- SPDX-License-Identifier: MIT -->
-<!-- stats.html — Continuo Trainer: stats report -->
+<!-- stats.html — Continuo Trainer: lesson tree -->
 <!-- Copyright (c) 2026 Jakob Kastelic -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>Continuo Trainer — Stats</title>
+<title>Continuo Trainer — Lessons</title>
 <style>
 * { box-sizing: border-box; margin: 0; padding: 0; }
 body {
   background: #1e2030; color: #d0d0d0;
-  font-family: monospace; font-size: 13px;
-  padding: 10px 14px;
+  font-family: monospace; font-size: 12px;
+  overflow-y: auto;
 }
-h3 { color: #888; font-size: 12px; font-weight: normal;
-     letter-spacing: 1px; text-transform: uppercase;
-     margin: 10px 0 4px; border-bottom: 1px solid #2a2d40; padding-bottom: 3px; }
-button {
-  background: #2a2d40; color: #d0d0d0;
-  border: 1px solid #3a3d55; padding: 3px 9px;
-  cursor: pointer; font-family: monospace; font-size: 12px; border-radius: 2px;
-}
-button:hover { background: #353850; }
-button.primary { background: #1a5040; border-color: #2a7060; }
-button.primary:hover { background: #226050; }
 
-/* ── report ── */
-#report {
-  white-space: pre; font-size: 12px; line-height: 1.55;
-  color: #c8c8c8; margin-top: 4px;
-  padding-top: 8px; border-top: 1px solid #2a2d40;
-  overflow-x: auto;
+/* ── rows ── */
+.skill-row, .chunk-row {
+  display: flex; align-items: center; gap: 6px;
+  padding: 2px 6px; cursor: pointer; user-select: none;
+  white-space: nowrap;
 }
+.skill-row:hover  { background: #252838; }
+.chunk-row:hover  { background: #252838; }
+.chunk-row.active { background: #1a3a25; }
+
+.expander {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 14px; font-size: 10px; color: #666; flex-shrink: 0;
+}
+.expander.has-children:hover { color: #aaa; }
+
+.row-name { flex: 1; overflow: hidden; text-overflow: ellipsis; }
+.skill-label {
+  color: #aaa; font-weight: bold; font-size: 11px; letter-spacing: 0.5px;
+  text-transform: uppercase;
+}
+.chunk-label { color: #d0d0d0; }
+.chunk-label.dim { color: #555; }
+
+/* ── bars (same style as toolbar) ── */
+.bar-track {
+  width: 60px; height: 12px; flex-shrink: 0;
+  background: #2a2d40; border-radius: 2px; overflow: hidden; position: relative;
+}
+.bar-fill {
+  height: 100%; background: var(--color, #cc8022);
+  border-radius: 2px;
+}
+.bar-val {
+  position: absolute; inset: 0;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 9px; color: #fff; text-shadow: 0 0 2px #000;
+  pointer-events: none;
+}
+
+/* ── tree structure ── */
+.tree, .children { list-style: none; padding: 0; margin: 0; }
+.children.collapsed { display: none; }
 </style>
 </head>
 <body>
-
-<div id="report"></div>
+<ul id="tree" class="tree"></ul>
 
 <script>
-// ── constants / storage ───────────────────────────────────────────────────────
 const STATS_KEY = "continuo_stats";
 
 function loadStats() {
@@ -50,192 +73,223 @@ function loadStats() {
     d.chunks    = d.chunks    || {};
     return d;
 }
-function saveData(d) { try { localStorage.setItem(STATS_KEY, JSON.stringify(d)); } catch(_) {} }
 
-// ── report helpers ────────────────────────────────────────────────────────────
-const L = (s,n) => String(s).padStart(n);
-const R = (s,n) => String(s).padEnd(n);
-
-function normalize(raw, e) { const mg=e.max_groups||0; return mg>0?(raw/(mg*5))*100:0; }
+function normalize(raw, c) {
+    const mg = c.max_groups || 0;
+    return mg > 0 ? (raw / (mg * 5)) * 100 : 0;
+}
 
 function daysElapsed(ds) {
     if (!ds) return null;
-    const [y,m,d] = ds.split("-").map(Number);
-    return Math.max(0, Math.floor((Date.now()-Date.UTC(y,m-1,d,12))/86400000));
+    const [y, m, d] = ds.split("-").map(Number);
+    return Math.max(0, Math.floor((Date.now() - Date.UTC(y, m-1, d, 12)) / 86400000));
 }
 
 function calcPower(e, alg) {
-    const mastery = Math.max(e.mastery||0, e.t_mastery||0);
-    const ivl = e.ivl||0;
+    const mastery = Math.max(e.mastery || 0, e.t_mastery || 0);
+    const ivl = e.ivl || 0;
     let eff = e.last_date, t = e.t_last_date;
-    if (t && (!eff||t>eff)) eff = t;
-    if (!eff||ivl<=0) return 0;
-    const days = daysElapsed(eff)||0;
-    return Math.min(mastery, mastery*Math.exp(-(alg.power_half_life||0.693)*days/ivl));
+    if (t && (!eff || t > eff)) eff = t;
+    if (!eff || ivl <= 0) return 0;
+    const days = daysElapsed(eff) || 0;
+    return Math.min(mastery, mastery * Math.exp(-(alg.power_half_life || 0.693) * days / ivl));
 }
 
-function calcStreak(data) {
-    const goal = data.algorithm.score_goal||1000;
-    const today = new Date().toISOString().slice(0,10);
-    let streak=0, ts=Date.now();
-    for(;;) {
-        const ds = new Date(ts).toISOString().slice(0,10);
-        if ((data.daily[ds]||{}).score >= goal) { streak++; ts-=86400000; }
-        else if (ds===today && streak===0) ts-=86400000;
-        else break;
+function primarySkill(skillsStr, skillOrder) {
+    const skills = (skillsStr || "").split(/\s+/).filter(Boolean);
+    for (let i = skillOrder.length - 1; i >= 0; i--) {
+        if (skills.includes(skillOrder[i])) return skillOrder[i];
     }
-    return streak;
+    return skills[0] || "other";
 }
 
-function fmtDur(s) {
-    if (!s||s<=0) return "--";
-    const h=Math.floor(s/3600), m=Math.floor((s%3600)/60), sec=Math.floor(s%60);
-    if (h>0) return `${h}h${String(m).padStart(2,"0")}m`;
-    if (m>0) return `${m}m${String(sec).padStart(2,"0")}s`;
-    return `${sec}s`;
+function countBars(txt) {
+    const timeM = txt && txt.match(/^time:\s*(\d+)\/(\d+)/m);
+    if (!timeM) return null;
+    const numer = parseInt(timeM[1]), denom = parseInt(timeM[2]);
+    const blM = txt.match(/bassline\s*=\s*\{([^}]*)\}/);
+    if (!blM) return null;
+    let beats = 0;
+    for (const token of blM[1].trim().split(/\s+/).filter(Boolean)) {
+        const durM = token.match(/\d+/);
+        if (durM) beats += denom / parseInt(durM[0]);
+    }
+    return beats > 0 ? Math.max(1, Math.round(beats / numer)) : null;
 }
 
-function barStr(frac, w) {
-    const f = Math.max(0,Math.min(w,Math.round((frac||0)*w)));
-    return "#".repeat(f)+".".repeat(w-f);
+function chunkLabel(txt, level) {
+    const titleM = txt && txt.match(/^title:\s*(.+)/m);
+    const barM   = txt && txt.match(/^bar:\s*(\d+)/m);
+    const title  = titleM ? titleM[1].trim() : "(untitled)";
+    const start  = barM ? parseInt(barM[1]) : null;
+    if (level === 0) return start !== null ? `${title} – bar ${start}` : title;
+    if (start === null) return "(?)";
+    const n = countBars(txt);
+    return n !== null && n > 1 ? `bars ${start}-${start + n - 1}` : `bar ${start}`;
 }
 
-function pctStr(n, w=3) { return L(Math.round(n), w)+"%"; }   // " 87%"
-function p1Str(n, w=6)  { return L(n.toFixed(1), w)+"%"; }    // "  12.3%"
+function makeBar(pct, thresh, title) {
+    const color = pct >= thresh ? "#33cc55" : "#cc8022";
+    const fill  = Math.min(100, Math.max(0, pct));
+    const track = document.createElement("div");
+    track.className = "bar-track";
+    track.title = title;
+    const f = document.createElement("div");
+    f.className = "bar-fill";
+    f.style.width = fill + "%";
+    f.style.setProperty("--color", color);
+    const lbl = document.createElement("div");
+    lbl.className = "bar-val";
+    lbl.textContent = Math.round(fill) + "%";
+    track.appendChild(f);
+    track.appendChild(lbl);
+    return track;
+}
 
-// ── report ────────────────────────────────────────────────────────────────────
+// ── expand state (persists across re-renders) ─────────────────────────────────
+
+const expanded = new Set();
+let _initialized = false;
+
+function toggleExpand(key) {
+    if (expanded.has(key)) expanded.delete(key); else expanded.add(key);
+}
+
+// ── render ────────────────────────────────────────────────────────────────────
+
 function renderReport() {
-    const data  = loadStats();
-    const alg   = data.algorithm;
+    const idx    = (window.parent && window.parent.CHN_INDEX) || {};
+    const data   = loadStats();
+    const alg    = data.algorithm;
     const chunks = data.chunks;
-    const today = new Date().toISOString().slice(0,10);
-    const tod   = data.daily[today]||{score:0,duration:0};
-    const streak = calcStreak(data);
-    const goal   = alg.score_goal||1000;
-    const score  = tod.score||0;
-    const gFrac  = Math.min(1, score/goal);
-    const lines  = [];
+    const skillOrder = (alg.skill_order || "root 6 4-3_sus 6/4 7 other")
+                        .split(/\s+/).filter(Boolean);
+    const mThresh = alg.chunk_mastery_thresh || 80;
+    const pThresh = alg.chunk_power_thresh   || 70;
+    const activeHash = window.parent && window.parent.state
+                       ? window.parent.state.currentChunk : null;
 
-    lines.push(`=== Continuo Trainer  ${today} ===`);
-    lines.push(`Today   score ${L(score.toFixed(1),7)} / ${R(Math.floor(goal),6)} `
-             + `[${barStr(gFrac,10)}] ${L(Math.floor(gFrac*100),3)}%`
-             + `  time ${R(fmtDur(tod.duration||0),8)}  streak: ${streak} day${streak===1?"":"s"}`);
-    let totSecs=0, nC=0;
-    for (const c of Object.values(chunks)) { totSecs+=c.total_duration||0; nC++; }
-    lines.push(`Total   chunks: ${nC}   practice time: ${fmtDur(totSecs)}`);
-
-    // ── skills ──
-    const ss = {};
-    for (const [h,c] of Object.entries(chunks)) {
-        if (!c.skills) continue;
-        const mp = normalize(c.mastery||0, c), pp = normalize(calcPower(c,alg), c);
-        const prac = ((c.n_pass_tot||0)+(c.n_fail_tot||0))>0;
-        for (const sk of c.skills.split(/\s+/).filter(Boolean)) {
-            if (!ss[sk]) ss[sk]={n:0,np:0,mS:0,pS:0,pass:0,fail:0,eS:0,eN:0,easS:0,easN:0,bS:0,bN:0,dur:0};
-            const s=ss[sk]; s.n++; s.mS+=mp; s.pS+=pp;
-            s.pass+=c.n_pass_tot||0; s.fail+=c.n_fail_tot||0;
-            s.dur+=c.total_duration||0; if(prac)s.np++;
-            if(c.ema_pass!==undefined){s.eS+=c.ema_pass;s.eN++;}
-            if(c.ease!==undefined){s.easS+=c.ease;s.easN++;}
-            if(c.best_avg!==undefined){s.bS+=c.best_avg;s.bN++;}
-        }
+    // Group level-0 chunks by primary skill
+    const bySkill = {};
+    for (const [hash, c] of Object.entries(idx)) {
+        if (c.level !== 0) continue;
+        const sk = primarySkill(c.skills, skillOrder);
+        if (!bySkill[sk]) bySkill[sk] = [];
+        bySkill[sk].push(hash);
     }
-    const skOrder={};let skN=0;
-    for(const sk of (alg.skill_order||"").split(/\s+/).filter(Boolean)) skOrder[sk]=skN++;
-    const skNames = Object.keys(ss).sort((a,b)=>{
-        const ra=skOrder[a]??skN, rb=skOrder[b]??skN;
-        return ra!==rb?ra-rb:a<b?-1:1;
+
+    const skills = Object.keys(bySkill).sort((a, b) => {
+        const ra = skillOrder.indexOf(a), rb = skillOrder.indexOf(b);
+        return (ra < 0 ? 999 : ra) - (rb < 0 ? 999 : rb) || (a < b ? -1 : 1);
     });
 
-    if (skNames.length>0) {
-        lines.push("");
-        lines.push(`SKILLS (${skNames.length})`);
-        lines.push("  Chunks: practiced/total.  Mastery/Power: avg % across chunks.");
-        lines.push("  Rate: pass/(pass+fail).  EMA: avg smoothed pass rate.");
-        lines.push("");
-        lines.push("  "+R("Skill",10)+"  "+L("Chunks",11)+"  "+R("Mastery",7)
-                  +"  "+R("Power",7)+"  "+L("Pass",5)+"  "+L("Fail",5)
-                  +"  "+L("Rate",5)+"  "+L("EMA",5)+"  "+L("Ease",5)
-                  +"  "+L("Speed",6)+"  "+L("Time",8));
-        lines.push("-".repeat(97));
-        for (const sn of skNames) {
-            const s=ss[sn], tot=s.pass+s.fail;
-            const rate = tot>0 ? pctStr(s.pass/tot*100) : "  --";
-            const ema  = s.eN>0 ? pctStr(s.eS/s.eN*100) : "  --";
-            const ease = s.easN>0 ? (s.easS/s.easN).toFixed(2) : "  --";
-            const spd  = s.bN>0 ? L((s.bS/s.bN).toFixed(3)+"s",6) : "    --";
-            lines.push("  "+R(sn,10)
-                +"  "+L(s.np,5)+"/"+R(s.n,5)
-                +"  "+p1Str(s.mS/s.n)+"  "+p1Str(s.pS/s.n)
-                +"  "+L(s.pass,5)+"  "+L(s.fail,5)
-                +"  "+L(rate,5)+"  "+L(ema,5)+"  "+L(ease,5)
-                +"  "+spd+"  "+L(fmtDur(s.dur),8));
-        }
+    // On first load, expand all skill groups
+    if (!_initialized) {
+        for (const sk of skills) expanded.add(`sk:${sk}`);
+        _initialized = true;
     }
 
-    // ── chunks ──
-    const eWin = alg.ema_alpha ? `~${Math.round(1/alg.ema_alpha)}` : "?";
-    const hashes = Object.keys(chunks).sort((a,b)=>{
-        const la=chunks[a].level||0, lb=chunks[b].level||0;
-        if (la!==lb) return la-lb;
-        return normalize(chunks[a].mastery||0,chunks[a])-normalize(chunks[b].mastery||0,chunks[b]);
+    const treeEl = document.getElementById("tree");
+    treeEl.innerHTML = "";
+
+    for (const sk of skills) {
+        const skKey = `sk:${sk}`;
+        const isExp = expanded.has(skKey);
+
+        const li  = document.createElement("li");
+        const row = document.createElement("div");
+        row.className = "skill-row";
+
+        const exp = document.createElement("span");
+        exp.className = "expander has-children";
+        exp.textContent = isExp ? "▾" : "▸";
+
+        const name = document.createElement("span");
+        name.className = "row-name";
+        const label = document.createElement("span");
+        label.className = "skill-label";
+        label.textContent = sk;
+        name.appendChild(label);
+
+        row.appendChild(exp);
+        row.appendChild(name);
+        row.addEventListener("click", () => { toggleExpand(skKey); renderReport(); });
+
+        li.appendChild(row);
+
+        if (isExp) {
+            // Sort level-0 chunks low mastery first
+            const l0s = bySkill[sk].slice().sort((a, b) => {
+                const ca = chunks[a] || {}, cb = chunks[b] || {};
+                return normalize(Math.max(ca.mastery||0, ca.t_mastery||0), ca)
+                     - normalize(Math.max(cb.mastery||0, cb.t_mastery||0), cb);
+            });
+            const cl = document.createElement("ul");
+            cl.className = "children";
+            for (const h of l0s) cl.appendChild(mkChunkLi(h, idx, chunks, alg, mThresh, pThresh, activeHash, 1));
+            li.appendChild(cl);
+        }
+
+        treeEl.appendChild(li);
+    }
+}
+
+function mkChunkLi(hash, idx, chunks, alg, mThresh, pThresh, activeHash, depth) {
+    const c      = idx[hash] || {};
+    const stat   = chunks[hash] || {};
+    const ever   = (stat.mastery || 0) > 0 || (stat.t_mastery || 0) > 0 || (stat.n_pass_tot || 0) > 0;
+    const mastery = normalize(Math.max(stat.mastery || 0, stat.t_mastery || 0), stat);
+    const power   = normalize(calcPower(stat, alg), stat);
+
+    const key    = `ch:${hash}`;
+    const isExp  = expanded.has(key);
+    const hasCh  = c.children && c.children.length > 0;
+
+    const li  = document.createElement("li");
+    const row = document.createElement("div");
+    const indentClass = depth > 1 ? ` style="padding-left:${6 + (depth-1)*14}px"` : "";
+    row.className = "chunk-row" + (hash === activeHash ? " active" : "");
+    if (depth > 1) row.style.paddingLeft = (6 + (depth - 1) * 14) + "px";
+
+    const exp = document.createElement("span");
+    exp.className = "expander" + (hasCh ? " has-children" : "");
+    exp.textContent = hasCh ? (isExp ? "▾" : "▸") : "";
+
+    const name = document.createElement("span");
+    name.className = "row-name";
+    const label = document.createElement("span");
+    label.className = "chunk-label" + (ever ? "" : " dim");
+    label.textContent = chunkLabel(c.txt, c.level);
+    name.appendChild(label);
+
+    row.appendChild(exp);
+    row.appendChild(name);
+    row.appendChild(makeBar(mastery, mThresh, `Mastery: ${mastery.toFixed(1)}%`));
+    row.appendChild(makeBar(power,   pThresh, `Power: ${power.toFixed(1)}%`));
+
+    if (hasCh) {
+        exp.addEventListener("click", e => {
+            e.stopPropagation();
+            toggleExpand(key);
+            renderReport();
+        });
+    }
+
+    row.addEventListener("click", () => {
+        if (window.parent && window.parent.loadChunk) window.parent.loadChunk(hash);
     });
 
-    if (hashes.length>0) {
-        lines.push("");
-        lines.push(`CHUNKS (${hashes.length})`);
-        lines.push("");
-        lines.push("  Column legend:");
-        lines.push("    Hash     First 8 hex chars of the SHA-1 ID");
-        lines.push("    L        Level: 0=full lesson, 1=3-bar drill, 2=1-bar drill");
-        lines.push("    Dir%     Direct mastery: scored from sessions on this chunk");
-        lines.push("    Trn%     Transitive mastery: inferred from practice of parent chunks");
-        lines.push("    Power    Retention: mastery decayed by time elapsed vs review interval");
-        lines.push("    Pass/Fail  Total all-correct / sessions-with-error");
-        lines.push("    Rate     Pass / (Pass+Fail)");
-        lines.push(`    EMA      Smoothed pass rate (${eWin}-session window, α=${alg.ema_alpha??"?"})`);
-        lines.push(`    Ease     SRS multiplier (init=${(alg.ease_initial||2.5).toFixed(1)}, `
-                  +`min=${(alg.ease_min||1.3).toFixed(1)}, max=${(alg.ease_max||3.5).toFixed(1)})`);
-        lines.push("    Ivl      SRS review interval in days (* = review overdue)");
-        lines.push("    BPM      Tempo EMA in beats per minute");
-        lines.push("    BestAvg  Fastest recorded average inter-note transition time");
-        lines.push("    PFac     Power factor: penalty for failed sub-ranges (100%=clean)");
-        lines.push("    Last     Date of most recent practice (direct or transitive)");
-        lines.push("");
-        lines.push("  "+R("Hash",8)+"  L"
-                  +"  "+R("Dir%",7)+"  "+R("Trn%",7)+"  "+R("Power",7)
-                  +"  "+L("Pass",5)+"  "+L("Fail",5)
-                  +"  "+L("Rate",5)+"  "+L("EMA",5)+"  "+L("Ease",5)
-                  +"  "+L("Ivl",5)+"  "+L("BPM",5)+"  "+L("BestAvg",7)
-                  +"  "+L("PFac",5)+"  Last");
-        lines.push("-".repeat(109));
-        for (const h of hashes) {
-            const c=chunks[h];
-            const dir   = normalize(c.mastery||0, c);
-            const trn   = normalize(c.t_mastery||0, c);
-            const pow   = normalize(calcPower(c,alg), c);
-            const ivl   = Math.floor(c.ivl||0);
-            let eff=c.last_date, tl=c.t_last_date;
-            if(tl&&(!eff||tl>eff)) eff=tl;
-            const el    = daysElapsed(eff);
-            const due   = ivl>0&&el!==null&&el>=ivl?"*":" ";
-            const pass=c.n_pass_tot||0, fail=c.n_fail_tot||0, tot=pass+fail;
-            const rate  = tot>0?pctStr(pass/tot*100):"  --";
-            const ema   = c.ema_pass!==undefined?pctStr(c.ema_pass*100):"  --";
-            const ease  = (c.ease||0).toFixed(2);
-            const bpm   = c.ema_bpm!==undefined?L(Math.round(c.ema_bpm),5):"   --";
-            const bavg  = c.best_avg!==undefined?L(c.best_avg.toFixed(3)+"s",7):"     --";
-            const pfac  = c.power_factor!==undefined?pctStr(c.power_factor*100):"  --";
-            lines.push("  "+R(h.slice(0,8),8)+"  "+(c.level||0)
-                +"  "+p1Str(dir)+"  "+p1Str(trn)+"  "+p1Str(pow)
-                +"  "+L(pass,5)+"  "+L(fail,5)
-                +"  "+L(rate,5)+"  "+L(ema,5)+"  "+L(ease,5)
-                +"  "+L(ivl,4)+due+"  "+bpm+"  "+bavg
-                +"  "+L(pfac,5)+"  "+(eff||"--"));
-        }
+    li.appendChild(row);
+
+    if (isExp && hasCh) {
+        const cl = document.createElement("ul");
+        cl.className = "children";
+        for (const ch of c.children)
+            cl.appendChild(mkChunkLi(ch.hash, idx, chunks, alg, mThresh, pThresh, activeHash, depth + 1));
+        li.appendChild(cl);
     }
 
-    document.getElementById("report").textContent = lines.join("\n");
+    return li;
 }
 
 // ── init ──────────────────────────────────────────────────────────────────────
