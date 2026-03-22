@@ -185,13 +185,20 @@ function showStats()    { _rightTabs.includes('stats')    ? _closeRightTab('stat
 function showEvents()   { _rightTabs.includes('events')   ? _closeRightTab('events')   : _openRightTab('events'); }
 function showSettings() { _rightTabs.includes('settings') ? _closeRightTab('settings') : _openRightTab('settings'); }
 
+function _refreshStats() {
+    const fr = document.getElementById('stats-iframe');
+    if (!fr) return;
+    if (!fr.src || fr.src === window.location.href) {
+        fr.src = 'stats.html';
+    } else {
+        try { fr.contentWindow.renderReport(); } catch(_) {}
+    }
+}
+
 function _openRightTab(id) {
     if (!_rightTabs.includes(id)) _rightTabs.push(id);
     _activeTab = id;
-    if (id === 'stats') {
-        const fr = document.getElementById('stats-iframe');
-        if (!fr.src || fr.src === window.location.href) fr.src = 'stats.html';
-    }
+    if (id === 'stats') _refreshStats();
     if (id === 'settings') {
         const fr = document.getElementById('settings-iframe');
         if (!fr.src || fr.src === window.location.href) fr.src = 'settings.html';
@@ -215,6 +222,7 @@ function _activateTab(id) {
         const log = document.getElementById('events-log');
         if (log) log.scrollTop = log.scrollHeight;
     }
+    if (id === 'stats') _refreshStats();
 }
 
 function _renderRightPane() {
@@ -587,7 +595,7 @@ function renderCelebration() {
 
 // ── keyboard shortcuts ─────────────────────────────────────────────────────────
 
-document.addEventListener("keydown", (e) => {
+function _handleKey(e) {
     if (e.target.tagName === "INPUT" || e.target.tagName === "SELECT") return;
     switch (e.key) {
         case "Escape": quitLesson();    break;
@@ -595,11 +603,21 @@ document.addEventListener("keydown", (e) => {
         case "r": case "R": reloadLesson();  break;
         case " ":  e.preventDefault(); suggestLesson(); break;
         case "k": case "K": toggleKaraoke(); break;
-        case "s": case "S": showStats();    break;
+        case "l": case "L": showStats();    break;
         case "e": case "E": showEvents();   break;
-        case "t": case "T": showSettings(); break;
+        case "s": case "S": showSettings(); break;
     }
-});
+}
+
+document.addEventListener("keydown", _handleKey);
+
+function _bindIframeKeys(fr) {
+    fr.addEventListener("load", () => {
+        try { fr.contentDocument.addEventListener("keydown", _handleKey); } catch(_) {}
+    });
+}
+_bindIframeKeys(document.getElementById("stats-iframe"));
+_bindIframeKeys(document.getElementById("settings-iframe"));
 
 // ── synth ──────────────────────────────────────────────────────────────────────
 

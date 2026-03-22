@@ -36,9 +36,6 @@ button.primary:hover { background: #226050; }
 </head>
 <body>
 
-<div class="btn-row">
-  <button onclick="renderReport()">Refresh</button>
-</div>
 <div id="report"></div>
 
 <script>
@@ -243,6 +240,7 @@ function renderReport() {
 
 // ── init ──────────────────────────────────────────────────────────────────────
 renderReport();
+window.addEventListener("storage", e => { if (e.key === STATS_KEY) renderReport(); });
 </script>
 </body>
 </html>

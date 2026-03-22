@@ -86,7 +86,6 @@ button {
 button:hover  { background: #353850; }
 button.active { background: #1a7040; border-color: #2a9050; }
 
-#bpm-ctrl { display: flex; align-items: center; gap: 2px; }
 #bpm-val {
   width: 46px;
   background: #12141e;
@@ -294,7 +293,9 @@ button.active { background: #1a7040; border-color: #2a9050; }
 }
 #synth-ctrl {
   margin-left: auto;
+  margin-right: 6px;
 }
+#bpm-ctrl { display: inline-flex; align-items: center; gap: 2px; margin-left: 6px; }
 #midi-panel select {
   background: #1e2030;
   color: #aaa;
@@ -308,6 +309,7 @@ button.active { background: #1a7040; border-color: #2a9050; }
 <body>
 
 <div id="toolbar">
+  <button onclick="reloadLesson()">[R]eload</button>
   <!-- Mastery bar -->
   <div class="bar-wrap">
     <span id="m-label" class="bar-label">M 0.0</span>
@@ -336,17 +338,9 @@ button.active { background: #1a7040; border-color: #2a9050; }
   <span id="streak-text"></span>
 
   <div id="controls">
-    <div id="bpm-ctrl">
-      <button onclick="adjustBpm(-10)">−−</button>
-      <input id="bpm-val" type="number" min="1" max="999" value="120"
-             onchange="setBpm(this.value)" title="BPM">
-      <button onclick="adjustBpm(10)">++</button>
-    </div>
-    <button id="karaoke-btn" onclick="toggleKaraoke()">[K]araoke</button>
-    <button onclick="reloadLesson()">[R]eload</button>
-    <button id="stats-btn"    onclick="showStats()">[S]tats</button>
+    <button id="stats-btn"    onclick="showStats()">[L]essons</button>
     <button id="events-btn"   onclick="showEvents()">[E]vents</button>
-    <button id="settings-btn" onclick="showSettings()">Se[t]tings</button>
+    <button id="settings-btn" onclick="showSettings()">[S]ettings</button>
     <button onclick="quitLesson()">X</button>
   </div>
 </div>
@@ -390,6 +384,13 @@ button.active { background: #1a7040; border-color: #2a9050; }
   <label><input type="checkbox" id="midi-forward" onchange="setForward(this.checked)"> forward</label>
   <span id="synth-ctrl">synth <input type="range" id="synth-vol" min="0" max="1" step="0.01" value="0"
     oninput="setSynthVolume(this.value)" title="Synth volume (0 = off)"></span>
+  <span id="bpm-ctrl">
+    <button onclick="adjustBpm(-10)">−−</button>
+    <input id="bpm-val" type="number" min="1" max="999" value="120"
+           onchange="setBpm(this.value)" title="BPM">
+    <button onclick="adjustBpm(10)">++</button>
+  </span>
+  <button id="karaoke-btn" onclick="toggleKaraoke()">[K]araoke</button>
 </div>
 
 <script src="chunks.js"></script>
