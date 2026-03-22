@@ -22,7 +22,9 @@ body {
 }
 .skill-row:hover  { background: #252838; }
 .chunk-row:hover  { background: #252838; }
-.chunk-row.active { background: #1a3a25; }
+.chunk-hash { color: #555; font-size: 10px; flex-shrink: 0; margin-right: 4px; }
+.chunk-row.active .chunk-label,
+.chunk-row.active .chunk-hash { color: #ff4444; font-weight: bold; }
 
 .expander {
   display: inline-flex; align-items: center; justify-content: center;
@@ -156,6 +158,26 @@ function toggleExpand(key) {
     if (expanded.has(key)) expanded.delete(key); else expanded.add(key);
 }
 
+function buildParentMap(idx) {
+    const parent = {};
+    for (const [hash, c] of Object.entries(idx)) {
+        for (const ch of (c.children || [])) parent[ch.hash] = hash;
+    }
+    return parent;
+}
+
+function expandToActive(idx, activeHash, skillOrder) {
+    if (!activeHash || !idx[activeHash]) return;
+    const parentMap = buildParentMap(idx);
+    // Expand the active chunk itself and all ancestors up to level-0
+    expanded.add(`ch:${activeHash}`);
+    let cur = activeHash;
+    while (parentMap[cur]) { cur = parentMap[cur]; expanded.add(`ch:${cur}`); }
+    // cur is now the level-0 root; expand its skill group
+    const sk = primarySkill((idx[cur] || {}).skills, skillOrder);
+    expanded.add(`sk:${sk}`);
+}
+
 // ── render ────────────────────────────────────────────────────────────────────
 
 function renderReport() {
@@ -167,8 +189,8 @@ function renderReport() {
                         .split(/\s+/).filter(Boolean);
     const mThresh = alg.chunk_mastery_thresh || 80;
     const pThresh = alg.chunk_power_thresh   || 70;
-    const activeHash = window.parent && window.parent.state
-                       ? window.parent.state.currentChunk : null;
+    const activeHash = window.parent && window.parent.getActiveChunk
+                       ? window.parent.getActiveChunk() : null;
 
     // Group level-0 chunks by primary skill
     const bySkill = {};
@@ -184,10 +206,10 @@ function renderReport() {
         return (ra < 0 ? 999 : ra) - (rb < 0 ? 999 : rb) || (a < b ? -1 : 1);
     });
 
-    // On first load, expand all skill groups
-    if (!_initialized) {
-        for (const sk of skills) expanded.add(`sk:${sk}`);
+    // Expand the path to the active chunk once we know what it is
+    if (!_initialized && activeHash) {
         _initialized = true;
+        expandToActive(idx, activeHash, skillOrder);
     }
 
     const treeEl = document.getElementById("tree");
@@ -248,9 +270,8 @@ function mkChunkLi(hash, idx, chunks, alg, mThresh, pThresh, activeHash, depth) 
 
     const li  = document.createElement("li");
     const row = document.createElement("div");
-    const indentClass = depth > 1 ? ` style="padding-left:${6 + (depth-1)*14}px"` : "";
     row.className = "chunk-row" + (hash === activeHash ? " active" : "");
-    if (depth > 1) row.style.paddingLeft = (6 + (depth - 1) * 14) + "px";
+    row.style.paddingLeft = (6 + depth * 14) + "px";
 
     const exp = document.createElement("span");
     exp.className = "expander" + (hasCh ? " has-children" : "");
@@ -263,8 +284,13 @@ function mkChunkLi(hash, idx, chunks, alg, mThresh, pThresh, activeHash, depth) 
     label.textContent = chunkLabel(c.txt, c.level);
     name.appendChild(label);
 
+    const hashSpan = document.createElement("span");
+    hashSpan.className = "chunk-hash";
+    hashSpan.textContent = hash.slice(0, 8);
+
     row.appendChild(exp);
     row.appendChild(name);
+    row.appendChild(hashSpan);
     row.appendChild(makeBar(mastery, mThresh, `Mastery: ${mastery.toFixed(1)}%`));
     row.appendChild(makeBar(power,   pThresh, `Power: ${power.toFixed(1)}%`));
 
@@ -278,6 +304,7 @@ function mkChunkLi(hash, idx, chunks, alg, mThresh, pThresh, activeHash, depth) 
 
     row.addEventListener("click", () => {
         if (window.parent && window.parent.loadChunk) window.parent.loadChunk(hash);
+        renderReport();
     });
 
     li.appendChild(row);

@@ -131,6 +131,8 @@ class Group {
 
 // ── state ─────────────────────────────────────────────────────────────────────
 
+function getActiveChunk() { return state.currentChunk || ""; }
+
 const state = {
     currentChunk:      "",
     currentChunkLevel: -1,
