@@ -6,52 +6,9 @@
 <head>
 <meta charset="UTF-8">
 <title>Continuo Trainer — Settings</title>
-<style>
-* { box-sizing: border-box; margin: 0; padding: 0; }
-body {
-  background: #1e2030; color: #d0d0d0;
-  font-family: monospace; font-size: 13px;
-  padding: 10px 14px;
-}
-h3 { color: #888; font-size: 12px; font-weight: normal;
-     letter-spacing: 1px; text-transform: uppercase;
-     margin: 10px 0 4px; border-bottom: 1px solid #2a2d40; padding-bottom: 3px; }
-button {
-  background: #2a2d40; color: #d0d0d0;
-  border: 1px solid #3a3d55; padding: 3px 9px;
-  cursor: pointer; font-family: monospace; font-size: 12px; border-radius: 2px;
-}
-button:hover { background: #353850; }
-button.primary { background: #1a5040; border-color: #2a7060; }
-button.primary:hover { background: #226050; }
-
-#params-table { border-collapse: collapse; margin-bottom: 6px; width: 100%; table-layout: fixed; }
-#params-table td { padding: 1px 6px; vertical-align: middle; overflow: hidden; }
-.pk    { color: #aaa; white-space: nowrap; width: 175px; }
-.pdesc { color: #555; font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
-.pctl  { white-space: nowrap; width: 205px; }
-input[type=number] {
-  background: #12141e; color: #d0d0d0;
-  border: 1px solid #3a3d55; padding: 2px 4px;
-  font-family: monospace; font-size: 12px; border-radius: 2px;
-  width: 76px; -moz-appearance: textfield;
-}
-input[type=number]::-webkit-outer-spin-button,
-input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
-input[type=text].wide {
-  background: #12141e; color: #d0d0d0;
-  border: 1px solid #3a3d55; padding: 2px 5px;
-  font-family: monospace; font-size: 12px; border-radius: 2px;
-  width: 100%; min-width: 60px; max-width: 380px;
-}
-input[type=range] { width: 150px; accent-color: #3366cc; vertical-align: middle; }
-.sval { display: inline-block; width: 42px; text-align: right; color: #bbb; font-size: 12px; }
-
-.btn-row { display: flex; gap: 8px; align-items: center; margin: 6px 0 8px; flex-wrap: wrap; }
-#save-msg { color: #00cc66; font-size: 11px; }
-</style>
+<link rel="stylesheet" href="style.css">
 </head>
-<body>
+<body class="settings">
 
 <h3>Algorithm Parameters</h3>
 <table id="params-table"></table>

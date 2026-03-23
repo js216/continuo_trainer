@@ -331,6 +331,7 @@ function quitLesson() {
         state.karaokeOn = false;
         updateKaraokeBtn();
     }
+    keyboard.clearNotes();
     clearStatus();
 }
 
@@ -339,6 +340,21 @@ function suggestLesson() {
     state.karaokeOn = false;
     updateKaraokeBtn();
     stats.handleLine("SUGGEST_LESSON");
+}
+
+function toggleKeyboard() {
+    const panel = document.getElementById("keyboard-panel");
+    const btn   = document.getElementById("keyboard-btn");
+    const open  = panel.classList.toggle("open");
+    if (btn) btn.classList.toggle("active", open);
+    if (open) keyboard.init(panel,
+        n => { _noteOn(n, performance.now()); _midiForward(0x90, n, 80); },
+        n => { _noteOff(n);                   _midiForward(0x80, n, 0);  });
+}
+
+function _midiForward(status, note, vel) {
+    if (midi.forward && midi.activeOutput)
+        midi.activeOutput.send([status, note, vel]);
 }
 
 function toggleKaraoke() {
@@ -609,7 +625,8 @@ function _handleKey(e) {
         case "x": case "X": quitLesson();    break;
         case "r": case "R": reloadLesson();  break;
         case " ":  e.preventDefault(); suggestLesson(); break;
-        case "k": case "K": toggleKaraoke(); break;
+        case "k": case "K": toggleKaraoke();  break;
+        case "p": case "P": toggleKeyboard(); break;
         case "l": case "L": showStats();    break;
         case "e": case "E": showEvents();   break;
         case "s": case "S": showSettings(); break;
@@ -689,21 +706,27 @@ const group = new Group((groupLine) => {
     }
 });
 
+function _noteOn(midiNote, t) {
+    group.noteOn(midiNote, t);
+    synth.noteOn(midiNote);
+    keyboard.noteOn(midiNote);
+    if (eventsFirstNoteTime === null) eventsFirstNoteTime = t;
+    const rel   = ((t - eventsFirstNoteTime) / 1000).toFixed(3);
+    const delta = eventsPrevNoteTime !== null ? ` +${t - eventsPrevNoteTime}ms` : '';
+    eventsPrevNoteTime = t;
+    logEvent(`▶ ${midiNoteName(midiNote)}(${midiNote}) t=${rel}s${delta}`, 'ev-on');
+}
+
+function _noteOff(midiNote) {
+    group.noteOff(midiNote);
+    synth.noteOff(midiNote);
+    keyboard.noteOff(midiNote);
+    logEvent(`◼ ${midiNoteName(midiNote)}`, 'ev-off');
+}
+
 const midi = new MidiInput({
-    onNoteOn(midiNote, _vel, t) {
-        group.noteOn(midiNote, t);
-        synth.noteOn(midiNote);
-        if (eventsFirstNoteTime === null) eventsFirstNoteTime = t;
-        const rel   = ((t - eventsFirstNoteTime) / 1000).toFixed(3);
-        const delta = eventsPrevNoteTime !== null ? ` +${t - eventsPrevNoteTime}ms` : '';
-        eventsPrevNoteTime = t;
-        logEvent(`▶ ${midiNoteName(midiNote)}(${midiNote}) t=${rel}s${delta}`, 'ev-on');
-    },
-    onNoteOff(midiNote, _t) {
-        group.noteOff(midiNote);
-        synth.noteOff(midiNote);
-        logEvent(`◼ ${midiNoteName(midiNote)}`, 'ev-off');
-    },
+    onNoteOn(midiNote, _vel, t) { _noteOn(midiNote, t); },
+    onNoteOff(midiNote, _t)     { _noteOff(midiNote); },
     onDevicesChanged(inputs, outputs) {
         function repopulate(selId, devices, onSelect) {
             const sel  = document.getElementById(selId);

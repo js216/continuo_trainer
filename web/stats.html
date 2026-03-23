@@ -6,62 +6,9 @@
 <head>
 <meta charset="UTF-8">
 <title>Continuo Trainer — Lessons</title>
-<style>
-* { box-sizing: border-box; margin: 0; padding: 0; }
-body {
-  background: #1e2030; color: #d0d0d0;
-  font-family: monospace; font-size: 12px;
-  overflow-y: auto;
-}
-
-/* ── rows ── */
-.skill-row, .chunk-row {
-  display: flex; align-items: center; gap: 6px;
-  padding: 2px 6px; cursor: pointer; user-select: none;
-  white-space: nowrap;
-}
-.skill-row:hover  { background: #252838; }
-.chunk-row:hover  { background: #252838; }
-.chunk-hash { color: #555; font-size: 10px; flex-shrink: 0; margin-right: 4px; }
-.chunk-row.active .chunk-label,
-.chunk-row.active .chunk-hash { color: #ff4444; font-weight: bold; }
-
-.expander {
-  display: inline-flex; align-items: center; justify-content: center;
-  width: 14px; font-size: 10px; color: #666; flex-shrink: 0;
-}
-.expander.has-children:hover { color: #aaa; }
-
-.row-name { flex: 1; overflow: hidden; text-overflow: ellipsis; }
-.skill-label {
-  color: #aaa; font-weight: bold; font-size: 11px; letter-spacing: 0.5px;
-  text-transform: uppercase;
-}
-.chunk-label { color: #d0d0d0; }
-.chunk-label.dim { color: #555; }
-
-/* ── bars (same style as toolbar) ── */
-.bar-track {
-  width: 60px; height: 12px; flex-shrink: 0;
-  background: #2a2d40; border-radius: 2px; overflow: hidden; position: relative;
-}
-.bar-fill {
-  height: 100%; background: var(--color, #cc8022);
-  border-radius: 2px;
-}
-.bar-val {
-  position: absolute; inset: 0;
-  display: flex; align-items: center; justify-content: center;
-  font-size: 9px; color: #fff; text-shadow: 0 0 2px #000;
-  pointer-events: none;
-}
-
-/* ── tree structure ── */
-.tree, .children { list-style: none; padding: 0; margin: 0; }
-.children.collapsed { display: none; }
-</style>
+<link rel="stylesheet" href="style.css">
 </head>
-<body>
+<body class="lessons">
 <ul id="tree" class="tree"></ul>
 
 <script>
