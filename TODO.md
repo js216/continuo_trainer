@@ -4,9 +4,6 @@ item from this file and get started with the next one.
 
 Web version:
 
-- What would be the minimum possible web backend, possibly made in Python, which
-  stores the stats to a local file whenever it changes? Probably should also
-  display username in top right corner, maybe auto-generated, or user entered.
 - The tab that opens when you press [L]essons should be titled "Lessons", not
   Stats
 - Make sure that the "points today" stat resets every day (at a time that's an

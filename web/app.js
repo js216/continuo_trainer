@@ -252,8 +252,9 @@ function _renderRightPane() {
     }
 
     // Tab bar
+    const _tabLabels = { stats: 'Lessons', events: 'Events', settings: 'Settings' };
     tabBar.innerHTML = _rightTabs.map(id => {
-        const label = id[0].toUpperCase() + id.slice(1);
+        const label = _tabLabels[id] || (id[0].toUpperCase() + id.slice(1));
         return `<div class="rtab${id === _activeTab ? ' active' : ''}" onclick="_activateTab('${id}')">`
              + `${label}<button onclick="_closeRightTab('${id}');event.stopPropagation()">×</button></div>`;
     }).join('');
