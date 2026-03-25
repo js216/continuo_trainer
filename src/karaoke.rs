@@ -212,7 +212,7 @@ fn main() {
         } else if line.starts_with("LESSON ") {
             let mut s = state.lock().unwrap();
             s.melody.clear();
-            // LESSON <id> <key> <time> <bpm> [<title>]
+            // LESSON <hash> <key> <time> <bpm> <bar>
             // BPM is no longer read here; stats.lua issues a BPM command instead.
             let fields: Vec<&str> = line.split_whitespace().collect();
             if let Some(time_str) = fields.get(3) {
