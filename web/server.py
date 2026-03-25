@@ -5,55 +5,62 @@
 #
 # DESCRIPTION
 #     Serves the web/ directory as static files and provides two JSON
-#     endpoints so the browser can persist stats across sessions:
+#     endpoints so multiple browser sessions can each persist their own
+#     stats:
 #
-#         GET  /api/stats      Return stored stats (JSON object).
-#         PUT  /api/stats      Replace stored stats with request body.
+#         GET  /api/stats      Return stored stats for the current user.
+#         PUT  /api/stats      Replace stored stats for the current user.
 #         GET  /api/username   Return { "username": "<name>" }; auto-
-#                              generates a short name on first run and
-#                              writes it to username.txt for re-use.
+#                              generates a name on first visit and stores
+#                              it in a cookie (Max-Age one year).
 #
-#     All other paths are served from the same directory as this script.
-#     Stats are written to stats.json next to this script whenever the
-#     browser calls PUT /api/stats.
+#     Each user's stats are stored in log/<username>.json.  The username
+#     is carried in a browser cookie named "username"; no subdirectories
+#     are created.  /chn/ requests are served from the project-root chn/
+#     directory (SVG score images live there, outside web/).
 #
 # USAGE
 #     python3 web/server.py [port]   # default port: 8080
 
 import json
 import os
+import re
 import sys
 import uuid
 from http.server import HTTPServer, SimpleHTTPRequestHandler
 
-_HERE         = os.path.dirname(os.path.abspath(__file__))
-_ROOT         = os.path.join(_HERE, "..")
-_LOG_DIR      = os.path.join(_ROOT, "log")
-STATS_FILE    = os.path.join(_LOG_DIR, "stats.json")
-USERNAME_FILE = os.path.join(_LOG_DIR, "username.txt")
-WEB_DIR       = _HERE
+_HERE    = os.path.dirname(os.path.abspath(__file__))
+_ROOT    = os.path.join(_HERE, "..")
+_LOG_DIR = os.path.join(_ROOT, "log")
+WEB_DIR  = _HERE
+
+_SAFE_NAME = re.compile(r'^[a-zA-Z0-9]+$')
 
 
-def _load_stats():
+def _cookie_username(headers):
+    for part in headers.get("Cookie", "").split(";"):
+        name, _, val = part.strip().partition("=")
+        if name == "username":
+            v = val.strip()
+            return v if _SAFE_NAME.match(v) else None
+    return None
+
+
+def _stats_file(username):
+    return os.path.join(_LOG_DIR, username + ".json")
+
+
+def _load_stats(username):
     try:
-        with open(STATS_FILE, encoding="utf-8") as f:
+        with open(_stats_file(username), encoding="utf-8") as f:
             return json.load(f)
     except (FileNotFoundError, json.JSONDecodeError):
         return {}
 
 
-def _save_stats(data):
-    with open(STATS_FILE, "w", encoding="utf-8") as f:
+def _save_stats(username, data):
+    with open(_stats_file(username), "w", encoding="utf-8") as f:
         json.dump(data, f, indent=2)
-
-
-def _get_username():
-    if os.path.exists(USERNAME_FILE):
-        return open(USERNAME_FILE, encoding="utf-8").read().strip()
-    name = "user-" + uuid.uuid4().hex[:6]
-    with open(USERNAME_FILE, "w", encoding="utf-8") as f:
-        f.write(name)
-    return name
 
 
 class Handler(SimpleHTTPRequestHandler):
@@ -61,14 +68,36 @@ class Handler(SimpleHTTPRequestHandler):
         super().__init__(*args, directory=WEB_DIR, **kwargs)
 
     def do_GET(self):
-        if self.path == "/api/stats":
-            self._send_json(_load_stats())
-        elif self.path == "/api/username":
-            self._send_json({"username": _get_username()})
+        if self.path == "/api/username":
+            username = _cookie_username(self.headers)
+            new_cookie = None
+            if not username:
+                username = "user" + uuid.uuid4().hex[:6]
+                new_cookie = f"username={username}; Path=/; Max-Age=31536000"
+            self._send_json({"username": username}, cookie=new_cookie)
+        elif self.path == "/api/stats":
+            username = _cookie_username(self.headers)
+            self._send_json(_load_stats(username) if username else {})
         elif self.path.startswith("/chn/"):
             self._serve_file(os.path.join(_ROOT, "chn", self.path[5:]))
         else:
             super().do_GET()
+
+    def do_PUT(self):
+        if self.path == "/api/stats":
+            username = _cookie_username(self.headers)
+            if not username:
+                self.send_error(401, "No username cookie")
+                return
+            n = int(self.headers.get("Content-Length", 0))
+            body = self.rfile.read(n)
+            try:
+                _save_stats(username, json.loads(body))
+                self._send_json({"ok": True})
+            except json.JSONDecodeError:
+                self.send_error(400, "Bad JSON")
+        else:
+            self.send_error(404)
 
     def _serve_file(self, path):
         path = os.path.normpath(path)
@@ -86,23 +115,13 @@ class Handler(SimpleHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(data)
 
-    def do_PUT(self):
-        if self.path == "/api/stats":
-            n = int(self.headers.get("Content-Length", 0))
-            body = self.rfile.read(n)
-            try:
-                _save_stats(json.loads(body))
-                self._send_json({"ok": True})
-            except json.JSONDecodeError:
-                self.send_error(400, "Bad JSON")
-        else:
-            self.send_error(404)
-
-    def _send_json(self, data):
+    def _send_json(self, data, cookie=None):
         body = json.dumps(data).encode()
         self.send_response(200)
         self.send_header("Content-Type", "application/json")
         self.send_header("Content-Length", str(len(body)))
+        if cookie:
+            self.send_header("Set-Cookie", cookie)
         self.end_headers()
         self.wfile.write(body)
 

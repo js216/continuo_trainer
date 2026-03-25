@@ -4,8 +4,6 @@ item from this file and get started with the next one.
 
 Web version:
 
-- The tab that opens when you press [L]essons should be titled "Lessons", not
-  Stats
 - When opening the right split, the default should be not 50/50 but golden ratio
   (left pane bigger, right pane smaller)
 - Pressing spacebar loads the suggested lesson but it should also update which
