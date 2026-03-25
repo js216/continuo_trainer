@@ -6,8 +6,6 @@ Web version:
 
 - The tab that opens when you press [L]essons should be titled "Lessons", not
   Stats
-- Make sure that the "points today" stat resets every day (at a time that's an
-  algorithm parameter, e.g. `midnight_time`)
 - When opening the right split, the default should be not 50/50 but golden ratio
   (left pane bigger, right pane smaller)
 - Pressing spacebar loads the suggested lesson but it should also update which

@@ -99,6 +99,7 @@ local ALGORITHM_DEFAULTS = {
 	ivl_max = 365, -- maximum interval (days); caps runaway SRS growth
 	chunk_mastery_thresh = 80, -- normalised % below which a chunk needs practice
 	chunk_power_thresh = 70, -- normalised % below which a chunk needs practice
+	midnight_time = 0, -- hour (UTC) at which the practice day resets (0 = midnight)
 }
 
 local stats_file = arg[1]
@@ -118,8 +119,9 @@ local function check_hash(h)
 	end
 end
 
-local function get_date_str()
-	return os.date("%Y-%m-%d")
+local function get_date_str(midnight_time)
+	local t = os.time() - (midnight_time or 0) * 3600
+	return os.date("%Y-%m-%d", t)
 end
 
 local function calculate_power(l_data, alg)
@@ -161,8 +163,9 @@ end
 
 local function calculate_streak(data)
 	local streak = 0
-	local current_ts = os.time()
-	local today = get_date_str()
+	local mt = data.algorithm.midnight_time or 0
+	local current_ts = os.time() - mt * 3600
+	local today = get_date_str(mt)
 
 	while true do
 		local d_str = os.date("%Y-%m-%d", current_ts)
@@ -340,7 +343,7 @@ end
 -- Update a lesson or chunk entry with new score data sd.
 -- Returns a table of computed factors for the caller's use.
 local function update_entry(entry, sd, alg)
-	local today = get_date_str()
+	local today = get_date_str(alg.midnight_time)
 
 	if sd.groups > (entry.max_groups or 0) then
 		entry.max_groups = sd.groups
@@ -424,7 +427,7 @@ end
 -- Independent SRS fields (ease, ivl, n_pass, n_fail, ema_pass, best_avg) are
 -- left untouched.
 local function update_entry_transitive(entry, sd, alg)
-	local today = get_date_str()
+	local today = get_date_str(alg.midnight_time)
 	if sd.groups > (entry.max_groups or 0) then
 		entry.max_groups = sd.groups
 	end
@@ -442,7 +445,7 @@ end
 
 local function apply_mastery_decay(stats)
 	local alg = stats.algorithm
-	local today = get_date_str()
+	local today = get_date_str(alg.midnight_time)
 	local half_life = alg.mastery_decay_half_life
 	local changed = false
 	for _, c in pairs(stats.chunks) do
@@ -480,7 +483,7 @@ end
 
 local function print_stats_line(stats, timestamp, chunk_hash)
 	local alg = stats.algorithm
-	local today = get_date_str()
+	local today = get_date_str(alg.midnight_time)
 	local d = stats.daily[today] or { score = 0, duration = 0 }
 	local streak = calculate_streak(stats)
 	local chunk_str = ""
@@ -638,7 +641,7 @@ local function finalize(stats)
 	end
 
 	local alg = stats.algorithm
-	local today = get_date_str()
+	local today = get_date_str(alg.midnight_time)
 	local hash = tostring(current.id)
 
 	local total_beats = current.total_beats or 0.0

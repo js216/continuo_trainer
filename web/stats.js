@@ -42,6 +42,7 @@ const ALGORITHM_DEFAULTS = {
     ivl_max:                 365,
     chunk_mastery_thresh:    80,
     chunk_power_thresh:      70,
+    midnight_time:           0,  // UTC hour at which the practice day resets (0 = midnight)
 };
 
 class Stats {
@@ -108,7 +109,9 @@ class Stats {
 
     // ── Date helpers ──────────────────────────────────────────────────────────
 
-    _dateStr() { return new Date().toISOString().slice(0, 10); }
+    _dateStr(midnightHour = 0) {
+        return new Date(Date.now() - midnightHour * 3600000).toISOString().slice(0, 10);
+    }
 
     _daysElapsed(dateStr) {
         const [y, m, d] = dateStr.split("-").map(Number);
@@ -141,8 +144,9 @@ class Stats {
 
     _calculateStreak(data) {
         let streak = 0;
-        const today = this._dateStr();
-        let ts = Date.now();
+        const mt   = data.algorithm.midnight_time || 0;
+        const today = this._dateStr(mt);
+        let ts = Date.now() - mt * 3600000;
         while (true) {
             const dStr     = new Date(ts).toISOString().slice(0, 10);
             const dayScore = (data.daily[dStr] && data.daily[dStr].score) || 0;
@@ -166,7 +170,7 @@ class Stats {
 
     _applyMasteryDecay(stats) {
         const alg      = stats.algorithm;
-        const today    = this._dateStr();
+        const today    = this._dateStr(alg.midnight_time);
         const halfLife = alg.mastery_decay_half_life;
         let changed    = false;
         for (const c of Object.values(stats.chunks)) {
@@ -234,7 +238,7 @@ class Stats {
     // ── Entry update ──────────────────────────────────────────────────────────
 
     _updateEntry(entry, sd, alg) {
-        const today = this._dateStr();
+        const today = this._dateStr(alg.midnight_time);
         if (sd.groups > (entry.max_groups || 0)) entry.max_groups = sd.groups;
 
         const oldMastery = entry.mastery || 0;
@@ -297,7 +301,7 @@ class Stats {
 
     // Transitive update: only touches t_mastery, t_last_date, max_groups.
     _updateEntryTransitive(entry, sd, alg) {
-        const today = this._dateStr();
+        const today = this._dateStr(alg.midnight_time);
         if (sd.groups > (entry.max_groups || 0)) entry.max_groups = sd.groups;
         const oldT = entry.t_mastery || 0;
         if (sd.accuracy >= alg.pass_accuracy && sd.score > oldT) {
@@ -311,7 +315,7 @@ class Stats {
 
     _statsLine(stats, chunkHash) {
         const alg    = stats.algorithm;
-        const today  = this._dateStr();
+        const today  = this._dateStr(alg.midnight_time);
         const d      = stats.daily[today] || { score: 0, duration: 0 };
         const streak = this._calculateStreak(stats);
         let chunkStr = "";
@@ -396,7 +400,7 @@ class Stats {
         if (!sd) { this._current = null; return; }
 
         const alg   = stats.algorithm;
-        const today = this._dateStr();
+        const today = this._dateStr(alg.midnight_time);
         const hash  = cur.id;
 
         const c = stats.chunks[hash]
