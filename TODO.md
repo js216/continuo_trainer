@@ -4,8 +4,6 @@ the next one.
 
 Web version:
 
-- Remove the X button since users can just close the tab
-
 Both versions:
 
 - For passing notes, the bass passing note itself must be played correctly
