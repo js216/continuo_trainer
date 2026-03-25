@@ -27,7 +27,6 @@
 --      LESSON_NAME <n>             One per lesson, in ascending numeric order.
 --      CHUNK_NAME <hash> <level> [<skills>]  One per unique chunk; level-1 chunks include space-separated skills.
 --      ALL_SCANNED                 Emitted once after a clean scan.
---      CHUNK_SESSION <hash>        Before LESSON/BASSNOTE/FIGURES/MELODY/LESSON_END.
 --      LESSON <hash> <key> <time> <bpm> <bar>
 --      BASSNOTE <i>: <token> [passing]
 --      FIGURES <i>: <token>
@@ -596,7 +595,6 @@ local function load_chunk(hash)
 
 	local groups = group_melody_tokens(lesson.bass, lesson.melody)
 
-	io.write("CHUNK_SESSION " .. hash .. "\n")
 	io.write(string.format("LESSON %s %s %s %d %d\n", hash, lesson.key, lesson.time, lesson.bpm, lesson.bar))
 	for i, tok in ipairs(lesson.bass) do
 		local passing = is_passing_tok(tok)

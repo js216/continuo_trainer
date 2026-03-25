@@ -27,7 +27,6 @@ class All {
         const lesson = this._parseChunk(info.txt);
         const groups = this._groupMelodyTokens(lesson.rawBass, lesson.melody);
 
-        this._onLine(`CHUNK_SESSION ${hash}`);
         this._onLine(`LESSON ${hash} ${lesson.key} ${lesson.time} ${lesson.bpm} ${lesson.bar}`);
         for (let i = 0; i < lesson.rawBass.length; i++) {
             const tok     = lesson.rawBass[i];

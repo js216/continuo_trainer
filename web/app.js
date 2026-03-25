@@ -395,8 +395,7 @@ function parseLine(line) {
     if (line.startsWith("LESSON "))   logEvent('── ' + line, 'ev-stat');
 
     if (line.startsWith("CHUNK_NAME "))   { handleChunkName(line); stats.handleLine(line); }
-    if (line.startsWith("CHUNK_SESSION ")) handleChunkSession(line);
-    if (line.startsWith("LESSON "))       { state.numNotes = 0; eventsFirstNoteTime = null; eventsPrevNoteTime = null; group.handleLine(line); karaoke.handleLine(line); handleRulesLine(line); stats.handleLine(line); }
+    if (line.startsWith("LESSON "))       { const hash = line.split(/\s+/)[1]; if (hash) loadScoreImage(hash); state.numNotes = 0; eventsFirstNoteTime = null; eventsPrevNoteTime = null; group.handleLine(line); karaoke.handleLine(line); handleRulesLine(line); stats.handleLine(line); }
     if (line.startsWith("BASSNOTE "))     { handleBassnote(line); group.handleLine(line); stats.handleLine(line); }
     if (line.startsWith("FIGURES "))      group.handleLine(line);
     if (line.startsWith("MELODY "))       { group.handleLine(line); karaoke.handleLine(line); }
@@ -412,11 +411,6 @@ function handleChunkName(line) {
     const hash = parts[1], level = parseInt(parts[2]);
     if (level === 0 && !state.level0Hashes.includes(hash))
         state.level0Hashes.push(hash);
-}
-
-function handleChunkSession(line) {
-    const hash = line.split(/\s+/)[1];
-    if (hash) loadScoreImage(hash);
 }
 
 function handleBassnote(line) {
