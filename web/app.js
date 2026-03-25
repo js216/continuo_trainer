@@ -242,9 +242,9 @@ function _renderRightPane() {
     divider.style.display = hasTab ? 'block' : 'none';
 
     if (hasTab && !leftPn.style.width) {
-        // First open: set 50/50 split
+        // First open: golden ratio (left pane larger)
         leftPn.style.flex  = 'none';
-        leftPn.style.width = Math.round(document.getElementById('workspace').offsetWidth / 2) + 'px';
+        leftPn.style.width = Math.round(document.getElementById('workspace').offsetWidth * 0.618) + 'px';
     }
     if (!hasTab) {
         leftPn.style.flex  = '';

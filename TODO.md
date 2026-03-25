@@ -4,8 +4,6 @@ item from this file and get started with the next one.
 
 Web version:
 
-- When opening the right split, the default should be not 50/50 but golden ratio
-  (left pane bigger, right pane smaller)
 - Pressing spacebar loads the suggested lesson but it should also update which
   lesson is shown bold and red in the Lessons pane
 - Clicking on a chunk in the [L]essons menu should clear the squares/rules
