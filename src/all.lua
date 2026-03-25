@@ -98,13 +98,13 @@ local function is_suspension_4(fig)
 end
 
 local function is_3_resolution(fig)
-	if fig == "0" then
-		return true
+	if fig == "0" then return true end
+	for token in fig:gmatch("[^/]+") do
+		if token:match("^[#bn]+$") then return true end
+		local n = token:match("^[#bn]*(%d+)$")
+		if n and tonumber(n) == 3 then return true end
 	end
-	if fig:match("^[#bn]+$") then
-		return true
-	end
-	return has_num(fig, 3)
+	return false
 end
 
 local function skill_of_single(fig)
@@ -138,7 +138,7 @@ local function skill_of_single(fig)
 	if not has_num(fig, 6) and not has_num(fig, 7) and not has_num(fig, 4) and not has_num(fig, 2) then
 		return "root"
 	end
-	return "other"
+	die("unrecognised figure: %s", fig)
 end
 
 local function identify_hearts(figures)
@@ -146,9 +146,11 @@ local function identify_hearts(figures)
 	local hearts = {}
 	local i = 1
 	while i <= N do
-		if i < N and is_suspension_4(figures[i]) and is_3_resolution(figures[i + 1]) then
-			hearts[#hearts + 1] = { s = i, e = i + 1, skill = "4-3_sus" }
-			i = i + 2
+		if is_suspension_4(figures[i]) and (i == N or is_3_resolution(figures[i + 1])) then
+			-- 4-3 suspension: consume both notes when resolution is present, one when implied at end
+			local e = (i < N and is_3_resolution(figures[i + 1])) and i + 1 or i
+			hearts[#hearts + 1] = { s = i, e = e, skill = "4-3_sus" }
+			i = e + 1
 		else
 			hearts[#hearts + 1] = { s = i, e = i, skill = skill_of_single(figures[i]) }
 			i = i + 1
@@ -903,6 +905,18 @@ local function scan_and_emit()
 		end
 		os.exit(1)
 	end
+
+	-- ── skill summary ─────────────────────────────────────────────────────────
+	local seen_skills = {}
+	for _, c in pairs(json_index) do
+		if c.level == 0 and c.skills ~= "" then
+			for sk in c.skills:gmatch("%S+") do seen_skills[sk] = true end
+		end
+	end
+	local skill_list = {}
+	for sk in pairs(seen_skills) do skill_list[#skill_list + 1] = sk end
+	table.sort(skill_list)
+	io.stderr:write("Skills found: " .. table.concat(skill_list, " ") .. "\n")
 
 	io.write("ALL_SCANNED\n")
 	io.flush()

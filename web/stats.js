@@ -30,7 +30,7 @@ const ALGORITHM_DEFAULTS = {
     overlearn_max:           15,
     mistake_power_penalty:   0.15,
     mastery_decay_half_life: 90,
-    skill_order:             "root 6 4-3_sus 6/4 7 other",
+    skill_order:             "root 6 4-3_sus 6/4 7",
     weak_ema_thresh:         0.8,
     ease_initial:            2.5,
     ease_min:                1.3,
