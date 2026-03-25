@@ -768,6 +768,15 @@ function tick() {
 async function init() {
     await synth.init();
     await midi.init();
+    await stats.syncFromServer();
+    try {
+        const r = await fetch("/api/username");
+        if (r.ok) {
+            const { username } = await r.json();
+            const el = document.getElementById("username");
+            if (el) el.textContent = username;
+        }
+    } catch (_) {}
     loadPrefs();
     all.init();                 // emits CHUNK_NAME for all chunks (synchronous)
     stats.handleLine("SUGGEST_LESSON");

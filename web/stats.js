@@ -76,6 +76,25 @@ class Stats {
 
     _save(data) {
         try { localStorage.setItem(STATS_KEY, JSON.stringify(data)); } catch (_) {}
+        fetch("/api/stats", {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(data),
+        }).catch(() => {});
+    }
+
+    async syncFromServer() {
+        try {
+            const r = await fetch("/api/stats");
+            if (!r.ok) return;
+            const data = await r.json();
+            if (!data || !Object.keys(data).length) return;
+            localStorage.setItem(STATS_KEY, JSON.stringify(data));
+            for (const [h, c] of Object.entries(data.chunks || {})) {
+                if (c.skills)   this._chunkSkills[h] = c.skills;
+                if (c.children) this._childrenOf[h]  = c.children;
+            }
+        } catch (_) {}
     }
 
     _withDefaults(data) {

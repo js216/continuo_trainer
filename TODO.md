@@ -2,20 +2,6 @@ Implement one bullet at a time, tell me how to test, and when I confirmed that
 it works, prepare commit message for me to accept. Then, remove the finished
 item from this file and get started with the next one.
 
-Desktop version:
-
-- Does the first line of `tst/karaoke_1_in.txt` (`LESSON 1 G 3/2 5000 Purcell
-  bars 31-37`) follow the latest format? Why does it take such a long time to
-  pass the test (hint: because it does not set a high BPM like 5000 and so it
-  takes forever --- give it a fast BPM so the test can pass faster)?
-
-Both versions:
-
-- In traditional figured bass, a lone 7 is shorthand for 7/5/3. However, looking
-  at your `parse_figures` function (in Lua, but JS version has the same issue),
-  you have logic to expand 3, 4, and 6, but not 7. That's why
-  `tst/rules_8_in.txt` does not pass.
-
 Web version:
 
 - What would be the minimum possible web backend, possibly made in Python, which
