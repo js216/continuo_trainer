@@ -367,6 +367,11 @@ local function parse_figures(s)
 		table.insert(figs, 1, { deg = 3, acc = 0 })
 	end
 
+	if #figs == 1 and figs[1].deg == 7 then
+		figs[#figs + 1] = { deg = 5, acc = 0 }
+		figs[#figs + 1] = { deg = 3, acc = 0 }
+	end
+
 	table.sort(figs, function(a, b)
 		return a.deg < b.deg
 	end)

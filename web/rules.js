@@ -103,6 +103,8 @@ function parseFigures(s) {
         figs.push({ deg: 5, acc: 0 }, { deg: 8, acc: 0 });
     if (figs.length === 1 && figs[0].deg === 6)
         figs.unshift({ deg: 3, acc: 0 });
+    if (figs.length === 1 && figs[0].deg === 7)
+        figs.push({ deg: 5, acc: 0 }, { deg: 3, acc: 0 });
     figs.sort((a, b) => a.deg - b.deg);
     const deduped = [figs[0]];
     for (let k = 1; k < figs.length; k++)
