@@ -1,11 +1,9 @@
-Implement one bullet at a time, tell me how to test, and when I confirmed that
-it works, prepare commit message for me to accept. Then, remove the finished
-item from this file and get started with the next one.
+Implement one bullet at a time, tell me how to test, ask me if it works fine,
+then commit. Then, remove the finished item from this file and get started with
+the next one.
 
 Web version:
 
-- Pressing spacebar loads the suggested lesson but it should also update which
-  lesson is shown bold and red in the Lessons pane
 - Clicking on a chunk in the [L]essons menu should clear the squares/rules
   output for the previous practice
 - When the `skill_order` changes, make sure to show the new skills in the
@@ -19,3 +17,9 @@ Both versions:
   bassnote
 - Integrate the files under man/ into the corresponding source code files as the
   "doc block" comment just like most other source code files have
+
+Unrelated to continuo app, should work for all claude instances I run from this
+username:
+
+- Instead of "accept edits on (shift+tab to cycle) · esc to interrupt" show the
+  current usage percentage

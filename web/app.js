@@ -494,6 +494,7 @@ function handleSuggestion(line) {
         state.currentChunkLevel = lvlM ? parseInt(lvlM[1]) : -1;
         loadChunk(state.currentChunk);
         clearStatus();
+        _refreshStats();
         const skillsM = line.match(/skills=(\S+)/);
         state.suggestion     = skillsM ? `chunk: ${skillsM[1]}` : "chunk";
         state.suggestionTime = Date.now();
