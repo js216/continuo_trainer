@@ -168,6 +168,7 @@ function clearStatus() {
 }
 
 function loadChunk(hash) {
+    clearStatus();
     stats.handleLine(`LOAD_CHUNK ${hash}`);
     all.loadChunk(hash);   // async fetch; emits CHUNK_SESSION/LESSON/etc. via parseLine
     state.currentChunk = hash;
@@ -179,7 +180,6 @@ function loadChunk(hash) {
 function reloadLesson() {
     const hash = state.currentChunk || state.level0Hashes[state.currentLevel0Idx] || "";
     if (hash) loadChunk(hash);
-    clearStatus();
 }
 
 // ── right pane: tabs (stats / events) ─────────────────────────────────────────
@@ -493,7 +493,6 @@ function handleSuggestion(line) {
         const lvlM = line.match(/level=(\d+)/);
         state.currentChunkLevel = lvlM ? parseInt(lvlM[1]) : -1;
         loadChunk(state.currentChunk);
-        clearStatus();
         _refreshStats();
         const skillsM = line.match(/skills=(\S+)/);
         state.suggestion     = skillsM ? `chunk: ${skillsM[1]}` : "chunk";

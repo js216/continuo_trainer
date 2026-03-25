@@ -4,8 +4,6 @@ the next one.
 
 Web version:
 
-- Clicking on a chunk in the [L]essons menu should clear the squares/rules
-  output for the previous practice
 - When the `skill_order` changes, make sure to show the new skills in the
   [L]essons pane
 - Remove the X button since users can just close the tab
