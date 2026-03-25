@@ -4,8 +4,6 @@ the next one.
 
 Web version:
 
-- When the `skill_order` changes, make sure to show the new skills in the
-  [L]essons pane
 - Remove the X button since users can just close the tab
 
 Both versions:

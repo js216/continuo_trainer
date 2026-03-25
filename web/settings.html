@@ -124,6 +124,7 @@ function saveParams() {
     }
     saveData(stats);
     showMsg("Saved.");
+    try { window.parent._refreshStats(); } catch(_) {}
 }
 
 function openRawJson() {
