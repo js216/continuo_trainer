@@ -44,6 +44,12 @@
 //
 //     Bar lines are computed from --time and --duration so that each
 //     line within the braces represents exactly one measure.
+//
+// EXAMPLES
+//     Convert a file:
+//         cat raw_midi.log | ./entry --key F --title "My Piece"
+//     Live recording to a directory:
+//         tail -f midi.log | ./entry --key F --outdir seq --title "Session 1"
 
 use std::collections::{HashMap, HashSet};
 use std::env;

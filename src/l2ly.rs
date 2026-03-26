@@ -28,6 +28,10 @@
 //     "#" / "b"  → <_+> / <_->  raised/lowered third
 //     "#6"/"b6"  → <6+> / <6->
 //     "a/b/c"    → <a b c>      slash-separated stack
+//
+// DIAGNOSTICS
+//     The program exits with an error message if the lesson file cannot be
+//     read from standard input.
 
 use std::io::{self, Read};
 

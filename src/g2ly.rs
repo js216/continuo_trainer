@@ -36,6 +36,16 @@
 //     "b"      → <_->      lowered third
 //     "#6"     → <6+>, "b6" → <6->
 //     "a/b/c"  → <a b c>   slash-separated stack
+//     passing  → <_\>      solidus (passing motion)
+//
+// TIES
+//     Realization notes are tied across passing groups.  If group N+1 is
+//     passing, any pitch present in both group N and group N+1 receives a
+//     LilyPond tie (~) to ensure harmonic continuity.
+//
+// DIAGNOSTICS
+//     An unrecognised GROUP line writes a warning to stderr; processing
+//     continues.
 
 use std::io::{self, BufRead};
 

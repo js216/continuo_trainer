@@ -8,8 +8,6 @@ Both versions:
 
 
 
-- Integrate the files under man/ into the corresponding source code files as the
-  "doc block" comment just like most other source code files have
 
 Unrelated to continuo app, should work for all claude instances I run from this
 username:
