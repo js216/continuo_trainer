@@ -7,8 +7,7 @@ Web version:
 Both versions:
 
 
-- For each chunk, for each bassnote ID, keep track of EMA of correctness of that
-  bassnote
+
 - Integrate the files under man/ into the corresponding source code files as the
   "doc block" comment just like most other source code files have
 

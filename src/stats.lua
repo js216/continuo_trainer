@@ -628,6 +628,21 @@ end
 -- LESSON FINALISATION
 -------------------------------------------------------------------------------
 
+-- Update per-note EMA for notes in results[from..to], keyed 0-relative.
+local function update_note_emas(c, results, from, to, alg)
+	if not c.notes then c.notes = {} end
+	for i = from, to do
+		local r = results[i]
+		if r then
+			local key = tostring(i - from)
+			local note = c.notes[key] or {}
+			local pass = r.status ~= "FAIL" and 1.0 or 0.0
+			note.ema = alg.ema_alpha * pass + (1.0 - alg.ema_alpha) * (note.ema or pass)
+			c.notes[key] = note
+		end
+	end
+end
+
 local function finalize(stats)
 	if not current or current.max_bass_id < 0 then
 		current = nil
@@ -669,6 +684,7 @@ local function finalize(stats)
 	else
 		c.power_factor = math.max(0, (c.power_factor or 1.0) * (1.0 - alg.mistake_power_penalty))
 	end
+	update_note_emas(c, current.results, 0, current.max_bass_id, alg)
 	-- Update EMA BPM from actual play duration this session.
 	-- Subtract last note's beats: sd.duration spans note[0]..note[N-1] onset = N-1 intervals.
 	local last_beats = current.last_beats or 0.0
@@ -949,6 +965,7 @@ for line in io.lines() do
 					c.ease = math.max(alg.ease_min, (c.ease or alg.ease_initial) - alg.ease_fail_delta)
 				end
 			end
+			update_note_emas(c, pending.results, abs_s, abs_e, alg)
 			stats.chunks[ci.hash] = c
 			pending_children[ci.hash] =
 				{ results = pending.results, abs_s = abs_s, abs_e = abs_e, failed_groups = failed_groups }

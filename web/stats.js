@@ -418,6 +418,8 @@ class Stats {
         if (sd.accuracy === 100) c.power_factor = 1.0;
         else c.power_factor = Math.max(0, (c.power_factor || 1.0) * (1.0 - alg.mistake_power_penalty));
 
+        this._updateNoteEmas(c, cur.results, 0, cur.maxBassId, alg);
+
         // Update EMA BPM
         if (sd.duration > 0 && cur.totalBeats > 0) {
             // Subtract last note's beats: duration spans from note[0] to note[N-1] onset,
@@ -456,6 +458,20 @@ class Stats {
         this._current = null;
         this._pendingChildren[hash] = { results: savedResults, abs_s: 0, abs_e: savedMaxBassId, failedGroups };
         this._send(`QUERY_CHILDREN ${hash}`);
+    }
+
+    // Update per-note EMA for results[from..to], keyed 0-relative.
+    _updateNoteEmas(c, results, from, to, alg) {
+        if (!c.notes) c.notes = {};
+        for (let i = from; i <= to; i++) {
+            const r = results[i];
+            if (!r) continue;
+            const key  = String(i - from);
+            const pass = r.status !== 'FAIL' ? 1.0 : 0.0;
+            const note = c.notes[key] || {};
+            note.ema   = alg.ema_alpha * pass + (1.0 - alg.ema_alpha) * (note.ema !== undefined ? note.ema : pass);
+            c.notes[key] = note;
+        }
     }
 
     // ── Main line handler ─────────────────────────────────────────────────────
@@ -598,6 +614,7 @@ class Stats {
                     }
                 }
 
+                this._updateNoteEmas(c, pending.results, abs_s, abs_e, alg);
                 stats.chunks[ci.hash] = c;
                 this._pendingChildren[ci.hash] = { results: pending.results, abs_s, abs_e, failedGroups: pending.failedGroups };
                 this._send(`QUERY_CHILDREN ${ci.hash}`);
