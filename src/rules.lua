@@ -613,6 +613,14 @@ local function rule_check_realization(ctx)
 	return true, nil
 end
 
+local function rule_passing_bass(ctx)
+	local g = ctx.window[#ctx.window]
+	if not g.passing then return true, nil end
+	if g.bass % 12 == g.bass_notated % 12 then return true, nil end
+	return false, string.format("Passing bass: expected %s, got %s",
+		pc_name(g.bass_notated), pc_name(g.bass))
+end
+
 local function rule_bass_in_key(ctx)
 	local g = ctx.window[#ctx.window]
 	if g.passing then
@@ -689,6 +697,7 @@ local RULES = {
 	rule_no_parallel_fifths,
 	rule_no_parallel_octaves,
 	rule_bass_leap,
+	rule_passing_bass,
 	rule_check_realization,
 	rule_bass_in_key,
 	rule_not_past_end,

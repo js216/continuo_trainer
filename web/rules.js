@@ -218,6 +218,14 @@ function ruleCheckRealization(ctx) {
     return [true, null];
 }
 
+function rulePassingBass(ctx) {
+    const g = ctx.window[ctx.window.length - 1];
+    if (!g.passing) return [true, null];
+    return remEuclid(g.bass, 12) === remEuclid(g.bassNotated, 12)
+        ? [true, null]
+        : [false, `Passing bass: expected ${pcName(g.bassNotated)}, got ${pcName(g.bass)}`];
+}
+
 function ruleBassInKey(ctx) {
     const g = ctx.window[ctx.window.length - 1];
     if (g.passing) return [true, null];
@@ -261,6 +269,7 @@ function ruleRealizationComplete(ctx) {
 const _RULES = [
     ruleNoParallelFifths, ruleNoParallelOctaves,
     ruleBassLeap,
+    rulePassingBass,
     ruleCheckRealization, ruleBassInKey,
     ruleNotPastEnd, ruleRealizationNotEmpty, ruleRealizationComplete,
 ];
