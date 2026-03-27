@@ -257,4 +257,6 @@ input[type=range] { width: 150px; accent-color: #3366cc; vertical-align: middle;
 .btn-row { display: flex; gap: 8px; align-items: center; margin: 6px 0 8px; flex-wrap: wrap; }
 #save-msg { color: #00cc66; font-size: 11px; }
 
-#username { margin-left: 8px; color: #888; font-size: 11px; user-select: none; }
+#username { margin-left: 8px; color: #888; font-size: 11px; background: none; border: none;
+            border-bottom: 1px solid transparent; outline: none; width: 7em; cursor: pointer; }
+#username:hover, #username:focus { border-bottom-color: #888; color: #ccc; cursor: text; }

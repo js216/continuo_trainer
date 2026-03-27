@@ -89,8 +89,10 @@ class Stats {
             const r = await fetch("/api/stats");
             if (!r.ok) return;
             const data = await r.json();
-            if (!data || !Object.keys(data).length) return;
+            if (data === null || data === undefined) return;
             localStorage.setItem(STATS_KEY, JSON.stringify(data));
+            this._chunkSkills = {};
+            this._childrenOf  = {};
             for (const [h, c] of Object.entries(data.chunks || {})) {
                 if (c.skills)   this._chunkSkills[h] = c.skills;
                 if (c.children) this._childrenOf[h]  = c.children;

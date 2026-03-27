@@ -45,7 +45,9 @@
     <button id="settings-btn"  onclick="showSettings()">[S]ettings</button>
     <button id="keyboard-btn"  onclick="toggleKeyboard()">Keyboard</button>
 
-    <span id="username" class="username"></span>
+    <input id="username" class="username" type="text" placeholder="username"
+           onkeydown="if(event.key==='Enter')this.blur()"
+           onblur="loginIfChanged()">
   </div>
 </div>
 

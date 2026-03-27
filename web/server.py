@@ -83,6 +83,24 @@ class Handler(SimpleHTTPRequestHandler):
         else:
             super().do_GET()
 
+    def do_POST(self):
+        if self.path == "/api/username":
+            n = int(self.headers.get("Content-Length", 0))
+            body = self.rfile.read(n)
+            try:
+                data = json.loads(body)
+            except json.JSONDecodeError:
+                self.send_error(400, "Bad JSON")
+                return
+            username = data.get("username", "").strip()
+            if not username or not _SAFE_NAME.match(username):
+                self.send_error(400, "Invalid username")
+                return
+            new_cookie = f"username={username}; Path=/; Max-Age=31536000"
+            self._send_json({"username": username}, cookie=new_cookie)
+        else:
+            self.send_error(404)
+
     def do_PUT(self):
         if self.path == "/api/stats":
             username = _cookie_username(self.headers)

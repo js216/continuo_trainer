@@ -766,6 +766,33 @@ function tick() {
 
 // ── init ───────────────────────────────────────────────────────────────────────
 
+let _currentUsername = "";
+
+async function loginIfChanged() {
+    const el = document.getElementById("username");
+    const newName = el.value.trim();
+    if (!newName || newName === _currentUsername) return;
+    try {
+        const r = await fetch("/api/username", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ username: newName }),
+        });
+        if (r.ok) {
+            const { username } = await r.json();
+            _currentUsername = username;
+            el.value = username;
+            await stats.syncFromServer();
+            stats.handleLine("QUERY_STATS");
+            stats.handleLine("SUGGEST_LESSON");
+        } else {
+            el.value = _currentUsername;
+        }
+    } catch (_) {
+        el.value = _currentUsername;
+    }
+}
+
 async function init() {
     await synth.init();
     await midi.init();
@@ -774,8 +801,9 @@ async function init() {
         const r = await fetch("/api/username");
         if (r.ok) {
             const { username } = await r.json();
+            _currentUsername = username;
             const el = document.getElementById("username");
-            if (el) el.textContent = username;
+            if (el) el.value = username;
         }
     } catch (_) {}
     loadPrefs();
