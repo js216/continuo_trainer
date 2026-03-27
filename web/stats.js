@@ -56,6 +56,7 @@ class Stats {
         this._pendingChildren = {};  // hash → { results, abs_s, abs_e, failedGroups }
         this._current         = null;  // active lesson accumulator
         this._currentLoaded   = null;  // hash of last LOAD_CHUNK
+        this._scannedChunks   = new Set(); // hashes announced via CHUNK_NAME this session
 
         const stats = this._load();
         this._applyMasteryDecay(stats);
@@ -91,8 +92,9 @@ class Stats {
             const data = await r.json();
             if (data === null || data === undefined) return;
             localStorage.setItem(STATS_KEY, JSON.stringify(data));
-            this._chunkSkills = {};
-            this._childrenOf  = {};
+            this._chunkSkills   = {};
+            this._childrenOf    = {};
+            this._scannedChunks = new Set();
             for (const [h, c] of Object.entries(data.chunks || {})) {
                 if (c.skills)   this._chunkSkills[h] = c.skills;
                 if (c.children) this._childrenOf[h]  = c.children;
@@ -487,6 +489,7 @@ class Stats {
             const h         = parts[1];
             const level     = parseInt(parts[2]) || 0;
             const skillsStr = parts.slice(3).join(" ");
+            this._scannedChunks.add(h);
             if (skillsStr && !this._chunkSkills[h]) this._chunkSkills[h] = skillsStr;
             const stats     = this._load();
             let needsSave   = false;
@@ -499,7 +502,22 @@ class Stats {
             if (skillsStr && stats.chunks[h].skills !== skillsStr) {
                 stats.chunks[h].skills = skillsStr; needsSave = true;
             }
-            if (needsSave) this._save(stats);
+            if (needsSave)
+                try { localStorage.setItem(STATS_KEY, JSON.stringify(stats)); } catch (_) {}
+            // Don't PUT here — ALL_SCANNED will do the single authoritative save.
+
+        } else if (line === "ALL_SCANNED") {
+            const stats = this._load();
+            const stale = Object.keys(stats.chunks).filter(h => !this._scannedChunks.has(h));
+            if (stale.length > 0) {
+                for (const h of stale) {
+                    delete stats.chunks[h];
+                    delete this._chunkSkills[h];
+                    delete this._childrenOf[h];
+                }
+                console.warn("Removed stale chunks from stats:", stale);
+            }
+            this._save(stats); // always PUT the final authoritative state
 
         } else if (line.startsWith("LOAD_CHUNK ")) {
             const h = line.split(/\s+/)[1];

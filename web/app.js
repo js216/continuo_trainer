@@ -443,12 +443,10 @@ function handleResult(line) {
         renderExplanations();
     }
 
-    // Last note: add done marker and auto-reload
+    // Last note: add done marker; user presses Space/R to continue
     if (id === state.numNotes) {
         while (state.squares.length <= id + 1) state.squares.push(null);
         state.squares[id + 1] = "done";
-        const hash = state.currentChunk || state.level0Hashes[state.currentLevel0Idx] || "";
-        if (hash) loadChunk(hash);
     }
 
     renderSquares();
@@ -783,6 +781,7 @@ async function loginIfChanged() {
             _currentUsername = username;
             el.value = username;
             await stats.syncFromServer();
+            all.init();   // re-register all chunks into the new user's stats
             stats.handleLine("QUERY_STATS");
             stats.handleLine("SUGGEST_LESSON");
         } else {

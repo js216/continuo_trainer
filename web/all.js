@@ -12,11 +12,12 @@ class All {
         this._index  = window.CHN_INDEX || null;
     }
 
-    // Emit CHUNK_NAME for every chunk in the index.
+    // Emit CHUNK_NAME for every chunk in the index, then ALL_SCANNED.
     init() {
         if (!this._index) return;
         for (const [hash, info] of Object.entries(this._index))
             this._onLine(`CHUNK_NAME ${hash} ${info.level} ${info.skills || ""}`);
+        this._onLine("ALL_SCANNED");
     }
 
     // Parse chunk text and emit lesson protocol lines.

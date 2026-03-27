@@ -99,7 +99,7 @@ function makeBar(pct, thresh, title) {
 // ── expand state (persists across re-renders) ─────────────────────────────────
 
 const expanded = new Set();
-let _initialized = false;
+let _lastActiveHash = null;
 
 function toggleExpand(key) {
     if (expanded.has(key)) expanded.delete(key); else expanded.add(key);
@@ -153,9 +153,9 @@ function renderReport() {
         return (ra < 0 ? 999 : ra) - (rb < 0 ? 999 : rb) || (a < b ? -1 : 1);
     });
 
-    // Expand the path to the active chunk once we know what it is
-    if (!_initialized && activeHash) {
-        _initialized = true;
+    // Expand the path to the active chunk whenever it changes
+    if (activeHash && activeHash !== _lastActiveHash) {
+        _lastActiveHash = activeHash;
         expandToActive(idx, activeHash, skillOrder);
     }
 
