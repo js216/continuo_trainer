@@ -191,13 +191,17 @@ function showStats()    { _rightTabs.includes('stats')    ? _closeRightTab('stat
 function showEvents()   { _rightTabs.includes('events')   ? _closeRightTab('events')   : _openRightTab('events'); }
 function showSettings() { _rightTabs.includes('settings') ? _closeRightTab('settings') : _openRightTab('settings'); }
 
-function _refreshStats() {
+function _refreshStats(forceReexpand) {
     const fr = document.getElementById('stats-iframe');
     if (!fr) return;
     if (!fr.src || fr.src === window.location.href) {
         fr.src = 'stats.html';
     } else {
-        try { fr.contentWindow.renderReport(); } catch(_) {}
+        try {
+            if (forceReexpand && fr.contentWindow.markForReexpand)
+                fr.contentWindow.markForReexpand();
+            fr.contentWindow.renderReport();
+        } catch(_) {}
     }
 }
 
@@ -491,7 +495,7 @@ function handleSuggestion(line) {
         const lvlM = line.match(/level=(\d+)/);
         state.currentChunkLevel = lvlM ? parseInt(lvlM[1]) : -1;
         loadChunk(state.currentChunk);
-        _refreshStats();
+        _refreshStats(true);
         const skillsM = line.match(/skills=(\S+)/);
         state.suggestion     = skillsM ? `chunk: ${skillsM[1]}` : "chunk";
         state.suggestionTime = Date.now();

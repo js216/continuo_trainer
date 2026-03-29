@@ -99,7 +99,9 @@ function makeBar(pct, thresh, title) {
 // ── expand state (persists across re-renders) ─────────────────────────────────
 
 const expanded = new Set();
-let _lastActiveHash = null;
+let _lastExpandedActive = null;
+
+window.markForReexpand = function() { _lastExpandedActive = null; };
 
 function toggleExpand(key) {
     if (expanded.has(key)) expanded.delete(key); else expanded.add(key);
@@ -153,9 +155,9 @@ function renderReport() {
         return (ra < 0 ? 999 : ra) - (rb < 0 ? 999 : rb) || (a < b ? -1 : 1);
     });
 
-    // Expand the path to the active chunk whenever it changes
-    if (activeHash && activeHash !== _lastActiveHash) {
-        _lastActiveHash = activeHash;
+    // Auto-expand only when the active chunk changes (new lesson via spacebar)
+    if (activeHash && activeHash !== _lastExpandedActive) {
+        _lastExpandedActive = activeHash;
         expandToActive(idx, activeHash, skillOrder);
     }
 
@@ -250,8 +252,12 @@ function mkChunkLi(hash, idx, chunks, alg, mThresh, pThresh, activeHash, depth) 
     }
 
     row.addEventListener("click", () => {
-        if (window.parent && window.parent.loadChunk) window.parent.loadChunk(hash);
-        renderReport();
+        if (hash === activeHash) {
+            if (hasCh) { toggleExpand(key); renderReport(); }
+        } else {
+            if (window.parent && window.parent.loadChunk) window.parent.loadChunk(hash);
+            renderReport();
+        }
     });
 
     li.appendChild(row);
