@@ -120,10 +120,21 @@ class LuaParser:
                 else:
                     str_entries[str(key)] = value
             else:
+                # bare integer key (e.g. 0 = value)
+                nm = re.match(r'-?[0-9]+', self.text[self.pos:])
                 # bare identifier key
-                m = re.match(r'[a-zA-Z_][a-zA-Z0-9_]*', self.text[self.pos:])
-                if m:
-                    key = m.group(0)
+                im = re.match(r'[a-zA-Z_][a-zA-Z0-9_]*', self.text[self.pos:])
+                if nm and (not im or len(nm.group(0)) <= len(im.group(0))):
+                    key = int(nm.group(0))
+                    self.pos += len(nm.group(0))
+                    self._skip_ws()
+                    assert self.text[self.pos] == '=', \
+                        f"Expected '=' after key {key!r} at pos {self.pos}"
+                    self.pos += 1
+                    value = self._parse_value()
+                    int_entries[key] = value
+                elif im:
+                    key = im.group(0)
                     self.pos += len(key)
                     self._skip_ws()
                     assert self.text[self.pos] == '=', \
@@ -147,12 +158,11 @@ class LuaParser:
 
 
 def main():
-    if len(sys.argv) < 2:
-        print("Usage: lua_to_json <stats.log> [output.json]", file=sys.stderr)
-        sys.exit(1)
-
-    with open(sys.argv[1], encoding='utf-8') as f:
-        text = f.read()
+    if len(sys.argv) == 1 or sys.argv[1] == '-':
+        text = sys.stdin.read()
+    else:
+        with open(sys.argv[1], encoding='utf-8') as f:
+            text = f.read()
 
     data = LuaParser(text).parse()
     output = json.dumps(data, indent=2)
@@ -160,7 +170,6 @@ def main():
     if len(sys.argv) >= 3:
         with open(sys.argv[2], 'w', encoding='utf-8') as f:
             f.write(output)
-        print(f"Written to {sys.argv[2]}", file=sys.stderr)
     else:
         print(output)
 

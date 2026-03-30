@@ -93,21 +93,19 @@ def json_to_lua(data) -> str:
 
 
 def main():
-    if len(sys.argv) < 2:
-        print("Usage: json2lua <input.json> [output.lua]", file=sys.stderr)
-        sys.exit(1)
-
-    with open(sys.argv[1], encoding='utf-8') as f:
-        data = json.load(f)
+    if len(sys.argv) == 1 or sys.argv[1] == '-':
+        data = json.load(sys.stdin)
+    else:
+        with open(sys.argv[1], encoding='utf-8') as f:
+            data = json.load(f)
 
     output = json_to_lua(data)
 
     if len(sys.argv) >= 3:
         with open(sys.argv[2], 'w', encoding='utf-8') as f:
             f.write(output)
-        print(f"Written to {sys.argv[2]}", file=sys.stderr)
     else:
-        print(output, end='')
+        sys.stdout.write(output)
 
 
 if __name__ == '__main__':
