@@ -66,7 +66,7 @@ def _serialize(value, indent: str, depth: int) -> str:
             # Determine key representation
             try:
                 ik = int(k)
-                key_repr = str(ik)
+                key_repr = '[' + str(ik) + ']'
             except (ValueError, TypeError):
                 key_repr = '["' + _lua_escape(str(k)) + '"]'
 

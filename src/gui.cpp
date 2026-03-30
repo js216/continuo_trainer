@@ -723,6 +723,8 @@ static void show_stats_bar(void)
 				   : ImVec4(0.8f, 0.5f, 0.1f, 1.0f));
 	ImGui::ProgressBar(m_frac, ImVec2(bar_w, bar_h), m_label);
 	ImGui::PopStyleColor();
+	if (ImGui::IsItemHovered())
+		ImGui::SetTooltip("Mastery of current chunk (%.0f%% needed)", s.mastery_thresh);
 
 	// Power bar: green if at/above thresh, amber otherwise
 	char p_label[16];
@@ -735,6 +737,8 @@ static void show_stats_bar(void)
 				   : ImVec4(0.9f, 0.6f, 0.1f, 1.0f));
 	ImGui::ProgressBar(p_frac, ImVec2(bar_w, bar_h), p_label);
 	ImGui::PopStyleColor();
+	if (ImGui::IsItemHovered())
+		ImGui::SetTooltip("Power: mastery adjusted for time decay (%.0f%% needed)", s.power_thresh);
 
 	// Daily goal: always show progress bar; streak to the right when met
 	char d_label[16];
@@ -747,6 +751,8 @@ static void show_stats_bar(void)
 					 : ImVec4(0.2f, 0.5f, 0.9f, 1.0f));
 	ImGui::ProgressBar(d_frac, ImVec2(bar_w, bar_h), d_label);
 	ImGui::PopStyleColor();
+	if (ImGui::IsItemHovered())
+		ImGui::SetTooltip("Daily score (goal: %.0f pts)", s.goal);
 	if (s.goal_met && s.streak > 0) {
 		char streak_buf[32];
 		snprintf(streak_buf, sizeof(streak_buf), "Streak: %d",
@@ -763,42 +769,13 @@ static void show_info_line(void)
 	double age = glfwGetTime() - s.suggestion_time;
 	bool show_msg = (s.suggestion[0] != '\0' && age < 3.0);
 
-	// Resolve hash label
-	const char *hash = nullptr;
-	int lvl = -1;
-	char label[20] = "";
-	if (state.current_chunk[0]) {
-		hash = state.current_chunk;
-		lvl  = state.current_chunk_level;
-	} else if (state.num_level0 > 0) {
-		hash = state.level0_hashes[state.current_level0_idx];
-		lvl  = 0;
-	}
-	if (hash) {
-		if (lvl >= 0)
-			snprintf(label, sizeof(label), "%d:%.8s", lvl, hash);
-		else
-			snprintf(label, sizeof(label), "%.8s", hash);
-	}
-
-	if (!show_msg && !hash) {
-		// Nothing to show; reserve line height for stable layout
+	if (!show_msg) {
 		ImGui::Dummy(ImVec2(1.0f, ImGui::GetTextLineHeight()));
 		return;
 	}
 
-	if (show_msg) {
-		const char *text = expand_suggestion(s.suggestion);
-		ImGui::TextColored(ImVec4(1.0f, 0.85f, 0.1f, 1.0f), "%s", text);
-		if (hash) ImGui::SameLine();
-	}
-
-	if (hash) {
-		float text_w = ImGui::CalcTextSize(label).x;
-		float margin = ImGui::GetStyle().WindowPadding.x;
-		ImGui::SetCursorPosX(ImGui::GetWindowWidth() - margin - text_w);
-		ImGui::TextDisabled("%s", label);
-	}
+	const char *text = expand_suggestion(s.suggestion);
+	ImGui::TextColored(ImVec4(1.0f, 0.85f, 0.1f, 1.0f), "%s", text);
 }
 
 static void show_celebration(void)
@@ -847,23 +824,54 @@ static void show_celebration(void)
 	dl->AddText(ImGui::GetFont(), font_size, pos, col, buf);
 }
 
-// ── Top bar: full window width; stats bars left, [R]eload + X right ──────────
+// ── Top bar: stats left, chunk+[R]eload+X right ────────────────────────────
 
 static void show_top_bar(void)
 {
-	show_stats_bar();
-
 	ImGuiStyle &style = ImGui::GetStyle();
 	float fp       = style.FramePadding.x;
 	float sp       = style.ItemSpacing.x;
+	float win_w    = ImGui::GetWindowWidth();
+	float pad      = style.WindowPadding.x;
+
+	// Stats bars (left)
+	show_stats_bar();
+
+	// Measure right-side items: chunk label + [R]eload + X
+	char chunk_label[20] = "";
+	float chunk_w = 0.0f;
+	{
+		const char *hash = nullptr;
+		int lvl = -1;
+		if (state.current_chunk[0]) {
+			hash = state.current_chunk;
+			lvl  = state.current_chunk_level;
+		} else if (state.num_level0 > 0) {
+			hash = state.level0_hashes[state.current_level0_idx];
+			lvl  = 0;
+		}
+		if (hash) {
+			if (lvl >= 0)
+				snprintf(chunk_label, sizeof(chunk_label), "%d:%.8s", lvl, hash);
+			else
+				snprintf(chunk_label, sizeof(chunk_label), "%.8s", hash);
+			chunk_w = ImGui::CalcTextSize(chunk_label).x + sp;
+		}
+	}
 	float reload_w = ImGui::CalcTextSize("[R]eload").x + fp * 2.0f;
 	float x_w      = ImGui::CalcTextSize("X").x       + fp * 2.0f;
-	float btns_w   = reload_w + sp + x_w;
-	float right_x  = ImGui::GetWindowWidth() - style.WindowPadding.x - btns_w;
+	float right_w  = chunk_w + reload_w + sp + x_w;
+	float right_x  = win_w - pad - right_w;
+
 	ImGui::SameLine();
-	float after_x  = ImGui::GetCursorPosX();
+	float after_x = ImGui::GetCursorPosX();
 	ImGui::SetCursorPosX(right_x > after_x ? right_x : after_x);
 
+	if (chunk_label[0]) {
+		ImGui::AlignTextToFramePadding();
+		ImGui::TextDisabled("%s", chunk_label);
+		ImGui::SameLine();
+	}
 	if (ImGui::Button("[R]eload"))
 		reload_lesson();
 	ImGui::SameLine();
@@ -871,40 +879,99 @@ static void show_top_bar(void)
 		quit_lesson();
 }
 
-// ── Skill mastery bar row ─────────────────────────────────────────────────────
+// ── Skill mastery bar row: matches bottom bar width, equally sized ───────────
 
-static void show_skill_bar(void)
+static void show_skill_bar(float row_w, float row_x)
 {
 	if (state.num_skills == 0)
 		return;
 
+	float sp     = ImGui::GetStyle().ItemSpacing.x;
 	float thresh = state.status.mastery_thresh;
+	int   ns     = state.num_skills;
 	float bar_h  = ImGui::GetFrameHeight() * 0.75f;
-	float bar_w  = 60.0f;
 
-	for (int i = 0; i < state.num_skills; i++) {
-		if (i > 0)
-			ImGui::SameLine();
+	float total_spacing = (ns - 1) * sp;
+	float bar_w = (row_w - total_spacing) / (float)ns;
+	if (bar_w < 20.0f) bar_w = 20.0f;
+
+	ImGui::SetCursorPosX(row_x);
+	for (int i = 0; i < ns; i++) {
+		if (i > 0) ImGui::SameLine();
 		float m    = state.skill_stats[i].mastery;
 		float frac = fminf(m / 100.0f, 1.0f);
 		bool  ok   = (m >= thresh);
 		ImGui::PushStyleColor(ImGuiCol_PlotHistogram,
 		    ok ? ImVec4(0.2f, 0.8f, 0.3f, 1.0f)
-		       : ImVec4(0.8f, 0.5f, 0.1f, 1.0f));
+		       : ImVec4(0.45f, 0.45f, 0.45f, 1.0f));
+		ImGui::PushID(i + 1000);
 		ImGui::ProgressBar(frac, ImVec2(bar_w, bar_h),
 				   state.skill_stats[i].name);
+		ImGui::PopID();
 		ImGui::PopStyleColor();
 	}
 }
 
+// ── Compute the natural width of the bottom bar content ──────────────────────
+
+static float bottom_bar_natural_width(void)
+{
+	ImGuiStyle &style = ImGui::GetStyle();
+	float fp  = style.FramePadding.x;
+	float sp  = style.ItemSpacing.x;
+
+	// Right group
+	float vol_slider_w = 80.0f;
+	float bpm_field_w  = ImGui::CalcTextSize("9999").x + fp * 2.0f;
+	float dec_w        = ImGui::CalcTextSize("--").x + fp * 2.0f;
+	float inc_w        = ImGui::CalcTextSize("++").x + fp * 2.0f;
+	float kar_w        = ImGui::CalcTextSize("[K]araoke").x + fp * 2.0f;
+	float right_total  = vol_slider_w + sp
+	    + dec_w + 2.0f + bpm_field_w + 2.0f + inc_w + sp + kar_w;
+
+	// Left group fixed parts
+	float midi_btn_w = ImGui::CalcTextSize("MIDI").x + fp * 2.0f;
+	float chk_w      = ImGui::GetFrameHeight();
+	float fixed_w    = midi_btn_w + chk_w + 5.0f * sp + right_total;
+
+	// Two combos at max width (200 each)
+	return fixed_w + 2.0f * 200.0f;
+}
+
 // ── Bottom bar: full window width, mirrors web-app ────────────────────────────
 
-static void show_bottom_bar(void)
+static void show_bottom_bar(float row_w, float row_x)
 {
-	float fp = ImGui::GetStyle().FramePadding.x;
+	ImGuiStyle &style = ImGui::GetStyle();
+	float fp   = style.FramePadding.x;
+	float sp   = style.ItemSpacing.x;
 
-	// MIDI section label (clickable: refreshes device list)
-	if (ImGui::SmallButton("MIDI")) {
+	// ── Measure fixed-width items ────────────────────────────────────────
+	// Right group: synth slider + BPM + karaoke
+	float vol_slider_w = 80.0f;
+	float bpm_field_w  = ImGui::CalcTextSize("9999").x + fp * 2.0f;
+	float dec_w        = ImGui::CalcTextSize("--").x + fp * 2.0f;
+	float inc_w        = ImGui::CalcTextSize("++").x + fp * 2.0f;
+	float kar_w        = ImGui::CalcTextSize("[K]araoke").x + fp * 2.0f;
+	float right_total  = vol_slider_w + sp
+	    + dec_w + 2.0f + bpm_field_w + 2.0f + inc_w + sp + kar_w;
+
+	// Left group fixed parts: MIDI button + checkbox + spacing between items
+	float midi_btn_w = ImGui::CalcTextSize("MIDI").x + fp * 2.0f;
+	float chk_w      = ImGui::GetFrameHeight(); // checkbox square
+	float fixed_w    = midi_btn_w + chk_w + 5.0f * sp + right_total;
+
+	// Remaining width split equally between two MIDI combos
+	float combo_w = (row_w - fixed_w) * 0.5f;
+	if (combo_w < 40.0f) combo_w = 40.0f;
+	if (combo_w > 200.0f) combo_w = 200.0f;
+
+	// ── Left group: MIDI + in combo + out combo + fwd ────────────────────
+
+	ImGui::SetCursorPosX(row_x);
+
+	// MIDI button
+	if (ImGui::Button("MIDI")) {
 		printf("MIDI DEVICES\n");
 		fflush(stdout);
 	}
@@ -913,9 +980,7 @@ static void show_bottom_bar(void)
 
 	// MIDI IN dropdown
 	ImGui::SameLine();
-	ImGui::Text("in");
-	ImGui::SameLine();
-	ImGui::SetNextItemWidth(150.0f);
+	ImGui::SetNextItemWidth(combo_w);
 	{
 		const char *lbl = (state.midi_in >= 0 &&
 				   state.midi_in < state.midi_count)
@@ -935,12 +1000,12 @@ static void show_bottom_bar(void)
 			ImGui::EndCombo();
 		}
 	}
+	if (ImGui::IsItemHovered())
+		ImGui::SetTooltip("MIDI input device");
 
 	// MIDI OUT dropdown
 	ImGui::SameLine();
-	ImGui::Text("out");
-	ImGui::SameLine();
-	ImGui::SetNextItemWidth(150.0f);
+	ImGui::SetNextItemWidth(combo_w);
 	{
 		const char *lbl = (state.midi_out >= 0 &&
 				   state.midi_out < state.midi_count)
@@ -960,21 +1025,29 @@ static void show_bottom_bar(void)
 			ImGui::EndCombo();
 		}
 	}
+	if (ImGui::IsItemHovered())
+		ImGui::SetTooltip("MIDI output device");
 
 	// Forward toggle
 	ImGui::SameLine();
 	bool fwd = state.midi_fwd;
-	if (ImGui::Checkbox("fwd", &fwd)) {
+	if (ImGui::Checkbox("##fwd", &fwd)) {
 		state.midi_fwd = fwd;
 		printf("MIDI FORWARD %s\n", fwd ? "ON" : "OFF");
 		fflush(stdout);
 	}
+	if (ImGui::IsItemHovered())
+		ImGui::SetTooltip("Forward MIDI input to output");
 
-	// Synth volume slider (0 = off)
+	// ── Right group: synth + BPM + karaoke (flush right to row edge) ─────
 	ImGui::SameLine();
-	ImGui::Text("synth");
-	ImGui::SameLine();
-	ImGui::SetNextItemWidth(80.0f);
+	float right_edge = row_x + row_w;
+	float right_pos  = right_edge - right_total;
+	float after_left = ImGui::GetCursorPosX();
+	ImGui::SetCursorPosX(right_pos > after_left ? right_pos : after_left);
+
+	// Synth volume slider
+	ImGui::SetNextItemWidth(vol_slider_w);
 	if (ImGui::SliderFloat("##svol", &state.synth_vol, 0.0f, 1.0f, "")) {
 		printf("SET VOLUME %.3f\n", state.synth_vol);
 		fflush(stdout);
@@ -982,7 +1055,7 @@ static void show_bottom_bar(void)
 	if (ImGui::IsItemHovered())
 		ImGui::SetTooltip("Synth volume (0 = off)");
 
-	// BPM: -- [field] ++ (step 5, matching web app)
+	// BPM: -- [field] ++
 	ImGui::SameLine();
 	if (ImGui::Button("--")) {
 		state.bpm = fmaxf(1.0f, state.bpm - 5.0f);
@@ -991,7 +1064,7 @@ static void show_bottom_bar(void)
 	}
 	ImGui::SameLine(0, 2.0f);
 	int bpm_int = (int)(state.bpm + 0.5f);
-	ImGui::SetNextItemWidth(ImGui::CalcTextSize("9999").x + fp * 2.0f);
+	ImGui::SetNextItemWidth(bpm_field_w);
 	if (ImGui::InputInt("##bpm", &bpm_int, 0, 0)) {
 		bpm_int   = (bpm_int < 1) ? 1 : (bpm_int > 999) ? 999 : bpm_int;
 		state.bpm = (float)bpm_int;
@@ -1025,14 +1098,14 @@ static void gui_main(void)
 	// ── Top bar (full width) ─────────────────────────────────────────────────
 	show_top_bar();
 
-	// ── Reserve bottom rows: skill bar (optional) + info line + bottom bar ───
+	// ── Reserve bottom rows: info line + skill bar (optional) + bottom bar ──
 	float text_h  = ImGui::GetTextLineHeightWithSpacing();
 	float frame_h = ImGui::GetFrameHeightWithSpacing();
 	float skill_h = (state.num_skills > 0)
 	    ? (ImGui::GetFrameHeight() * 0.75f +
 	       ImGui::GetStyle().ItemSpacing.y)
 	    : 0.0f;
-	float bottom_reserved = skill_h + text_h + frame_h;
+	float bottom_reserved = text_h + skill_h + frame_h;
 
 	// ── Centered content child ───────────────────────────────────────────────
 	float top_used  = ImGui::GetCursorPosY();
@@ -1055,18 +1128,22 @@ static void gui_main(void)
 		ImGui::TextUnformatted(state.explanation);
 	ImGui::EndChild();
 
-	// Reset to left edge for full-width bottom rows
-	ImGui::SetCursorPosX(ImGui::GetStyle().WindowPadding.x);
+	// ── Compute shared row width for skill bar + bottom bar ─────────────────
+	float pad    = ImGui::GetStyle().WindowPadding.x;
+	float nat_w  = bottom_bar_natural_width();
+	float row_w  = (disp_w - 2.0f * pad < nat_w)
+	    ? (disp_w - 2.0f * pad) : nat_w;
+	float row_x  = pad + (disp_w - 2.0f * pad - row_w) * 0.5f;
 
-	// ── Skill mastery bar row ────────────────────────────────────────────────
-	show_skill_bar();
-
-	// ── Info line: yellow suggestion (left) + chunk hash (right) ────────────
-	ImGui::SetCursorPosX(ImGui::GetStyle().WindowPadding.x);
+	// ── Info line: yellow suggestion (left) ──────────────────────────────────
+	ImGui::SetCursorPosX(row_x);
 	show_info_line();
 
+	// ── Skill mastery bar row ────────────────────────────────────────────────
+	show_skill_bar(row_w, row_x);
+
 	// ── Bottom bar ───────────────────────────────────────────────────────────
-	show_bottom_bar();
+	show_bottom_bar(row_w, row_x);
 
 	show_celebration();
 	check_new_day();
