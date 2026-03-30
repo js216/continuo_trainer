@@ -107,6 +107,15 @@ local function is_3_resolution(fig)
 	return false
 end
 
+local function is_suspension_7(fig)
+	if fig == "0" then return false end
+	return has_num(fig, 7)
+end
+
+local function is_6_resolution(fig)
+	return has_num(fig, 6)
+end
+
 local function skill_of_single(fig)
 	if fig == "0" then
 		return "root"
@@ -151,6 +160,10 @@ local function identify_hearts(figures)
 			local e = (i < N and is_3_resolution(figures[i + 1])) and i + 1 or i
 			hearts[#hearts + 1] = { s = i, e = e, skill = "4-3_sus" }
 			i = e + 1
+		elseif is_suspension_7(figures[i]) and i < N and is_6_resolution(figures[i + 1]) then
+			-- 7-6 suspension: 7th resolves down to 6th over the same bass
+			hearts[#hearts + 1] = { s = i, e = i + 1, skill = "7-6_sus" }
+			i = i + 2
 		else
 			hearts[#hearts + 1] = { s = i, e = i, skill = skill_of_single(figures[i]) }
 			i = i + 1

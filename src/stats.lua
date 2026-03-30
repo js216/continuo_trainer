@@ -87,7 +87,7 @@ local ALGORITHM_DEFAULTS = {
 	overlearn_max = 15, -- max consecutive attempts before suggesting another chunk (ema_pass = 0)
 	mistake_power_penalty = 0.15, -- power_factor multiplied by (1-penalty) per failed session
 	mastery_decay_half_life = 90, -- days for mastery to halve without a mastery-improving session
-	skill_order = "root 6 4-3_sus 6/4 7", -- space-separated skill names; lower index = introduced earlier
+	skill_order = "root 6 4-3_sus 6/4 7 7-6_sus", -- space-separated skill names; lower index = introduced earlier
 	weak_ema_thresh = 0.8, -- ema_pass below this marks a lesson as "needs_work"
 	ease_initial = 2.5, -- starting ease factor for new lessons
 	ease_min = 1.3, -- minimum ease factor
