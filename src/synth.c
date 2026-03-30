@@ -132,6 +132,11 @@ void data_callback(ma_device *pDevice, void *pOutput, const void *pInput,
 	Synth *synth = (Synth *)pDevice->pUserData;
 	float *out = (float *)pOutput;
 
+	if (synth->p.master_gain == 0.0f) {
+		memset(pOutput, 0, frameCount * 2 * sizeof(float));
+		return;
+	}
+
 	for (ma_uint32 i = 0; i < frameCount; i++) {
 		float mixed = 0;
 		for (int v = 0; v < MAX_POLYPHONY; v++) {
@@ -293,7 +298,8 @@ int main(void)
 				synth.p.osc1_cutoff = val;
 			else if (strcmp(arg1, "OSC2_CUTOFF") == 0)
 				synth.p.osc2_cutoff = val;
-			else if (strcmp(arg1, "MASTER_GAIN") == 0)
+			else if (strcmp(arg1, "MASTER_GAIN") == 0 ||
+				 strcmp(arg1, "VOLUME") == 0)
 				synth.p.master_gain = val;
 
 			if (freq_changed)

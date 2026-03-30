@@ -119,6 +119,21 @@ struct state {
 	bool karaoke_on = false;
 	int current_chunk_level = -1; // level from last SUGGESTION chunk= line
 	float bpm = 120.0f;           // current BPM; updated by BPM command
+
+	// MIDI devices (populated from DEVICE_AVAIL lines)
+	char midi_names[32][128];
+	int  midi_count  = 0;
+	int  midi_in     = -1;  // selected input  device index, -1 = none
+	int  midi_out    = -1;  // selected output device index, -1 = none
+	bool midi_fwd    = false;
+
+	// Synth volume (forwarded as SET VOLUME; 0 = off)
+	float synth_vol = 0.3f;
+
+	// Per-skill mastery (from SKILL_STATS lines emitted by stats.lua)
+	struct SkillStat { char name[32]; float mastery; };
+	SkillStat skill_stats[32];
+	int num_skills = 0;
 } state;
 
 static void clear_status(void)
@@ -428,6 +443,55 @@ static void parse_line(const char *buf)
 			state.bpm = bpm;
 		return;
 	}
+	if (strncmp(buf, "DEVICE_AVAIL ", 13) == 0) {
+		int n;
+		char name[128] = "";
+		if (sscanf(buf + 13, "%d %127[^\n]", &n, name) >= 1 &&
+		    n >= 0 && n < 32) {
+			if (n == 0) state.midi_count = 0; // reset on rescan
+			if (n >= state.midi_count) state.midi_count = n + 1;
+			strncpy(state.midi_names[n], name, 127);
+			state.midi_names[n][127] = '\0';
+		}
+		return;
+	}
+	if (strncmp(buf, "STATUS MIDI input opened: ", 26) == 0) {
+		char nm[128]; strncpy(nm, buf + 26, 127); nm[127] = '\0';
+		char *nl = strpbrk(nm, "\r\n"); if (nl) *nl = '\0';
+		for (int i = 0; i < state.midi_count; i++)
+			if (strcmp(state.midi_names[i], nm) == 0) { state.midi_in = i; break; }
+		return;
+	}
+	if (strncmp(buf, "STATUS MIDI output opened: ", 27) == 0) {
+		char nm[128]; strncpy(nm, buf + 27, 127); nm[127] = '\0';
+		char *nl = strpbrk(nm, "\r\n"); if (nl) *nl = '\0';
+		for (int i = 0; i < state.midi_count; i++)
+			if (strcmp(state.midi_names[i], nm) == 0) { state.midi_out = i; break; }
+		return;
+	}
+	// SKILL_STATS skill=<name> mastery=<n>  (one line per skill, from stats.lua)
+	if (strncmp(buf, "SKILL_STATS ", 12) == 0) {
+		char sk[32] = ""; float m = 0.0f;
+		const char *sp = strstr(buf, "skill=");
+		const char *mp = strstr(buf, "mastery=");
+		if (sp) sscanf(sp, "skill=%31s", sk);
+		if (mp) sscanf(mp, "mastery=%f", &m);
+		if (sk[0]) {
+			for (int i = 0; i < state.num_skills; i++) {
+				if (strcmp(state.skill_stats[i].name, sk) == 0) {
+					state.skill_stats[i].mastery = m;
+					return;
+				}
+			}
+			if (state.num_skills < 32) {
+				strncpy(state.skill_stats[state.num_skills].name, sk, 31);
+				state.skill_stats[state.num_skills].name[31] = '\0';
+				state.skill_stats[state.num_skills].mastery = m;
+				state.num_skills++;
+			}
+		}
+		return;
+	}
 	handle_chunk_name(buf);
 	handle_lesson(buf);
 	handle_result(buf);
@@ -698,35 +762,43 @@ static void show_info_line(void)
 	const status_line &s = state.status;
 	double age = glfwGetTime() - s.suggestion_time;
 	bool show_msg = (s.suggestion[0] != '\0' && age < 3.0);
-	if (show_msg) {
-		const char *text = expand_suggestion(s.suggestion);
-		ImGui::TextColored(ImVec4(1.0f, 0.85f, 0.1f, 1.0f), "%s",
-				   text);
-		ImGui::SameLine();
-	}
 
-	const char *hash;
-	int lvl;
+	// Resolve hash label
+	const char *hash = nullptr;
+	int lvl = -1;
+	char label[20] = "";
 	if (state.current_chunk[0]) {
 		hash = state.current_chunk;
-		lvl = state.current_chunk_level;
+		lvl  = state.current_chunk_level;
 	} else if (state.num_level0 > 0) {
 		hash = state.level0_hashes[state.current_level0_idx];
-		lvl = 0;
-	} else {
+		lvl  = 0;
+	}
+	if (hash) {
+		if (lvl >= 0)
+			snprintf(label, sizeof(label), "%d:%.8s", lvl, hash);
+		else
+			snprintf(label, sizeof(label), "%.8s", hash);
+	}
+
+	if (!show_msg && !hash) {
+		// Nothing to show; reserve line height for stable layout
+		ImGui::Dummy(ImVec2(1.0f, ImGui::GetTextLineHeight()));
 		return;
 	}
 
-	char label[20];
-	if (lvl >= 0)
-		snprintf(label, sizeof(label), "%d:%.8s", lvl, hash);
-	else
-		snprintf(label, sizeof(label), "%.8s", hash);
+	if (show_msg) {
+		const char *text = expand_suggestion(s.suggestion);
+		ImGui::TextColored(ImVec4(1.0f, 0.85f, 0.1f, 1.0f), "%s", text);
+		if (hash) ImGui::SameLine();
+	}
 
-	float text_w = ImGui::CalcTextSize(label).x;
-	float margin = ImGui::GetStyle().WindowPadding.x;
-	ImGui::SetCursorPosX(ImGui::GetWindowWidth() - margin - text_w);
-	ImGui::TextDisabled("%s", label);
+	if (hash) {
+		float text_w = ImGui::CalcTextSize(label).x;
+		float margin = ImGui::GetStyle().WindowPadding.x;
+		ImGui::SetCursorPosX(ImGui::GetWindowWidth() - margin - text_w);
+		ImGui::TextDisabled("%s", label);
+	}
 }
 
 static void show_celebration(void)
@@ -775,101 +847,226 @@ static void show_celebration(void)
 	dl->AddText(ImGui::GetFont(), font_size, pos, col, buf);
 }
 
-static void gui_main(void)
+// ── Top bar: full window width; stats bars left, [R]eload + X right ──────────
+
+static void show_top_bar(void)
 {
-	ImGuiIO &io = ImGui::GetIO();
-	float display_w = io.DisplaySize.x;
-
-	// Center content using the previous-frame image width as column width.
-	float content_w =
-	    (state.image_width > 0) ? (float)state.image_width : display_w;
-	float offset_x = (content_w < display_w)
-			      ? floorf((display_w - content_w) * 0.5f)
-			      : 0.0f;
-	if (offset_x > 0.0f)
-		ImGui::SetCursorPosX(offset_x);
-
-	ImGui::BeginChild("##content", ImVec2(content_w, 0), false,
-			  ImGuiWindowFlags_NoScrollbar |
-			      ImGuiWindowFlags_NoScrollWithMouse);
-
-	// ── Row 1: stats bars (left) + buttons (right)
-	// ───────────────────────────────────────────────
 	show_stats_bar();
 
-	// Right-align the controls so X's right edge meets the image right edge,
-	// falling back to just after the stats bar if the image is too narrow.
-	// Order: [BPM±] [K]araoke [R]eload X
 	ImGuiStyle &style = ImGui::GetStyle();
-	float sp = style.ItemSpacing.x;
-	float fp = style.FramePadding.x;
-	float bpm_text_w = ImGui::CalcTextSize("9999").x + fp * 2;
-	float bpm_step_w = ImGui::GetFrameHeight();
-	float bpm_total_w = bpm_text_w + bpm_step_w * 2;
-	float karaoke_w = ImGui::CalcTextSize("[K]araoke").x + fp * 2;
-	float reload_w = ImGui::CalcTextSize("[R]eload").x + fp * 2;
-	float x_w = ImGui::CalcTextSize("X").x + fp * 2;
-	float total_btn_w = bpm_total_w + sp + karaoke_w + sp + reload_w + sp + x_w;
-	float image_right_x = ImGui::GetWindowContentRegionMin().x +
-			      (float)state.image_width;
-	float ideal_x = image_right_x - total_btn_w;
+	float fp       = style.FramePadding.x;
+	float sp       = style.ItemSpacing.x;
+	float reload_w = ImGui::CalcTextSize("[R]eload").x + fp * 2.0f;
+	float x_w      = ImGui::CalcTextSize("X").x       + fp * 2.0f;
+	float btns_w   = reload_w + sp + x_w;
+	float right_x  = ImGui::GetWindowWidth() - style.WindowPadding.x - btns_w;
 	ImGui::SameLine();
-	float after_bars_x = ImGui::GetCursorPosX();
-	ImGui::SetCursorPosX((ideal_x > after_bars_x) ? ideal_x : after_bars_x);
+	float after_x  = ImGui::GetCursorPosX();
+	ImGui::SetCursorPosX(right_x > after_x ? right_x : after_x);
 
-	// BPM spinbox: text field wide enough for 3 digits with ±1/±10 step buttons
+	if (ImGui::Button("[R]eload"))
+		reload_lesson();
+	ImGui::SameLine();
+	if (ImGui::Button("X"))
+		quit_lesson();
+}
+
+// ── Skill mastery bar row ─────────────────────────────────────────────────────
+
+static void show_skill_bar(void)
+{
+	if (state.num_skills == 0)
+		return;
+
+	float thresh = state.status.mastery_thresh;
+	float bar_h  = ImGui::GetFrameHeight() * 0.75f;
+	float bar_w  = 60.0f;
+
+	for (int i = 0; i < state.num_skills; i++) {
+		if (i > 0)
+			ImGui::SameLine();
+		float m    = state.skill_stats[i].mastery;
+		float frac = fminf(m / 100.0f, 1.0f);
+		bool  ok   = (m >= thresh);
+		ImGui::PushStyleColor(ImGuiCol_PlotHistogram,
+		    ok ? ImVec4(0.2f, 0.8f, 0.3f, 1.0f)
+		       : ImVec4(0.8f, 0.5f, 0.1f, 1.0f));
+		ImGui::ProgressBar(frac, ImVec2(bar_w, bar_h),
+				   state.skill_stats[i].name);
+		ImGui::PopStyleColor();
+	}
+}
+
+// ── Bottom bar: full window width, mirrors web-app ────────────────────────────
+
+static void show_bottom_bar(void)
+{
+	float fp = ImGui::GetStyle().FramePadding.x;
+
+	// MIDI section label (clickable: refreshes device list)
+	if (ImGui::SmallButton("MIDI")) {
+		printf("MIDI DEVICES\n");
+		fflush(stdout);
+	}
+	if (ImGui::IsItemHovered())
+		ImGui::SetTooltip("Refresh MIDI devices");
+
+	// MIDI IN dropdown
+	ImGui::SameLine();
+	ImGui::Text("in");
+	ImGui::SameLine();
+	ImGui::SetNextItemWidth(150.0f);
+	{
+		const char *lbl = (state.midi_in >= 0 &&
+				   state.midi_in < state.midi_count)
+				      ? state.midi_names[state.midi_in]
+				      : "--";
+		if (ImGui::BeginCombo("##midiin", lbl)) {
+			for (int i = 0; i < state.midi_count; i++) {
+				bool sel = (state.midi_in == i);
+				if (ImGui::Selectable(state.midi_names[i], sel)) {
+					state.midi_in = i;
+					printf("MIDI IN %d\n", i);
+					fflush(stdout);
+				}
+				if (sel)
+					ImGui::SetItemDefaultFocus();
+			}
+			ImGui::EndCombo();
+		}
+	}
+
+	// MIDI OUT dropdown
+	ImGui::SameLine();
+	ImGui::Text("out");
+	ImGui::SameLine();
+	ImGui::SetNextItemWidth(150.0f);
+	{
+		const char *lbl = (state.midi_out >= 0 &&
+				   state.midi_out < state.midi_count)
+				      ? state.midi_names[state.midi_out]
+				      : "--";
+		if (ImGui::BeginCombo("##midiout", lbl)) {
+			for (int i = 0; i < state.midi_count; i++) {
+				bool sel = (state.midi_out == i);
+				if (ImGui::Selectable(state.midi_names[i], sel)) {
+					state.midi_out = i;
+					printf("MIDI OUT %d\n", i);
+					fflush(stdout);
+				}
+				if (sel)
+					ImGui::SetItemDefaultFocus();
+			}
+			ImGui::EndCombo();
+		}
+	}
+
+	// Forward toggle
+	ImGui::SameLine();
+	bool fwd = state.midi_fwd;
+	if (ImGui::Checkbox("fwd", &fwd)) {
+		state.midi_fwd = fwd;
+		printf("MIDI FORWARD %s\n", fwd ? "ON" : "OFF");
+		fflush(stdout);
+	}
+
+	// Synth volume slider (0 = off)
+	ImGui::SameLine();
+	ImGui::Text("synth");
+	ImGui::SameLine();
+	ImGui::SetNextItemWidth(80.0f);
+	if (ImGui::SliderFloat("##svol", &state.synth_vol, 0.0f, 1.0f, "")) {
+		printf("SET VOLUME %.3f\n", state.synth_vol);
+		fflush(stdout);
+	}
+	if (ImGui::IsItemHovered())
+		ImGui::SetTooltip("Synth volume (0 = off)");
+
+	// BPM: -- [field] ++ (step 5, matching web app)
+	ImGui::SameLine();
+	if (ImGui::Button("--")) {
+		state.bpm = fmaxf(1.0f, state.bpm - 5.0f);
+		printf("BPM %.2f\n", state.bpm);
+		fflush(stdout);
+	}
+	ImGui::SameLine(0, 2.0f);
 	int bpm_int = (int)(state.bpm + 0.5f);
-	ImGui::SetNextItemWidth(bpm_total_w);
-	if (ImGui::InputInt("##bpm", &bpm_int, 1, 10)) {
-		if (bpm_int < 1)
-			bpm_int = 1;
-		if (bpm_int > 999)
-			bpm_int = 999;
+	ImGui::SetNextItemWidth(ImGui::CalcTextSize("9999").x + fp * 2.0f);
+	if (ImGui::InputInt("##bpm", &bpm_int, 0, 0)) {
+		bpm_int   = (bpm_int < 1) ? 1 : (bpm_int > 999) ? 999 : bpm_int;
 		state.bpm = (float)bpm_int;
 		printf("BPM %.2f\n", state.bpm);
 		fflush(stdout);
 	}
+	ImGui::SameLine(0, 2.0f);
+	if (ImGui::Button("++")) {
+		state.bpm = fminf(999.0f, state.bpm + 5.0f);
+		printf("BPM %.2f\n", state.bpm);
+		fflush(stdout);
+	}
 
+	// Karaoke toggle
 	ImGui::SameLine();
-	bool karaoke_was_on = state.karaoke_on;
-	if (karaoke_was_on)
+	if (state.karaoke_on)
 		ImGui::PushStyleColor(ImGuiCol_Button,
 				      ImVec4(0.0f, 0.7f, 0.2f, 1.0f));
 	if (ImGui::Button("[K]araoke"))
 		toggle_karaoke();
-	if (karaoke_was_on)
+	if (state.karaoke_on)
 		ImGui::PopStyleColor();
+}
 
-	ImGui::SameLine();
-	if (ImGui::Button("[R]eload"))
-		reload_lesson();
+static void gui_main(void)
+{
+	ImGuiIO &io  = ImGui::GetIO();
+	float disp_w = io.DisplaySize.x;
+	float disp_h = io.DisplaySize.y;
 
-	ImGui::SameLine();
-	if (ImGui::Button("X"))
-		quit_lesson();
+	// ── Top bar (full width) ─────────────────────────────────────────────────
+	show_top_bar();
 
-	// ── Content
-	// ───────────────────────────────────────────────────────────
+	// ── Reserve bottom rows: skill bar (optional) + info line + bottom bar ───
+	float text_h  = ImGui::GetTextLineHeightWithSpacing();
+	float frame_h = ImGui::GetFrameHeightWithSpacing();
+	float skill_h = (state.num_skills > 0)
+	    ? (ImGui::GetFrameHeight() * 0.75f +
+	       ImGui::GetStyle().ItemSpacing.y)
+	    : 0.0f;
+	float bottom_reserved = skill_h + text_h + frame_h;
+
+	// ── Centered content child ───────────────────────────────────────────────
+	float top_used  = ImGui::GetCursorPosY();
+	float content_h = disp_h - top_used - bottom_reserved;
+	float content_w = (state.image_width > 0) ? (float)state.image_width
+						   : disp_w;
+	float offset_x  = (content_w < disp_w)
+			       ? floorf((disp_w - content_w) * 0.5f)
+			       : 0.0f;
+	if (offset_x > 0.0f)
+		ImGui::SetCursorPosX(offset_x);
+
+	ImGui::BeginChild(
+	    "##content",
+	    ImVec2(content_w, content_h > 4.0f ? content_h : 4.0f), false,
+	    ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse);
 	show_music();
 	show_squares();
-
 	if (state.explanation[0] != '\0')
 		ImGui::TextUnformatted(state.explanation);
+	ImGui::EndChild();
 
-	// ── Push info line to bottom
-	// ──────────────────────────────────────────
-	float line_h = ImGui::GetTextLineHeightWithSpacing();
-	float pad_y = ImGui::GetStyle().WindowPadding.y;
-	float win_bottom =
-	    ImGui::GetWindowPos().y + ImGui::GetWindowSize().y - pad_y;
-	float cursor_y = ImGui::GetCursorScreenPos().y;
-	float remaining = win_bottom - cursor_y - line_h;
-	if (remaining > 0.0f)
-		ImGui::Dummy(ImVec2(0.0f, remaining));
+	// Reset to left edge for full-width bottom rows
+	ImGui::SetCursorPosX(ImGui::GetStyle().WindowPadding.x);
 
+	// ── Skill mastery bar row ────────────────────────────────────────────────
+	show_skill_bar();
+
+	// ── Info line: yellow suggestion (left) + chunk hash (right) ────────────
+	ImGui::SetCursorPosX(ImGui::GetStyle().WindowPadding.x);
 	show_info_line();
 
-	ImGui::EndChild();
+	// ── Bottom bar ───────────────────────────────────────────────────────────
+	show_bottom_bar();
 
 	show_celebration();
 	check_new_day();

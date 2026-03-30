@@ -527,6 +527,44 @@ local children_of = {} -- [hash] = {child_hash, ...} built from CHILDREN respons
 local pending_child_queries = 0 -- outstanding startup QUERY_CHILDREN from ALL_SCANNED
 local all_scanned_received = false
 
+-- Emit one SKILL_STATS line per skill in skill_order showing aggregate mastery.
+-- For each skill, averages the normalised max(mastery, t_mastery) across all
+-- chunks that contain that skill.  Result is in [0, 100].
+local function emit_skill_stats(stats)
+	local alg = stats.algorithm
+	local order = alg.skill_order or ""
+	local skills = {}
+	for sk in order:gmatch("%S+") do
+		skills[#skills + 1] = sk
+	end
+	if #skills == 0 then return end
+
+	local sum   = {} -- skill -> sum of normalised mastery
+	local count = {} -- skill -> number of chunks contributing
+	for _, sk in ipairs(skills) do
+		sum[sk]   = 0
+		count[sk] = 0
+	end
+
+	for hash, c in pairs(stats.chunks) do
+		local sk_str = chunk_skills[hash] or (c.skills or "")
+		if sk_str ~= "" then
+			local m = normalize(math.max(c.mastery or 0, c.t_mastery or 0), c)
+			for _, sk in ipairs(skills) do
+				if (" " .. sk_str .. " "):find(" " .. sk .. " ", 1, true) then
+					sum[sk]   = sum[sk]   + m
+					count[sk] = count[sk] + 1
+				end
+			end
+		end
+	end
+
+	for _, sk in ipairs(skills) do
+		local m = count[sk] > 0 and (sum[sk] / count[sk]) or 0
+		io.write(string.format("SKILL_STATS skill=%s mastery=%.2f\n", sk, m))
+	end
+end
+
 -------------------------------------------------------------------------------
 -- COMMAND HANDLERS
 -------------------------------------------------------------------------------
@@ -732,6 +770,7 @@ local function finalize(stats)
 			suggestion and (" suggestion=" .. suggestion) or ""
 		)
 	)
+	emit_skill_stats(stats)
 	local saved_results = current.results
 	local saved_max_bass_id = current.max_bass_id
 	current = nil
@@ -807,6 +846,7 @@ for line in io.lines() do
 			current_loaded = h
 			local stats = load_stats(stats_file)
 			print_stats_line(stats, nil, current_loaded)
+			emit_skill_stats(stats)
 		end
 
 	-- LESSON: new session starting; finalise any abandoned in-progress session
@@ -977,6 +1017,7 @@ for line in io.lines() do
 	elseif line:match("^QUERY_STATS") then
 		local stats = load_stats(stats_file)
 		print_stats_line(stats, nil, current_loaded)
+		emit_skill_stats(stats)
 	elseif line:match("^SUGGEST_LESSON") then
 		-- Defer until ALL_SCANNED received and children_of map is fully built.
 		if all_scanned_received and pending_child_queries == 0 then
