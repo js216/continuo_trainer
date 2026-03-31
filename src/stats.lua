@@ -1335,6 +1335,43 @@ for line in io.lines() do
 		beat_timestamps = {}
 		perf_aborted = false
 
+	-- QUERY_ALG: emit all algorithm parameters as key=value pairs
+	elseif line:match("^QUERY_ALG") then
+		local stats = load_stats(stats_file)
+		local parts = {}
+		local keys = {}
+		for k in pairs(stats.algorithm) do keys[#keys + 1] = k end
+		table.sort(keys)
+		for _, k in ipairs(keys) do
+			local v = stats.algorithm[k]
+			if type(v) == "number" then
+				parts[#parts + 1] = string.format("%s=%.6g", k, v)
+			elseif type(v) == "string" then
+				parts[#parts + 1] = string.format("%s=%s", k, v)
+			end
+		end
+		io.write("ALG_PARAMS " .. table.concat(parts, "\t") .. "\n")
+
+	-- SET_ALG <key> <value>: update a single algorithm parameter
+	elseif line:match("^SET_ALG ") then
+		local k, v_str = line:match("^SET_ALG (%S+) (.+)$")
+		if k and v_str then
+			local stats = load_stats(stats_file)
+			local old = stats.algorithm[k]
+			if old ~= nil then
+				if type(old) == "number" then
+					local n = tonumber(v_str)
+					if n then
+						stats.algorithm[k] = n
+						save_stats(stats_file, stats)
+					end
+				elseif type(old) == "string" then
+					stats.algorithm[k] = v_str
+					save_stats(stats_file, stats)
+				end
+			end
+		end
+
 	-- GUI commands
 	elseif line:match("^QUERY_STATS") then
 		local stats = load_stats(stats_file)

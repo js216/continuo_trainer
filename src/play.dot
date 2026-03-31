@@ -19,6 +19,7 @@ lua src/all.lua -> bin/gui;
 lua src/rules.lua -> bin/gui;
 lua src/stats.lua log/stats.log -> bin/gui;
 bin/gui -> lua src/stats.lua log/stats.log;  // SUGGEST_LESSON, QUERY_STATS, MODE, KARAOKE_ABORT
+bin/gui -> bin/group;                       // MUTE/UNMUTE (settings screen)
 bin/gui -> lua src/all.lua;
 lua src/stats.lua log/stats.log -> lua src/all.lua;
 bin/gui -> bin/karaoke;

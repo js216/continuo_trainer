@@ -422,6 +422,7 @@ fn parse_lesson_key(line: &str) -> Option<String> {
 fn main() {
     let stdin = io::stdin();
     let mut group = Group::default();
+    let mut muted = false;
 
     for raw_line in stdin.lock().lines() {
         let line = match raw_line {
@@ -449,13 +450,17 @@ fn main() {
             if let Some((id, melody)) = parse_melody(line) {
                 group.set_melody(id, &melody);
             }
-        } else if line.starts_with("NOTE_ON ") {
+        } else if line == "MUTE" {
+            muted = true;
+        } else if line == "UNMUTE" {
+            muted = false;
+        } else if !muted && line.starts_with("NOTE_ON ") {
             if let Some((midi, time)) = parse_note_on(line) {
                 if let Some(output) = group.note_on(midi, time) {
                     println!("{}", output);
                 }
             }
-        } else if line.starts_with("NOTE_OFF ") {
+        } else if !muted && line.starts_with("NOTE_OFF ") {
             if let Some(midi) = parse_note_off(line) {
                 if let Some(output) = group.note_off(midi) {
                     println!("{}", output);
