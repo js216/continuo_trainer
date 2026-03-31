@@ -136,6 +136,29 @@ struct state {
 	int num_skills = 0;
 } state;
 
+#define GUI_SETTINGS_PATH "log/gui_settings.log"
+
+static void save_gui_settings(void)
+{
+	FILE *f = fopen(GUI_SETTINGS_PATH, "w");
+	if (!f) return;
+	fprintf(f, "VOLUME %.3f\n", state.synth_vol);
+	fclose(f);
+}
+
+static void load_gui_settings(void)
+{
+	FILE *f = fopen(GUI_SETTINGS_PATH, "r");
+	if (!f) return;
+	char line[64];
+	while (fgets(line, sizeof(line), f)) {
+		float v;
+		if (sscanf(line, "VOLUME %f", &v) == 1)
+			state.synth_vol = v;
+	}
+	fclose(f);
+}
+
 static void clear_status(void)
 {
 	state.num_squares = 0;
@@ -469,6 +492,10 @@ static void parse_line(const char *buf)
 			if (strcmp(state.midi_names[i], nm) == 0) { state.midi_out = i; break; }
 		return;
 	}
+	if (strncmp(buf, "STATUS MIDI forward: ", 21) == 0) {
+		state.midi_fwd = (strncmp(buf + 21, "ON", 2) == 0);
+		return;
+	}
 	// SKILL_STATS skill=<name> mastery=<n>  (one line per skill, from stats.lua)
 	if (strncmp(buf, "SKILL_STATS ", 12) == 0) {
 		char sk[32] = ""; float m = 0.0f;
@@ -713,6 +740,9 @@ static void show_stats_bar(void)
 	float bar_w = 70.0f;
 	float bar_h = ImGui::GetFrameHeight();
 
+	// Desaturated background for non-interactive progress bars
+	ImGui::PushStyleColor(ImGuiCol_FrameBg, ImVec4(0.25f, 0.25f, 0.25f, 1.0f));
+
 	// Mastery bar: green if at/above thresh, amber otherwise
 	char m_label[16];
 	snprintf(m_label, sizeof(m_label), "M %.1f", s.mastery);
@@ -753,6 +783,9 @@ static void show_stats_bar(void)
 	ImGui::PopStyleColor();
 	if (ImGui::IsItemHovered())
 		ImGui::SetTooltip("Daily score (goal: %.0f pts)", s.goal);
+
+	ImGui::PopStyleColor(); // FrameBg
+
 	if (s.goal_met && s.streak > 0) {
 		char streak_buf[32];
 		snprintf(streak_buf, sizeof(streak_buf), "Streak: %d",
@@ -895,6 +928,7 @@ static void show_skill_bar(float row_w, float row_x)
 	float bar_w = (row_w - total_spacing) / (float)ns;
 	if (bar_w < 20.0f) bar_w = 20.0f;
 
+	ImGui::PushStyleColor(ImGuiCol_FrameBg, ImVec4(0.25f, 0.25f, 0.25f, 1.0f));
 	ImGui::SetCursorPosX(row_x);
 	for (int i = 0; i < ns; i++) {
 		if (i > 0) ImGui::SameLine();
@@ -910,6 +944,7 @@ static void show_skill_bar(float row_w, float row_x)
 		ImGui::PopID();
 		ImGui::PopStyleColor();
 	}
+	ImGui::PopStyleColor(); // FrameBg
 }
 
 // ── Compute the natural width of the bottom bar content ──────────────────────
@@ -970,11 +1005,13 @@ static void show_bottom_bar(float row_w, float row_x)
 
 	ImGui::SetCursorPosX(row_x);
 
-	// MIDI button
+	// MIDI button (no nav focus — avoid stealing spacebar from key_callback)
+	ImGui::PushItemFlag(ImGuiItemFlags_NoNav, true);
 	if (ImGui::Button("MIDI")) {
 		printf("MIDI DEVICES\n");
 		fflush(stdout);
 	}
+	ImGui::PopItemFlag();
 	if (ImGui::IsItemHovered())
 		ImGui::SetTooltip("Refresh MIDI devices");
 
@@ -1051,6 +1088,7 @@ static void show_bottom_bar(float row_w, float row_x)
 	if (ImGui::SliderFloat("##svol", &state.synth_vol, 0.0f, 1.0f, "")) {
 		printf("SET VOLUME %.3f\n", state.synth_vol);
 		fflush(stdout);
+		save_gui_settings();
 	}
 	if (ImGui::IsItemHovered())
 		ImGui::SetTooltip("Synth volume (0 = off)");
@@ -1080,12 +1118,13 @@ static void show_bottom_bar(float row_w, float row_x)
 
 	// Karaoke toggle
 	ImGui::SameLine();
-	if (state.karaoke_on)
+	bool kar_on = state.karaoke_on;
+	if (kar_on)
 		ImGui::PushStyleColor(ImGuiCol_Button,
 				      ImVec4(0.0f, 0.7f, 0.2f, 1.0f));
 	if (ImGui::Button("[K]araoke"))
 		toggle_karaoke();
-	if (state.karaoke_on)
+	if (kar_on)
 		ImGui::PopStyleColor();
 }
 
@@ -1202,6 +1241,13 @@ int main(int, char **)
 	// Non-blocking stdin
 	fcntl(STDIN_FILENO, F_SETFL, fcntl(STDIN_FILENO, F_GETFL) | O_NONBLOCK);
 
+	// Restore saved settings and emit initial volume to synth
+	load_gui_settings();
+	printf("SET VOLUME %.3f\n", state.synth_vol);
+
+	// Request MIDI device list so dropdowns are populated on startup
+	printf("MIDI DEVICES\n");
+
 	// Request the first suggestion immediately; stats.lua is ready at
 	// startup.
 	printf("SUGGEST_LESSON\n");
@@ -1225,6 +1271,7 @@ int main(int, char **)
 			char buf[MAX_LEN];
 			while (fgets(buf, sizeof(buf), stdin))
 				parse_line(buf);
+			clearerr(stdin); // reset EOF/error from EAGAIN on non-blocking fd
 		}
 
 		// Start the Dear ImGui frame

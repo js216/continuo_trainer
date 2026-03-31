@@ -451,6 +451,7 @@ static void refresh_devices(State *s)
 	}
 
 	out_devices(s);
+	out_status("MIDI forward: %s", s->forward ? "ON" : "OFF");
 }
 
 static void open_midi_in(State *s, int idx)
@@ -697,6 +698,7 @@ int main(void)
 	refresh_devices(&s);
 	load_log(&s);
 	restore_from_log(&s);
+	out_status("MIDI forward: %s", s.forward ? "ON" : "OFF");
 
 	struct pollfd fds[2];
 	fds[0].fd = STDIN_FILENO;

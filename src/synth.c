@@ -238,7 +238,7 @@ int main(void)
 	char line[256];
 	while (fgets(line, sizeof(line), stdin)) {
 		char cmd[32], arg1[32], arg2[32];
-		int count = sscanf(line, "%s %s %s", cmd, arg1, arg2);
+		int count = sscanf(line, "%31s %31s %31s", cmd, arg1, arg2);
 		if (count < 2)
 			continue;
 

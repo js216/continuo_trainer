@@ -5,7 +5,7 @@
 // main app logic
 lua src/all.lua   -> bin/group;
 bin/midi          -> bin/group;
-//bin/midi          -> bin/synth;
+bin/midi          -> bin/synth;
 bin/group         -> lua src/rules.lua;
 lua src/rules.lua -> lua src/stats.lua log/stats.log;
 lua src/all.lua   -> lua src/stats.lua log/stats.log;
@@ -21,6 +21,8 @@ bin/gui -> lua src/stats.lua log/stats.log;
 bin/gui -> lua src/all.lua;
 lua src/stats.lua log/stats.log -> lua src/all.lua;
 bin/gui -> bin/karaoke;
+bin/gui -> bin/midi;
+bin/midi -> bin/gui;
 bin/karaoke -> bin/gui;
 
 // logging
@@ -31,9 +33,9 @@ lua src/rules.lua -> tee -a log/rules.log;
 bin/gui           -> tee -a log/gui.log;
 
 // debug prints
-//bin/midi -> STDOUT;
+bin/midi -> STDOUT;
 //lua src/all.lua -> STDOUT;
 //bin/group -> STDOUT;
 //lua src/rules.lua -> STDOUT;
-lua src/stats.lua log/stats.log -> STDOUT;
+//lua src/stats.lua log/stats.log -> STDOUT;
 //bin/gui -> STDOUT;
