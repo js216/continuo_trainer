@@ -469,7 +469,7 @@ static void parse_line(const char *buf)
 	if (strncmp(buf, "DEVICE_AVAIL ", 13) == 0) {
 		int n;
 		char name[128] = "";
-		if (sscanf(buf + 13, "%d %127[^\n]", &n, name) >= 1 &&
+		if (sscanf(buf + 13, "%d %127[^\r\n]", &n, name) >= 1 &&
 		    n >= 0 && n < 32) {
 			if (n == 0) state.midi_count = 0; // reset on rescan
 			if (n >= state.midi_count) state.midi_count = n + 1;
