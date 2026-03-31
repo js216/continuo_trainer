@@ -100,6 +100,40 @@ local ALGORITHM_DEFAULTS = {
 	chunk_mastery_thresh = 80, -- normalised % below which a chunk needs practice
 	chunk_power_thresh = 70, -- normalised % below which a chunk needs practice
 	midnight_time = 0, -- hour (UTC) at which the practice day resets (0 = midnight)
+
+	-- EMA tracking for graduation criteria
+	ema_evenness_alpha = 0.18, -- same window as ema_bpm (~10 attempts)
+
+	-- Practice badges (sequential: P -> S -> E)
+	badge_power_thresh = 40, -- power % to earn P badge
+	badge_speed_thresh = 60, -- ema_bpm to earn S badge (after P)
+	badge_evenness_thresh = 0.80, -- ema_evenness to earn E badge (after S)
+
+	-- Performance badges (sequential: P' -> S' -> E', higher bar)
+	perf_badge_power_thresh = 60, -- power % to earn perf P badge
+	perf_badge_speed_thresh = 120, -- ema perf BPM to earn perf S badge
+	perf_badge_evenness_thresh = 0.85, -- ema perf evenness to earn perf E badge
+
+	-- Badge bonus points
+	badge_power_bonus = 25, -- points awarded on earning P / P'
+	badge_speed_bonus = 25, -- points awarded on earning S / S'
+	badge_evenness_bonus = 25, -- points awarded on earning E / E'
+	badge_graduate_bonus = 50, -- extra points on completing practice set
+	badge_mastered_bonus = 100, -- extra points on completing all 6 badges
+
+	-- Performance-mode BPM schedule
+	perf_bpm_discount = 0.75, -- initial perf BPM = ema_bpm * this
+	perf_bpm_increment = 2, -- BPM added after each successful attempt
+	perf_bpm_max = 160, -- absolute BPM ceiling
+
+	-- Performance-mode fail-out thresholds
+	perf_fail_accuracy = 70, -- timing accuracy % below which attempt fails
+	perf_fail_timing_tol = 0.20, -- max |actual-expected|/expected per beat
+	perf_fail_streak = 3, -- consecutive fails to suggest practice
+
+	-- Interleaved practice (anti-blocked-practice)
+	rotation_pool_size = 5, -- keep this many chunks in active rotation
+	min_away = 2, -- min attempts on other chunks before returning
 }
 
 local stats_file = arg[1]
@@ -379,6 +413,10 @@ local function update_entry(entry, sd, alg)
 		evenness_factor = 1.0
 	end
 
+	-- Update EMA evenness (used for badge progression)
+	entry.ema_evenness = alg.ema_evenness_alpha * evenness_factor
+		+ (1 - alg.ema_evenness_alpha) * (entry.ema_evenness or evenness_factor)
+
 	local quality = entry.ema_pass * speed_factor * evenness_factor
 
 	-- Mastery
@@ -522,6 +560,11 @@ local chunk_skills = {} -- { [hash] = skills_str }  populated from CHUNK_NAME li
 local scanned_chunks = {} -- chunks announced via CHUNK_NAME this session
 local current = nil -- { id, max_bass_id, results={[i]={status,time}} }
 local current_loaded = nil -- hash most recently loaded via LOAD_CHUNK
+local current_mode = "practice" -- "practice" or "performance"; set by MODE command
+local rotation_pool = {} -- ordered list of chunk hashes in active rotation
+local attempts_since = {} -- { [hash] = count } attempts on other chunks since last played
+local beat_timestamps = {} -- { [beat_number] = timestamp_ms } from karaoke BEAT messages
+local perf_aborted = false -- true if current performance attempt was aborted
 local pending_children = {} -- [hash] = {results, abs_s, abs_e}; awaiting CHILDREN response
 local children_of = {} -- [hash] = {child_hash, ...} built from CHILDREN responses
 local pending_child_queries = 0 -- outstanding startup QUERY_CHILDREN from ALL_SCANNED
@@ -663,6 +706,105 @@ local function handle_suggest(stats)
 end
 
 -------------------------------------------------------------------------------
+-- BADGE PROGRESSION
+-------------------------------------------------------------------------------
+
+-- Check and award badges for a chunk after an attempt.
+-- mode: "practice" or "performance"
+-- Returns total bonus points earned this check.
+local function check_badges(c, alg, mode)
+	local bonus = 0
+
+	if mode == "practice" then
+		local power_pct = normalize(calculate_power(c, alg), c)
+		-- P badge: power threshold
+		if not c.badge_p and power_pct >= alg.badge_power_thresh then
+			c.badge_p = true
+			bonus = bonus + alg.badge_power_bonus
+			io.write(string.format("BADGE P %d\n", alg.badge_power_bonus))
+		end
+		-- S badge: ema_bpm threshold (requires P)
+		if c.badge_p and not c.badge_s and (c.ema_bpm or 0) >= alg.badge_speed_thresh then
+			c.badge_s = true
+			bonus = bonus + alg.badge_speed_bonus
+			io.write(string.format("BADGE S %d\n", alg.badge_speed_bonus))
+		end
+		-- E badge: ema_evenness threshold (requires S)
+		if c.badge_s and not c.badge_e and (c.ema_evenness or 0) >= alg.badge_evenness_thresh then
+			c.badge_e = true
+			bonus = bonus + alg.badge_evenness_bonus
+			io.write(string.format("BADGE E %d\n", alg.badge_evenness_bonus))
+		end
+		-- All three practice badges: graduate bonus
+		if c.badge_p and c.badge_s and c.badge_e and not c.badge_graduated then
+			c.badge_graduated = true
+			bonus = bonus + alg.badge_graduate_bonus
+			io.write(string.format("BADGE READY %d\n", alg.badge_graduate_bonus))
+			io.write("MODE_SUGGEST performance\n")
+		end
+	elseif mode == "performance" then
+		local power_pct = normalize(calculate_power(c, alg), c)
+		-- P' badge: perf power threshold
+		if not c.perf_badge_p and power_pct >= alg.perf_badge_power_thresh then
+			c.perf_badge_p = true
+			bonus = bonus + alg.badge_power_bonus
+			io.write(string.format("BADGE PP %d\n", alg.badge_power_bonus))
+		end
+		-- S' badge: perf_ema_bpm threshold (requires P')
+		if c.perf_badge_p and not c.perf_badge_s and (c.perf_ema_bpm or 0) >= alg.perf_badge_speed_thresh then
+			c.perf_badge_s = true
+			bonus = bonus + alg.badge_speed_bonus
+			io.write(string.format("BADGE PS %d\n", alg.badge_speed_bonus))
+		end
+		-- E' badge: perf_ema_evenness threshold (requires S')
+		if c.perf_badge_s and not c.perf_badge_e and (c.perf_ema_evenness or 0) >= alg.perf_badge_evenness_thresh then
+			c.perf_badge_e = true
+			bonus = bonus + alg.badge_evenness_bonus
+			io.write(string.format("BADGE PE %d\n", alg.badge_evenness_bonus))
+		end
+		-- All six badges: mastered bonus
+		if c.badge_p and c.badge_s and c.badge_e
+			and c.perf_badge_p and c.perf_badge_s and c.perf_badge_e
+			and not c.badge_mastered then
+			c.badge_mastered = true
+			bonus = bonus + alg.badge_mastered_bonus
+			io.write(string.format("BADGE MASTERED %d\n", alg.badge_mastered_bonus))
+		end
+	end
+
+	return bonus
+end
+
+-- Compute badge progress for the next unearned badge.
+-- Returns tag, current, target (or nil if all earned).
+local function badge_progress(c, alg, mode)
+	if mode == "practice" then
+		if not c.badge_p then
+			local power_pct = normalize(calculate_power(c, alg), c)
+			return "P", power_pct, alg.badge_power_thresh
+		end
+		if not c.badge_s then
+			return "S", c.ema_bpm or 0, alg.badge_speed_thresh
+		end
+		if not c.badge_e then
+			return "E", c.ema_evenness or 0, alg.badge_evenness_thresh
+		end
+	elseif mode == "performance" then
+		if not c.perf_badge_p then
+			local power_pct = normalize(calculate_power(c, alg), c)
+			return "PP", power_pct, alg.perf_badge_power_thresh
+		end
+		if not c.perf_badge_s then
+			return "PS", c.perf_ema_bpm or 0, alg.perf_badge_speed_thresh
+		end
+		if not c.perf_badge_e then
+			return "PE", c.perf_ema_evenness or 0, alg.perf_badge_evenness_thresh
+		end
+	end
+	return nil
+end
+
+-------------------------------------------------------------------------------
 -- LESSON FINALISATION
 -------------------------------------------------------------------------------
 
@@ -738,6 +880,12 @@ local function finalize(stats)
 	stats.chunks[hash] = c
 	local points = normalize(res.m_delta, c) * alg.mastery_points_per_pct
 		+ normalize(res.p_delta, c) * alg.power_points_per_pct
+	-- Badge progression (practice mode only here; performance mode uses perf scoring)
+	local badge_pts = 0
+	if current_mode == "practice" then
+		badge_pts = check_badges(c, alg, "practice")
+		points = points + badge_pts
+	end
 	stats.daily[today] = stats.daily[today] or { score = 0, duration = 0 }
 	stats.daily[today].score = stats.daily[today].score + points
 	stats.daily[today].duration = stats.daily[today].duration + sd.duration
@@ -745,13 +893,48 @@ local function finalize(stats)
 	local power = calculate_power(c, alg)
 	local d = stats.daily[today]
 	local streak = calculate_streak(stats)
+	-- Interleaved practice: track attempts on other chunks and rotation pool
+	for h, _ in pairs(attempts_since) do
+		if h ~= hash then
+			attempts_since[h] = (attempts_since[h] or 0) + 1
+		end
+	end
+	attempts_since[hash] = 0
+
 	local ema = c.ema_pass or 1.0
 	local required = alg.overlearn_min + (alg.overlearn_max - alg.overlearn_min) * (1.0 - ema)
 	local suggestion = nil
 	if c.n_consecutive >= required then
-		local best = suggest_best_hash(stats)
-		if best and best ~= hash then
+		-- Pick from rotation pool: find a chunk with enough min_away distance
+		local interleave_hash = nil
+		for _, rh in ipairs(rotation_pool) do
+			if rh ~= hash and (attempts_since[rh] or alg.min_away) >= alg.min_away then
+				interleave_hash = rh
+				break
+			end
+		end
+		-- Refill pool from suggest_best_hash if needed
+		if not interleave_hash then
+			local best = suggest_best_hash(stats)
+			if best and best ~= hash then
+				interleave_hash = best
+				-- Add to rotation pool if not already there
+				local in_pool = false
+				for _, rh in ipairs(rotation_pool) do
+					if rh == best then in_pool = true; break end
+				end
+				if not in_pool then
+					rotation_pool[#rotation_pool + 1] = best
+					-- Trim pool to rotation_pool_size
+					while #rotation_pool > alg.rotation_pool_size do
+						table.remove(rotation_pool, 1)
+					end
+				end
+			end
+		end
+		if interleave_hash then
 			suggestion = "try_another_lesson"
+			io.write(string.format("INTERLEAVE %s\n", interleave_hash))
 		end
 	end
 	io.write(
@@ -851,6 +1034,22 @@ for line in io.lines() do
 			local stats = load_stats(stats_file)
 			print_stats_line(stats, nil, current_loaded)
 			emit_skill_stats(stats)
+			-- Emit persisted badge state so GUI can reconstruct on chunk load
+			local c = stats.chunks[h]
+			if c then
+				if c.badge_p then io.write("BADGE P 0\n") end
+				if c.badge_s then io.write("BADGE S 0\n") end
+				if c.badge_e then io.write("BADGE E 0\n") end
+				if c.badge_graduated then io.write("BADGE READY 0\n") end
+				if c.perf_badge_p then io.write("BADGE PP 0\n") end
+				if c.perf_badge_s then io.write("BADGE PS 0\n") end
+				if c.perf_badge_e then io.write("BADGE PE 0\n") end
+				if c.badge_mastered then io.write("BADGE MASTERED 0\n") end
+				-- Emit perf BPM if available
+				if c.perf_bpm then
+					io.write(string.format("PERF_BPM %.2f\n", c.perf_bpm))
+				end
+			end
 		end
 
 	-- LESSON: new session starting; finalise any abandoned in-progress session
@@ -1015,6 +1214,126 @@ for line in io.lines() do
 			io.write("QUERY_CHILDREN " .. ci.hash .. "\n")
 		end
 		save_stats(stats_file, stats)
+
+	-- MODE: user declares current mode (from GUI Tab key)
+	elseif line:match("^MODE ") then
+		local m = line:match("^MODE (%S+)")
+		if m == "practice" or m == "performance" then
+			current_mode = m
+			-- On entering performance mode, emit suggested BPM
+			if m == "performance" and current_loaded then
+				local stats = load_stats(stats_file)
+				local c = stats.chunks[current_loaded]
+				if c then
+					local alg = stats.algorithm
+					local bpm = c.perf_bpm
+					if not bpm then
+						-- First entry: discount from ema_bpm
+						bpm = (c.ema_bpm or 60) * alg.perf_bpm_discount
+						bpm = math.max(alg.badge_speed_thresh, math.min(alg.perf_bpm_max, bpm))
+						c.perf_bpm = bpm
+						stats.chunks[current_loaded] = c
+						save_stats(stats_file, stats)
+					end
+					io.write(string.format("PERF_BPM %.2f\n", bpm))
+				end
+			end
+		end
+
+	-- BEAT: karaoke beat timestamp (from karaoke.rs in performance mode)
+	elseif line:match("^BEAT ") then
+		local n, ts = line:match("^BEAT (%d+) (%d+)")
+		if n and ts then
+			beat_timestamps[tonumber(n)] = tonumber(ts)
+		end
+
+	-- KARAOKE_ABORT: user stopped karaoke mid-attempt
+	elseif line:match("^KARAOKE_ABORT") then
+		perf_aborted = true
+		beat_timestamps = {}
+
+	-- KARAOKE_DONE: performance attempt completed; score it
+	elseif line:match("^KARAOKE_DONE") then
+		if current_mode == "performance" and current_loaded and not perf_aborted then
+			local stats = load_stats(stats_file)
+			local c = stats.chunks[current_loaded]
+			local alg = stats.algorithm
+			if c then
+				-- Score performance attempt using beat timestamps
+				local total_beats = 0
+				local passed_beats = 0
+				local sorted_beats = {}
+				for n in pairs(beat_timestamps) do
+					sorted_beats[#sorted_beats + 1] = n
+				end
+				table.sort(sorted_beats)
+
+				if #sorted_beats >= 2 then
+					local actual_bpm = c.perf_bpm or 60
+					local expected_interval = 60000.0 / actual_bpm -- ms per beat
+					local timing_errors = {}
+					for i = 2, #sorted_beats do
+						local actual_interval = beat_timestamps[sorted_beats[i]] - beat_timestamps[sorted_beats[i - 1]]
+						local err = math.abs(actual_interval - expected_interval) / expected_interval
+						timing_errors[#timing_errors + 1] = err
+						total_beats = total_beats + 1
+						if err <= alg.perf_fail_timing_tol then
+							passed_beats = passed_beats + 1
+						end
+					end
+
+					local accuracy = (total_beats > 0) and (passed_beats / total_beats * 100) or 0
+					local passed = accuracy >= alg.perf_fail_accuracy
+
+					-- Timing evenness: min/max interval ratio
+					local min_ivl, max_ivl = math.huge, 0
+					for i = 2, #sorted_beats do
+						local ivl = beat_timestamps[sorted_beats[i]] - beat_timestamps[sorted_beats[i - 1]]
+						if ivl < min_ivl then min_ivl = ivl end
+						if ivl > max_ivl then max_ivl = ivl end
+					end
+					local timing_evenness = (max_ivl > 0) and (min_ivl / max_ivl) or 1.0
+
+					if passed then
+						c.perf_pass_streak = (c.perf_pass_streak or 0) + 1
+						c.perf_fail_streak = 0
+						c.perf_best_bpm = math.max(c.perf_best_bpm or 0, actual_bpm)
+						c.perf_ema_bpm = alg.ema_evenness_alpha * actual_bpm
+							+ (1 - alg.ema_evenness_alpha) * (c.perf_ema_bpm or actual_bpm)
+						c.perf_ema_evenness = alg.ema_evenness_alpha * timing_evenness
+							+ (1 - alg.ema_evenness_alpha) * (c.perf_ema_evenness or timing_evenness)
+						c.perf_bpm = math.min(actual_bpm + alg.perf_bpm_increment, alg.perf_bpm_max)
+						-- Mastery bonus multiplier for performance passes
+						local perf_points = (normalize(c.mastery or 0, c) * alg.power_points_per_pct) * 0.25
+						local today = get_date_str(alg.midnight_time)
+						stats.daily[today] = stats.daily[today] or { score = 0, duration = 0 }
+						stats.daily[today].score = stats.daily[today].score + perf_points
+						-- Badge check for performance mode
+						local badge_pts = check_badges(c, alg, "performance")
+						stats.daily[today].score = stats.daily[today].score + badge_pts
+						io.write(string.format("PERF_STATUS pass %.1f\n", accuracy))
+					else
+						c.perf_fail_streak = (c.perf_fail_streak or 0) + 1
+						c.perf_pass_streak = 0
+						c.perf_bpm = math.max(actual_bpm - alg.perf_bpm_increment, alg.badge_speed_thresh)
+						c.power_factor = math.max(0, (c.power_factor or 1.0) * (1.0 - alg.mistake_power_penalty))
+						io.write(string.format("PERF_STATUS fail %.1f\n", accuracy))
+						-- Suggest practice if too many consecutive fails
+						if (c.perf_fail_streak or 0) >= alg.perf_fail_streak then
+							io.write("MODE_SUGGEST practice\n")
+						end
+					end
+					io.write(string.format("PERF_BPM %.2f\n", c.perf_bpm))
+				else
+					io.write("PERF_STATUS fail 0.0\n")
+				end
+				stats.chunks[current_loaded] = c
+				save_stats(stats_file, stats)
+				print_stats_line(stats, nil, current_loaded)
+			end
+		end
+		beat_timestamps = {}
+		perf_aborted = false
 
 	-- GUI commands
 	elseif line:match("^QUERY_STATS") then

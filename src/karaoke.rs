@@ -4,7 +4,7 @@ use std::sync::{
     Arc, Mutex,
 };
 use std::thread;
-use std::time::Duration;
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 #[derive(Clone)]
 struct Note {
@@ -15,9 +15,17 @@ struct Note {
 
 struct SharedState {
     bpm: f64,
+    perf_bpm: Option<f64>,  // PERF_BPM override for next playback
     beats_per_bar: u32,
     beats_denominator: u32,
     melody: Vec<Note>,
+}
+
+fn now_ms() -> u64 {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_millis() as u64
 }
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -114,6 +122,7 @@ fn parse_token(tok: &str, beats_denominator: u32) -> Option<Note> {
 fn main() {
     let state = Arc::new(Mutex::new(SharedState {
         bpm: 120.0,
+        perf_bpm: None,
         beats_per_bar: 4,
         beats_denominator: 4,
         melody: Vec::new(),
@@ -138,9 +147,11 @@ fn main() {
             let stop_ref = Arc::clone(&stop_signal);
 
             last_handle = Some(thread::spawn(move || {
-                let (bpm, beats_per_bar, melody) = {
-                    let s = state_ref.lock().unwrap();
-                    (s.bpm, s.beats_per_bar, s.melody.clone())
+                let (bpm, is_perf, beats_per_bar, melody) = {
+                    let mut s = state_ref.lock().unwrap();
+                    let perf = s.perf_bpm.is_some();
+                    let effective_bpm = s.perf_bpm.take().unwrap_or(s.bpm);
+                    (effective_bpm, perf, s.beats_per_bar, s.melody.clone())
                 };
 
                 // Count-in: one click per beat in the time signature.
@@ -149,6 +160,7 @@ fn main() {
                 let beat_click_secs = 60.0 / bpm;
                 let click_on = Duration::from_millis(30);
                 let click_off = Duration::from_secs_f64((beat_click_secs - 0.030_f64).max(0.0));
+                let mut beat_num: u32 = 0;
                 for _ in 0..beats_per_bar {
                     if stop_ref.load(Ordering::SeqCst) {
                         return;
@@ -159,6 +171,7 @@ fn main() {
                     println!("MIDI NOTE_OFF b''");
                     let _ = io::stdout().flush();
                     thread::sleep(click_off);
+                    // Count-in beats are not numbered for scoring
                 }
 
                 let mut stopped = false;
@@ -167,6 +180,13 @@ fn main() {
                         stopped = true;
                         break;
                     }
+
+                    // Emit BEAT timestamp for performance scoring (only in perf mode)
+                    if is_perf {
+                        println!("BEAT {} {}", beat_num, now_ms());
+                        let _ = io::stdout().flush();
+                    }
+                    beat_num += 1;
 
                     let total_secs = note.beats * 60.0 / bpm;
                     if let (Some(lily), Some(_midi)) = (&note.lily, note.midi) {
@@ -196,10 +216,23 @@ fn main() {
                     let _ = io::stdout().flush();
                 }
             }));
-        } else if line == "KARAOKE_OFF" {
+        } else if line == "KARAOKE_OFF" || line == "KARAOKE_STOP" {
             stop_signal.store(true, Ordering::SeqCst);
             println!("MIDI PANIC");
             let _ = io::stdout().flush();
+            if line == "KARAOKE_STOP" {
+                println!("KARAOKE_ABORT");
+                let _ = io::stdout().flush();
+            }
+        } else if line.starts_with("PERF_BPM ") {
+            // PERF_BPM <value> — set BPM for next performance playback
+            if let Some(bpm_str) = line.split_whitespace().nth(1) {
+                if let Ok(n) = bpm_str.parse::<f64>() {
+                    if n > 0.0 {
+                        state.lock().unwrap().perf_bpm = Some(n);
+                    }
+                }
+            }
         } else if line.starts_with("BPM ") {
             // BPM <value> — issued by stats.lua; overrides any previous BPM.
             if let Some(bpm_str) = line.split_whitespace().nth(1) {

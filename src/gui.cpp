@@ -120,6 +120,30 @@ struct state {
 	int current_chunk_level = -1; // level from last SUGGESTION chunk= line
 	float bpm = 120.0f;           // current BPM; updated by BPM command
 
+	// Practice/Performance mode
+	enum Mode { MODE_PRACTICE, MODE_PERFORMANCE } mode = MODE_PRACTICE;
+	float perf_bpm = 0.0f;        // suggested BPM from algorithm for performance
+
+	// Badge state (from BADGE messages)
+	bool badge_p = false, badge_s = false, badge_e = false;     // practice
+	bool badge_pp = false, badge_ps = false, badge_pe = false;  // performance
+	bool badge_graduated = false;
+	bool badge_mastered = false;
+
+	// Badge progress (from BADGE_PROGRESS messages or computed)
+	char badge_progress_tag[4] = "";
+	float badge_progress_cur = 0.0f;
+	float badge_progress_tgt = 0.0f;
+
+	// Badge celebration overlay
+	char badge_celebration[64] = "";
+	double badge_celebration_time = -1e9;
+
+	// Performance feedback overlay
+	char perf_feedback[64] = "";
+	double perf_feedback_time = -1e9;
+
+
 	// MIDI devices (populated from DEVICE_AVAIL lines)
 	char midi_names[32][128];
 	int  midi_count  = 0;
@@ -157,6 +181,14 @@ static void load_gui_settings(void)
 			state.synth_vol = v;
 	}
 	fclose(f);
+}
+
+static void clear_badges(void)
+{
+	state.badge_p = state.badge_s = state.badge_e = false;
+	state.badge_pp = state.badge_ps = state.badge_pe = false;
+	state.badge_graduated = state.badge_mastered = false;
+	state.badge_progress_tag[0] = '\0';
 }
 
 static void clear_status(void)
@@ -205,6 +237,24 @@ static void toggle_karaoke(void)
 	fflush(stdout);
 }
 
+static void toggle_mode(void)
+{
+	if (state.mode == state::MODE_PRACTICE) {
+		state.mode = state::MODE_PERFORMANCE;
+		printf("MODE performance\n");
+		// If not all practice badges, flash a warning but allow
+		if (!state.badge_graduated) {
+			strncpy(state.status.suggestion, "earn_badges_first",
+				sizeof(state.status.suggestion) - 1);
+			state.status.suggestion_time = glfwGetTime();
+		}
+	} else {
+		state.mode = state::MODE_PRACTICE;
+		printf("MODE practice\n");
+	}
+	fflush(stdout);
+}
+
 static void key_callback(GLFWwindow *window, int key, int scancode, int action,
 			 int mods)
 {
@@ -220,10 +270,32 @@ static void key_callback(GLFWwindow *window, int key, int scancode, int action,
 			reload_lesson();
 			break;
 		case GLFW_KEY_SPACE:
-			suggest_lesson();
+			if (state.mode == state::MODE_PERFORMANCE) {
+				// In performance mode: Space starts/aborts karaoke
+				if (state.karaoke_on) {
+					// Abort: stop playback + MIDI panic, no scoring
+					printf("KARAOKE_STOP\n");
+					fflush(stdout);
+					state.karaoke_on = false;
+				} else {
+					// Start performance attempt
+					if (state.perf_bpm > 0.0f) {
+						printf("PERF_BPM %.2f\n", state.perf_bpm);
+					}
+					printf("KARAOKE_ON\n");
+					fflush(stdout);
+					state.karaoke_on = true;
+				}
+			} else {
+				suggest_lesson();
+			}
 			break;
 		case GLFW_KEY_K:
-			toggle_karaoke();
+			if (state.mode == state::MODE_PRACTICE)
+				toggle_karaoke();
+			break;
+		case GLFW_KEY_TAB:
+			toggle_mode();
 			break;
 		}
 	}
@@ -400,6 +472,7 @@ static void handle_suggestion(const char *buf)
 		printf("LOAD_CHUNK %s\n", hash);
 		fflush(stdout);
 		clear_status();
+		clear_badges();
 		// Flash skills as the status message
 		char skills[24] = "?";
 		const char *sp = strstr(buf, "skills=");
@@ -458,6 +531,85 @@ static void parse_line(const char *buf)
 {
 	if (strncmp(buf, "KARAOKE_DONE", 12) == 0) {
 		state.karaoke_on = false;
+		return;
+	}
+	// BADGE <tag> <pts>  — badge earned
+	if (strncmp(buf, "BADGE ", 6) == 0) {
+		char tag[16] = "";
+		int pts = 0;
+		sscanf(buf + 6, "%15s %d", tag, &pts);
+		if (strcmp(tag, "P") == 0) state.badge_p = true;
+		else if (strcmp(tag, "S") == 0) state.badge_s = true;
+		else if (strcmp(tag, "E") == 0) state.badge_e = true;
+		else if (strcmp(tag, "PP") == 0) state.badge_pp = true;
+		else if (strcmp(tag, "PS") == 0) state.badge_ps = true;
+		else if (strcmp(tag, "PE") == 0) state.badge_pe = true;
+		else if (strcmp(tag, "READY") == 0) state.badge_graduated = true;
+		else if (strcmp(tag, "MASTERED") == 0) state.badge_mastered = true;
+		// Celebration overlay
+		if (strcmp(tag, "P") == 0 || strcmp(tag, "PP") == 0)
+			snprintf(state.badge_celebration, sizeof(state.badge_celebration),
+				 "Power Bonus +%dpts", pts);
+		else if (strcmp(tag, "S") == 0 || strcmp(tag, "PS") == 0)
+			snprintf(state.badge_celebration, sizeof(state.badge_celebration),
+				 "Speed Bonus +%dpts", pts);
+		else if (strcmp(tag, "E") == 0 || strcmp(tag, "PE") == 0)
+			snprintf(state.badge_celebration, sizeof(state.badge_celebration),
+				 "Evenness Bonus +%dpts", pts);
+		else if (strcmp(tag, "READY") == 0)
+			snprintf(state.badge_celebration, sizeof(state.badge_celebration),
+				 "Performance Ready! +%dpts [Tab]", pts);
+		else if (strcmp(tag, "MASTERED") == 0)
+			snprintf(state.badge_celebration, sizeof(state.badge_celebration),
+				 "Chunk Mastered! +%dpts", pts);
+		state.badge_celebration_time = glfwGetTime();
+		return;
+	}
+	// PERF_STATUS pass|fail <accuracy>
+	if (strncmp(buf, "PERF_STATUS ", 12) == 0) {
+		char result[8] = "";
+		float acc = 0.0f;
+		sscanf(buf + 12, "%7s %f", result, &acc);
+		if (strcmp(result, "pass") == 0)
+			snprintf(state.perf_feedback, sizeof(state.perf_feedback),
+				 "PASS  %.0f%%", acc);
+		else
+			snprintf(state.perf_feedback, sizeof(state.perf_feedback),
+				 "FAIL  %.0f%%", acc);
+		state.perf_feedback_time = glfwGetTime();
+		return;
+	}
+	// PERF_BPM <bpm> — algorithm's suggested BPM for performance mode
+	if (strncmp(buf, "PERF_BPM ", 9) == 0) {
+		float bpm;
+		if (sscanf(buf + 9, "%f", &bpm) == 1 && bpm > 0.0f) {
+			state.perf_bpm = bpm;
+			// Also update the display BPM control
+			if (state.mode == state::MODE_PERFORMANCE)
+				state.bpm = bpm;
+		}
+		return;
+	}
+	// MODE_SUGGEST practice|performance
+	if (strncmp(buf, "MODE_SUGGEST ", 13) == 0) {
+		char m[16] = "";
+		sscanf(buf + 13, "%15s", m);
+		if (strcmp(m, "practice") == 0) {
+			strncpy(state.status.suggestion, "back_to_practice",
+				sizeof(state.status.suggestion) - 1);
+		} else if (strcmp(m, "performance") == 0) {
+			strncpy(state.status.suggestion, "try_performance",
+				sizeof(state.status.suggestion) - 1);
+		}
+		state.status.suggestion_time = glfwGetTime();
+		return;
+	}
+	// INTERLEAVE <hash> — show as a yellow suggestion hint
+	if (strncmp(buf, "INTERLEAVE ", 11) == 0) {
+		strncpy(state.status.suggestion, "time_to_mix_it_up",
+			sizeof(state.status.suggestion) - 1);
+		state.status.suggestion[sizeof(state.status.suggestion) - 1] = '\0';
+		state.status.suggestion_time = glfwGetTime();
 		return;
 	}
 	if (strncmp(buf, "BPM ", 4) == 0) {
@@ -720,10 +872,18 @@ static const char *expand_suggestion(const char *s)
 		return "Good score! Even up your tempo to grow mastery.";
 	if (strcmp(s, "try_another_lesson") == 0)
 		return "Press SPACE for a new lesson.";
+	if (strcmp(s, "time_to_mix_it_up") == 0)
+		return "Time to mix it up! Press SPACE.";
 	if (strcmp(s, "no_lessons_available") == 0)
 		return "No lessons found in seq/.";
 	if (strcmp(s, "all_up_to_date") == 0)
 		return "All caught up! Come back later.";
+	if (strcmp(s, "back_to_practice") == 0)
+		return "Back to practice? [Tab]";
+	if (strcmp(s, "try_performance") == 0)
+		return "Ready for performance! [Tab]";
+	if (strcmp(s, "earn_badges_first") == 0)
+		return "Earn all practice badges first!";
 	if (strcmp(s, "overdue") == 0)
 		return "Due for review.";
 	if (strcmp(s, "needs_work") == 0)
@@ -733,49 +893,124 @@ static const char *expand_suggestion(const char *s)
 	return s; // fallback: show the raw token
 }
 
+// Draw a small badge square (earned or dim)
+static void DrawBadgeSquare(const char *label, bool earned, ImU32 color,
+			    const char *tooltip, bool is_perf)
+{
+	float sz = ImGui::GetFrameHeight();
+	ImVec2 pos = ImGui::GetCursorScreenPos();
+	ImVec2 a = ImVec2(pos.x + 1, pos.y + 1);
+	ImVec2 b = ImVec2(pos.x + sz - 1, pos.y + sz - 1);
+	ImDrawList *dl = ImGui::GetWindowDrawList();
+
+	ImU32 dim = IM_COL32(60, 60, 60, 255);
+	ImU32 bg = earned ? color : dim;
+
+	if (earned) {
+		dl->AddRectFilled(a, b, bg, 2.0f);
+		if (is_perf)
+			dl->AddRect(a, b, IM_COL32(255, 255, 255, 200), 2.0f, 0, 2.0f);
+	} else {
+		dl->AddRect(a, b, bg, 2.0f, 0, 1.5f);
+	}
+
+	ImVec2 tsz = ImGui::CalcTextSize(label);
+	ImVec2 tpos = ImVec2(a.x + ((b.x - a.x) - tsz.x) * 0.5f,
+			     a.y + ((b.y - a.y) - tsz.y) * 0.5f);
+	ImU32 fg = earned ? IM_COL32(0, 0, 0, 255) : IM_COL32(100, 100, 100, 255);
+	dl->AddText(tpos, fg, label);
+
+	ImGui::Dummy(ImVec2(sz, sz));
+	if (ImGui::IsItemHovered())
+		ImGui::SetTooltip("%s", tooltip);
+}
+
 static void show_stats_bar(void)
 {
 	const status_line &s = state.status;
-
 	float bar_w = 70.0f;
 	float bar_h = ImGui::GetFrameHeight();
+	float sp = 2.0f;
 
-	// Desaturated background for non-interactive progress bars
-	ImGui::PushStyleColor(ImGuiCol_FrameBg, ImVec4(0.25f, 0.25f, 0.25f, 1.0f));
-
-	// Mastery bar: green if at/above thresh, amber otherwise
-	char m_label[16];
-	snprintf(m_label, sizeof(m_label), "M %.1f", s.mastery);
-	float m_frac = fminf(s.mastery / 100.0f, 1.0f);
-	bool m_ok = s.mastery >= s.mastery_thresh;
-	ImGui::PushStyleColor(ImGuiCol_PlotHistogram,
-			      m_ok ? ImVec4(0.2f, 0.8f, 0.3f, 1.0f)
-				   : ImVec4(0.8f, 0.5f, 0.1f, 1.0f));
-	ImGui::ProgressBar(m_frac, ImVec2(bar_w, bar_h), m_label);
-	ImGui::PopStyleColor();
+	// Mode indicator
+	bool is_perf = (state.mode == state::MODE_PERFORMANCE);
+	if (is_perf)
+		ImGui::TextColored(ImVec4(1.0f, 0.6f, 0.1f, 1.0f), "PERF");
+	else
+		ImGui::TextColored(ImVec4(0.3f, 0.6f, 1.0f, 1.0f), "PRAC");
 	if (ImGui::IsItemHovered())
-		ImGui::SetTooltip("Mastery of current chunk (%.0f%% needed)", s.mastery_thresh);
-
-	// Power bar: green if at/above thresh, amber otherwise
-	char p_label[16];
-	snprintf(p_label, sizeof(p_label), "P %.1f", s.power);
-	float p_frac = fminf(s.power / 100.0f, 1.0f);
-	bool p_ok = s.power >= s.power_thresh;
+		ImGui::SetTooltip("[Tab] to toggle practice/performance mode");
 	ImGui::SameLine();
-	ImGui::PushStyleColor(ImGuiCol_PlotHistogram,
-			      p_ok ? ImVec4(0.2f, 0.8f, 0.3f, 1.0f)
-				   : ImVec4(0.9f, 0.6f, 0.1f, 1.0f));
-	ImGui::ProgressBar(p_frac, ImVec2(bar_w, bar_h), p_label);
-	ImGui::PopStyleColor();
-	if (ImGui::IsItemHovered())
-		ImGui::SetTooltip("Power: mastery adjusted for time decay (%.0f%% needed)", s.power_thresh);
 
-	// Daily goal: always show progress bar; streak to the right when met
+	// Badge row: [P] [S] [E] [P'][S'][E']
+	ImU32 green  = IM_COL32(0, 220, 80, 255);
+	ImU32 blue   = IM_COL32(50, 120, 220, 255);
+	ImU32 orange = IM_COL32(220, 160, 30, 255);
+
+	DrawBadgeSquare("P", state.badge_p, green, "Power: playing strength >= 40%", false);
+	ImGui::SameLine(0, sp);
+	DrawBadgeSquare("S", state.badge_s, blue, "Speed: avg tempo >= 60 BPM", false);
+	ImGui::SameLine(0, sp);
+	DrawBadgeSquare("E", state.badge_e, orange, "Evenness: tempo consistency >= 80%", false);
+	ImGui::SameLine(0, sp + 4.0f);
+	DrawBadgeSquare("P", state.badge_pp, green, "Perf Power: strength >= 60%", true);
+	ImGui::SameLine(0, sp);
+	DrawBadgeSquare("S", state.badge_ps, blue, "Perf Speed: avg tempo >= 120 BPM", true);
+	ImGui::SameLine(0, sp);
+	DrawBadgeSquare("E", state.badge_pe, orange, "Perf Evenness: consistency >= 85%", true);
+
+	// Progress bar for next unearned badge (if any)
+	if (!state.badge_mastered) {
+		ImGui::SameLine();
+		ImGui::PushStyleColor(ImGuiCol_FrameBg, ImVec4(0.25f, 0.25f, 0.25f, 1.0f));
+		float frac = 0.0f;
+		const char *tip_label = "";
+		float tip_cur = 0.0f, tip_tgt = 0.0f;
+		const char *tip_unit = "";
+		if (!is_perf) {
+			if (!state.badge_p) {
+				tip_label = "Power";
+				tip_cur = s.power; tip_tgt = 40.0f; tip_unit = "%";
+				frac = fminf(s.power / 40.0f, 1.0f);
+			} else if (!state.badge_s) {
+				tip_label = "Speed";
+				tip_cur = s.mastery; tip_tgt = 60.0f; tip_unit = " BPM";
+				frac = fminf(s.mastery / 60.0f, 1.0f);
+			} else if (!state.badge_e) {
+				tip_label = "Evenness";
+				tip_cur = 0.0f; tip_tgt = 80.0f; tip_unit = "%";
+				frac = 0.5f;
+			}
+		} else {
+			if (!state.badge_pp) {
+				tip_label = "Perf Power";
+				tip_cur = s.power; tip_tgt = 60.0f; tip_unit = "%";
+				frac = fminf(s.power / 60.0f, 1.0f);
+			} else if (!state.badge_ps) {
+				tip_label = "Perf Speed";
+				tip_cur = 0.0f; tip_tgt = 120.0f; tip_unit = " BPM";
+				frac = 0.0f;
+			} else if (!state.badge_pe) {
+				tip_label = "Perf Evenness";
+				tip_cur = 0.0f; tip_tgt = 85.0f; tip_unit = "%";
+				frac = 0.0f;
+			}
+		}
+		ImGui::PushStyleColor(ImGuiCol_PlotHistogram, ImVec4(0.5f, 0.5f, 0.8f, 1.0f));
+		ImGui::ProgressBar(frac, ImVec2(bar_w, bar_h), "");
+		ImGui::PopStyleColor();
+		if (ImGui::IsItemHovered())
+			ImGui::SetTooltip("%s: %.0f / %.0f%s", tip_label, tip_cur, tip_tgt, tip_unit);
+		ImGui::PopStyleColor();
+	}
+
+	// Daily goal bar
+	ImGui::SameLine();
+	ImGui::PushStyleColor(ImGuiCol_FrameBg, ImVec4(0.25f, 0.25f, 0.25f, 1.0f));
 	char d_label[16];
 	snprintf(d_label, sizeof(d_label), "%d pts", s.pts);
 	float d_frac =
 	    (s.goal > 0.0f) ? fminf((float)s.pts / s.goal, 1.0f) : 0.0f;
-	ImGui::SameLine();
 	ImGui::PushStyleColor(ImGuiCol_PlotHistogram,
 			      s.goal_met ? ImVec4(0.0f, 0.8f, 0.3f, 1.0f)
 					 : ImVec4(0.2f, 0.5f, 0.9f, 1.0f));
@@ -783,7 +1018,6 @@ static void show_stats_bar(void)
 	ImGui::PopStyleColor();
 	if (ImGui::IsItemHovered())
 		ImGui::SetTooltip("Daily score (goal: %.0f pts)", s.goal);
-
 	ImGui::PopStyleColor(); // FrameBg
 
 	if (s.goal_met && s.streak > 0) {
@@ -801,6 +1035,13 @@ static void show_info_line(void)
 	const status_line &s = state.status;
 	double age = glfwGetTime() - s.suggestion_time;
 	bool show_msg = (s.suggestion[0] != '\0' && age < 3.0);
+
+	// Performance mode prompt when no suggestion is active
+	if (!show_msg && state.mode == state::MODE_PERFORMANCE && !state.karaoke_on) {
+		ImGui::TextColored(ImVec4(0.7f, 0.7f, 0.7f, 1.0f),
+				   "Space to start  |  BPM: %.0f", state.perf_bpm > 0 ? state.perf_bpm : state.bpm);
+		return;
+	}
 
 	if (!show_msg) {
 		ImGui::Dummy(ImVec2(1.0f, ImGui::GetTextLineHeight()));
@@ -855,6 +1096,71 @@ static void show_celebration(void)
 	dl->AddText(ImGui::GetFont(), font_size, ImVec2(pos.x + 2, pos.y + 2),
 		    shadow, buf);
 	dl->AddText(ImGui::GetFont(), font_size, pos, col, buf);
+}
+
+static void show_badge_celebration(void)
+{
+	if (state.badge_celebration[0] == '\0')
+		return;
+
+	double age = glfwGetTime() - state.badge_celebration_time;
+	const double DURATION = 1.5;
+	if (age >= DURATION)
+		return;
+
+	float t = (float)(age / DURATION);
+	float alpha = 1.0f - t;
+	float rise = t * 30.0f;
+
+	ImGuiIO &io = ImGui::GetIO();
+	float cx = io.DisplaySize.x * 0.5f;
+	float cy = io.DisplaySize.y * 0.35f - rise;
+
+	ImDrawList *dl = ImGui::GetForegroundDrawList();
+	float font_size = ImGui::GetFontSize() * 2.5f;
+	ImVec2 text_size = ImGui::CalcTextSize(state.badge_celebration);
+	float scale = 2.5f;
+	ImVec2 pos = ImVec2(cx - text_size.x * scale * 0.5f,
+			    cy - text_size.y * scale * 0.5f);
+
+	ImU32 col = IM_COL32(255, 220, 50, (int)(alpha * 255));
+	ImU32 shadow = IM_COL32(0, 0, 0, (int)(alpha * 180));
+	dl->AddText(ImGui::GetFont(), font_size, ImVec2(pos.x + 2, pos.y + 2),
+		    shadow, state.badge_celebration);
+	dl->AddText(ImGui::GetFont(), font_size, pos, col, state.badge_celebration);
+}
+
+static void show_perf_feedback(void)
+{
+	if (state.perf_feedback[0] == '\0')
+		return;
+
+	double age = glfwGetTime() - state.perf_feedback_time;
+	const double DURATION = 2.0;
+	if (age >= DURATION)
+		return;
+
+	float t = (float)(age / DURATION);
+	float alpha = 1.0f - t;
+
+	ImGuiIO &io = ImGui::GetIO();
+	float cx = io.DisplaySize.x * 0.5f;
+	float cy = io.DisplaySize.y * 0.5f;
+
+	ImDrawList *dl = ImGui::GetForegroundDrawList();
+	float font_size = ImGui::GetFontSize() * 3.0f;
+	ImVec2 text_size = ImGui::CalcTextSize(state.perf_feedback);
+	float scale = 3.0f;
+	ImVec2 pos = ImVec2(cx - text_size.x * scale * 0.5f,
+			    cy - text_size.y * scale * 0.5f);
+
+	bool is_pass = (state.perf_feedback[0] == 'P');
+	ImU32 col = is_pass ? IM_COL32(80, 255, 120, (int)(alpha * 255))
+			    : IM_COL32(255, 80, 80, (int)(alpha * 255));
+	ImU32 shadow = IM_COL32(0, 0, 0, (int)(alpha * 180));
+	dl->AddText(ImGui::GetFont(), font_size, ImVec2(pos.x + 2, pos.y + 2),
+		    shadow, state.perf_feedback);
+	dl->AddText(ImGui::GetFont(), font_size, pos, col, state.perf_feedback);
 }
 
 // ── Top bar: stats left, chunk+[R]eload+X right ────────────────────────────
@@ -1185,6 +1491,8 @@ static void gui_main(void)
 	show_bottom_bar(row_w, row_x);
 
 	show_celebration();
+	show_badge_celebration();
+	show_perf_feedback();
 	check_new_day();
 }
 

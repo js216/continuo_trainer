@@ -12,12 +12,13 @@ lua src/all.lua   -> lua src/stats.lua log/stats.log;
 lua src/all.lua   -> bin/karaoke;
 lua src/stats.lua log/stats.log -> bin/karaoke;
 bin/karaoke       -> bin/midi;
+bin/karaoke       -> lua src/stats.lua log/stats.log;  // BEAT, KARAOKE_DONE
 
 // GUI
 lua src/all.lua -> bin/gui;
 lua src/rules.lua -> bin/gui;
 lua src/stats.lua log/stats.log -> bin/gui;
-bin/gui -> lua src/stats.lua log/stats.log;
+bin/gui -> lua src/stats.lua log/stats.log;  // SUGGEST_LESSON, QUERY_STATS, MODE, KARAOKE_ABORT
 bin/gui -> lua src/all.lua;
 lua src/stats.lua log/stats.log -> lua src/all.lua;
 bin/gui -> bin/karaoke;
@@ -33,9 +34,9 @@ lua src/rules.lua -> tee -a log/rules.log;
 bin/gui           -> tee -a log/gui.log;
 
 // debug prints
-bin/midi -> STDOUT;
+//bin/midi -> STDOUT;
 //lua src/all.lua -> STDOUT;
 //bin/group -> STDOUT;
-//lua src/rules.lua -> STDOUT;
-//lua src/stats.lua log/stats.log -> STDOUT;
+lua src/rules.lua -> STDOUT;
+lua src/stats.lua log/stats.log -> STDOUT;
 //bin/gui -> STDOUT;
