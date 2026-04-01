@@ -12,7 +12,6 @@ lua src/all.lua   -> lua src/stats.lua log/stats.log;
 lua src/all.lua   -> bin/karaoke;
 lua src/stats.lua log/stats.log -> bin/karaoke;
 bin/karaoke       -> bin/midi;
-bin/karaoke       -> lua src/stats.lua log/stats.log;  // BEAT, KARAOKE_DONE
 
 // GUI
 lua src/all.lua -> bin/gui;

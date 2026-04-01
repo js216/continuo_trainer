@@ -720,6 +720,21 @@ static void parse_line(const char *buf)
 
 	if (strncmp(buf, "KARAOKE_DONE", 12) == 0) {
 		state.karaoke_on = false;
+		// Forward to stats.lua for performance scoring
+		printf("KARAOKE_DONE\n");
+		fflush(stdout);
+		return;
+	}
+	// Forward BEAT lines from karaoke to stats.lua for performance scoring
+	if (strncmp(buf, "BEAT ", 5) == 0) {
+		printf("%s", buf);
+		fflush(stdout);
+		return;
+	}
+	// Forward KARAOKE_ABORT from karaoke to stats.lua
+	if (strncmp(buf, "KARAOKE_ABORT", 13) == 0) {
+		printf("KARAOKE_ABORT\n");
+		fflush(stdout);
 		return;
 	}
 	// BADGE <tag> <pts>  — badge earned
