@@ -83,6 +83,8 @@ struct status_line {
 	float slowest = 0.0f;
 	float mastery = 0.0f;
 	float power = 0.0f;
+	float ema_bpm = 0.0f;
+	float ema_evenness = 0.0f;
 
 	// today
 	int pts = 0;
@@ -271,6 +273,8 @@ static const char *alg_tooltip(const char *key)
 		{"perf_fail_streak", "Consecutive fails before suggesting practice mode"},
 		{"rotation_pool_size", "Active rotation pool size for interleaved practice"},
 		{"min_away", "Min attempts on other chunks before returning to a rotated-out chunk"},
+		{"length_bonus_threshold", "Lesson groups up to this count get no length bonus"},
+		{"length_bonus_per_group", "Extra point fraction per group above the threshold (e.g. 0.25 = +25%)"},
 		{NULL, NULL}
 	};
 	for (int i = 0; tips[i].k; i++)
@@ -569,6 +573,14 @@ static void handle_stats(const char *buf)
 	if (p)
 		sscanf(p, "power=%f", &state.status.power);
 
+	p = strstr(buf, "ema_bpm=");
+	if (p)
+		sscanf(p, "ema_bpm=%f", &state.status.ema_bpm);
+
+	p = strstr(buf, "ema_evenness=");
+	if (p)
+		sscanf(p, "ema_evenness=%f", &state.status.ema_evenness);
+
 	p = strstr(buf, "suggestion=");
 	if (p) {
 		char raw[32] = "";
@@ -715,7 +727,8 @@ static void parse_line(const char *buf)
 		else if (strcmp(tag, "PE") == 0) state.badge_pe = true;
 		else if (strcmp(tag, "READY") == 0) state.badge_graduated = true;
 		else if (strcmp(tag, "MASTERED") == 0) state.badge_mastered = true;
-		// Celebration overlay
+		// Celebration overlay (pts == 0 means state reconstruction, not a new badge)
+		if (pts <= 0) return;
 		if (strcmp(tag, "P") == 0 || strcmp(tag, "PP") == 0)
 			snprintf(state.badge_celebration, sizeof(state.badge_celebration),
 				 "Power Bonus +%dpts", pts);
@@ -1177,41 +1190,47 @@ static void show_stats_bar(void)
 		float frac = 0.0f;
 		const char *tip_label = "";
 		float tip_cur = 0.0f, tip_tgt = 0.0f;
-		const char *tip_unit = "";
+		char bar_label[16] = "";
 		if (!is_perf) {
 			if (!state.badge_p) {
 				tip_label = "Power";
-				tip_cur = s.power; tip_tgt = 40.0f; tip_unit = "%";
+				tip_cur = s.power; tip_tgt = 40.0f;
 				frac = fminf(s.power / 40.0f, 1.0f);
+				snprintf(bar_label, sizeof(bar_label), "P %.0f%%", frac * 100.0f);
 			} else if (!state.badge_s) {
 				tip_label = "Speed";
-				tip_cur = s.mastery; tip_tgt = 60.0f; tip_unit = " BPM";
-				frac = fminf(s.mastery / 60.0f, 1.0f);
+				tip_cur = s.ema_bpm; tip_tgt = 60.0f;
+				frac = fminf(s.ema_bpm / 60.0f, 1.0f);
+				snprintf(bar_label, sizeof(bar_label), "S %.0f%%", frac * 100.0f);
 			} else if (!state.badge_e) {
 				tip_label = "Evenness";
-				tip_cur = 0.0f; tip_tgt = 80.0f; tip_unit = "%";
-				frac = 0.5f;
+				tip_cur = s.ema_evenness; tip_tgt = 0.80f;
+				frac = fminf(s.ema_evenness / 0.80f, 1.0f);
+				snprintf(bar_label, sizeof(bar_label), "E %.0f%%", frac * 100.0f);
 			}
 		} else {
 			if (!state.badge_pp) {
 				tip_label = "Perf Power";
-				tip_cur = s.power; tip_tgt = 60.0f; tip_unit = "%";
+				tip_cur = s.power; tip_tgt = 60.0f;
 				frac = fminf(s.power / 60.0f, 1.0f);
+				snprintf(bar_label, sizeof(bar_label), "P' %.0f%%", frac * 100.0f);
 			} else if (!state.badge_ps) {
 				tip_label = "Perf Speed";
-				tip_cur = 0.0f; tip_tgt = 120.0f; tip_unit = " BPM";
+				tip_cur = 0.0f; tip_tgt = 120.0f;
 				frac = 0.0f;
+				snprintf(bar_label, sizeof(bar_label), "S' %.0f%%", frac * 100.0f);
 			} else if (!state.badge_pe) {
 				tip_label = "Perf Evenness";
-				tip_cur = 0.0f; tip_tgt = 85.0f; tip_unit = "%";
+				tip_cur = 0.0f; tip_tgt = 0.85f;
 				frac = 0.0f;
+				snprintf(bar_label, sizeof(bar_label), "E' %.0f%%", frac * 100.0f);
 			}
 		}
 		ImGui::PushStyleColor(ImGuiCol_PlotHistogram, ImVec4(0.5f, 0.5f, 0.8f, 1.0f));
-		ImGui::ProgressBar(frac, ImVec2(bar_w, bar_h), "");
+		ImGui::ProgressBar(frac, ImVec2(bar_w, bar_h), bar_label);
 		ImGui::PopStyleColor();
 		if (ImGui::IsItemHovered())
-			ImGui::SetTooltip("%s: %.0f / %.0f%s", tip_label, tip_cur, tip_tgt, tip_unit);
+			ImGui::SetTooltip("%s: %.1f / %.0f", tip_label, tip_cur, tip_tgt);
 		ImGui::PopStyleColor();
 	}
 
@@ -1790,9 +1809,7 @@ static void gui_main(void)
 				float m = state.skill_stats[lvl].mastery;
 				float frac = fminf(m / thresh, 1.0f);
 
-				char label[48];
-				snprintf(label, sizeof(label), "Lv%d %s",
-					 lvl + 1, skill_display_name(state.skill_stats[lvl].name));
+				const char *label = state.skill_stats[lvl].name;
 
 				// Leave room for BPM/karaoke on the right
 				float right_w = bottom_bar_natural_width() + sp * 2.0f;
@@ -1803,7 +1820,7 @@ static void gui_main(void)
 				if (bar_w > 200.0f) bar_w = 200.0f;
 
 				ImGui::SameLine();
-				ImGui::PushStyleColor(ImGuiCol_FrameBg, ImVec4(0.25f, 0.25f, 0.25f, 1.0f));
+				ImGui::PushStyleColor(ImGuiCol_FrameBg, ImVec4(0.35f, 0.35f, 0.38f, 1.0f));
 				ImGui::PushStyleColor(ImGuiCol_PlotHistogram,
 						      ImVec4(0.1f, 0.35f, 0.65f, 1.0f));
 				ImGui::ProgressBar(frac, ImVec2(bar_w, bar_h), label);

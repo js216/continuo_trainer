@@ -134,6 +134,10 @@ local ALGORITHM_DEFAULTS = {
 	-- Interleaved practice (anti-blocked-practice)
 	rotation_pool_size = 5, -- keep this many chunks in active rotation
 	min_away = 2, -- min attempts on other chunks before returning
+
+	-- Length bonus: reward completing longer lessons
+	length_bonus_threshold = 3, -- groups up to this count get no bonus
+	length_bonus_per_group = 0.25, -- extra fraction per group above threshold
 }
 
 local stats_file = arg[1]
@@ -531,12 +535,14 @@ local function print_stats_line(stats, timestamp, chunk_hash)
 			local power = calculate_power(c, alg)
 			local mastery = c.mastery or 0
 			chunk_str = string.format(
-				" chunk=%s[ivl=%d,ease=%.2f,mastery=%.2f,power=%.2f]",
+				" chunk=%s[ivl=%d,ease=%.2f,mastery=%.2f,power=%.2f,ema_bpm=%.2f,ema_evenness=%.4f]",
 				chunk_hash,
 				math.floor(c.ivl or 0),
 				c.ease or alg.ease_initial,
 				normalize(mastery, c),
-				normalize(power, c)
+				normalize(power, c),
+				c.ema_bpm or 0,
+				c.ema_evenness or 0
 			)
 		end
 	end
@@ -880,6 +886,10 @@ local function finalize(stats)
 	stats.chunks[hash] = c
 	local points = normalize(res.m_delta, c) * alg.mastery_points_per_pct
 		+ normalize(res.p_delta, c) * alg.power_points_per_pct
+	-- Length bonus: longer lessons earn proportionally more
+	local extra_groups = math.max(0, sd.groups - alg.length_bonus_threshold)
+	local length_mult = 1.0 + extra_groups * alg.length_bonus_per_group
+	points = points * length_mult
 	-- Badge progression (practice mode only here; performance mode uses perf scoring)
 	local badge_pts = 0
 	if current_mode == "practice" then
