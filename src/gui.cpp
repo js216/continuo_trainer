@@ -16,7 +16,7 @@
 //     R           Reload: re-emit LOAD_CHUNK for the current item.
 //     SPACE       Practice: SUGGEST_LESSON.  Performance: start/abort karaoke.
 //     K           Toggle karaoke mode (emits KARAOKE_ON / KARAOKE_OFF).
-//     TAB         Toggle practice/performance mode (emits MODE).
+//     P           Toggle practice/performance mode (emits MODE).
 //     S           Toggle settings screen (MIDI devices, algorithm params).
 //
 // RECEIVED (stdin, from stats.lua, all.lua, and bin/karaoke)
@@ -161,6 +161,12 @@ struct state {
 	SkillStat skill_stats[32];
 	int num_skills = 0;
 
+	// Level-up tracking: current_level = index of first unmastered skill
+	int current_level = -1;      // -1 = not yet computed; 0+ = level index
+	char levelup_text[64] = "";  // celebration text
+	double levelup_time = -1e9;
+	int skills_expected = 0;     // num skills from first full batch (0 = unknown)
+
 	// Settings screen
 	bool settings_open = false;
 	int  settings_tab = 0;  // 0 = MIDI, 1 = Algorithm
@@ -271,6 +277,60 @@ static const char *alg_tooltip(const char *key)
 		if (strcmp(tips[i].k, key) == 0)
 			return tips[i].t;
 	return key;
+}
+
+static const char *skill_display_name(const char *sk)
+{
+	struct { const char *k; const char *d; } names[] = {
+		{"root", "Root Position"},
+		{"6", "Sixth Chords"},
+		{"4-3_sus", "4-3 Suspensions"},
+		{"6/4", "Six-Four Chords"},
+		{"7", "Seventh Chords"},
+		{"7-6_sus", "7-6 Suspensions"},
+		{"4", "Fourth Chords"},
+		{"other", "Advanced"},
+		{NULL, NULL}
+	};
+	for (int i = 0; names[i].k; i++)
+		if (strcmp(names[i].k, sk) == 0)
+			return names[i].d;
+	return sk;
+}
+
+// Recompute current_level from skill mastery; detect level-ups.
+static void update_skill_level(void)
+{
+	if (state.num_skills == 0) return;
+
+	// Don't compute level until we've seen a full batch of skills
+	if (state.skills_expected == 0) return;
+
+	float thresh = state.status.mastery_thresh;
+	int old_level = state.current_level;
+	int new_level = 0;
+
+	for (int i = 0; i < state.num_skills; i++) {
+		if (state.skill_stats[i].mastery >= thresh)
+			new_level = i + 1;
+		else
+			break;
+	}
+
+	state.current_level = new_level;
+
+	// Detect level-up (but not on first load)
+	if (old_level >= 0 && new_level > old_level && state.stats_initialized) {
+		if (new_level < state.num_skills) {
+			snprintf(state.levelup_text, sizeof(state.levelup_text),
+				 "Level Up! %s",
+				 skill_display_name(state.skill_stats[new_level].name));
+		} else {
+			snprintf(state.levelup_text, sizeof(state.levelup_text),
+				 "All Skills Mastered!");
+		}
+		state.levelup_time = glfwGetTime();
+	}
 }
 
 static void clear_badges(void)
@@ -384,7 +444,7 @@ static void key_callback(GLFWwindow *window, int key, int scancode, int action,
 			if (state.mode == state::MODE_PRACTICE)
 				toggle_karaoke();
 			break;
-		case GLFW_KEY_TAB:
+		case GLFW_KEY_P:
 			toggle_mode();
 			break;
 		case GLFW_KEY_S:
@@ -630,6 +690,14 @@ static void handle_chunk_name(const char *buf)
 
 static void parse_line(const char *buf)
 {
+	// Detect end of first SKILL_STATS batch: any non-SKILL_STATS line
+	// after skills have been added means the batch is complete.
+	if (state.skills_expected == 0 && state.num_skills > 0
+	    && strncmp(buf, "SKILL_STATS ", 12) != 0) {
+		state.skills_expected = state.num_skills;
+		update_skill_level();
+	}
+
 	if (strncmp(buf, "KARAOKE_DONE", 12) == 0) {
 		state.karaoke_on = false;
 		return;
@@ -659,7 +727,7 @@ static void parse_line(const char *buf)
 				 "Evenness Bonus +%dpts", pts);
 		else if (strcmp(tag, "READY") == 0)
 			snprintf(state.badge_celebration, sizeof(state.badge_celebration),
-				 "Performance Ready! +%dpts [Tab]", pts);
+				 "Performance Ready! +%dpts [P]", pts);
 		else if (strcmp(tag, "MASTERED") == 0)
 			snprintf(state.badge_celebration, sizeof(state.badge_celebration),
 				 "Chunk Mastered! +%dpts", pts);
@@ -796,18 +864,21 @@ static void parse_line(const char *buf)
 		if (sp) sscanf(sp, "skill=%31s", sk);
 		if (mp) sscanf(mp, "mastery=%f", &m);
 		if (sk[0]) {
+			bool existing = false;
 			for (int i = 0; i < state.num_skills; i++) {
 				if (strcmp(state.skill_stats[i].name, sk) == 0) {
 					state.skill_stats[i].mastery = m;
-					return;
+					existing = true;
+					break;
 				}
 			}
-			if (state.num_skills < 32) {
+			if (!existing && state.num_skills < 32) {
 				strncpy(state.skill_stats[state.num_skills].name, sk, 31);
 				state.skill_stats[state.num_skills].name[31] = '\0';
 				state.skill_stats[state.num_skills].mastery = m;
 				state.num_skills++;
 			}
+			update_skill_level();
 		}
 		return;
 	}
@@ -1019,9 +1090,9 @@ static const char *expand_suggestion(const char *s)
 	if (strcmp(s, "all_up_to_date") == 0)
 		return "All caught up! Come back later.";
 	if (strcmp(s, "back_to_practice") == 0)
-		return "Back to practice? [Tab]";
+		return "Back to practice? [P]";
 	if (strcmp(s, "try_performance") == 0)
-		return "Ready for performance! [Tab]";
+		return "Ready for performance! [P]";
 	if (strcmp(s, "earn_badges_first") == 0)
 		return "Earn all practice badges first!";
 	if (strcmp(s, "overdue") == 0)
@@ -1075,11 +1146,11 @@ static void show_stats_bar(void)
 	// Mode indicator
 	bool is_perf = (state.mode == state::MODE_PERFORMANCE);
 	if (is_perf)
-		ImGui::TextColored(ImVec4(1.0f, 0.6f, 0.1f, 1.0f), "PERF");
+		ImGui::TextColored(ImVec4(1.0f, 0.6f, 0.1f, 1.0f), "[P]erf");
 	else
-		ImGui::TextColored(ImVec4(0.3f, 0.6f, 1.0f, 1.0f), "PRAC");
+		ImGui::TextColored(ImVec4(0.3f, 0.6f, 1.0f, 1.0f), "[P]ract");
 	if (ImGui::IsItemHovered())
-		ImGui::SetTooltip("[Tab] to toggle practice/performance mode");
+		ImGui::SetTooltip("[P] to toggle practice/performance mode");
 	ImGui::SameLine();
 
 	// Badge row: [P] [S] [E] [P'][S'][E']
@@ -1301,6 +1372,38 @@ static void show_perf_feedback(void)
 	dl->AddText(ImGui::GetFont(), font_size, ImVec2(pos.x + 2, pos.y + 2),
 		    shadow, state.perf_feedback);
 	dl->AddText(ImGui::GetFont(), font_size, pos, col, state.perf_feedback);
+}
+
+static void show_levelup(void)
+{
+	if (state.levelup_text[0] == '\0')
+		return;
+
+	double age = glfwGetTime() - state.levelup_time;
+	const double DURATION = 2.5;
+	if (age >= DURATION)
+		return;
+
+	float t = (float)(age / DURATION);
+	float alpha = (t < 0.2f) ? (t / 0.2f) : (1.0f - (t - 0.2f) / 0.8f);
+	float rise = t * 50.0f;
+
+	ImGuiIO &io = ImGui::GetIO();
+	float cx = io.DisplaySize.x * 0.5f;
+	float cy = io.DisplaySize.y * 0.35f - rise;
+
+	ImDrawList *dl = ImGui::GetForegroundDrawList();
+	float font_size = ImGui::GetFontSize() * 3.0f;
+	ImVec2 text_size = ImGui::CalcTextSize(state.levelup_text);
+	float scale = 3.0f;
+	ImVec2 pos = ImVec2(cx - text_size.x * scale * 0.5f,
+			    cy - text_size.y * scale * 0.5f);
+
+	ImU32 col = IM_COL32(100, 255, 180, (int)(alpha * 255));
+	ImU32 shadow = IM_COL32(0, 0, 0, (int)(alpha * 200));
+	dl->AddText(ImGui::GetFont(), font_size, ImVec2(pos.x + 2, pos.y + 2),
+		    shadow, state.levelup_text);
+	dl->AddText(ImGui::GetFont(), font_size, pos, col, state.levelup_text);
 }
 
 // ── Top bar: stats left, chunk+[R]eload+X right ────────────────────────────
@@ -1647,42 +1750,75 @@ static void gui_main(void)
 	ImGui::SetCursorPosX(pad);
 	show_info_line();
 
-	// ── Combined bottom row: skills (left) + BPM/karaoke (right) ────────────
+	// ── Combined bottom row: level indicator (left) + BPM/karaoke (right) ───
 	{
-		float win_w = disp_w - 2.0f * pad;
+		ImGui::SetCursorPosX(pad);
 
-		// Skills left-aligned
-		if (state.num_skills > 0) {
-			float sp     = ImGui::GetStyle().ItemSpacing.x;
+		if (state.num_skills > 0 && state.current_level >= 0) {
 			float thresh = state.status.mastery_thresh;
-			int   ns     = state.num_skills;
-			float bar_h  = ImGui::GetFrameHeight() * 0.75f;
-			// Leave room for BPM/karaoke on the right
-			float right_w = bottom_bar_natural_width() + sp;
-			float skill_area = win_w - right_w;
-			float total_spacing = (ns - 1) * sp;
-			float bar_w = (skill_area - total_spacing) / (float)ns;
-			if (bar_w < 20.0f) bar_w = 20.0f;
+			int lvl = state.current_level;
+			float bar_h = ImGui::GetFrameHeight();
+			float sp = ImGui::GetStyle().ItemSpacing.x;
 
-			ImGui::PushStyleColor(ImGuiCol_FrameBg, ImVec4(0.25f, 0.25f, 0.25f, 1.0f));
-			ImGui::SetCursorPosX(pad);
-			for (int i = 0; i < ns; i++) {
-				if (i > 0) ImGui::SameLine();
-				float m    = state.skill_stats[i].mastery;
-				float frac = fminf(m / 100.0f, 1.0f);
-				bool  ok   = (m >= thresh);
-				ImGui::PushStyleColor(ImGuiCol_PlotHistogram,
-				    ok ? ImVec4(0.2f, 0.8f, 0.3f, 1.0f)
-				       : ImVec4(0.45f, 0.45f, 0.45f, 1.0f));
-				ImGui::PushID(i + 1000);
-				ImGui::ProgressBar(frac, ImVec2(bar_w, bar_h),
-						   state.skill_stats[i].name);
+			// Completed levels: green badge rectangles
+			ImDrawList *dl = ImGui::GetWindowDrawList();
+			for (int i = 0; i < lvl && i < state.num_skills; i++) {
+				if (i > 0) ImGui::SameLine(0, 6.0f);
+				ImGui::PushID(i + 3000);
+				const char *label = state.skill_stats[i].name;
+				ImVec2 tsz = ImGui::CalcTextSize(label);
+				float pw = 4.0f; // padding
+				float bw = tsz.x + pw * 2.0f;
+				float bh = bar_h;
+				ImVec2 pos = ImGui::GetCursorScreenPos();
+				ImVec2 a = ImVec2(pos.x, pos.y);
+				ImVec2 b = ImVec2(pos.x + bw, pos.y + bh);
+				dl->AddRectFilled(a, b, IM_COL32(30, 160, 60, 255), 3.0f);
+				dl->AddRect(a, b, IM_COL32(60, 220, 100, 255), 3.0f, 0, 1.5f);
+				ImVec2 tpos = ImVec2(a.x + pw, a.y + (bh - tsz.y) * 0.5f);
+				dl->AddText(tpos, IM_COL32(255, 255, 255, 255), label);
+				ImGui::Dummy(ImVec2(bw, bh));
 				ImGui::PopID();
-				ImGui::PopStyleColor();
+				if (ImGui::IsItemHovered())
+					ImGui::SetTooltip("%s (mastered)",
+							  skill_display_name(state.skill_stats[i].name));
 			}
-			ImGui::PopStyleColor(); // FrameBg
 
-			// BPM/karaoke on the same line, right-aligned
+			// Current level: label + progress bar
+			if (lvl < state.num_skills) {
+				if (lvl > 0) ImGui::SameLine();
+				float m = state.skill_stats[lvl].mastery;
+				float frac = fminf(m / thresh, 1.0f);
+
+				char label[48];
+				snprintf(label, sizeof(label), "Lv%d %s",
+					 lvl + 1, skill_display_name(state.skill_stats[lvl].name));
+
+				// Leave room for BPM/karaoke on the right
+				float right_w = bottom_bar_natural_width() + sp * 2.0f;
+				float avail = disp_w - 2.0f * pad - right_w;
+				float cur = ImGui::GetCursorPosX() - pad;
+				float bar_w = avail - cur;
+				if (bar_w < 60.0f) bar_w = 60.0f;
+				if (bar_w > 200.0f) bar_w = 200.0f;
+
+				ImGui::SameLine();
+				ImGui::PushStyleColor(ImGuiCol_FrameBg, ImVec4(0.25f, 0.25f, 0.25f, 1.0f));
+				ImGui::PushStyleColor(ImGuiCol_PlotHistogram,
+						      ImVec4(0.1f, 0.35f, 0.65f, 1.0f));
+				ImGui::ProgressBar(frac, ImVec2(bar_w, bar_h), label);
+				ImGui::PopStyleColor(2);
+				if (ImGui::IsItemHovered())
+					ImGui::SetTooltip("%s: %.0f / %.0f%%",
+							  skill_display_name(state.skill_stats[lvl].name),
+							  m, thresh);
+			} else if (state.stats_initialized) {
+				// All skills mastered (only show after initial load complete)
+				if (lvl > 0) ImGui::SameLine();
+				ImGui::TextColored(ImVec4(0.2f, 1.0f, 0.5f, 1.0f),
+						   "All skills mastered!");
+			}
+
 			ImGui::SameLine();
 		} else {
 			ImGui::SetCursorPosX(pad);
@@ -1699,6 +1835,7 @@ static void gui_main(void)
 	show_celebration();
 	show_badge_celebration();
 	show_perf_feedback();
+	show_levelup();
 	check_new_day();
 }
 
