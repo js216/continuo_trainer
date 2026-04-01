@@ -337,6 +337,14 @@ static void update_skill_level(void)
 	}
 }
 
+static float alg_param_value(const char *key, float fallback)
+{
+	for (int i = 0; i < state.num_alg_params; i++)
+		if (!state.alg_params[i].is_string && strcmp(state.alg_params[i].key, key) == 0)
+			return state.alg_params[i].value;
+	return fallback;
+}
+
 static void clear_badges(void)
 {
 	state.badge_p = state.badge_s = state.badge_e = false;
@@ -1171,17 +1179,25 @@ static void show_stats_bar(void)
 	ImU32 blue   = IM_COL32(50, 120, 220, 255);
 	ImU32 orange = IM_COL32(220, 160, 30, 255);
 
-	DrawBadgeSquare("P", state.badge_p, green, "Power: playing strength >= 40%", false);
+	char tip[6][64];
+	snprintf(tip[0], 64, "Power: strength >= %.0f%%", alg_param_value("badge_power_thresh", 40));
+	snprintf(tip[1], 64, "Speed: avg tempo >= %.0f BPM", alg_param_value("badge_speed_thresh", 60));
+	snprintf(tip[2], 64, "Evenness: consistency >= %.2f", alg_param_value("badge_evenness_thresh", 0.70f));
+	snprintf(tip[3], 64, "Perf Power: strength >= %.0f%%", alg_param_value("perf_badge_power_thresh", 60));
+	snprintf(tip[4], 64, "Perf Speed: tempo >= %.0f BPM", alg_param_value("perf_badge_speed_thresh", 120));
+	snprintf(tip[5], 64, "Perf Evenness: >= %.2f", alg_param_value("perf_badge_evenness_thresh", 0.85f));
+
+	DrawBadgeSquare("P", state.badge_p, green, tip[0], false);
 	ImGui::SameLine(0, sp);
-	DrawBadgeSquare("S", state.badge_s, blue, "Speed: avg tempo >= 60 BPM", false);
+	DrawBadgeSquare("S", state.badge_s, blue, tip[1], false);
 	ImGui::SameLine(0, sp);
-	DrawBadgeSquare("E", state.badge_e, orange, "Evenness: tempo consistency >= 80%", false);
+	DrawBadgeSquare("E", state.badge_e, orange, tip[2], false);
 	ImGui::SameLine(0, sp + 4.0f);
-	DrawBadgeSquare("P", state.badge_pp, green, "Perf Power: strength >= 60%", true);
+	DrawBadgeSquare("P", state.badge_pp, green, tip[3], true);
 	ImGui::SameLine(0, sp);
-	DrawBadgeSquare("S", state.badge_ps, blue, "Perf Speed: avg tempo >= 120 BPM", true);
+	DrawBadgeSquare("S", state.badge_ps, blue, tip[4], true);
 	ImGui::SameLine(0, sp);
-	DrawBadgeSquare("E", state.badge_pe, orange, "Perf Evenness: consistency >= 85%", true);
+	DrawBadgeSquare("E", state.badge_pe, orange, tip[5], true);
 
 	// Progress bar for next unearned badge (if any)
 	if (!state.badge_mastered) {
@@ -1194,34 +1210,40 @@ static void show_stats_bar(void)
 		if (!is_perf) {
 			if (!state.badge_p) {
 				tip_label = "Power";
-				tip_cur = s.power; tip_tgt = 40.0f;
-				frac = fminf(s.power / 40.0f, 1.0f);
+				tip_tgt = alg_param_value("badge_power_thresh", 40);
+				tip_cur = s.power;
+				frac = (tip_tgt > 0) ? fminf(s.power / tip_tgt, 1.0f) : 0.0f;
 				snprintf(bar_label, sizeof(bar_label), "P %.0f%%", frac * 100.0f);
 			} else if (!state.badge_s) {
 				tip_label = "Speed";
-				tip_cur = s.ema_bpm; tip_tgt = 60.0f;
-				frac = fminf(s.ema_bpm / 60.0f, 1.0f);
+				tip_tgt = alg_param_value("badge_speed_thresh", 60);
+				tip_cur = s.ema_bpm;
+				frac = (tip_tgt > 0) ? fminf(s.ema_bpm / tip_tgt, 1.0f) : 0.0f;
 				snprintf(bar_label, sizeof(bar_label), "S %.0f%%", frac * 100.0f);
 			} else if (!state.badge_e) {
 				tip_label = "Evenness";
-				tip_cur = s.ema_evenness; tip_tgt = 0.80f;
-				frac = fminf(s.ema_evenness / 0.80f, 1.0f);
+				tip_tgt = alg_param_value("badge_evenness_thresh", 0.70f);
+				tip_cur = s.ema_evenness;
+				frac = (tip_tgt > 0) ? fminf(s.ema_evenness / tip_tgt, 1.0f) : 0.0f;
 				snprintf(bar_label, sizeof(bar_label), "E %.0f%%", frac * 100.0f);
 			}
 		} else {
 			if (!state.badge_pp) {
 				tip_label = "Perf Power";
-				tip_cur = s.power; tip_tgt = 60.0f;
-				frac = fminf(s.power / 60.0f, 1.0f);
+				tip_tgt = alg_param_value("perf_badge_power_thresh", 60);
+				tip_cur = s.power;
+				frac = (tip_tgt > 0) ? fminf(s.power / tip_tgt, 1.0f) : 0.0f;
 				snprintf(bar_label, sizeof(bar_label), "P' %.0f%%", frac * 100.0f);
 			} else if (!state.badge_ps) {
 				tip_label = "Perf Speed";
-				tip_cur = 0.0f; tip_tgt = 120.0f;
+				tip_tgt = alg_param_value("perf_badge_speed_thresh", 120);
+				tip_cur = 0.0f;
 				frac = 0.0f;
 				snprintf(bar_label, sizeof(bar_label), "S' %.0f%%", frac * 100.0f);
 			} else if (!state.badge_pe) {
 				tip_label = "Perf Evenness";
-				tip_cur = 0.0f; tip_tgt = 0.85f;
+				tip_tgt = alg_param_value("perf_badge_evenness_thresh", 0.85f);
+				tip_cur = 0.0f;
 				frac = 0.0f;
 				snprintf(bar_label, sizeof(bar_label), "E' %.0f%%", frac * 100.0f);
 			}
@@ -1230,34 +1252,10 @@ static void show_stats_bar(void)
 		ImGui::ProgressBar(frac, ImVec2(bar_w, bar_h), bar_label);
 		ImGui::PopStyleColor();
 		if (ImGui::IsItemHovered())
-			ImGui::SetTooltip("%s: %.1f / %.0f", tip_label, tip_cur, tip_tgt);
+			ImGui::SetTooltip("%s: %.2f / %.2f", tip_label, tip_cur, tip_tgt);
 		ImGui::PopStyleColor();
 	}
 
-	// Daily goal bar
-	ImGui::SameLine();
-	ImGui::PushStyleColor(ImGuiCol_FrameBg, ImVec4(0.25f, 0.25f, 0.25f, 1.0f));
-	char d_label[16];
-	snprintf(d_label, sizeof(d_label), "%d pts", s.pts);
-	float d_frac =
-	    (s.goal > 0.0f) ? fminf((float)s.pts / s.goal, 1.0f) : 0.0f;
-	ImGui::PushStyleColor(ImGuiCol_PlotHistogram,
-			      s.goal_met ? ImVec4(0.0f, 0.8f, 0.3f, 1.0f)
-					 : ImVec4(0.2f, 0.5f, 0.9f, 1.0f));
-	ImGui::ProgressBar(d_frac, ImVec2(bar_w, bar_h), d_label);
-	ImGui::PopStyleColor();
-	if (ImGui::IsItemHovered())
-		ImGui::SetTooltip("Daily score (goal: %.0f pts)", s.goal);
-	ImGui::PopStyleColor(); // FrameBg
-
-	if (s.goal_met && s.streak > 0) {
-		char streak_buf[32];
-		snprintf(streak_buf, sizeof(streak_buf), "Streak: %d",
-			 s.streak);
-		ImGui::SameLine();
-		ImGui::TextColored(ImVec4(0.0f, 1.0f, 0.4f, 1.0f), "%s",
-				   streak_buf);
-	}
 }
 
 static void show_info_line(void)
@@ -1771,13 +1769,13 @@ static void gui_main(void)
 
 	// ── Combined bottom row: level indicator (left) + BPM/karaoke (right) ───
 	{
+		float bar_h = ImGui::GetFrameHeight();
+		float sp = ImGui::GetStyle().ItemSpacing.x;
 		ImGui::SetCursorPosX(pad);
 
 		if (state.num_skills > 0 && state.current_level >= 0) {
 			float thresh = state.status.mastery_thresh;
 			int lvl = state.current_level;
-			float bar_h = ImGui::GetFrameHeight();
-			float sp = ImGui::GetStyle().ItemSpacing.x;
 
 			// Completed levels: green badge rectangles
 			ImDrawList *dl = ImGui::GetWindowDrawList();
@@ -1841,12 +1839,46 @@ static void gui_main(void)
 			ImGui::SetCursorPosX(pad);
 		}
 
+		// Daily goal bar (centered between skill bar and BPM)
+		{
+			const status_line &s = state.status;
+			float right_total = bottom_bar_natural_width();
+			float right_x = disp_w - pad - right_total;
+			float left_x = ImGui::GetCursorPosX();
+			float gap = right_x - left_x;
+			float goal_w = 120.0f;
+			if (goal_w > gap - sp * 2.0f) goal_w = gap - sp * 2.0f;
+			if (goal_w < 50.0f) goal_w = 50.0f;
+			float goal_x = left_x + (gap - goal_w) * 0.5f;
+
+			ImGui::SameLine();
+			ImGui::SetCursorPosX(goal_x);
+			char d_label[24];
+			if (s.goal_met && s.streak > 0)
+				snprintf(d_label, sizeof(d_label), "%d pts  %dd", s.pts, s.streak);
+			else
+				snprintf(d_label, sizeof(d_label), "%d pts", s.pts);
+			float d_frac = (s.goal > 0.0f) ? fminf((float)s.pts / s.goal, 1.0f) : 0.0f;
+			ImGui::PushStyleColor(ImGuiCol_FrameBg, ImVec4(0.25f, 0.25f, 0.25f, 1.0f));
+			ImGui::PushStyleColor(ImGuiCol_PlotHistogram,
+					      s.goal_met ? ImVec4(0.0f, 0.8f, 0.3f, 1.0f)
+							 : ImVec4(0.2f, 0.5f, 0.9f, 1.0f));
+			ImGui::ProgressBar(d_frac, ImVec2(goal_w, bar_h), d_label);
+			ImGui::PopStyleColor(2);
+			if (ImGui::IsItemHovered())
+				ImGui::SetTooltip("Daily score (goal: %.0f pts)%s",
+						  s.goal, s.goal_met && s.streak > 0 ? "  Streak!" : "");
+		}
+
 		// Right-align BPM + karaoke
-		float right_total = bottom_bar_natural_width();
-		float right_x = disp_w - pad - right_total;
-		float cur_x = ImGui::GetCursorPosX();
-		ImGui::SetCursorPosX(right_x > cur_x ? right_x : cur_x);
-		show_bottom_bar(right_total, ImGui::GetCursorPosX());
+		{
+			float right_total = bottom_bar_natural_width();
+			float right_x = disp_w - pad - right_total;
+			float cur_x = ImGui::GetCursorPosX();
+			ImGui::SameLine();
+			ImGui::SetCursorPosX(right_x > cur_x ? right_x : cur_x);
+			show_bottom_bar(right_total, ImGui::GetCursorPosX());
+		}
 	}
 
 	show_celebration();
@@ -1916,8 +1948,9 @@ int main(int, char **)
 	// Request MIDI device list so dropdowns are populated on startup
 	printf("MIDI DEVICES\n");
 
-	// Request the first suggestion immediately; stats.lua is ready at
-	// startup.
+	// Request algorithm params and first suggestion immediately; stats.lua
+	// is ready at startup.
+	printf("QUERY_ALG\n");
 	printf("SUGGEST_LESSON\n");
 	fflush(stdout);
 

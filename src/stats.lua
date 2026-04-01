@@ -107,7 +107,7 @@ local ALGORITHM_DEFAULTS = {
 	-- Practice badges (sequential: P -> S -> E)
 	badge_power_thresh = 40, -- power % to earn P badge
 	badge_speed_thresh = 60, -- ema_bpm to earn S badge (after P)
-	badge_evenness_thresh = 0.80, -- ema_evenness to earn E badge (after S)
+	badge_evenness_thresh = 0.70, -- ema_evenness to earn E badge (after S)
 
 	-- Performance badges (sequential: P' -> S' -> E', higher bar)
 	perf_badge_power_thresh = 60, -- power % to earn perf P badge
@@ -1044,8 +1044,25 @@ for line in io.lines() do
 			local stats = load_stats(stats_file)
 			print_stats_line(stats, nil, current_loaded)
 			emit_skill_stats(stats)
-			-- Emit persisted badge state so GUI can reconstruct on chunk load
+			-- Check if any badges should be awarded retroactively
 			local c = stats.chunks[h]
+			local alg = stats.algorithm
+			if c then
+				local badge_pts = check_badges(c, alg, "practice")
+				if c.badge_p and c.badge_s and c.badge_e then
+					badge_pts = badge_pts + check_badges(c, alg, "performance")
+				end
+				if badge_pts > 0 then
+					local today = get_date_str(alg.midnight_time)
+					stats.daily[today] = stats.daily[today] or { score = 0, duration = 0 }
+					stats.daily[today].score = stats.daily[today].score + badge_pts
+					stats.chunks[h] = c
+					save_stats(stats_file, stats)
+					print_stats_line(stats, nil, current_loaded)
+				end
+			end
+			-- Emit persisted badge state so GUI can reconstruct on chunk load
+			c = stats.chunks[h]
 			if c then
 				if c.badge_p then io.write("BADGE P 0\n") end
 				if c.badge_s then io.write("BADGE S 0\n") end
