@@ -440,10 +440,8 @@ static void key_callback(GLFWwindow *window, int key, int scancode, int action,
 					fflush(stdout);
 					state.karaoke_on = false;
 				} else {
-					// Start performance attempt
-					if (state.perf_bpm > 0.0f) {
-						printf("PERF_BPM %.2f\n", state.perf_bpm);
-					}
+					// Start performance attempt at user's BPM
+					printf("PERF_BPM %.2f\n", state.bpm);
 					printf("KARAOKE_ON\n");
 					fflush(stdout);
 					state.karaoke_on = true;
