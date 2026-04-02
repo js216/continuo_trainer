@@ -100,7 +100,7 @@ struct status_line {
 	float power_thresh = 70.0f;
 
 	// coaching suggestion from last STATS line
-	char suggestion[32] = "";
+	char suggestion[256] = "";
 	double suggestion_time = -1e9;
 };
 
@@ -145,6 +145,7 @@ struct state {
 
 	// Performance feedback overlay
 	char perf_feedback[64] = "";
+	char perf_detail[128] = "";  // per-note timing summary
 	double perf_feedback_time = -1e9;
 
 
@@ -489,10 +490,10 @@ static void handle_result(const char *buf)
 
 	// In performance mode, forward result timestamps for scoring
 	if (state.mode == state::MODE_PERFORMANCE) {
-		int rtime = 0;
+		long long rtime = 0;
 		const char *tp = strstr(buf, "TIME:");
-		if (tp) sscanf(tp, "TIME:%d", &rtime);
-		printf("PERF_RESULT %d %d %s\n", id, rtime,
+		if (tp) sscanf(tp, "TIME:%lld", &rtime);
+		printf("PERF_RESULT %d %lld %s\n", id, rtime,
 		       ok ? "OK" : "FAIL");
 		fflush(stdout);
 	}
@@ -783,6 +784,21 @@ static void parse_line(const char *buf)
 		state.badge_celebration_time = glfwGetTime();
 		return;
 	}
+	// PERF_NOTE <id> <+/-ms> <ok|late> — per-note timing detail
+	if (strncmp(buf, "PERF_NOTE ", 10) == 0) {
+		int id, delta;
+		char status[8] = "";
+		if (sscanf(buf + 10, "%d %dms %7s", &id, &delta, status) >= 2) {
+			size_t len = strlen(state.perf_detail);
+			if (len > 0 && len < sizeof(state.perf_detail) - 1)
+				state.perf_detail[len++] = ' ';
+			snprintf(state.perf_detail + len,
+				 sizeof(state.perf_detail) - len,
+				 strcmp(status, "ok") == 0 ? "%d:ok" : "%d:%+dms",
+				 id, delta);
+		}
+		return;
+	}
 	// PERF_STATUS pass|fail <accuracy>
 	if (strncmp(buf, "PERF_STATUS ", 12) == 0) {
 		char result[8] = "";
@@ -794,7 +810,19 @@ static void parse_line(const char *buf)
 		else
 			snprintf(state.perf_feedback, sizeof(state.perf_feedback),
 				 "FAIL  %.0f%%", acc);
+		// Show timing detail in the yellow info line
+		if (state.perf_detail[0]) {
+			snprintf(state.status.suggestion,
+				 sizeof(state.status.suggestion),
+				 "Timing: %s", state.perf_detail);
+			state.status.suggestion_time = glfwGetTime();
+		}
+		state.perf_detail[0] = '\0';
 		state.perf_feedback_time = glfwGetTime();
+		// Reload chunk to reset group.rs counter for the next attempt
+		if (state.current_chunk[0])
+			printf("LOAD_CHUNK %s\n", state.current_chunk);
+		fflush(stdout);
 		return;
 	}
 	// PERF_BPM <bpm> — algorithm's suggested BPM for performance mode
@@ -809,7 +837,11 @@ static void parse_line(const char *buf)
 		return;
 	}
 	// MODE_SUGGEST practice|performance
+	// Skip if perf feedback is active (don't overwrite timing detail)
 	if (strncmp(buf, "MODE_SUGGEST ", 13) == 0) {
+		double perf_age = glfwGetTime() - state.perf_feedback_time;
+		if (perf_age < 3.0)
+			return;
 		char m[16] = "";
 		sscanf(buf + 13, "%15s", m);
 		if (strcmp(m, "practice") == 0) {
@@ -1392,7 +1424,7 @@ static void show_perf_feedback(void)
 		return;
 
 	double age = glfwGetTime() - state.perf_feedback_time;
-	const double DURATION = 2.0;
+	const double DURATION = 3.0;
 	if (age >= DURATION)
 		return;
 
@@ -1401,9 +1433,11 @@ static void show_perf_feedback(void)
 
 	ImGuiIO &io = ImGui::GetIO();
 	float cx = io.DisplaySize.x * 0.5f;
-	float cy = io.DisplaySize.y * 0.5f;
+	float cy = io.DisplaySize.y * 0.45f;
 
 	ImDrawList *dl = ImGui::GetForegroundDrawList();
+
+	// Main PASS/FAIL text
 	float font_size = ImGui::GetFontSize() * 3.0f;
 	ImVec2 text_size = ImGui::CalcTextSize(state.perf_feedback);
 	float scale = 3.0f;
@@ -1417,6 +1451,7 @@ static void show_perf_feedback(void)
 	dl->AddText(ImGui::GetFont(), font_size, ImVec2(pos.x + 2, pos.y + 2),
 		    shadow, state.perf_feedback);
 	dl->AddText(ImGui::GetFont(), font_size, pos, col, state.perf_feedback);
+
 }
 
 static void show_levelup(void)
@@ -1766,7 +1801,8 @@ static void gui_main(void)
 	// ── Reserve bottom rows: info line + combined skill/BPM bar ─────────────
 	float text_h  = ImGui::GetTextLineHeightWithSpacing();
 	float frame_h = ImGui::GetFrameHeightWithSpacing();
-	float bottom_reserved = text_h + frame_h;
+	float spacing = ImGui::GetStyle().ItemSpacing.y;
+	float bottom_reserved = text_h + spacing + frame_h;
 
 	// ── Centered content child ───────────────────────────────────────────────
 	float top_used  = ImGui::GetCursorPosY();
@@ -1791,9 +1827,10 @@ static void gui_main(void)
 
 	float pad = ImGui::GetStyle().WindowPadding.x;
 
-	// ── Info line: yellow suggestion (left) ──────────────────────────────────
+	// ── Info line: yellow suggestion (left), above the bottom row ────────────
 	ImGui::SetCursorPosX(pad);
 	show_info_line();
+	ImGui::Spacing();
 
 	// ── Combined bottom row: level indicator (left) + BPM/karaoke (right) ───
 	{

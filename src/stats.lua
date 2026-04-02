@@ -128,7 +128,7 @@ local ALGORITHM_DEFAULTS = {
 
 	-- Performance-mode fail-out thresholds
 	perf_fail_accuracy = 70, -- timing accuracy % below which attempt fails
-	perf_fail_timing_tol = 0.20, -- max |actual-expected|/expected per beat
+	perf_fail_timing_tol = 0.40, -- max |actual-expected|/expected per beat
 	perf_fail_streak = 3, -- consecutive fails to suggest practice
 
 	-- Interleaved practice (anti-blocked-practice)
@@ -241,6 +241,10 @@ local function load_stats(path)
 			if data.algorithm[k] == nil then
 				data.algorithm[k] = v
 			end
+		end
+		-- One-time migration: old default was too strict
+		if data.algorithm.perf_fail_timing_tol == 0.2 then
+			data.algorithm.perf_fail_timing_tol = 0.4
 		end
 		data.daily = data.daily or {}
 		data.chunks = data.chunks or {}
@@ -827,6 +831,11 @@ end
 try_perf_score = function()
 	if not perf_done_pending then return end
 
+	-- Need at least one beat before scoring
+	if not next(beat_timestamps) then
+		return -- still waiting for beats
+	end
+
 	-- Check if every beat has a matching result
 	for n in pairs(beat_timestamps) do
 		if not result_timestamps[n] then
@@ -834,7 +843,7 @@ try_perf_score = function()
 		end
 	end
 
-	-- All beats matched (or no beats) — score now
+	-- All beats matched — score now
 	perf_done_pending = false
 
 	local stats = load_stats(stats_file)
@@ -847,15 +856,19 @@ try_perf_score = function()
 
 	local total_notes = 0
 	local passed_notes = 0
+	local note_detail = {} -- { {id, delta_ms, passed} }
 
 	for n, bt in pairs(beat_timestamps) do
 		local rt = result_timestamps[n]
 		if rt then
-			local err = math.abs(rt.time - bt) / beat_interval
+			local delta = rt.time - bt
+			local err = math.abs(delta) / beat_interval
 			total_notes = total_notes + 1
-			if err <= alg.perf_fail_timing_tol and rt.ok then
+			local ok = err <= alg.perf_fail_timing_tol and rt.ok
+			if ok then
 				passed_notes = passed_notes + 1
 			end
+			note_detail[#note_detail + 1] = { id = n, delta = delta, passed = ok }
 		end
 	end
 
@@ -865,6 +878,7 @@ try_perf_score = function()
 			total_notes = total_notes + 1
 		end
 	end
+	table.sort(note_detail, function(a, b) return a.id < b.id end)
 
 	if total_notes > 0 then
 		local accuracy = passed_notes / total_notes * 100
@@ -901,12 +915,22 @@ try_perf_score = function()
 			stats.daily[today].score = stats.daily[today].score + perf_points
 			local badge_pts = check_badges(c, alg, "performance")
 			stats.daily[today].score = stats.daily[today].score + badge_pts
+			-- Emit per-note timing detail before status so GUI can build summary
+			for _, nd in ipairs(note_detail) do
+				io.write(string.format("PERF_NOTE %d %+dms %s\n",
+					nd.id, nd.delta, nd.passed and "ok" or "late"))
+			end
 			io.write(string.format("PERF_STATUS pass %.1f\n", accuracy))
 		else
 			c.perf_fail_streak = (c.perf_fail_streak or 0) + 1
 			c.perf_pass_streak = 0
 			c.perf_bpm = math.max(actual_bpm - alg.perf_bpm_increment, alg.badge_speed_thresh)
 			c.power_factor = math.max(0, (c.power_factor or 1.0) * (1.0 - alg.mistake_power_penalty))
+			-- Emit per-note timing detail before status so GUI can build summary
+			for _, nd in ipairs(note_detail) do
+				io.write(string.format("PERF_NOTE %d %+dms %s\n",
+					nd.id, nd.delta, nd.passed and "ok" or "late"))
+			end
 			io.write(string.format("PERF_STATUS fail %.1f\n", accuracy))
 			if (c.perf_fail_streak or 0) >= alg.perf_fail_streak then
 				io.write("MODE_SUGGEST practice\n")
@@ -1400,6 +1424,9 @@ for line in io.lines() do
 		local n, ts = line:match("^PERF_BEAT (%d+) (%d+)")
 		if n and ts then
 			beat_timestamps[tonumber(n)] = tonumber(ts)
+			if perf_done_pending then
+				try_perf_score()
+			end
 		end
 
 	-- PERF_RESULT: user's note result in performance mode (forwarded by GUI)

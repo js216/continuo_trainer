@@ -15,6 +15,11 @@ BADGE READY 0
 BADGE PP 0
 PERF_BPM 100.00
 PERF_BPM 100.00
+PERF_NOTE 0 +50ms ok
+PERF_NOTE 1 +50ms ok
+PERF_NOTE 2 +50ms ok
+PERF_NOTE 3 +50ms ok
+PERF_NOTE 4 +50ms ok
 PERF_STATUS pass 100.0
 PERF_BPM 102.00
 STATS time=0 total_today=170.00 goal=1000.00 total_duration_today=0.000 streak=0 mastery_thresh=60 power_thresh=40 chunk=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa[ivl=6,ease=2.50,mastery=80.00,power=80.00,ema_bpm=100.00,ema_evenness=0.8000]

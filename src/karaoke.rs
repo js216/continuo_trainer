@@ -11,6 +11,8 @@ struct Note {
     lily: Option<String>,
     midi: Option<u8>,
     beats: f64,
+    group_id: i32,   // bass group this note belongs to; -1 = unknown
+    group_first: bool, // true for the first note in a group
 }
 
 struct SharedState {
@@ -19,6 +21,7 @@ struct SharedState {
     beats_per_bar: u32,
     beats_denominator: u32,
     melody: Vec<Note>,
+    bass_beats: Vec<(i32, f64)>, // (group_id, duration_in_beats) from BASSNOTE
 }
 
 fn now_ms() -> u64 {
@@ -114,6 +117,8 @@ fn parse_token(tok: &str, beats_denominator: u32) -> Option<Note> {
         lily,
         midi: midi_note,
         beats,
+        group_id: -1,
+        group_first: false,
     })
 }
 
@@ -126,6 +131,7 @@ fn main() {
         beats_per_bar: 4,
         beats_denominator: 4,
         melody: Vec::new(),
+        bass_beats: Vec::new(),
     }));
 
     let stop_signal = Arc::new(AtomicBool::new(false));
@@ -147,11 +153,11 @@ fn main() {
             let stop_ref = Arc::clone(&stop_signal);
 
             last_handle = Some(thread::spawn(move || {
-                let (bpm, is_perf, beats_per_bar, melody) = {
+                let (bpm, is_perf, beats_per_bar, melody, bass_beats) = {
                     let mut s = state_ref.lock().unwrap();
                     let perf = s.perf_bpm.is_some();
                     let effective_bpm = s.perf_bpm.take().unwrap_or(s.bpm);
-                    (effective_bpm, perf, s.beats_per_bar, s.melody.clone())
+                    (effective_bpm, perf, s.beats_per_bar, s.melody.clone(), s.bass_beats.clone())
                 };
 
                 // Count-in: one click per beat in the time signature.
@@ -160,7 +166,6 @@ fn main() {
                 let beat_click_secs = 60.0 / bpm;
                 let click_on = Duration::from_millis(30);
                 let click_off = Duration::from_secs_f64((beat_click_secs - 0.030_f64).max(0.0));
-                let mut beat_num: u32 = 0;
                 for _ in 0..beats_per_bar {
                     if stop_ref.load(Ordering::SeqCst) {
                         return;
@@ -174,19 +179,26 @@ fn main() {
                     // Count-in beats are not numbered for scoring
                 }
 
+                // In performance mode, emit all BEAT timestamps up front.
+                // Each BEAT is timed from bass note durations so it matches
+                // when the user should play each group.
+                if is_perf && !bass_beats.is_empty() {
+                    let start = now_ms();
+                    let mut cumulative_beats = 0.0_f64;
+                    for &(group_id, _beats) in &bass_beats {
+                        let offset_ms = (cumulative_beats * 60000.0 / bpm) as u64;
+                        println!("BEAT {} {}", group_id, start + offset_ms);
+                        let _ = io::stdout().flush();
+                        cumulative_beats += _beats;
+                    }
+                }
+
                 let mut stopped = false;
                 for note in melody {
                     if stop_ref.load(Ordering::SeqCst) {
                         stopped = true;
                         break;
                     }
-
-                    // Emit BEAT timestamp for performance scoring (only in perf mode)
-                    if is_perf {
-                        println!("BEAT {} {}", beat_num, now_ms());
-                        let _ = io::stdout().flush();
-                    }
-                    beat_num += 1;
 
                     let total_secs = note.beats * 60.0 / bpm;
                     if let (Some(lily), Some(_midi)) = (&note.lily, note.midi) {
@@ -245,6 +257,7 @@ fn main() {
         } else if line.starts_with("LESSON ") {
             let mut s = state.lock().unwrap();
             s.melody.clear();
+            s.bass_beats.clear();
             // LESSON <hash> <key> <time> <bpm> <bar>
             // BPM is no longer read here; stats.lua issues a BPM command instead.
             let fields: Vec<&str> = line.split_whitespace().collect();
@@ -267,16 +280,50 @@ fn main() {
             }
             // REMOVED PASS THROUGH
         } else if line.starts_with("MELODY ") {
-            if let Some((_, content)) = line.split_once(": ") {
-                let mut s = state.lock().unwrap();
-                let denom = s.beats_denominator;
-                for tok in content.split_whitespace() {
-                    if let Some(n) = parse_token(tok, denom) {
-                        s.melody.push(n);
+            // MELODY <id>: <tokens...>
+            if let Some(rest) = line.strip_prefix("MELODY ") {
+                let group_id: i32 = rest.split(':').next()
+                    .and_then(|s| s.trim().parse().ok()).unwrap_or(-1);
+                if let Some((_, content)) = rest.split_once(": ") {
+                    let mut s = state.lock().unwrap();
+                    let denom = s.beats_denominator;
+                    let mut first = true;
+                    for tok in content.split_whitespace() {
+                        if let Some(mut n) = parse_token(tok, denom) {
+                            n.group_id = group_id;
+                            n.group_first = first;
+                            first = false;
+                            s.melody.push(n);
+                        }
                     }
                 }
             }
             // REMOVED PASS THROUGH
+        } else if line.starts_with("BASSNOTE ") {
+            // BASSNOTE <id>: <note>[<dur>][.] [passing]
+            // Extract group id and note duration in beats
+            if let Some(rest) = line.strip_prefix("BASSNOTE ") {
+                if let Some((id_str, content)) = rest.split_once(':') {
+                    if let Ok(id) = id_str.trim().parse::<i32>() {
+                        let tok = content.split_whitespace().next().unwrap_or("");
+                        let tok = tok.trim_end_matches('p'); // strip passing marker
+                        let mut s = state.lock().unwrap();
+                        let denom = s.beats_denominator;
+                        // Parse duration from the token (same logic as parse_token)
+                        let remainder: String = tok.chars()
+                            .skip_while(|c| !c.is_ascii_digit())
+                            .collect();
+                        let dur_end = remainder.find(|c: char| !c.is_ascii_digit())
+                            .unwrap_or(remainder.len());
+                        let dur_num: f64 = remainder[..dur_end].parse().ok().unwrap_or(4.0);
+                        let dots = remainder[dur_end..].chars().filter(|&c| c == '.').count();
+                        let dot_factor = (f64::powi(2.0, dots as i32 + 1) - 1.0)
+                            / f64::powi(2.0, dots as i32);
+                        let beats = (denom as f64 / dur_num) * dot_factor;
+                        s.bass_beats.push((id, beats));
+                    }
+                }
+            }
         }
         // General pass-through block deleted.
     }
