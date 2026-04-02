@@ -256,11 +256,12 @@ local function load_stats(path)
 	if not chunk then
 		return with_defaults({})
 	end
-	return with_defaults(chunk())
+	return with_defaults(chunk() or {})
 end
 
 local function save_stats(path, data)
-	local f = io.open(path, "w")
+	local tmp = path .. ".tmp"
+	local f = io.open(tmp, "w")
 	if not f then
 		return
 	end
@@ -294,6 +295,7 @@ local function save_stats(path, data)
 	end
 	f:write("return " .. serialize(data, "", 0) .. "\n")
 	f:close()
+	os.rename(tmp, path)
 end
 
 -------------------------------------------------------------------------------
@@ -570,7 +572,9 @@ local current_mode = "practice" -- "practice" or "performance"; set by MODE comm
 local rotation_pool = {} -- ordered list of chunk hashes in active rotation
 local attempts_since = {} -- { [hash] = count } attempts on other chunks since last played
 local beat_timestamps = {} -- { [beat_number] = timestamp_ms } from karaoke BEAT messages
+local result_timestamps = {} -- { [note_id] = {time, ok} } from GUI PERF_RESULT messages
 local perf_aborted = false -- true if current performance attempt was aborted
+local perf_attempt_bpm = nil -- BPM used for the current performance attempt (from GUI PERF_BPM)
 local pending_children = {} -- [hash] = {results, abs_s, abs_e}; awaiting CHILDREN response
 local children_of = {} -- [hash] = {child_hash, ...} built from CHILDREN responses
 local pending_child_queries = 0 -- outstanding startup QUERY_CHILDREN from ALL_SCANNED
@@ -831,6 +835,11 @@ end
 
 local function finalize(stats)
 	if not current or current.max_bass_id < 0 then
+		current = nil
+		return
+	end
+	-- In performance mode, scoring is handled by PERF_DONE, not here.
+	if current_mode == "performance" then
 		current = nil
 		return
 	end
@@ -1267,59 +1276,86 @@ for line in io.lines() do
 			end
 		end
 
-	-- BEAT: karaoke beat timestamp (from karaoke.rs in performance mode)
-	elseif line:match("^BEAT ") then
-		local n, ts = line:match("^BEAT (%d+) (%d+)")
+	-- PERF_BPM from GUI: capture the BPM the user chose for this attempt
+	elseif line:match("^PERF_BPM ") then
+		local bpm = tonumber(line:match("^PERF_BPM (%S+)"))
+		if bpm and bpm > 0 then
+			perf_attempt_bpm = bpm
+		end
+
+	-- PERF_BEAT: karaoke beat timestamp (forwarded by GUI from karaoke BEAT)
+	elseif line:match("^PERF_BEAT ") then
+		local n, ts = line:match("^PERF_BEAT (%d+) (%d+)")
 		if n and ts then
 			beat_timestamps[tonumber(n)] = tonumber(ts)
 		end
 
-	-- KARAOKE_ABORT: user stopped karaoke mid-attempt
-	elseif line:match("^KARAOKE_ABORT") then
+	-- PERF_RESULT: user's note result in performance mode (forwarded by GUI)
+	elseif line:match("^PERF_RESULT ") then
+		local id, ts, status = line:match("^PERF_RESULT (%d+) (%d+) (%S+)")
+		if id and ts then
+			result_timestamps[tonumber(id)] = { time = tonumber(ts), ok = (status == "OK") }
+		end
+
+	-- PERF_ABORT: user stopped karaoke mid-attempt (forwarded by GUI)
+	elseif line:match("^PERF_ABORT") then
 		perf_aborted = true
 		beat_timestamps = {}
+		result_timestamps = {}
 
-	-- KARAOKE_DONE: performance attempt completed; score it
-	elseif line:match("^KARAOKE_DONE") then
+	-- PERF_DONE: performance attempt completed; score it (forwarded by GUI)
+	elseif line:match("^PERF_DONE") then
 		if current_mode == "performance" and current_loaded and not perf_aborted then
 			local stats = load_stats(stats_file)
 			local c = stats.chunks[current_loaded]
 			local alg = stats.algorithm
 			if c then
-				-- Score performance attempt using beat timestamps
-				local total_beats = 0
-				local passed_beats = 0
-				local sorted_beats = {}
-				for n in pairs(beat_timestamps) do
-					sorted_beats[#sorted_beats + 1] = n
-				end
-				table.sort(sorted_beats)
+				-- Score performance: compare user RESULT times against karaoke BEAT times.
+				-- For each note, timing error = |user_time - karaoke_time| / beat_interval.
+				local actual_bpm = perf_attempt_bpm or c.perf_bpm or 60
+				local beat_interval = 60000.0 / actual_bpm
 
-				if #sorted_beats >= 2 then
-					local actual_bpm = c.perf_bpm or 60
-					local expected_interval = 60000.0 / actual_bpm -- ms per beat
-					local timing_errors = {}
-					for i = 2, #sorted_beats do
-						local actual_interval = beat_timestamps[sorted_beats[i]] - beat_timestamps[sorted_beats[i - 1]]
-						local err = math.abs(actual_interval - expected_interval) / expected_interval
-						timing_errors[#timing_errors + 1] = err
-						total_beats = total_beats + 1
-						if err <= alg.perf_fail_timing_tol then
-							passed_beats = passed_beats + 1
+				local total_notes = 0
+				local passed_notes = 0
+				local user_intervals = {}
+
+				for n, bt in pairs(beat_timestamps) do
+					local rt = result_timestamps[n]
+					if rt then
+						local err = math.abs(rt.time - bt) / beat_interval
+						total_notes = total_notes + 1
+						if err <= alg.perf_fail_timing_tol and rt.ok then
+							passed_notes = passed_notes + 1
 						end
 					end
+				end
 
-					local accuracy = (total_beats > 0) and (passed_beats / total_beats * 100) or 0
-					local passed = accuracy >= alg.perf_fail_accuracy
+				-- Also count user notes that had no matching beat (wrong notes)
+				for n, rt in pairs(result_timestamps) do
+					if not beat_timestamps[n] then
+						total_notes = total_notes + 1
+					end
+				end
 
-					-- Timing evenness: min/max interval ratio
+				if total_notes > 0 then
+					local accuracy = passed_notes / total_notes * 100
+
+					-- Timing evenness from user's intervals
+					local sorted_ids = {}
+					for n in pairs(result_timestamps) do
+						sorted_ids[#sorted_ids + 1] = n
+					end
+					table.sort(sorted_ids)
 					local min_ivl, max_ivl = math.huge, 0
-					for i = 2, #sorted_beats do
-						local ivl = beat_timestamps[sorted_beats[i]] - beat_timestamps[sorted_beats[i - 1]]
-						if ivl < min_ivl then min_ivl = ivl end
-						if ivl > max_ivl then max_ivl = ivl end
+					for i = 2, #sorted_ids do
+						local ivl = result_timestamps[sorted_ids[i]].time - result_timestamps[sorted_ids[i - 1]].time
+						if ivl > 0 then
+							if ivl < min_ivl then min_ivl = ivl end
+							if ivl > max_ivl then max_ivl = ivl end
+						end
 					end
 					local timing_evenness = (max_ivl > 0) and (min_ivl / max_ivl) or 1.0
+					local passed = accuracy >= alg.perf_fail_accuracy
 
 					if passed then
 						c.perf_pass_streak = (c.perf_pass_streak or 0) + 1
@@ -1360,7 +1396,9 @@ for line in io.lines() do
 			end
 		end
 		beat_timestamps = {}
+		result_timestamps = {}
 		perf_aborted = false
+		perf_attempt_bpm = nil
 
 	-- QUERY_ALG: emit all algorithm parameters as key=value pairs
 	elseif line:match("^QUERY_ALG") then

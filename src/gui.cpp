@@ -487,6 +487,16 @@ static void handle_result(const char *buf)
 	bool ok = (strstr(buf, " OK") != NULL || strstr(buf, "\tOK") != NULL ||
 		   strstr(buf, "mOK") != NULL);
 
+	// In performance mode, forward result timestamps for scoring
+	if (state.mode == state::MODE_PERFORMANCE) {
+		int rtime = 0;
+		const char *tp = strstr(buf, "TIME:");
+		if (tp) sscanf(tp, "TIME:%d", &rtime);
+		printf("PERF_RESULT %d %d %s\n", id, rtime,
+		       ok ? "OK" : "FAIL");
+		fflush(stdout);
+	}
+
 	if (state.num_squares < MAX_LINES) {
 		if (ok)
 			state.squares[state.num_squares].state = Square::OK;
@@ -498,11 +508,15 @@ static void handle_result(const char *buf)
 	if (id + 1 == state.num_notes + 1) {
 		state.squares[id + 1].state = Square::State::DONE;
 		state.num_squares = id + 2;
-		if (state.current_chunk[0])
-			printf("LOAD_CHUNK %s\n", state.current_chunk);
-		else if (state.num_level0 > 0)
-			printf("LOAD_CHUNK %s\n",
-			       state.level0_hashes[state.current_level0_idx]);
+		// In performance mode, don't auto-reload — the karaoke loop
+		// handles the cycle (KARAOKE_DONE → feedback → ready).
+		if (state.mode != state::MODE_PERFORMANCE) {
+			if (state.current_chunk[0])
+				printf("LOAD_CHUNK %s\n", state.current_chunk);
+			else if (state.num_level0 > 0)
+				printf("LOAD_CHUNK %s\n",
+				       state.level0_hashes[state.current_level0_idx]);
+		}
 	}
 
 	if (!ok) {
@@ -718,20 +732,21 @@ static void parse_line(const char *buf)
 
 	if (strncmp(buf, "KARAOKE_DONE", 12) == 0) {
 		state.karaoke_on = false;
-		// Forward to stats.lua for performance scoring
-		printf("KARAOKE_DONE\n");
+		// Forward to stats.lua for performance scoring (prefixed to
+		// avoid re-entry via midi.c pass-through)
+		printf("PERF_DONE\n");
 		fflush(stdout);
 		return;
 	}
 	// Forward BEAT lines from karaoke to stats.lua for performance scoring
 	if (strncmp(buf, "BEAT ", 5) == 0) {
-		printf("%s", buf);
+		printf("PERF_%s", buf);
 		fflush(stdout);
 		return;
 	}
 	// Forward KARAOKE_ABORT from karaoke to stats.lua
 	if (strncmp(buf, "KARAOKE_ABORT", 13) == 0) {
-		printf("KARAOKE_ABORT\n");
+		printf("PERF_ABORT\n");
 		fflush(stdout);
 		return;
 	}
