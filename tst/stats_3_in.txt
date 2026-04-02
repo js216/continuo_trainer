@@ -1,0 +1,14 @@
+CHUNK_NAME aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa 1 root
+LOAD_CHUNK aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+MODE performance
+LESSON aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa G 3/2 100 5
+BASSNOTE 0: g2
+BASSNOTE 1: fis2 passing
+BASSNOTE 2: e2
+BASSNOTE 3: b2
+BASSNOTE 4: a2
+RESULT 0 TIME:1000000 OK
+RESULT 1 TIME:1000600 OK
+RESULT 2 TIME:1001200 OK
+RESULT 3 TIME:1001800 OK
+RESULT 4 TIME:1002400 OK

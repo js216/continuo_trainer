@@ -551,7 +551,7 @@ local function print_stats_line(stats, timestamp, chunk_hash)
 	io.write(
 		string.format(
 			"STATS time=%.0f total_today=%.2f goal=%.2f total_duration_today=%.3f streak=%d mastery_thresh=%d power_thresh=%d%s\n",
-			timestamp or os.time(),
+			timestamp or 0,
 			d.score,
 			alg.score_goal,
 			d.duration,
