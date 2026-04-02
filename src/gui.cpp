@@ -155,7 +155,7 @@ struct state {
 	int  midi_out    = -1;  // selected output device index, -1 = none
 	bool midi_fwd    = false;
 
-	// Synth volume (forwarded as SET VOLUME; 0 = off)
+	// Synth volume (forwarded as SET MASTER_GAIN; 0 = off)
 	float synth_vol = 0.3f;
 
 	// Per-skill mastery (from SKILL_STATS lines emitted by stats.lua)
@@ -1671,7 +1671,7 @@ static void show_settings(void)
 			ImGui::SameLine();
 			ImGui::SetNextItemWidth(200.0f);
 			if (ImGui::SliderFloat("##svol_s", &state.synth_vol, 0.0f, 1.0f, "%.2f")) {
-				printf("SET VOLUME %.3f\n", state.synth_vol);
+				printf("SET MASTER_GAIN %.3f\n", state.synth_vol);
 				fflush(stdout);
 				save_gui_settings();
 			}
@@ -1971,7 +1971,7 @@ int main(int, char **)
 
 	// Restore saved settings and emit initial volume to synth
 	load_gui_settings();
-	printf("SET VOLUME %.3f\n", state.synth_vol);
+	printf("SET MASTER_GAIN %.3f\n", state.synth_vol);
 
 	// Request MIDI device list so dropdowns are populated on startup
 	printf("MIDI DEVICES\n");

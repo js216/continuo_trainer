@@ -575,6 +575,9 @@ local beat_timestamps = {} -- { [beat_number] = timestamp_ms } from karaoke BEAT
 local result_timestamps = {} -- { [note_id] = {time, ok} } from GUI PERF_RESULT messages
 local perf_aborted = false -- true if current performance attempt was aborted
 local perf_attempt_bpm = nil -- BPM used for the current performance attempt (from GUI PERF_BPM)
+local perf_done_pending = false -- true when PERF_DONE arrived but results are still incoming
+local try_perf_score -- forward declaration; defined after check_badges
+
 local pending_children = {} -- [hash] = {results, abs_s, abs_e}; awaiting CHILDREN response
 local children_of = {} -- [hash] = {child_hash, ...} built from CHILDREN responses
 local pending_child_queries = 0 -- outstanding startup QUERY_CHILDREN from ALL_SCANNED
@@ -812,6 +815,115 @@ local function badge_progress(c, alg, mode)
 		end
 	end
 	return nil
+end
+
+-------------------------------------------------------------------------------
+-- PERFORMANCE SCORING
+-------------------------------------------------------------------------------
+
+-- Try to score the performance attempt.  Called on PERF_DONE and on each
+-- PERF_RESULT.  Scores only when PERF_DONE has been received AND every beat
+-- has a matching result (or there are no beats at all).
+try_perf_score = function()
+	if not perf_done_pending then return end
+
+	-- Check if every beat has a matching result
+	for n in pairs(beat_timestamps) do
+		if not result_timestamps[n] then
+			return -- still waiting for results
+		end
+	end
+
+	-- All beats matched (or no beats) — score now
+	perf_done_pending = false
+
+	local stats = load_stats(stats_file)
+	local c = stats.chunks[current_loaded]
+	local alg = stats.algorithm
+	if not c then return end
+
+	local actual_bpm = perf_attempt_bpm or c.perf_bpm or 60
+	local beat_interval = 60000.0 / actual_bpm
+
+	local total_notes = 0
+	local passed_notes = 0
+
+	for n, bt in pairs(beat_timestamps) do
+		local rt = result_timestamps[n]
+		if rt then
+			local err = math.abs(rt.time - bt) / beat_interval
+			total_notes = total_notes + 1
+			if err <= alg.perf_fail_timing_tol and rt.ok then
+				passed_notes = passed_notes + 1
+			end
+		end
+	end
+
+	-- Also count user notes that had no matching beat (wrong notes)
+	for n in pairs(result_timestamps) do
+		if not beat_timestamps[n] then
+			total_notes = total_notes + 1
+		end
+	end
+
+	if total_notes > 0 then
+		local accuracy = passed_notes / total_notes * 100
+
+		-- Timing evenness from user's intervals
+		local sorted_ids = {}
+		for n in pairs(result_timestamps) do
+			sorted_ids[#sorted_ids + 1] = n
+		end
+		table.sort(sorted_ids)
+		local min_ivl, max_ivl = math.huge, 0
+		for i = 2, #sorted_ids do
+			local ivl = result_timestamps[sorted_ids[i]].time - result_timestamps[sorted_ids[i - 1]].time
+			if ivl > 0 then
+				if ivl < min_ivl then min_ivl = ivl end
+				if ivl > max_ivl then max_ivl = ivl end
+			end
+		end
+		local timing_evenness = (max_ivl > 0) and (min_ivl / max_ivl) or 1.0
+		local passed = accuracy >= alg.perf_fail_accuracy
+
+		if passed then
+			c.perf_pass_streak = (c.perf_pass_streak or 0) + 1
+			c.perf_fail_streak = 0
+			c.perf_best_bpm = math.max(c.perf_best_bpm or 0, actual_bpm)
+			c.perf_ema_bpm = alg.ema_evenness_alpha * actual_bpm
+				+ (1 - alg.ema_evenness_alpha) * (c.perf_ema_bpm or actual_bpm)
+			c.perf_ema_evenness = alg.ema_evenness_alpha * timing_evenness
+				+ (1 - alg.ema_evenness_alpha) * (c.perf_ema_evenness or timing_evenness)
+			c.perf_bpm = math.min(actual_bpm + alg.perf_bpm_increment, alg.perf_bpm_max)
+			local perf_points = (normalize(c.mastery or 0, c) * alg.power_points_per_pct) * 0.25
+			local today = get_date_str(alg.midnight_time)
+			stats.daily[today] = stats.daily[today] or { score = 0, duration = 0 }
+			stats.daily[today].score = stats.daily[today].score + perf_points
+			local badge_pts = check_badges(c, alg, "performance")
+			stats.daily[today].score = stats.daily[today].score + badge_pts
+			io.write(string.format("PERF_STATUS pass %.1f\n", accuracy))
+		else
+			c.perf_fail_streak = (c.perf_fail_streak or 0) + 1
+			c.perf_pass_streak = 0
+			c.perf_bpm = math.max(actual_bpm - alg.perf_bpm_increment, alg.badge_speed_thresh)
+			c.power_factor = math.max(0, (c.power_factor or 1.0) * (1.0 - alg.mistake_power_penalty))
+			io.write(string.format("PERF_STATUS fail %.1f\n", accuracy))
+			if (c.perf_fail_streak or 0) >= alg.perf_fail_streak then
+				io.write("MODE_SUGGEST practice\n")
+			end
+		end
+		io.write(string.format("PERF_BPM %.2f\n", c.perf_bpm))
+	else
+		io.write("PERF_STATUS fail 0.0\n")
+	end
+	stats.chunks[current_loaded] = c
+	save_stats(stats_file, stats)
+	print_stats_line(stats, nil, current_loaded)
+
+	beat_timestamps = {}
+	result_timestamps = {}
+	perf_aborted = false
+	perf_attempt_bpm = nil
 end
 
 -------------------------------------------------------------------------------
@@ -1295,6 +1407,9 @@ for line in io.lines() do
 		local id, ts, status = line:match("^PERF_RESULT (%d+) (%d+) (%S+)")
 		if id and ts then
 			result_timestamps[tonumber(id)] = { time = tonumber(ts), ok = (status == "OK") }
+			if perf_done_pending then
+				try_perf_score()
+			end
 		end
 
 	-- PERF_ABORT: user stopped karaoke mid-attempt (forwarded by GUI)
@@ -1303,102 +1418,18 @@ for line in io.lines() do
 		beat_timestamps = {}
 		result_timestamps = {}
 
-	-- PERF_DONE: performance attempt completed; score it (forwarded by GUI)
+	-- PERF_DONE: karaoke finished; defer scoring until all PERF_RESULTs arrive
 	elseif line:match("^PERF_DONE") then
 		if current_mode == "performance" and current_loaded and not perf_aborted then
-			local stats = load_stats(stats_file)
-			local c = stats.chunks[current_loaded]
-			local alg = stats.algorithm
-			if c then
-				-- Score performance: compare user RESULT times against karaoke BEAT times.
-				-- For each note, timing error = |user_time - karaoke_time| / beat_interval.
-				local actual_bpm = perf_attempt_bpm or c.perf_bpm or 60
-				local beat_interval = 60000.0 / actual_bpm
-
-				local total_notes = 0
-				local passed_notes = 0
-				local user_intervals = {}
-
-				for n, bt in pairs(beat_timestamps) do
-					local rt = result_timestamps[n]
-					if rt then
-						local err = math.abs(rt.time - bt) / beat_interval
-						total_notes = total_notes + 1
-						if err <= alg.perf_fail_timing_tol and rt.ok then
-							passed_notes = passed_notes + 1
-						end
-					end
-				end
-
-				-- Also count user notes that had no matching beat (wrong notes)
-				for n, rt in pairs(result_timestamps) do
-					if not beat_timestamps[n] then
-						total_notes = total_notes + 1
-					end
-				end
-
-				if total_notes > 0 then
-					local accuracy = passed_notes / total_notes * 100
-
-					-- Timing evenness from user's intervals
-					local sorted_ids = {}
-					for n in pairs(result_timestamps) do
-						sorted_ids[#sorted_ids + 1] = n
-					end
-					table.sort(sorted_ids)
-					local min_ivl, max_ivl = math.huge, 0
-					for i = 2, #sorted_ids do
-						local ivl = result_timestamps[sorted_ids[i]].time - result_timestamps[sorted_ids[i - 1]].time
-						if ivl > 0 then
-							if ivl < min_ivl then min_ivl = ivl end
-							if ivl > max_ivl then max_ivl = ivl end
-						end
-					end
-					local timing_evenness = (max_ivl > 0) and (min_ivl / max_ivl) or 1.0
-					local passed = accuracy >= alg.perf_fail_accuracy
-
-					if passed then
-						c.perf_pass_streak = (c.perf_pass_streak or 0) + 1
-						c.perf_fail_streak = 0
-						c.perf_best_bpm = math.max(c.perf_best_bpm or 0, actual_bpm)
-						c.perf_ema_bpm = alg.ema_evenness_alpha * actual_bpm
-							+ (1 - alg.ema_evenness_alpha) * (c.perf_ema_bpm or actual_bpm)
-						c.perf_ema_evenness = alg.ema_evenness_alpha * timing_evenness
-							+ (1 - alg.ema_evenness_alpha) * (c.perf_ema_evenness or timing_evenness)
-						c.perf_bpm = math.min(actual_bpm + alg.perf_bpm_increment, alg.perf_bpm_max)
-						-- Mastery bonus multiplier for performance passes
-						local perf_points = (normalize(c.mastery or 0, c) * alg.power_points_per_pct) * 0.25
-						local today = get_date_str(alg.midnight_time)
-						stats.daily[today] = stats.daily[today] or { score = 0, duration = 0 }
-						stats.daily[today].score = stats.daily[today].score + perf_points
-						-- Badge check for performance mode
-						local badge_pts = check_badges(c, alg, "performance")
-						stats.daily[today].score = stats.daily[today].score + badge_pts
-						io.write(string.format("PERF_STATUS pass %.1f\n", accuracy))
-					else
-						c.perf_fail_streak = (c.perf_fail_streak or 0) + 1
-						c.perf_pass_streak = 0
-						c.perf_bpm = math.max(actual_bpm - alg.perf_bpm_increment, alg.badge_speed_thresh)
-						c.power_factor = math.max(0, (c.power_factor or 1.0) * (1.0 - alg.mistake_power_penalty))
-						io.write(string.format("PERF_STATUS fail %.1f\n", accuracy))
-						-- Suggest practice if too many consecutive fails
-						if (c.perf_fail_streak or 0) >= alg.perf_fail_streak then
-							io.write("MODE_SUGGEST practice\n")
-						end
-					end
-					io.write(string.format("PERF_BPM %.2f\n", c.perf_bpm))
-				else
-					io.write("PERF_STATUS fail 0.0\n")
-				end
-				stats.chunks[current_loaded] = c
-				save_stats(stats_file, stats)
-				print_stats_line(stats, nil, current_loaded)
-			end
+			perf_done_pending = true
+			try_perf_score()
+		else
+			beat_timestamps = {}
+			result_timestamps = {}
+			perf_aborted = false
+			perf_attempt_bpm = nil
+			perf_done_pending = false
 		end
-		beat_timestamps = {}
-		result_timestamps = {}
-		perf_aborted = false
-		perf_attempt_bpm = nil
 
 	-- QUERY_ALG: emit all algorithm parameters as key=value pairs
 	elseif line:match("^QUERY_ALG") then

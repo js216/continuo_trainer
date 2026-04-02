@@ -23,6 +23,7 @@ bin/gui -> lua src/all.lua;
 lua src/stats.lua log/stats.log -> lua src/all.lua;
 bin/gui -> bin/karaoke;
 bin/gui -> bin/midi;
+bin/gui -> bin/synth;  // SET MASTER_GAIN
 bin/midi -> bin/gui;
 bin/karaoke -> bin/gui;
 
