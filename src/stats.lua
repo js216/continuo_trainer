@@ -572,7 +572,6 @@ local chunk_skills = {} -- { [hash] = skills_str }  populated from CHUNK_NAME li
 local scanned_chunks = {} -- chunks announced via CHUNK_NAME this session
 local current = nil -- { id, max_bass_id, results={[i]={status,time}} }
 local current_loaded = nil -- hash most recently loaded via LOAD_CHUNK
-local current_mode = "practice" -- "practice" or "performance"; set by MODE command
 local rotation_pool = {} -- ordered list of chunk hashes in active rotation
 local attempts_since = {} -- { [hash] = count } attempts on other chunks since last played
 local result_timestamps = {} -- { [note_id] = {time, ok} } from GUI PERF_RESULT messages
@@ -666,8 +665,8 @@ local function suggest_best_hash(stats, exclude_hash)
 		if h == exclude_hash then
 			goto suggest_continue
 		end
-		-- In practice mode, skip chunks that already earned all practice badges
-		if current_mode == "practice" and c.badge_graduated then
+		-- Skip chunks that already earned all practice badges
+		if c.badge_graduated then
 			goto suggest_continue
 		end
 		local is_new = not c.last_date and not c.t_last_date
@@ -763,7 +762,6 @@ local function check_badges(c, alg, mode)
 			c.badge_graduated = true
 			bonus = bonus + alg.badge_graduate_bonus
 			io.write(string.format("BADGE READY %d\n", alg.badge_graduate_bonus))
-			io.write("MODE_SUGGEST performance\n")
 		end
 	elseif mode == "performance" then
 		local power_pct = normalize(calculate_power(c, alg, c.perf_power_factor or 1.0), c)
@@ -798,31 +796,26 @@ local function check_badges(c, alg, mode)
 	return bonus
 end
 
--- Compute badge progress for the next unearned badge.
+-- Compute badge progress for the next unearned badge (sequential).
 -- Returns tag, current, target (or nil if all earned).
-local function badge_progress(c, alg, mode)
-	if mode == "practice" then
-		if not c.badge_p then
-			local power_pct = normalize(calculate_power(c, alg), c)
-			return "P", power_pct, alg.badge_power_thresh
-		end
-		if not c.badge_s then
-			return "S", c.pract_bpm or c.ema_bpm or 0, alg.badge_speed_thresh
-		end
-		if not c.badge_e then
-			return "E", c.ema_evenness or 0, alg.badge_evenness_thresh
-		end
-	elseif mode == "performance" then
-		if not c.perf_badge_p then
-			local power_pct = normalize(calculate_power(c, alg, c.perf_power_factor or 1.0), c)
-			return "PP", power_pct, alg.perf_badge_power_thresh
-		end
-		if not c.perf_badge_s then
-			return "PS", c.perf_bpm or 0, alg.perf_badge_speed_thresh
-		end
-		if not c.perf_badge_e then
-			return "PE", c.perf_ema_evenness or 0, alg.perf_badge_evenness_thresh
-		end
+local function badge_progress(c, alg)
+	if not c.badge_p then
+		return "P", normalize(calculate_power(c, alg), c), alg.badge_power_thresh
+	end
+	if not c.badge_s then
+		return "S", c.pract_bpm or c.ema_bpm or 0, alg.badge_speed_thresh
+	end
+	if not c.badge_e then
+		return "E", c.ema_evenness or 0, alg.badge_evenness_thresh
+	end
+	if not c.perf_badge_p then
+		return "PP", normalize(calculate_power(c, alg, c.perf_power_factor or 1.0), c), alg.perf_badge_power_thresh
+	end
+	if not c.perf_badge_s then
+		return "PS", c.perf_bpm or 0, alg.perf_badge_speed_thresh
+	end
+	if not c.perf_badge_e then
+		return "PE", c.perf_ema_evenness or 0, alg.perf_badge_evenness_thresh
 	end
 	return nil
 end
@@ -935,6 +928,11 @@ try_perf_score = function()
 					nd.id, math.floor(nd.delta + 0.5), nd.passed and "ok" or "late"))
 			end
 			io.write(string.format("PERF_STATUS pass %.1f\n", accuracy))
+			-- Adjust play_bpm: +10% on full correct, -10% on fail
+			if accuracy == 100 then
+				c.play_bpm = bpm * 1.1
+				io.write(string.format("BPM %.2f\n", c.play_bpm))
+			end
 		else
 			c.perf_n_fail = (c.perf_n_fail or 0) + 1
 			c.perf_n_pass = 0
@@ -945,8 +943,11 @@ try_perf_score = function()
 					nd.id, math.floor(nd.delta + 0.5), nd.passed and "ok" or "late"))
 			end
 			io.write(string.format("PERF_STATUS fail %.1f\n", accuracy))
+			-- Adjust play_bpm: -10% on fail
+			c.play_bpm = bpm * 0.9
+			io.write(string.format("BPM %.2f\n", c.play_bpm))
 			if (c.perf_n_fail or 0) >= alg.perf_fail_streak then
-				io.write("MODE_SUGGEST practice\n")
+				io.write("SUGGESTION none reason=needs_practice\n")
 			end
 		end
 	else
@@ -985,8 +986,9 @@ local function finalize(stats)
 		current = nil
 		return
 	end
-	-- In performance mode, scoring is handled by PERF_DONE, not here.
-	if current_mode == "performance" then
+	-- If karaoke was running (PERF_RESULTs received), scoring is handled
+	-- by PERF_DONE / try_perf_score, not here.
+	if next(result_timestamps) ~= nil or perf_done_pending then
 		current = nil
 		return
 	end
@@ -1046,12 +1048,9 @@ local function finalize(stats)
 	local extra_groups = math.max(0, sd.groups - alg.length_bonus_threshold)
 	local length_mult = 1.0 + extra_groups * alg.length_bonus_per_group
 	points = points * length_mult
-	-- Badge progression (practice mode only here; performance mode uses perf scoring)
-	local badge_pts = 0
-	if current_mode == "practice" then
-		badge_pts = check_badges(c, alg, "practice")
-		points = points + badge_pts
-	end
+	-- Badge progression (finalize only runs for practice play-throughs)
+	local badge_pts = check_badges(c, alg, "practice")
+	points = points + badge_pts
 	stats.daily[today] = stats.daily[today] or { score = 0, duration = 0 }
 	stats.daily[today].score = stats.daily[today].score + points
 	stats.daily[today].duration = stats.daily[today].duration + sd.duration
@@ -1200,16 +1199,12 @@ for line in io.lines() do
 			local stats = load_stats(stats_file)
 			print_stats_line(stats, nil, current_loaded)
 			emit_skill_stats(stats)
-			-- Check if any badges should be awarded retroactively (mode-aware)
+			-- Check if any badges should be awarded retroactively
 			local c = stats.chunks[h]
 			local alg = stats.algorithm
 			if c then
-				local badge_pts = 0
-				if current_mode == "practice" then
-					badge_pts = check_badges(c, alg, "practice")
-				elseif current_mode == "performance" then
-					badge_pts = check_badges(c, alg, "performance")
-				end
+				local badge_pts = check_badges(c, alg, "practice")
+					+ check_badges(c, alg, "performance")
 				if badge_pts > 0 then
 					local today = get_date_str(alg.midnight_time)
 					stats.daily[today] = stats.daily[today] or { score = 0, duration = 0 }
@@ -1396,13 +1391,6 @@ for line in io.lines() do
 		end
 		save_stats(stats_file, stats)
 
-	-- MODE: user declares current mode (from GUI Tab key)
-	elseif line:match("^MODE ") then
-		local m = line:match("^MODE (%S+)")
-		if m == "practice" or m == "performance" then
-			current_mode = m
-		end
-
 	-- BPM: user edited the BPM field; save as play_bpm for the current chunk
 	elseif line:match("^BPM ") then
 		local bpm = tonumber(line:match("^BPM (%S+)"))
@@ -1433,7 +1421,7 @@ for line in io.lines() do
 
 	-- PERF_DONE: karaoke finished; defer scoring until all PERF_RESULTs arrive
 	elseif line:match("^PERF_DONE") then
-		if current_mode == "performance" and current_loaded and not perf_aborted then
+		if current_loaded and not perf_aborted then
 			perf_done_pending = true
 			try_perf_score()
 		else

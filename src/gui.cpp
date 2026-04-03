@@ -127,9 +127,6 @@ struct state {
 	int current_chunk_level = -1; // level from last SUGGESTION chunk= line
 	float bpm = 120.0f;           // current BPM; updated by BPM command
 
-	// Practice/Performance mode
-	enum Mode { MODE_PRACTICE, MODE_PERFORMANCE } mode = MODE_PRACTICE;
-
 	// Badge state (from BADGE messages)
 	bool badge_p = false, badge_s = false, badge_e = false;     // practice
 	bool badge_pp = false, badge_ps = false, badge_pe = false;  // performance
@@ -399,24 +396,6 @@ static void toggle_karaoke(void)
 	fflush(stdout);
 }
 
-static void toggle_mode(void)
-{
-	if (state.mode == state::MODE_PRACTICE) {
-		state.mode = state::MODE_PERFORMANCE;
-		printf("MODE performance\n");
-		// If not all practice badges, flash a warning but allow
-		if (!state.badge_graduated) {
-			strncpy(state.status.suggestion, "earn_badges_first",
-				sizeof(state.status.suggestion) - 1);
-			state.status.suggestion_time = glfwGetTime();
-		}
-	} else {
-		state.mode = state::MODE_PRACTICE;
-		printf("MODE practice\n");
-	}
-	fflush(stdout);
-}
-
 static void key_callback(GLFWwindow *window, int key, int scancode, int action,
 			 int mods)
 {
@@ -432,29 +411,10 @@ static void key_callback(GLFWwindow *window, int key, int scancode, int action,
 			reload_lesson();
 			break;
 		case GLFW_KEY_SPACE:
-			if (state.mode == state::MODE_PERFORMANCE) {
-				// In performance mode: Space starts/aborts karaoke
-				if (state.karaoke_on) {
-					// Abort: stop playback + MIDI panic, no scoring
-					printf("KARAOKE_STOP\n");
-					fflush(stdout);
-					state.karaoke_on = false;
-				} else {
-					// Start performance attempt
-					printf("KARAOKE_ON\n");
-					fflush(stdout);
-					state.karaoke_on = true;
-				}
-			} else {
-				suggest_lesson();
-			}
+			suggest_lesson();
 			break;
 		case GLFW_KEY_K:
-			if (state.mode == state::MODE_PRACTICE)
-				toggle_karaoke();
-			break;
-		case GLFW_KEY_P:
-			toggle_mode();
+			toggle_karaoke();
 			break;
 		case GLFW_KEY_S:
 			state.settings_open = !state.settings_open;
@@ -486,8 +446,8 @@ static void handle_result(const char *buf)
 	bool ok = (strstr(buf, " OK") != NULL || strstr(buf, "\tOK") != NULL ||
 		   strstr(buf, "mOK") != NULL);
 
-	// In performance mode, forward result timestamps for scoring
-	if (state.mode == state::MODE_PERFORMANCE) {
+	// When karaoke is running, forward result timestamps for perf scoring
+	if (state.karaoke_on) {
 		long long rtime = 0;
 		const char *tp = strstr(buf, "TIME:");
 		if (tp) sscanf(tp, "TIME:%lld", &rtime);
@@ -825,24 +785,6 @@ static void parse_line(const char *buf)
 		fflush(stdout);
 		return;
 	}
-	// MODE_SUGGEST practice|performance
-	// Skip if perf feedback is active (don't overwrite timing detail)
-	if (strncmp(buf, "MODE_SUGGEST ", 13) == 0) {
-		double perf_age = glfwGetTime() - state.perf_feedback_time;
-		if (perf_age < 3.0)
-			return;
-		char m[16] = "";
-		sscanf(buf + 13, "%15s", m);
-		if (strcmp(m, "practice") == 0) {
-			strncpy(state.status.suggestion, "back_to_practice",
-				sizeof(state.status.suggestion) - 1);
-		} else if (strcmp(m, "performance") == 0) {
-			strncpy(state.status.suggestion, "try_performance",
-				sizeof(state.status.suggestion) - 1);
-		}
-		state.status.suggestion_time = glfwGetTime();
-		return;
-	}
 	// INTERLEAVE <hash> — show as a yellow suggestion hint
 	if (strncmp(buf, "INTERLEAVE ", 11) == 0) {
 		strncpy(state.status.suggestion, "time_to_mix_it_up",
@@ -1159,12 +1101,8 @@ static const char *expand_suggestion(const char *s)
 		return "No lessons found in seq/.";
 	if (strcmp(s, "all_up_to_date") == 0)
 		return "All caught up! Come back later.";
-	if (strcmp(s, "back_to_practice") == 0)
-		return "Back to practice? [P]";
-	if (strcmp(s, "try_performance") == 0)
-		return "Ready for performance! [P]";
-	if (strcmp(s, "earn_badges_first") == 0)
-		return "Earn all practice badges first!";
+	if (strcmp(s, "needs_practice") == 0)
+		return "Try practicing without karaoke.";
 	if (strcmp(s, "overdue") == 0)
 		return "Due for review.";
 	if (strcmp(s, "needs_work") == 0)
@@ -1213,16 +1151,6 @@ static void show_stats_bar(void)
 	float bar_h = ImGui::GetFrameHeight();
 	float sp = 2.0f;
 
-	// Mode indicator
-	bool is_perf = (state.mode == state::MODE_PERFORMANCE);
-	if (is_perf)
-		ImGui::TextColored(ImVec4(1.0f, 0.6f, 0.1f, 1.0f), "[P]erf");
-	else
-		ImGui::TextColored(ImVec4(0.3f, 0.6f, 1.0f, 1.0f), "[P]ract");
-	if (ImGui::IsItemHovered())
-		ImGui::SetTooltip("[P] to toggle practice/performance mode");
-	ImGui::SameLine();
-
 	// Badge row: [P] [S] [E] [P'][S'][E']
 	ImU32 green  = IM_COL32(0, 220, 80, 255);
 	ImU32 blue   = IM_COL32(50, 120, 220, 255);
@@ -1256,46 +1184,42 @@ static void show_stats_bar(void)
 		const char *tip_label = "";
 		float tip_cur = 0.0f, tip_tgt = 0.0f;
 		char bar_label[16] = "";
-		if (!is_perf) {
-			if (!state.badge_p) {
-				tip_label = "Power";
-				tip_tgt = alg_param_value("badge_power_thresh", 40);
-				tip_cur = s.power;
-				frac = (tip_tgt > 0) ? fminf(s.power / tip_tgt, 1.0f) : 0.0f;
-				snprintf(bar_label, sizeof(bar_label), "P %.0f%%", frac * 100.0f);
-			} else if (!state.badge_s) {
-				tip_label = "Speed";
-				tip_tgt = alg_param_value("badge_speed_thresh", 60);
-				tip_cur = s.pract_bpm;
-				frac = (tip_tgt > 0) ? fminf(s.pract_bpm / tip_tgt, 1.0f) : 0.0f;
-				snprintf(bar_label, sizeof(bar_label), "S %.0f%%", frac * 100.0f);
-			} else if (!state.badge_e) {
-				tip_label = "Evenness";
-				tip_tgt = alg_param_value("badge_evenness_thresh", 0.70f);
-				tip_cur = s.ema_evenness;
-				frac = (tip_tgt > 0) ? fminf(s.ema_evenness / tip_tgt, 1.0f) : 0.0f;
-				snprintf(bar_label, sizeof(bar_label), "E %.0f%%", frac * 100.0f);
-			}
-		} else {
-			if (!state.badge_pp) {
-				tip_label = "Perf Power";
-				tip_tgt = alg_param_value("perf_badge_power_thresh", 60);
-				tip_cur = s.perf_power;
-				frac = (tip_tgt > 0) ? fminf(s.perf_power / tip_tgt, 1.0f) : 0.0f;
-				snprintf(bar_label, sizeof(bar_label), "P' %.0f%%", frac * 100.0f);
-			} else if (!state.badge_ps) {
-				tip_label = "Perf Speed";
-				tip_tgt = alg_param_value("perf_badge_speed_thresh", 120);
-				tip_cur = s.perf_bpm;
-				frac = (tip_tgt > 0) ? fminf(s.perf_bpm / tip_tgt, 1.0f) : 0.0f;
-				snprintf(bar_label, sizeof(bar_label), "S' %.0f%%", frac * 100.0f);
-			} else if (!state.badge_pe) {
-				tip_label = "Perf Evenness";
-				tip_tgt = alg_param_value("perf_badge_evenness_thresh", 0.85f);
-				tip_cur = s.perf_ema_evenness;
-				frac = (tip_tgt > 0) ? fminf(s.perf_ema_evenness / tip_tgt, 1.0f) : 0.0f;
-				snprintf(bar_label, sizeof(bar_label), "E' %.0f%%", frac * 100.0f);
-			}
+		if (!state.badge_p) {
+			tip_label = "Power";
+			tip_tgt = alg_param_value("badge_power_thresh", 40);
+			tip_cur = s.power;
+			frac = (tip_tgt > 0) ? fminf(s.power / tip_tgt, 1.0f) : 0.0f;
+			snprintf(bar_label, sizeof(bar_label), "P %.0f%%", frac * 100.0f);
+		} else if (!state.badge_s) {
+			tip_label = "Speed";
+			tip_tgt = alg_param_value("badge_speed_thresh", 60);
+			tip_cur = s.pract_bpm;
+			frac = (tip_tgt > 0) ? fminf(s.pract_bpm / tip_tgt, 1.0f) : 0.0f;
+			snprintf(bar_label, sizeof(bar_label), "S %.0f%%", frac * 100.0f);
+		} else if (!state.badge_e) {
+			tip_label = "Evenness";
+			tip_tgt = alg_param_value("badge_evenness_thresh", 0.70f);
+			tip_cur = s.ema_evenness;
+			frac = (tip_tgt > 0) ? fminf(s.ema_evenness / tip_tgt, 1.0f) : 0.0f;
+			snprintf(bar_label, sizeof(bar_label), "E %.0f%%", frac * 100.0f);
+		} else if (!state.badge_pp) {
+			tip_label = "Perf Power";
+			tip_tgt = alg_param_value("perf_badge_power_thresh", 60);
+			tip_cur = s.perf_power;
+			frac = (tip_tgt > 0) ? fminf(s.perf_power / tip_tgt, 1.0f) : 0.0f;
+			snprintf(bar_label, sizeof(bar_label), "P' %.0f%%", frac * 100.0f);
+		} else if (!state.badge_ps) {
+			tip_label = "Perf Speed";
+			tip_tgt = alg_param_value("perf_badge_speed_thresh", 120);
+			tip_cur = s.perf_bpm;
+			frac = (tip_tgt > 0) ? fminf(s.perf_bpm / tip_tgt, 1.0f) : 0.0f;
+			snprintf(bar_label, sizeof(bar_label), "S' %.0f%%", frac * 100.0f);
+		} else if (!state.badge_pe) {
+			tip_label = "Perf Evenness";
+			tip_tgt = alg_param_value("perf_badge_evenness_thresh", 0.85f);
+			tip_cur = s.perf_ema_evenness;
+			frac = (tip_tgt > 0) ? fminf(s.perf_ema_evenness / tip_tgt, 1.0f) : 0.0f;
+			snprintf(bar_label, sizeof(bar_label), "E' %.0f%%", frac * 100.0f);
 		}
 		ImGui::PushStyleColor(ImGuiCol_PlotHistogram, ImVec4(0.5f, 0.5f, 0.8f, 1.0f));
 		ImGui::ProgressBar(frac, ImVec2(bar_w, bar_h), bar_label);
@@ -1312,13 +1236,6 @@ static void show_info_line(void)
 	const status_line &s = state.status;
 	double age = glfwGetTime() - s.suggestion_time;
 	bool show_msg = (s.suggestion[0] != '\0' && age < 3.0);
-
-	// Performance mode prompt when no suggestion is active
-	if (!show_msg && state.mode == state::MODE_PERFORMANCE && !state.karaoke_on) {
-		ImGui::TextColored(ImVec4(0.7f, 0.7f, 0.7f, 1.0f),
-				   "Space to start  |  BPM: %.0f", state.bpm);
-		return;
-	}
 
 	if (!show_msg) {
 		ImGui::Dummy(ImVec2(1.0f, ImGui::GetTextLineHeight()));
