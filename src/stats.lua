@@ -570,10 +570,8 @@ local current_loaded = nil -- hash most recently loaded via LOAD_CHUNK
 local current_mode = "practice" -- "practice" or "performance"; set by MODE command
 local rotation_pool = {} -- ordered list of chunk hashes in active rotation
 local attempts_since = {} -- { [hash] = count } attempts on other chunks since last played
-local beat_timestamps = {} -- { [beat_number] = timestamp_ms } from karaoke BEAT messages
 local result_timestamps = {} -- { [note_id] = {time, ok} } from GUI PERF_RESULT messages
 local perf_aborted = false -- true if current performance attempt was aborted
-local perf_attempt_bpm = nil -- BPM used for the current performance attempt (from GUI PERF_BPM)
 local perf_done_pending = false -- true when PERF_DONE arrived but results are still incoming
 local try_perf_score -- forward declaration; defined after check_badges
 
@@ -833,20 +831,16 @@ end
 -- has a matching result (or there are no beats at all).
 try_perf_score = function()
 	if not perf_done_pending then return end
+	if not current then return end
 
-	-- Need at least one beat before scoring
-	if not next(beat_timestamps) then
-		return -- still waiting for beats
-	end
-
-	-- Check if every beat has a matching result
-	for n in pairs(beat_timestamps) do
-		if not result_timestamps[n] then
+	-- Wait until all bass groups have results
+	for i = 0, current.max_bass_id do
+		if not result_timestamps[i] then
 			return -- still waiting for results
 		end
 	end
 
-	-- All beats matched — score now
+	-- All results in — score now
 	perf_done_pending = false
 
 	local stats = load_stats(stats_file)
@@ -854,34 +848,34 @@ try_perf_score = function()
 	local alg = stats.algorithm
 	if not c then return end
 
-	local actual_bpm = perf_attempt_bpm or c.ema_bpm or 60
-	local beat_interval = 60000.0 / actual_bpm
+	-- Compute expected onset times from bass note durations.
+	-- Use group 0's result time as the reference point (t=0).
+	local bpm = c.ema_bpm or current.ref_bpm or 60
+	local beat_interval = 60000.0 / bpm
+	-- Bass beats are in quarter-note units; convert to denominator beats
+	local denom_factor = current.time_denom / 4.0
 
 	local total_notes = 0
 	local passed_notes = 0
-	local note_detail = {} -- { {id, delta_ms, passed} }
+	local note_detail = {}
 
-	for n, bt in pairs(beat_timestamps) do
-		local rt = result_timestamps[n]
+	local t0 = result_timestamps[0] and result_timestamps[0].time or 0
+	local cumulative_qbeats = 0.0
+	for i = 0, current.max_bass_id do
+		local rt = result_timestamps[i]
 		if rt then
-			local delta = rt.time - bt
+			local expected_ms = cumulative_qbeats * denom_factor * 60000.0 / bpm
+			local delta = rt.time - t0 - expected_ms
 			local err = math.abs(delta) / beat_interval
 			total_notes = total_notes + 1
 			local ok = err <= alg.perf_fail_timing_tol and rt.ok
 			if ok then
 				passed_notes = passed_notes + 1
 			end
-			note_detail[#note_detail + 1] = { id = n, delta = delta, passed = ok }
+			note_detail[#note_detail + 1] = { id = i, delta = delta, passed = ok }
 		end
+		cumulative_qbeats = cumulative_qbeats + (current.beats[i] or 0)
 	end
-
-	-- Also count user notes that had no matching beat (wrong notes)
-	for n in pairs(result_timestamps) do
-		if not beat_timestamps[n] then
-			total_notes = total_notes + 1
-		end
-	end
-	table.sort(note_detail, function(a, b) return a.id < b.id end)
 
 	if total_notes > 0 then
 		local accuracy = passed_notes / total_notes * 100
@@ -946,7 +940,6 @@ try_perf_score = function()
 	beat_timestamps = {}
 	result_timestamps = {}
 	perf_aborted = false
-	perf_attempt_bpm = nil
 end
 
 -------------------------------------------------------------------------------
@@ -1188,13 +1181,15 @@ for line in io.lines() do
 			local stats = load_stats(stats_file)
 			print_stats_line(stats, nil, current_loaded)
 			emit_skill_stats(stats)
-			-- Check if any badges should be awarded retroactively
+			-- Check if any badges should be awarded retroactively (mode-aware)
 			local c = stats.chunks[h]
 			local alg = stats.algorithm
 			if c then
-				local badge_pts = check_badges(c, alg, "practice")
-				if c.badge_p and c.badge_s and c.badge_e then
-					badge_pts = badge_pts + check_badges(c, alg, "performance")
+				local badge_pts = 0
+				if current_mode == "practice" then
+					badge_pts = check_badges(c, alg, "practice")
+				elseif current_mode == "performance" then
+					badge_pts = check_badges(c, alg, "performance")
 				end
 				if badge_pts > 0 then
 					local today = get_date_str(alg.midnight_time)
@@ -1216,10 +1211,6 @@ for line in io.lines() do
 				if c.perf_badge_s then io.write("BADGE PS 0\n") end
 				if c.perf_badge_e then io.write("BADGE PE 0\n") end
 				if c.badge_mastered then io.write("BADGE MASTERED 0\n") end
-				-- Emit perf BPM if available
-				if c.ema_bpm then
-					io.write(string.format("PERF_BPM %.2f\n", c.ema_bpm))
-				end
 			end
 		end
 
@@ -1391,14 +1382,6 @@ for line in io.lines() do
 		local m = line:match("^MODE (%S+)")
 		if m == "practice" or m == "performance" then
 			current_mode = m
-			-- On entering performance mode, emit ema_bpm as suggested BPM
-			if m == "performance" and current_loaded then
-				local stats = load_stats(stats_file)
-				local c = stats.chunks[current_loaded]
-				if c and c.ema_bpm then
-					io.write(string.format("PERF_BPM %.2f\n", c.ema_bpm))
-				end
-			end
 		end
 
 	-- BPM: user edited the BPM field; save as ema_bpm for the current chunk
@@ -1411,23 +1394,6 @@ for line in io.lines() do
 				c.ema_bpm = bpm
 				stats.chunks[current_loaded] = c
 				save_stats(stats_file, stats)
-			end
-		end
-
-	-- PERF_BPM from GUI: capture the BPM the user chose for this attempt
-	elseif line:match("^PERF_BPM ") then
-		local bpm = tonumber(line:match("^PERF_BPM (%S+)"))
-		if bpm and bpm > 0 then
-			perf_attempt_bpm = bpm
-		end
-
-	-- PERF_BEAT: karaoke beat timestamp (forwarded by GUI from karaoke BEAT)
-	elseif line:match("^PERF_BEAT ") then
-		local n, ts = line:match("^PERF_BEAT (%d+) (%d+)")
-		if n and ts then
-			beat_timestamps[tonumber(n)] = tonumber(ts)
-			if perf_done_pending then
-				try_perf_score()
 			end
 		end
 
@@ -1444,7 +1410,6 @@ for line in io.lines() do
 	-- PERF_ABORT: user stopped karaoke mid-attempt (forwarded by GUI)
 	elseif line:match("^PERF_ABORT") then
 		perf_aborted = true
-		beat_timestamps = {}
 		result_timestamps = {}
 
 	-- PERF_DONE: karaoke finished; defer scoring until all PERF_RESULTs arrive
@@ -1456,8 +1421,7 @@ for line in io.lines() do
 			beat_timestamps = {}
 			result_timestamps = {}
 			perf_aborted = false
-			perf_attempt_bpm = nil
-			perf_done_pending = false
+					perf_done_pending = false
 		end
 
 	-- QUERY_ALG: emit all algorithm parameters as key=value pairs

@@ -6,13 +6,9 @@ BADGE S 25
 BADGE E 25
 BADGE READY 50
 MODE_SUGGEST performance
-BADGE PP 25
-STATS time=0 total_today=150.00 goal=1000.00 total_duration_today=0.000 streak=0 mastery_thresh=60 power_thresh=40 chunk=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa[ivl=6,ease=2.50,mastery=80.00,power=80.00,ema_bpm=100.00,ema_evenness=0.8000]
+STATS time=0 total_today=125.00 goal=1000.00 total_duration_today=0.000 streak=0 mastery_thresh=60 power_thresh=40 chunk=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa[ivl=6,ease=2.50,mastery=80.00,power=80.00,ema_bpm=100.00,ema_evenness=0.8000]
 BADGE P 0
 BADGE S 0
 BADGE E 0
 BADGE READY 0
-BADGE PP 0
-PERF_BPM 100.00
-PERF_BPM 100.00
 BPM 100.00

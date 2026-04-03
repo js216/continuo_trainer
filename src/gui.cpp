@@ -126,7 +126,6 @@ struct state {
 
 	// Practice/Performance mode
 	enum Mode { MODE_PRACTICE, MODE_PERFORMANCE } mode = MODE_PRACTICE;
-	float perf_bpm = 0.0f;        // suggested BPM from algorithm for performance
 
 	// Badge state (from BADGE messages)
 	bool badge_p = false, badge_s = false, badge_e = false;     // practice
@@ -438,8 +437,7 @@ static void key_callback(GLFWwindow *window, int key, int scancode, int action,
 					fflush(stdout);
 					state.karaoke_on = false;
 				} else {
-					// Start performance attempt at user's BPM
-					printf("PERF_BPM %.2f\n", state.bpm);
+					// Start performance attempt
 					printf("KARAOKE_ON\n");
 					fflush(stdout);
 					state.karaoke_on = true;
@@ -736,12 +734,6 @@ static void parse_line(const char *buf)
 		fflush(stdout);
 		return;
 	}
-	// Forward BEAT lines from karaoke to stats.lua for performance scoring
-	if (strncmp(buf, "BEAT ", 5) == 0) {
-		printf("PERF_%s", buf);
-		fflush(stdout);
-		return;
-	}
 	// Forward KARAOKE_ABORT from karaoke to stats.lua
 	if (strncmp(buf, "KARAOKE_ABORT", 13) == 0) {
 		printf("PERF_ABORT\n");
@@ -820,17 +812,6 @@ static void parse_line(const char *buf)
 		if (state.current_chunk[0])
 			printf("LOAD_CHUNK %s\n", state.current_chunk);
 		fflush(stdout);
-		return;
-	}
-	// PERF_BPM <bpm> — algorithm's suggested BPM for performance mode
-	if (strncmp(buf, "PERF_BPM ", 9) == 0) {
-		float bpm;
-		if (sscanf(buf + 9, "%f", &bpm) == 1 && bpm > 0.0f) {
-			state.perf_bpm = bpm;
-			// Also update the display BPM control
-			if (state.mode == state::MODE_PERFORMANCE)
-				state.bpm = bpm;
-		}
 		return;
 	}
 	// MODE_SUGGEST practice|performance
@@ -1236,13 +1217,13 @@ static void show_stats_bar(void)
 	ImU32 blue   = IM_COL32(50, 120, 220, 255);
 	ImU32 orange = IM_COL32(220, 160, 30, 255);
 
-	char tip[6][64];
-	snprintf(tip[0], 64, "Power: strength >= %.0f%%", alg_param_value("badge_power_thresh", 40));
-	snprintf(tip[1], 64, "Speed: avg tempo >= %.0f BPM", alg_param_value("badge_speed_thresh", 60));
-	snprintf(tip[2], 64, "Evenness: consistency >= %.2f", alg_param_value("badge_evenness_thresh", 0.70f));
-	snprintf(tip[3], 64, "Perf Power: strength >= %.0f%%", alg_param_value("perf_badge_power_thresh", 60));
-	snprintf(tip[4], 64, "Perf Speed: tempo >= %.0f BPM", alg_param_value("perf_badge_speed_thresh", 120));
-	snprintf(tip[5], 64, "Perf Evenness: >= %.2f", alg_param_value("perf_badge_evenness_thresh", 0.85f));
+	char tip[6][96];
+	snprintf(tip[0], 96, "Power: %.1f / %.0f%%", s.power, alg_param_value("badge_power_thresh", 40));
+	snprintf(tip[1], 96, "Speed: %.1f / %.0f BPM", s.ema_bpm, alg_param_value("badge_speed_thresh", 60));
+	snprintf(tip[2], 96, "Evenness: %.2f / %.2f", s.ema_evenness, alg_param_value("badge_evenness_thresh", 0.70f));
+	snprintf(tip[3], 96, "Perf Power: %.1f / %.0f%%", s.power, alg_param_value("perf_badge_power_thresh", 60));
+	snprintf(tip[4], 96, "Perf Speed: %.1f / %.0f BPM", s.ema_bpm, alg_param_value("perf_badge_speed_thresh", 120));
+	snprintf(tip[5], 96, "Perf Evenness: %.2f / %.2f", s.ema_evenness, alg_param_value("perf_badge_evenness_thresh", 0.85f));
 
 	DrawBadgeSquare("P", state.badge_p, green, tip[0], false);
 	ImGui::SameLine(0, sp);
@@ -1324,7 +1305,7 @@ static void show_info_line(void)
 	// Performance mode prompt when no suggestion is active
 	if (!show_msg && state.mode == state::MODE_PERFORMANCE && !state.karaoke_on) {
 		ImGui::TextColored(ImVec4(0.7f, 0.7f, 0.7f, 1.0f),
-				   "Space to start  |  BPM: %.0f", state.perf_bpm > 0 ? state.perf_bpm : state.bpm);
+				   "Space to start  |  BPM: %.0f", state.bpm);
 		return;
 	}
 
