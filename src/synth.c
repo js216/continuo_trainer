@@ -220,7 +220,7 @@ int main(void)
 			     .decay = 0.1f,
 			     .sustain = 0.7f,
 			     .release = 0.05f,
-			     .master_gain = 0.3f}};
+			     .master_gain = 0.0f}};
 
 	ma_device_config cfg = ma_device_config_init(ma_device_type_playback);
 	cfg.playback.format = ma_format_f32;
