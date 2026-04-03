@@ -658,13 +658,20 @@ local function compute_skill_rank(hash, skill_order_str)
 end
 
 -- Returns the hash of the best chunk to suggest, or nil. No output.
-local function suggest_best_hash(stats)
+local function suggest_best_hash(stats, exclude_hash)
 	local alg = stats.algorithm
 	local best_unmastered = nil
 	local best_new = nil
 	local all_practiced_mastered = true
 
 	for h, c in pairs(stats.chunks) do
+		if h == exclude_hash then
+			goto suggest_continue
+		end
+		-- In practice mode, skip chunks that already earned all practice badges
+		if current_mode == "practice" and c.badge_graduated then
+			goto suggest_continue
+		end
 		local is_new = not c.last_date and not c.t_last_date
 		local m_pct = normalize(math.max(c.mastery or 0, c.t_mastery or 0), c)
 		local level = c.level or 0
@@ -693,6 +700,7 @@ local function suggest_best_hash(stats)
 				end
 			end
 		end
+		::suggest_continue::
 	end
 
 	if not all_practiced_mastered then
@@ -1070,8 +1078,8 @@ local function finalize(stats)
 		end
 		-- Refill pool from suggest_best_hash if needed
 		if not interleave_hash then
-			local best = suggest_best_hash(stats)
-			if best and best ~= hash then
+			local best = suggest_best_hash(stats, hash)
+			if best then
 				interleave_hash = best
 				-- Add to rotation pool if not already there
 				local in_pool = false
