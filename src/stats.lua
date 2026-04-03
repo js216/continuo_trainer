@@ -895,6 +895,19 @@ try_perf_score = function()
 			end
 		end
 		local timing_evenness = (max_ivl > 0) and (min_ivl / max_ivl) or 1.0
+		-- Compute actual BPM from first-to-last onset span
+		local actual_bpm = bpm -- fallback for single-note lessons
+		if #sorted_ids >= 2 then
+			local span_ms = result_timestamps[sorted_ids[#sorted_ids]].time
+				- result_timestamps[sorted_ids[1]].time
+			if span_ms > 0 then
+				local span_qbeats = 0
+				for i = sorted_ids[1], sorted_ids[#sorted_ids] - 1 do
+					span_qbeats = span_qbeats + (current.beats[i] or 0)
+				end
+				actual_bpm = span_qbeats * denom_factor * 60000.0 / span_ms
+			end
+		end
 		local passed = accuracy >= alg.perf_fail_accuracy
 
 		if passed then
@@ -913,7 +926,7 @@ try_perf_score = function()
 			-- Emit per-note timing detail before status so GUI can build summary
 			for _, nd in ipairs(note_detail) do
 				io.write(string.format("PERF_NOTE %d %+dms %s\n",
-					nd.id, nd.delta, nd.passed and "ok" or "late"))
+					nd.id, math.floor(nd.delta + 0.5), nd.passed and "ok" or "late"))
 			end
 			io.write(string.format("PERF_STATUS pass %.1f\n", accuracy))
 		else
@@ -923,7 +936,7 @@ try_perf_score = function()
 			-- Emit per-note timing detail before status so GUI can build summary
 			for _, nd in ipairs(note_detail) do
 				io.write(string.format("PERF_NOTE %d %+dms %s\n",
-					nd.id, nd.delta, nd.passed and "ok" or "late"))
+					nd.id, math.floor(nd.delta + 0.5), nd.passed and "ok" or "late"))
 			end
 			io.write(string.format("PERF_STATUS fail %.1f\n", accuracy))
 			if (c.n_fail or 0) >= alg.perf_fail_streak then
