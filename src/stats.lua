@@ -121,11 +121,6 @@ local ALGORITHM_DEFAULTS = {
 	badge_graduate_bonus = 50, -- extra points on completing practice set
 	badge_mastered_bonus = 100, -- extra points on completing all 6 badges
 
-	-- Performance-mode BPM schedule
-	perf_bpm_discount = 0.75, -- initial perf BPM = ema_bpm * this
-	perf_bpm_increment = 2, -- BPM added after each successful attempt
-	perf_bpm_max = 160, -- absolute BPM ceiling
-
 	-- Performance-mode fail-out thresholds
 	perf_fail_accuracy = 70, -- timing accuracy % below which attempt fails
 	perf_fail_timing_tol = 0.40, -- max |actual-expected|/expected per beat
@@ -775,14 +770,14 @@ local function check_badges(c, alg, mode)
 			bonus = bonus + alg.badge_power_bonus
 			io.write(string.format("BADGE PP %d\n", alg.badge_power_bonus))
 		end
-		-- S' badge: perf_ema_bpm threshold (requires P')
-		if c.perf_badge_p and not c.perf_badge_s and (c.perf_ema_bpm or 0) >= alg.perf_badge_speed_thresh then
+		-- S' badge: ema_bpm threshold (requires P')
+		if c.perf_badge_p and not c.perf_badge_s and (c.ema_bpm or 0) >= alg.perf_badge_speed_thresh then
 			c.perf_badge_s = true
 			bonus = bonus + alg.badge_speed_bonus
 			io.write(string.format("BADGE PS %d\n", alg.badge_speed_bonus))
 		end
-		-- E' badge: perf_ema_evenness threshold (requires S')
-		if c.perf_badge_s and not c.perf_badge_e and (c.perf_ema_evenness or 0) >= alg.perf_badge_evenness_thresh then
+		-- E' badge: ema_evenness threshold (requires S')
+		if c.perf_badge_s and not c.perf_badge_e and (c.ema_evenness or 0) >= alg.perf_badge_evenness_thresh then
 			c.perf_badge_e = true
 			bonus = bonus + alg.badge_evenness_bonus
 			io.write(string.format("BADGE PE %d\n", alg.badge_evenness_bonus))
@@ -820,10 +815,10 @@ local function badge_progress(c, alg, mode)
 			return "PP", power_pct, alg.perf_badge_power_thresh
 		end
 		if not c.perf_badge_s then
-			return "PS", c.perf_ema_bpm or 0, alg.perf_badge_speed_thresh
+			return "PS", c.ema_bpm or 0, alg.perf_badge_speed_thresh
 		end
 		if not c.perf_badge_e then
-			return "PE", c.perf_ema_evenness or 0, alg.perf_badge_evenness_thresh
+			return "PE", c.ema_evenness or 0, alg.perf_badge_evenness_thresh
 		end
 	end
 	return nil
@@ -859,7 +854,7 @@ try_perf_score = function()
 	local alg = stats.algorithm
 	if not c then return end
 
-	local actual_bpm = perf_attempt_bpm or c.perf_bpm or 60
+	local actual_bpm = perf_attempt_bpm or c.ema_bpm or 60
 	local beat_interval = 60000.0 / actual_bpm
 
 	local total_notes = 0
@@ -909,14 +904,12 @@ try_perf_score = function()
 		local passed = accuracy >= alg.perf_fail_accuracy
 
 		if passed then
-			c.perf_pass_streak = (c.perf_pass_streak or 0) + 1
-			c.perf_fail_streak = 0
-			c.perf_best_bpm = math.max(c.perf_best_bpm or 0, actual_bpm)
-			c.perf_ema_bpm = alg.ema_evenness_alpha * actual_bpm
-				+ (1 - alg.ema_evenness_alpha) * (c.perf_ema_bpm or actual_bpm)
-			c.perf_ema_evenness = alg.ema_evenness_alpha * timing_evenness
-				+ (1 - alg.ema_evenness_alpha) * (c.perf_ema_evenness or timing_evenness)
-			c.perf_bpm = math.min(actual_bpm + alg.perf_bpm_increment, alg.perf_bpm_max)
+			c.n_pass = (c.n_pass or 0) + 1
+			c.n_fail = 0
+			c.ema_bpm = alg.ema_evenness_alpha * actual_bpm
+				+ (1 - alg.ema_evenness_alpha) * (c.ema_bpm or actual_bpm)
+			c.ema_evenness = alg.ema_evenness_alpha * timing_evenness
+				+ (1 - alg.ema_evenness_alpha) * (c.ema_evenness or timing_evenness)
 			local perf_points = (normalize(c.mastery or 0, c) * alg.power_points_per_pct) * 0.25
 			local today = get_date_str(alg.midnight_time)
 			stats.daily[today] = stats.daily[today] or { score = 0, duration = 0 }
@@ -930,9 +923,8 @@ try_perf_score = function()
 			end
 			io.write(string.format("PERF_STATUS pass %.1f\n", accuracy))
 		else
-			c.perf_fail_streak = (c.perf_fail_streak or 0) + 1
-			c.perf_pass_streak = 0
-			c.perf_bpm = math.max(actual_bpm - alg.perf_bpm_increment, alg.badge_speed_thresh)
+			c.n_fail = (c.n_fail or 0) + 1
+			c.n_pass = 0
 			c.power_factor = math.max(0, (c.power_factor or 1.0) * (1.0 - alg.mistake_power_penalty))
 			-- Emit per-note timing detail before status so GUI can build summary
 			for _, nd in ipairs(note_detail) do
@@ -940,11 +932,10 @@ try_perf_score = function()
 					nd.id, nd.delta, nd.passed and "ok" or "late"))
 			end
 			io.write(string.format("PERF_STATUS fail %.1f\n", accuracy))
-			if (c.perf_fail_streak or 0) >= alg.perf_fail_streak then
+			if (c.n_fail or 0) >= alg.perf_fail_streak then
 				io.write("MODE_SUGGEST practice\n")
 			end
 		end
-		io.write(string.format("PERF_BPM %.2f\n", c.perf_bpm))
 	else
 		io.write("PERF_STATUS fail 0.0\n")
 	end
@@ -1032,7 +1023,7 @@ local function finalize(stats)
 			bpm_beats = bpm_beats + (current.beats[i - 1] or 0)
 		end
 	end
-	if sd.duration > 0 and bpm_beats > 0 then
+	if sd.accuracy == 100 and sd.duration > 0 and bpm_beats > 0 then
 		local actual_bpm = bpm_beats * (time_denom / 4.0) * 60.0 / sd.duration
 		c.ema_bpm = alg.ema_alpha * actual_bpm + (1.0 - alg.ema_alpha) * (c.ema_bpm or ref_bpm)
 	end
@@ -1226,8 +1217,8 @@ for line in io.lines() do
 				if c.perf_badge_e then io.write("BADGE PE 0\n") end
 				if c.badge_mastered then io.write("BADGE MASTERED 0\n") end
 				-- Emit perf BPM if available
-				if c.perf_bpm then
-					io.write(string.format("PERF_BPM %.2f\n", c.perf_bpm))
+				if c.ema_bpm then
+					io.write(string.format("PERF_BPM %.2f\n", c.ema_bpm))
 				end
 			end
 		end
@@ -1400,23 +1391,26 @@ for line in io.lines() do
 		local m = line:match("^MODE (%S+)")
 		if m == "practice" or m == "performance" then
 			current_mode = m
-			-- On entering performance mode, emit suggested BPM
+			-- On entering performance mode, emit ema_bpm as suggested BPM
 			if m == "performance" and current_loaded then
 				local stats = load_stats(stats_file)
 				local c = stats.chunks[current_loaded]
-				if c then
-					local alg = stats.algorithm
-					local bpm = c.perf_bpm
-					if not bpm then
-						-- First entry: discount from ema_bpm
-						bpm = (c.ema_bpm or 60) * alg.perf_bpm_discount
-						bpm = math.max(alg.badge_speed_thresh, math.min(alg.perf_bpm_max, bpm))
-						c.perf_bpm = bpm
-						stats.chunks[current_loaded] = c
-						save_stats(stats_file, stats)
-					end
-					io.write(string.format("PERF_BPM %.2f\n", bpm))
+				if c and c.ema_bpm then
+					io.write(string.format("PERF_BPM %.2f\n", c.ema_bpm))
 				end
+			end
+		end
+
+	-- BPM: user edited the BPM field; save as ema_bpm for the current chunk
+	elseif line:match("^BPM ") then
+		local bpm = tonumber(line:match("^BPM (%S+)"))
+		if bpm and bpm > 0 and current_loaded then
+			local stats = load_stats(stats_file)
+			local c = stats.chunks[current_loaded]
+			if c then
+				c.ema_bpm = bpm
+				stats.chunks[current_loaded] = c
+				save_stats(stats_file, stats)
 			end
 		end
 
