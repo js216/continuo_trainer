@@ -538,7 +538,7 @@ local function print_stats_line(stats, timestamp, chunk_hash)
 			local mastery = c.mastery or 0
 			chunk_str = string.format(
 				" chunk=%s[ivl=%d,ease=%.2f,mastery=%.2f,power=%.2f,ema_bpm=%.2f,ema_evenness=%.4f"
-				.. ",perf_power=%.2f,perf_ema_bpm=%.2f,perf_ema_evenness=%.4f]",
+				.. ",perf_power=%.2f,perf_ema_evenness=%.4f]",
 				chunk_hash,
 				math.floor(c.ivl or 0),
 				c.ease or alg.ease_initial,
@@ -547,7 +547,6 @@ local function print_stats_line(stats, timestamp, chunk_hash)
 				c.ema_bpm or 0,
 				c.ema_evenness or 0,
 				normalize(perf_power, c),
-				c.perf_ema_bpm or 0,
 				c.perf_ema_evenness or 0
 			)
 		end
@@ -774,7 +773,7 @@ local function check_badges(c, alg, mode)
 			io.write(string.format("BADGE PP %d\n", alg.badge_power_bonus))
 		end
 		-- S' badge: ema_bpm threshold (requires P')
-		if c.perf_badge_p and not c.perf_badge_s and (c.perf_ema_bpm or 0) >= alg.perf_badge_speed_thresh then
+		if c.perf_badge_p and not c.perf_badge_s and (c.ema_bpm or 0) >= alg.perf_badge_speed_thresh then
 			c.perf_badge_s = true
 			bonus = bonus + alg.badge_speed_bonus
 			io.write(string.format("BADGE PS %d\n", alg.badge_speed_bonus))
@@ -818,7 +817,7 @@ local function badge_progress(c, alg, mode)
 			return "PP", power_pct, alg.perf_badge_power_thresh
 		end
 		if not c.perf_badge_s then
-			return "PS", c.perf_ema_bpm or 0, alg.perf_badge_speed_thresh
+			return "PS", c.ema_bpm or 0, alg.perf_badge_speed_thresh
 		end
 		if not c.perf_badge_e then
 			return "PE", c.perf_ema_evenness or 0, alg.perf_badge_evenness_thresh
@@ -919,10 +918,11 @@ try_perf_score = function()
 			c.perf_n_pass = (c.perf_n_pass or 0) + 1
 			c.perf_n_fail = 0
 			c.perf_power_factor = math.min(1.0, (c.perf_power_factor or 1.0) + alg.mistake_power_penalty * 0.5)
-			c.perf_ema_bpm = alg.ema_evenness_alpha * actual_bpm
-				+ (1 - alg.ema_evenness_alpha) * (c.perf_ema_bpm or actual_bpm)
 			c.perf_ema_evenness = alg.ema_evenness_alpha * timing_evenness
 				+ (1 - alg.ema_evenness_alpha) * (c.perf_ema_evenness or timing_evenness)
+			-- BPM is shared across modes (single tempo per chunk)
+			c.ema_bpm = alg.ema_evenness_alpha * actual_bpm
+				+ (1 - alg.ema_evenness_alpha) * (c.ema_bpm or actual_bpm)
 			local perf_points = (normalize(c.mastery or 0, c) * alg.power_points_per_pct) * 0.25
 			local today = get_date_str(alg.midnight_time)
 			stats.daily[today] = stats.daily[today] or { score = 0, duration = 0 }
@@ -1246,15 +1246,10 @@ for line in io.lines() do
 		local time_str = line:match("^LESSON %S+ %S+ (%S+)")
 		local time_denom = tonumber(time_str and time_str:match("/(%d+)")) or 4
 		current = { id = chunk_id, max_bass_id = -1, results = {}, ref_bpm = ref_bpm, time_denom = time_denom, beats = {} }
-		-- Issue BPM for karaoke: use mode-appropriate EMA if available, otherwise the reference BPM
+		-- Issue BPM for karaoke: use EMA if available, otherwise the reference BPM
 		local bpm_stats = load_stats(stats_file)
 		local bpm_chunk = bpm_stats.chunks[chunk_id]
-		local bpm_out
-		if current_mode == "performance" then
-			bpm_out = (bpm_chunk and bpm_chunk.perf_ema_bpm) or (bpm_chunk and bpm_chunk.ema_bpm) or ref_bpm
-		else
-			bpm_out = (bpm_chunk and bpm_chunk.ema_bpm) or ref_bpm
-		end
+		local bpm_out = (bpm_chunk and bpm_chunk.ema_bpm) or ref_bpm
 		io.write(string.format("BPM %.2f\n", bpm_out))
 
 	-- BASSNOTE: track highest index and accumulate beats for BPM tracking

@@ -86,7 +86,6 @@ struct status_line {
 	float ema_bpm = 0.0f;
 	float ema_evenness = 0.0f;
 	float perf_power = 0.0f;
-	float perf_ema_bpm = 0.0f;
 	float perf_ema_evenness = 0.0f;
 
 	// today
@@ -599,10 +598,6 @@ static void handle_stats(const char *buf)
 	p = strstr(buf, "perf_power=");
 	if (p)
 		sscanf(p, "perf_power=%f", &state.status.perf_power);
-
-	p = strstr(buf, "perf_ema_bpm=");
-	if (p)
-		sscanf(p, "perf_ema_bpm=%f", &state.status.perf_ema_bpm);
 
 	p = strstr(buf, "perf_ema_evenness=");
 	if (p)
@@ -1233,7 +1228,7 @@ static void show_stats_bar(void)
 	snprintf(tip[1], 96, "Speed: %.1f / %.0f BPM", s.ema_bpm, alg_param_value("badge_speed_thresh", 60));
 	snprintf(tip[2], 96, "Evenness: %.2f / %.2f", s.ema_evenness, alg_param_value("badge_evenness_thresh", 0.70f));
 	snprintf(tip[3], 96, "Perf Power: %.1f / %.0f%%", s.perf_power, alg_param_value("perf_badge_power_thresh", 60));
-	snprintf(tip[4], 96, "Perf Speed: %.1f / %.0f BPM", s.perf_ema_bpm, alg_param_value("perf_badge_speed_thresh", 120));
+	snprintf(tip[4], 96, "Perf Speed: %.1f / %.0f BPM", s.ema_bpm, alg_param_value("perf_badge_speed_thresh", 120));
 	snprintf(tip[5], 96, "Perf Evenness: %.2f / %.2f", s.perf_ema_evenness, alg_param_value("perf_badge_evenness_thresh", 0.85f));
 
 	DrawBadgeSquare("P", state.badge_p, green, tip[0], false);
@@ -1286,8 +1281,8 @@ static void show_stats_bar(void)
 			} else if (!state.badge_ps) {
 				tip_label = "Perf Speed";
 				tip_tgt = alg_param_value("perf_badge_speed_thresh", 120);
-				tip_cur = s.perf_ema_bpm;
-				frac = (tip_tgt > 0) ? fminf(s.perf_ema_bpm / tip_tgt, 1.0f) : 0.0f;
+				tip_cur = s.ema_bpm;
+				frac = (tip_tgt > 0) ? fminf(s.ema_bpm / tip_tgt, 1.0f) : 0.0f;
 				snprintf(bar_label, sizeof(bar_label), "S' %.0f%%", frac * 100.0f);
 			} else if (!state.badge_pe) {
 				tip_label = "Perf Evenness";
