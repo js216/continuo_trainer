@@ -504,9 +504,9 @@ static void handle_result(const char *buf)
 	if (id + 1 == state.num_notes + 1) {
 		state.squares[id + 1].state = Square::State::DONE;
 		state.num_squares = id + 2;
-		// In performance mode, don't auto-reload — the karaoke loop
-		// handles the cycle (KARAOKE_DONE → feedback → ready).
-		if (state.mode != state::MODE_PERFORMANCE) {
+		// When karaoke is active, don't auto-reload — the karaoke
+		// loop handles the cycle (KARAOKE_DONE → feedback → ready).
+		if (!state.karaoke_on) {
 			if (state.current_chunk[0])
 				printf("LOAD_CHUNK %s\n", state.current_chunk);
 			else if (state.num_level0 > 0)
