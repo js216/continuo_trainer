@@ -73,7 +73,7 @@ io.stdout:setvbuf("line") -- flush after every STATS/SUGGESTION line
 -- tuned by editing the log file directly.
 local ALGORITHM_DEFAULTS = {
 	score_goal = 1000, -- daily point target
-	ema_alpha = 0.18, -- EMA smoothing for pass-rate (~10-session window)
+	ema_window_attempts = 10, -- how many recent attempts influence the pass-rate average
 	pass_accuracy = 80, -- minimum accuracy % to count as a pass
 	mastery_growth = 0.20, -- fraction of (score - mastery) gap closed per session
 	power_half_life = 0.693, -- ln(2): power reaches 50% of mastery at days_elapsed == ivl
@@ -102,7 +102,7 @@ local ALGORITHM_DEFAULTS = {
 	midnight_time = 0, -- hour (UTC) at which the practice day resets (0 = midnight)
 
 	-- EMA tracking for graduation criteria
-	ema_evenness_alpha = 0.18, -- same window as ema_bpm (~10 attempts)
+
 
 	-- Practice badges (sequential: P -> S -> E)
 	badge_power_thresh = 40, -- power % to earn P badge
@@ -145,6 +145,10 @@ end
 -------------------------------------------------------------------------------
 -- UTILITIES & METRICS
 -------------------------------------------------------------------------------
+
+local function ema_alpha(alg)
+	return 2 / (alg.ema_window_attempts + 1)
+end
 
 local function check_hash(h)
 	if type(h) ~= "string" or #h ~= 40 or not h:match("^[0-9a-f]+$") then
@@ -237,9 +241,11 @@ local function load_stats(path)
 				data.algorithm[k] = v
 			end
 		end
-		-- One-time migration: old default was too strict
-		if data.algorithm.perf_fail_timing_tol == 0.2 then
-			data.algorithm.perf_fail_timing_tol = 0.4
+		-- Remove stale keys not in ALGORITHM_DEFAULTS
+		for k in pairs(data.algorithm) do
+			if ALGORITHM_DEFAULTS[k] == nil and k ~= "last_lesson_scored" then
+				data.algorithm[k] = nil
+			end
 		end
 		data.daily = data.daily or {}
 		data.chunks = data.chunks or {}
@@ -393,7 +399,8 @@ local function update_entry(entry, sd, alg)
 
 	-- EMA pass rate
 	local pass_this_session = (sd.accuracy >= alg.pass_accuracy) and 1.0 or 0.0
-	entry.ema_pass = entry.ema_pass and (alg.ema_alpha * pass_this_session + (1 - alg.ema_alpha) * entry.ema_pass)
+	local alpha = ema_alpha(alg)
+	entry.ema_pass = entry.ema_pass and (alpha * pass_this_session + (1 - alpha) * entry.ema_pass)
 		or pass_this_session
 
 	-- Speed factor
@@ -419,8 +426,9 @@ local function update_entry(entry, sd, alg)
 	end
 
 	-- Update EMA evenness (used for badge progression)
-	entry.ema_evenness = alg.ema_evenness_alpha * evenness_factor
-		+ (1 - alg.ema_evenness_alpha) * (entry.ema_evenness or evenness_factor)
+	local alpha_e = ema_alpha(alg)
+	entry.ema_evenness = alpha_e * evenness_factor
+		+ (1 - alpha_e) * (entry.ema_evenness or evenness_factor)
 
 	local quality = entry.ema_pass * speed_factor * evenness_factor
 
@@ -914,10 +922,11 @@ try_perf_score = function()
 			c.perf_n_pass = (c.perf_n_pass or 0) + 1
 			c.perf_n_fail = 0
 			c.perf_power_factor = math.min(1.0, (c.perf_power_factor or 1.0) + alg.mistake_power_penalty * 0.5)
-			c.perf_ema_evenness = alg.ema_evenness_alpha * timing_evenness
-				+ (1 - alg.ema_evenness_alpha) * (c.perf_ema_evenness or timing_evenness)
-			c.perf_bpm = alg.ema_evenness_alpha * actual_bpm
-				+ (1 - alg.ema_evenness_alpha) * (c.perf_bpm or actual_bpm)
+			local alpha = ema_alpha(alg)
+			c.perf_ema_evenness = alpha * timing_evenness
+				+ (1 - alpha) * (c.perf_ema_evenness or timing_evenness)
+			c.perf_bpm = alpha * actual_bpm
+				+ (1 - alpha) * (c.perf_bpm or actual_bpm)
 			local perf_points = (normalize(c.mastery or 0, c) * alg.power_points_per_pct) * 0.25
 			local today = get_date_str(alg.midnight_time)
 			stats.daily[today] = stats.daily[today] or { score = 0, duration = 0 }
@@ -1020,7 +1029,8 @@ local function update_note_emas(c, results, from, to, alg)
 			local key = tostring(i - from)
 			local note = c.notes[key] or {}
 			local pass = r.status ~= "FAIL" and 1.0 or 0.0
-			note.ema = alg.ema_alpha * pass + (1.0 - alg.ema_alpha) * (note.ema or pass)
+			local alpha = ema_alpha(alg)
+			note.ema = alpha * pass + (1.0 - alpha) * (note.ema or pass)
 			c.notes[key] = note
 		end
 	end
@@ -1084,7 +1094,8 @@ local function finalize()
 	end
 	if sd.accuracy == 100 and sd.duration > 0 and bpm_beats > 0 then
 		local actual_bpm = bpm_beats * (time_denom / 4.0) * 60.0 / sd.duration
-		c.pract_bpm = alg.ema_alpha * actual_bpm + (1.0 - alg.ema_alpha) * (c.pract_bpm or c.ema_bpm or ref_bpm)
+		local alpha = ema_alpha(alg)
+		c.pract_bpm = alpha * actual_bpm + (1.0 - alpha) * (c.pract_bpm or c.ema_bpm or ref_bpm)
 	end
 	stats.chunks[hash] = c
 	local points = normalize(res.m_delta, c) * alg.mastery_points_per_pct
