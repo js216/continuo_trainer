@@ -698,6 +698,7 @@ static void parse_line(const char *buf)
 
 	if (strncmp(buf, "KARAOKE_DONE", 12) == 0) {
 		state.karaoke_on = false;
+		printf("MIDI PANIC\n");
 		// Forward to stats.lua for performance scoring (prefixed to
 		// avoid re-entry via midi.c pass-through)
 		printf("PERF_DONE\n");

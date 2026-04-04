@@ -946,15 +946,19 @@ try_perf_score = function()
 		end
 		io.write(string.format("PERF_STATUS %s %.1f\n", passed and "pass" or "fail", accuracy))
 
-		-- Adjust play_bpm: +10% on perfect, -10% on fail, clamped to badge thresholds
+		-- Adjust play_bpm: +10% on perfect, -10% on fail.
+		-- Don't auto-raise above perf_badge_speed_thresh or auto-lower below
+		-- badge_speed_thresh, but respect a user-set BPM already outside that range.
 		if passed then
-			if accuracy == 100 then
+			if accuracy == 100 and bpm < alg.perf_badge_speed_thresh then
 				c.play_bpm = math.min(bpm * 1.1, alg.perf_badge_speed_thresh)
 				io.write(string.format("BPM %.2f\n", c.play_bpm))
 			end
 		else
-			c.play_bpm = math.max(bpm * 0.9, alg.badge_speed_thresh)
-			io.write(string.format("BPM %.2f\n", c.play_bpm))
+			if bpm > alg.badge_speed_thresh then
+				c.play_bpm = math.max(bpm * 0.9, alg.badge_speed_thresh)
+				io.write(string.format("BPM %.2f\n", c.play_bpm))
+			end
 			if (c.perf_n_fail or 0) >= alg.perf_fail_streak then
 				io.write("SUGGESTION none reason=needs_practice\n")
 			end
