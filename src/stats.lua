@@ -710,7 +710,7 @@ local function suggest_best_hash(stats, exclude_hash)
 end
 
 local function handle_suggest(stats)
-	local best_hash = suggest_best_hash(stats)
+	local best_hash = suggest_best_hash(stats, current_loaded)
 	if best_hash then
 		local c = stats.chunks[best_hash]
 		local is_new = not c.last_date and not c.t_last_date
@@ -765,6 +765,8 @@ local function check_badges(c, alg, mode)
 			io.write(string.format("BADGE READY %d\n", alg.badge_graduate_bonus))
 		end
 	elseif mode == "performance" then
+		-- No perf badges until at least one performance attempt has been made
+		if not c.perf_n_pass and not c.perf_n_fail then return bonus end
 		local power_pct = normalize(calculate_power(c, alg, c.perf_power_factor or 1.0), c)
 		-- P' badge: perf power threshold
 		if not c.perf_badge_p and power_pct >= alg.perf_badge_power_thresh then
