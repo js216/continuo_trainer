@@ -398,35 +398,35 @@ static void toggle_karaoke(void)
 static void key_callback(GLFWwindow *window, int key, int scancode, int action,
 			 int mods)
 {
-	if (action == GLFW_PRESS) {
-		switch (key) {
-		case GLFW_KEY_ESCAPE:
-			glfwSetWindowShouldClose(window, GLFW_TRUE);
-			break;
-		case GLFW_KEY_X:
-			quit_lesson();
-			break;
-		case GLFW_KEY_R:
-			reload_lesson();
-			break;
-		case GLFW_KEY_SPACE:
-			suggest_lesson();
-			break;
-		case GLFW_KEY_K:
-			toggle_karaoke();
-			break;
-		case GLFW_KEY_S:
-			state.settings_open = !state.settings_open;
-			if (state.settings_open) {
-				printf("MUTE\n");
-				if (!state.alg_params_loaded)
-					printf("QUERY_ALG\n");
-			} else {
-				printf("UNMUTE\n");
-			}
-			fflush(stdout);
-			break;
+	if (action != GLFW_PRESS)
+		return;
+	switch (key) {
+	case GLFW_KEY_ESCAPE:
+		glfwSetWindowShouldClose(window, GLFW_TRUE);
+		break;
+	case GLFW_KEY_X:
+		quit_lesson();
+		break;
+	case GLFW_KEY_R:
+		reload_lesson();
+		break;
+	case GLFW_KEY_SPACE:
+		suggest_lesson();
+		break;
+	case GLFW_KEY_K:
+		toggle_karaoke();
+		break;
+	case GLFW_KEY_S:
+		state.settings_open = !state.settings_open;
+		if (state.settings_open) {
+			printf("MUTE\n");
+			if (!state.alg_params_loaded)
+				printf("QUERY_ALG\n");
+		} else {
+			printf("UNMUTE\n");
 		}
+		fflush(stdout);
+		break;
 	}
 }
 
@@ -1494,11 +1494,17 @@ static void show_bottom_bar(float row_w, float row_x)
 		fflush(stdout);
 	}
 	ImGui::SameLine(0, 2.0f);
-	int bpm_int = (int)(state.bpm + 0.5f);
+	char bpm_buf[8];
+	snprintf(bpm_buf, sizeof(bpm_buf), "%d", (int)(state.bpm + 0.5f));
 	ImGui::SetNextItemWidth(bpm_field_w);
-	if (ImGui::InputInt("##bpm", &bpm_int, 0, 0)) {
-		bpm_int   = (bpm_int < 1) ? 1 : (bpm_int > 999) ? 999 : bpm_int;
-		state.bpm = (float)bpm_int;
+	if (ImGui::InputText("##bpm", bpm_buf, sizeof(bpm_buf),
+			     ImGuiInputTextFlags_CallbackCharFilter,
+			     [](ImGuiInputTextCallbackData *d) -> int {
+				     return (d->EventChar >= '0' && d->EventChar <= '9') ? 0 : 1;
+			     })) {
+		int v = atoi(bpm_buf);
+		v = (v < 1) ? 1 : (v > 999) ? 999 : v;
+		state.bpm = (float)v;
 		printf("BPM %.2f\n", state.bpm);
 		fflush(stdout);
 	}
