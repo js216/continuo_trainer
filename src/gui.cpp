@@ -1014,15 +1014,15 @@ static void DrawSquare(ImDrawList *draw_list, ImVec2 pos, float sz,
 	}
 
 	// choose coordinates
-	ImVec2 a = ImVec2(pos.x + 1, pos.y + 1);
-	ImVec2 b = ImVec2(pos.x + width - 1, pos.y + height - 1);
+	ImVec2 a = pos;
+	ImVec2 b = ImVec2(pos.x + width, pos.y + height);
 
 	// draw the square
+	float rnd = ImGui::GetStyle().FrameRounding;
 	if (filled) {
-		draw_list->AddRectFilled(a, b, bg,
-					 2.0f); // Slight rounding for style
+		draw_list->AddRectFilled(a, b, bg, rnd);
 	} else {
-		draw_list->AddRect(a, b, bg, 2.0f, 0, 1.5f);
+		draw_list->AddRect(a, b, bg, rnd, 0, 1.5f);
 	}
 
 	// text inside the square
@@ -1055,7 +1055,7 @@ static void show_squares(void)
 		return;
 
 	ImDrawList *draw_list = ImGui::GetWindowDrawList();
-	float sz = ImGui::GetFontSize() * 1.2f;
+	float sz = ImGui::GetFrameHeight();
 	float square_width = sz * 1.4f + 2.0f;
 
 	float window_x = ImGui::GetWindowPos().x;
@@ -1120,19 +1120,20 @@ static void DrawBadgeSquare(const char *label, bool earned, ImU32 color,
 {
 	float sz = ImGui::GetFrameHeight();
 	ImVec2 pos = ImGui::GetCursorScreenPos();
-	ImVec2 a = ImVec2(pos.x + 1, pos.y + 1);
-	ImVec2 b = ImVec2(pos.x + sz - 1, pos.y + sz - 1);
+	ImVec2 a = pos;
+	ImVec2 b = ImVec2(pos.x + sz, pos.y + sz);
 	ImDrawList *dl = ImGui::GetWindowDrawList();
 
 	ImU32 dim = IM_COL32(60, 60, 60, 255);
 	ImU32 bg = earned ? color : dim;
 
+	float rnd = ImGui::GetStyle().FrameRounding;
 	if (earned) {
-		dl->AddRectFilled(a, b, bg, 2.0f);
+		dl->AddRectFilled(a, b, bg, rnd);
 		if (is_perf)
-			dl->AddRect(a, b, IM_COL32(255, 255, 255, 200), 2.0f, 0, 2.0f);
+			dl->AddRect(a, b, IM_COL32(255, 255, 255, 200), rnd, 0, 2.0f);
 	} else {
-		dl->AddRect(a, b, bg, 2.0f, 0, 1.5f);
+		dl->AddRect(a, b, bg, rnd, 0, 1.5f);
 	}
 
 	ImVec2 tsz = ImGui::CalcTextSize(label);
@@ -1405,6 +1406,7 @@ static void show_top_bar(void)
 	float pad      = style.WindowPadding.x;
 
 	// Stats bars (left)
+	ImGui::SetCursorPosX(pad);
 	show_stats_bar();
 
 	// Measure right-side items: chunk label + [R]eload + X
@@ -1716,7 +1718,7 @@ static void gui_main(void)
 	float text_h  = ImGui::GetTextLineHeightWithSpacing();
 	float frame_h = ImGui::GetFrameHeightWithSpacing();
 	float spacing = ImGui::GetStyle().ItemSpacing.y;
-	float bottom_reserved = text_h + spacing + frame_h;
+	float bottom_reserved = text_h + spacing + frame_h + ImGui::GetStyle().WindowPadding.y;
 
 	// ── Centered content child ───────────────────────────────────────────────
 	float top_used  = ImGui::GetCursorPosY();
@@ -1769,8 +1771,9 @@ static void gui_main(void)
 				ImVec2 pos = ImGui::GetCursorScreenPos();
 				ImVec2 a = ImVec2(pos.x, pos.y);
 				ImVec2 b = ImVec2(pos.x + bw, pos.y + bh);
-				dl->AddRectFilled(a, b, IM_COL32(30, 160, 60, 255), 3.0f);
-				dl->AddRect(a, b, IM_COL32(60, 220, 100, 255), 3.0f, 0, 1.5f);
+				float rnd = ImGui::GetStyle().FrameRounding;
+				dl->AddRectFilled(a, b, IM_COL32(30, 160, 60, 255), rnd);
+				dl->AddRect(a, b, IM_COL32(60, 220, 100, 255), rnd, 0, 1.5f);
 				ImVec2 tpos = ImVec2(a.x + pw, a.y + (bh - tsz.y) * 0.5f);
 				dl->AddText(tpos, IM_COL32(255, 255, 255, 255), label);
 				ImGui::Dummy(ImVec2(bw, bh));
@@ -1796,7 +1799,6 @@ static void gui_main(void)
 				if (bar_w < 60.0f) bar_w = 60.0f;
 				if (bar_w > 200.0f) bar_w = 200.0f;
 
-				ImGui::SameLine();
 				ImGui::PushStyleColor(ImGuiCol_FrameBg, ImVec4(0.35f, 0.35f, 0.38f, 1.0f));
 				ImGui::PushStyleColor(ImGuiCol_PlotHistogram,
 						      ImVec4(0.1f, 0.35f, 0.65f, 1.0f));
@@ -1818,25 +1820,36 @@ static void gui_main(void)
 			ImGui::SetCursorPosX(pad);
 		}
 
-		// Daily goal bar (centered between skill bar and BPM)
+		// Daily goal bar + streak box
 		{
 			const status_line &s = state.status;
 			float right_total = bottom_bar_natural_width();
 			float right_x = disp_w - pad - right_total;
 			float left_x = ImGui::GetCursorPosX();
 			float gap = right_x - left_x;
-			float goal_w = 120.0f;
-			if (goal_w > gap - sp * 2.0f) goal_w = gap - sp * 2.0f;
-			if (goal_w < 50.0f) goal_w = 50.0f;
-			float goal_x = left_x + (gap - goal_w) * 0.5f;
 
+			// Measure streak box width
+			char streak_label[16];
+			snprintf(streak_label, sizeof(streak_label), "Streak: %d", s.streak);
+			float streak_w = (s.streak > 0)
+				? ImGui::CalcTextSize(streak_label).x + ImGui::GetStyle().FramePadding.x * 2.0f
+				: 0.0f;
+			float streak_gap = (streak_w > 0) ? sp : 0.0f;
+
+			float goal_w = 120.0f;
+			float total_w = goal_w + streak_gap + streak_w;
+			if (total_w > gap - sp * 2.0f) {
+				goal_w = gap - sp * 2.0f - streak_gap - streak_w;
+				total_w = goal_w + streak_gap + streak_w;
+			}
+			if (goal_w < 50.0f) goal_w = 50.0f;
+			float start_x = left_x + (gap - total_w) * 0.5f;
+
+			// Progress bar
 			ImGui::SameLine();
-			ImGui::SetCursorPosX(goal_x);
+			ImGui::SetCursorPosX(start_x);
 			char d_label[24];
-			if (s.goal_met && s.streak > 0)
-				snprintf(d_label, sizeof(d_label), "%d pts  %dd", s.pts, s.streak);
-			else
-				snprintf(d_label, sizeof(d_label), "%d pts", s.pts);
+			snprintf(d_label, sizeof(d_label), "%d pts", s.pts);
 			float d_frac = (s.goal > 0.0f) ? fminf((float)s.pts / s.goal, 1.0f) : 0.0f;
 			ImGui::PushStyleColor(ImGuiCol_FrameBg, ImVec4(0.25f, 0.25f, 0.25f, 1.0f));
 			ImGui::PushStyleColor(ImGuiCol_PlotHistogram,
@@ -1845,8 +1858,24 @@ static void gui_main(void)
 			ImGui::ProgressBar(d_frac, ImVec2(goal_w, bar_h), d_label);
 			ImGui::PopStyleColor(2);
 			if (ImGui::IsItemHovered())
-				ImGui::SetTooltip("Daily score (goal: %.0f pts)%s",
-						  s.goal, s.goal_met && s.streak > 0 ? "  Streak!" : "");
+				ImGui::SetTooltip("Daily score (goal: %.0f pts)", s.goal);
+
+			// Streak box (gray border, no fill; text gray or green)
+			if (s.streak > 0) {
+				ImGui::SameLine(0, streak_gap);
+				ImVec4 text_col = s.goal_met
+					? ImVec4(0.2f, 0.82f, 0.35f, 1.0f)
+					: ImVec4(0.63f, 0.63f, 0.63f, 1.0f);
+				ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0,0,0,0));
+				ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0,0,0,0));
+				ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(0,0,0,0));
+				ImGui::PushStyleColor(ImGuiCol_Border, ImVec4(0.5f, 0.5f, 0.5f, 0.63f));
+				ImGui::PushStyleColor(ImGuiCol_Text, text_col);
+				ImGui::PushStyleVar(ImGuiStyleVar_FrameBorderSize, 1.0f);
+				ImGui::Button(streak_label, ImVec2(0, bar_h));
+				ImGui::PopStyleVar();
+				ImGui::PopStyleColor(5);
+			}
 		}
 
 		// Right-align BPM + karaoke
@@ -1910,7 +1939,7 @@ int main(int, char **)
 
 	// Setup Dear ImGui style
 	ImGui::StyleColorsDark();
-	// ImGui::StyleColorsLight();
+	ImGui::GetStyle().FrameRounding = 2.0f;
 	ImVec4 bg = ImVec4(0.45f, 0.55f, 0.60f, 1.00f);
 
 	// Setup Platform/Renderer backends
