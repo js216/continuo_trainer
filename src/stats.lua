@@ -583,6 +583,7 @@ local pending_children = {} -- [hash] = {results, abs_s, abs_e}; awaiting CHILDR
 local children_of = {} -- [hash] = {child_hash, ...} built from CHILDREN responses
 local pending_child_queries = 0 -- outstanding startup QUERY_CHILDREN from ALL_SCANNED
 local all_scanned_received = false
+local stats -- in-memory stats; loaded once at startup, saved after mutations
 
 -- Emit one SKILL_STATS line per skill in skill_order showing aggregate mastery.
 -- For each skill, averages the normalised max(mastery, t_mastery) across all
@@ -841,7 +842,6 @@ try_perf_score = function()
 	-- All results in — score now
 	perf_done_pending = false
 
-	local stats = load_stats(stats_file)
 	local c = stats.chunks[current_loaded]
 	local alg = stats.algorithm
 	if not c then return end
@@ -922,28 +922,26 @@ try_perf_score = function()
 			stats.daily[today].score = stats.daily[today].score + perf_points
 			local badge_pts = check_badges(c, alg, "performance")
 			stats.daily[today].score = stats.daily[today].score + badge_pts
-			-- Emit per-note timing detail before status so GUI can build summary
-			for _, nd in ipairs(note_detail) do
-				io.write(string.format("PERF_NOTE %d %+dms %s\n",
-					nd.id, math.floor(nd.delta + 0.5), nd.passed and "ok" or "late"))
-			end
-			io.write(string.format("PERF_STATUS pass %.1f\n", accuracy))
-			-- Adjust play_bpm: +10% on full correct, -10% on fail
+		else
+			c.perf_n_fail = (c.perf_n_fail or 0) + 1
+			c.perf_n_pass = 0
+			c.perf_power_factor = math.max(0, (c.perf_power_factor or 1.0) * (1.0 - alg.mistake_power_penalty))
+		end
+
+		-- Emit per-note timing detail, then pass/fail status
+		for _, nd in ipairs(note_detail) do
+			io.write(string.format("PERF_NOTE %d %+dms %s\n",
+				nd.id, math.floor(nd.delta + 0.5), nd.passed and "ok" or "late"))
+		end
+		io.write(string.format("PERF_STATUS %s %.1f\n", passed and "pass" or "fail", accuracy))
+
+		-- Adjust play_bpm: +10% on perfect, -10% on fail
+		if passed then
 			if accuracy == 100 then
 				c.play_bpm = bpm * 1.1
 				io.write(string.format("BPM %.2f\n", c.play_bpm))
 			end
 		else
-			c.perf_n_fail = (c.perf_n_fail or 0) + 1
-			c.perf_n_pass = 0
-			c.perf_power_factor = math.max(0, (c.perf_power_factor or 1.0) * (1.0 - alg.mistake_power_penalty))
-			-- Emit per-note timing detail before status so GUI can build summary
-			for _, nd in ipairs(note_detail) do
-				io.write(string.format("PERF_NOTE %d %+dms %s\n",
-					nd.id, math.floor(nd.delta + 0.5), nd.passed and "ok" or "late"))
-			end
-			io.write(string.format("PERF_STATUS fail %.1f\n", accuracy))
-			-- Adjust play_bpm: -10% on fail
 			c.play_bpm = bpm * 0.9
 			io.write(string.format("BPM %.2f\n", c.play_bpm))
 			if (c.perf_n_fail or 0) >= alg.perf_fail_streak then
@@ -960,6 +958,51 @@ try_perf_score = function()
 	beat_timestamps = {}
 	result_timestamps = {}
 	perf_aborted = false
+end
+
+-------------------------------------------------------------------------------
+-- INTERLEAVED PRACTICE
+-------------------------------------------------------------------------------
+
+-- Check whether the player has practiced this chunk enough consecutive times
+-- and should switch to another.  Returns the hash to suggest, or nil.
+local function check_interleave(hash, c, alg)
+	for h, _ in pairs(attempts_since) do
+		if h ~= hash then
+			attempts_since[h] = (attempts_since[h] or 0) + 1
+		end
+	end
+	attempts_since[hash] = 0
+
+	local ema = c.ema_pass or 1.0
+	local required = alg.overlearn_min + (alg.overlearn_max - alg.overlearn_min) * (1.0 - ema)
+	if c.n_consecutive < required then
+		return nil
+	end
+
+	-- Pick from rotation pool: find a chunk with enough min_away distance
+	for _, rh in ipairs(rotation_pool) do
+		if rh ~= hash and (attempts_since[rh] or alg.min_away) >= alg.min_away then
+			return rh
+		end
+	end
+
+	-- Refill pool from suggest_best_hash if needed
+	local best = suggest_best_hash(stats, hash)
+	if not best then
+		return nil
+	end
+	local in_pool = false
+	for _, rh in ipairs(rotation_pool) do
+		if rh == best then in_pool = true; break end
+	end
+	if not in_pool then
+		rotation_pool[#rotation_pool + 1] = best
+		while #rotation_pool > alg.rotation_pool_size do
+			table.remove(rotation_pool, 1)
+		end
+	end
+	return best
 end
 
 -------------------------------------------------------------------------------
@@ -981,7 +1024,7 @@ local function update_note_emas(c, results, from, to, alg)
 	end
 end
 
-local function finalize(stats)
+local function finalize()
 	if not current or current.max_bass_id < 0 then
 		current = nil
 		return
@@ -1058,49 +1101,11 @@ local function finalize(stats)
 	local power = calculate_power(c, alg)
 	local d = stats.daily[today]
 	local streak = calculate_streak(stats)
-	-- Interleaved practice: track attempts on other chunks and rotation pool
-	for h, _ in pairs(attempts_since) do
-		if h ~= hash then
-			attempts_since[h] = (attempts_since[h] or 0) + 1
-		end
-	end
-	attempts_since[hash] = 0
-
-	local ema = c.ema_pass or 1.0
-	local required = alg.overlearn_min + (alg.overlearn_max - alg.overlearn_min) * (1.0 - ema)
+	local interleave_hash = check_interleave(hash, c, alg)
 	local suggestion = nil
-	if c.n_consecutive >= required then
-		-- Pick from rotation pool: find a chunk with enough min_away distance
-		local interleave_hash = nil
-		for _, rh in ipairs(rotation_pool) do
-			if rh ~= hash and (attempts_since[rh] or alg.min_away) >= alg.min_away then
-				interleave_hash = rh
-				break
-			end
-		end
-		-- Refill pool from suggest_best_hash if needed
-		if not interleave_hash then
-			local best = suggest_best_hash(stats, hash)
-			if best then
-				interleave_hash = best
-				-- Add to rotation pool if not already there
-				local in_pool = false
-				for _, rh in ipairs(rotation_pool) do
-					if rh == best then in_pool = true; break end
-				end
-				if not in_pool then
-					rotation_pool[#rotation_pool + 1] = best
-					-- Trim pool to rotation_pool_size
-					while #rotation_pool > alg.rotation_pool_size do
-						table.remove(rotation_pool, 1)
-					end
-				end
-			end
-		end
-		if interleave_hash then
-			suggestion = "try_another_lesson"
-			io.write(string.format("INTERLEAVE %s\n", interleave_hash))
-		end
+	if interleave_hash then
+		suggestion = "try_another_lesson"
+		io.write(string.format("INTERLEAVE %s\n", interleave_hash))
 	end
 	io.write(
 		string.format(
@@ -1137,11 +1142,11 @@ end
 
 local pending_suggest = false -- defer SUGGEST_LESSON until children_of map is ready
 
-local init_stats = load_stats(stats_file)
-apply_mastery_decay(init_stats)
+stats = load_stats(stats_file)
+apply_mastery_decay(stats)
 
 -- Fast startup: pre-populate from stats file; no scan or QUERY_CHILDREN needed.
-for h, c in pairs(init_stats.chunks) do
+for h, c in pairs(stats.chunks) do
 	if c.skills and c.skills ~= "" then
 		chunk_skills[h] = c.skills
 	end
@@ -1167,7 +1172,6 @@ for line in io.lines() do
 		if skills_str and not chunk_skills[h] then
 			chunk_skills[h] = skills_str
 		end
-		local stats = load_stats(stats_file)
 		local needs_save = false
 		if not stats.chunks[h] then
 			stats.chunks[h] = {
@@ -1196,7 +1200,6 @@ for line in io.lines() do
 		local h = line:match("^LOAD_CHUNK (%S+)")
 		if h then
 			current_loaded = h
-			local stats = load_stats(stats_file)
 			print_stats_line(stats, nil, current_loaded)
 			emit_skill_stats(stats)
 			-- Check if any badges should be awarded retroactively
@@ -1233,7 +1236,7 @@ for line in io.lines() do
 		local chunk_id = line:match("^LESSON (%S+)")
 		check_hash(chunk_id)
 		if current and current.max_bass_id >= 0 and not current.results[current.max_bass_id] then
-			finalize(load_stats(stats_file))
+			finalize()
 		end
 		-- LESSON <hash> <key> <time> <bpm> <bar>
 		-- File BPM is already in denominator-beat units (e.g. 120 in 3/2 = 120 half notes/min).
@@ -1242,8 +1245,7 @@ for line in io.lines() do
 		local time_denom = tonumber(time_str and time_str:match("/(%d+)")) or 4
 		current = { id = chunk_id, max_bass_id = -1, results = {}, ref_bpm = ref_bpm, time_denom = time_denom, beats = {} }
 		-- Issue BPM for karaoke: use saved play_bpm if available, otherwise the reference BPM
-		local bpm_stats = load_stats(stats_file)
-		local bpm_chunk = bpm_stats.chunks[chunk_id]
+		local bpm_chunk = stats.chunks[chunk_id]
 		local bpm_out = (bpm_chunk and (bpm_chunk.play_bpm or bpm_chunk.ema_bpm)) or ref_bpm
 		io.write(string.format("BPM %.2f\n", bpm_out))
 
@@ -1282,8 +1284,7 @@ for line in io.lines() do
 					time = tonumber(rtime),
 				}
 				if id_val == current.max_bass_id then
-					local stats = load_stats(stats_file)
-					finalize(stats)
+					finalize()
 				end
 			end
 		end
@@ -1319,7 +1320,6 @@ for line in io.lines() do
 			-- Proactive CHILDREN from all.lua during scan: persist child hashes
 			-- so startup can rebuild children_of without any QUERY_CHILDREN.
 			if #child_list > 0 then
-				local stats = load_stats(stats_file)
 				if stats.chunks[phash] then
 					local arr = {}
 					for _, ci in ipairs(child_list) do
@@ -1334,13 +1334,12 @@ for line in io.lines() do
 			end
 			if pending_child_queries == 0 and pending_suggest then
 				pending_suggest = false
-				handle_suggest(load_stats(stats_file))
+				handle_suggest(stats)
 			end
 			goto continue
 		end
 
 		-- Finalize query: transitively update each child's stats entry.
-		local stats = load_stats(stats_file)
 		local failed_groups = pending.failed_groups or {}
 		for _, ci in ipairs(child_list) do
 			local abs_s = pending.abs_s + ci.s
@@ -1395,7 +1394,6 @@ for line in io.lines() do
 	elseif line:match("^BPM ") then
 		local bpm = tonumber(line:match("^BPM (%S+)"))
 		if bpm and bpm > 0 and current_loaded then
-			local stats = load_stats(stats_file)
 			local c = stats.chunks[current_loaded]
 			if c then
 				c.play_bpm = bpm
@@ -1433,7 +1431,6 @@ for line in io.lines() do
 
 	-- QUERY_ALG: emit all algorithm parameters as key=value pairs
 	elseif line:match("^QUERY_ALG") then
-		local stats = load_stats(stats_file)
 		local parts = {}
 		local keys = {}
 		for k in pairs(stats.algorithm) do keys[#keys + 1] = k end
@@ -1452,7 +1449,6 @@ for line in io.lines() do
 	elseif line:match("^SET_ALG ") then
 		local k, v_str = line:match("^SET_ALG (%S+) (.+)$")
 		if k and v_str then
-			local stats = load_stats(stats_file)
 			local old = stats.algorithm[k]
 			if old ~= nil then
 				if type(old) == "number" then
@@ -1470,19 +1466,16 @@ for line in io.lines() do
 
 	-- GUI commands
 	elseif line:match("^QUERY_STATS") then
-		local stats = load_stats(stats_file)
 		print_stats_line(stats, nil, current_loaded)
 		emit_skill_stats(stats)
 	elseif line:match("^SUGGEST_LESSON") then
 		-- Defer until ALL_SCANNED received and children_of map is fully built.
 		if all_scanned_received and pending_child_queries == 0 then
-			local stats = load_stats(stats_file)
 			handle_suggest(stats)
 		else
 			pending_suggest = true
 		end
 	elseif line:match("^ALL_SCANNED") then
-		local stats = load_stats(stats_file)
 		local stale = {}
 		for h in pairs(stats.chunks) do
 			if not scanned_chunks[h] then
@@ -1533,6 +1526,5 @@ end
 
 -- Handle a lesson that was still in progress at EOF
 if current and current.max_bass_id >= 0 and not current.results[current.max_bass_id] then
-	local stats = load_stats(stats_file)
-	finalize(stats)
+	finalize()
 end
