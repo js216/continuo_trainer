@@ -1261,6 +1261,10 @@ for line in io.lines() do
 		local time_str = line:match("^LESSON %S+ %S+ (%S+)")
 		local time_denom = tonumber(time_str and time_str:match("/(%d+)")) or 4
 		current = { id = chunk_id, max_bass_id = -1, results = {}, ref_bpm = ref_bpm, time_denom = time_denom, beats = {} }
+		-- Clear stale perf state so finalize isn't blocked by a previous karaoke session
+		result_timestamps = {}
+		perf_done_pending = false
+		perf_aborted = false
 		-- Issue BPM for karaoke: use saved play_bpm if available, otherwise the reference BPM
 		local bpm_chunk = stats.chunks[chunk_id]
 		local bpm_out = (bpm_chunk and (bpm_chunk.play_bpm or bpm_chunk.ema_bpm)) or ref_bpm

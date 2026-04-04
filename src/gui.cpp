@@ -226,7 +226,7 @@ static const char *alg_tooltip(const char *key)
 {
 	struct { const char *k; const char *t; } tips[] = {
 		{"score_goal", "Daily point target to complete the streak"},
-		{"ema_window_attempts", "How many recent attempts influence the pass-rate average.\nHigher = slower to react, lower = more volatile."},
+		{"ema_window_attempts", "How many recent attempts influence the running averages\n(pass rate, speed, evenness). Higher = smoother, lower = more reactive."},
 		{"pass_accuracy", "Minimum accuracy % to count a session as a pass"},
 		{"mastery_growth", "How fast mastery catches up to your score each session (0-1)"},
 		{"power_half_life", "Controls how fast power decays between sessions.\nPower reaches 50% of mastery when days since last practice equals the review interval."},
@@ -569,13 +569,19 @@ static void handle_stats(const char *buf)
 
 	p = strstr(buf, "suggestion=");
 	if (p) {
-		char raw[32] = "";
-		sscanf(p, "suggestion=%31s", raw);
-		strncpy(state.status.suggestion, raw,
-			sizeof(state.status.suggestion) - 1);
-		state.status.suggestion[sizeof(state.status.suggestion) - 1] =
-		    '\0';
-		state.status.suggestion_time = glfwGetTime();
+		// Don't overwrite a recent "ready for karaoke" message
+		double suggestion_age = glfwGetTime() - state.status.suggestion_time;
+		bool keep = (suggestion_age < 3.0 &&
+			     strcmp(state.status.suggestion, "ready_for_karaoke") == 0);
+		if (!keep) {
+			char raw[32] = "";
+			sscanf(p, "suggestion=%31s", raw);
+			strncpy(state.status.suggestion, raw,
+				sizeof(state.status.suggestion) - 1);
+			state.status.suggestion[sizeof(state.status.suggestion) - 1] =
+			    '\0';
+			state.status.suggestion_time = glfwGetTime();
+		}
 	}
 
 	int new_pts = (int)(total + 0.5f);
@@ -735,9 +741,12 @@ static void parse_line(const char *buf)
 		else if (strcmp(tag, "E") == 0 || strcmp(tag, "PE") == 0)
 			snprintf(state.badge_celebration, sizeof(state.badge_celebration),
 				 "Evenness Bonus +%dpts", pts);
-		else if (strcmp(tag, "READY") == 0)
-			snprintf(state.badge_celebration, sizeof(state.badge_celebration),
-				 "Performance Ready! +%dpts [P]", pts);
+		else if (strcmp(tag, "READY") == 0) {
+			snprintf(state.status.suggestion,
+				 sizeof(state.status.suggestion),
+				 "ready_for_karaoke");
+			state.status.suggestion_time = glfwGetTime();
+		}
 		else if (strcmp(tag, "MASTERED") == 0)
 			snprintf(state.badge_celebration, sizeof(state.badge_celebration),
 				 "Chunk Mastered! +%dpts", pts);
@@ -761,15 +770,6 @@ static void parse_line(const char *buf)
 	}
 	// PERF_STATUS pass|fail <accuracy>
 	if (strncmp(buf, "PERF_STATUS ", 12) == 0) {
-		char result[8] = "";
-		float acc = 0.0f;
-		sscanf(buf + 12, "%7s %f", result, &acc);
-		if (strcmp(result, "pass") == 0)
-			snprintf(state.perf_feedback, sizeof(state.perf_feedback),
-				 "PASS  %.0f%%", acc);
-		else
-			snprintf(state.perf_feedback, sizeof(state.perf_feedback),
-				 "FAIL  %.0f%%", acc);
 		// Show timing detail in the yellow info line
 		if (state.perf_detail[0]) {
 			snprintf(state.status.suggestion,
@@ -1093,6 +1093,8 @@ static const char *expand_suggestion(const char *s)
 		return "Good score! Play faster to grow mastery.";
 	if (strcmp(s, "raise_quality_play_more_evenly") == 0)
 		return "Good score! Even up your tempo to grow mastery.";
+	if (strcmp(s, "ready_for_karaoke") == 0)
+		return "Ready for karaoke! Press K.";
 	if (strcmp(s, "try_another_lesson") == 0)
 		return "Press SPACE for a new lesson.";
 	if (strcmp(s, "time_to_mix_it_up") == 0)
