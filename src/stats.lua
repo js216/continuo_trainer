@@ -766,8 +766,8 @@ local function check_badges(c, alg, mode)
 			bonus = bonus + alg.badge_evenness_bonus
 			io.write(string.format("BADGE E %d\n", alg.badge_evenness_bonus))
 		end
-		-- All three practice badges: graduate bonus
-		if c.badge_p and c.badge_s and c.badge_e and not c.badge_graduated then
+		-- All three practice badges: graduate bonus (only if chunk has melody for karaoke)
+		if c.badge_p and c.badge_s and c.badge_e and not c.badge_graduated and not c.no_melody then
 			c.badge_graduated = true
 			bonus = bonus + alg.badge_graduate_bonus
 			io.write(string.format("BADGE READY %d\n", alg.badge_graduate_bonus))
@@ -1185,7 +1185,10 @@ for line in io.lines() do
 		check_hash(h)
 		local level = tonumber(lv) or 0
 		scanned_chunks[h] = true
-		local skills_str = line:match("^CHUNK_NAME %S+ %d+ (.+)$")
+		local tail = line:match("^CHUNK_NAME %S+ %d+ (.+)$")
+		local no_melody = tail and tail:find("no_melody", 1, true) and true or false
+		local skills_str = tail and tail:gsub("%s*no_melody%s*", ""):match("^%s*(.-)%s*$")
+		if skills_str == "" then skills_str = nil end
 		if skills_str and not chunk_skills[h] then
 			chunk_skills[h] = skills_str
 		end
@@ -1193,6 +1196,7 @@ for line in io.lines() do
 		if not stats.chunks[h] then
 			stats.chunks[h] = {
 				level = level,
+				no_melody = no_melody or nil,
 				ease = stats.algorithm.ease_initial,
 				ivl = 0,
 				mastery = 0,
@@ -1204,9 +1208,16 @@ for line in io.lines() do
 			stats.chunks[h].level = level
 			needs_save = true
 		end
-		-- Persist skills so startup can read them without a rescan.
+		-- Persist skills and melody flag so startup can read them without a rescan.
 		if skills_str and stats.chunks[h].skills ~= skills_str then
 			stats.chunks[h].skills = skills_str
+			needs_save = true
+		end
+		if no_melody and not stats.chunks[h].no_melody then
+			stats.chunks[h].no_melody = true
+			needs_save = true
+		elseif not no_melody and stats.chunks[h].no_melody then
+			stats.chunks[h].no_melody = nil
 			needs_save = true
 		end
 		if needs_save then

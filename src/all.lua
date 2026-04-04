@@ -383,6 +383,15 @@ local function build_chunk_content(
 	return table.concat(lines, "\n")
 end
 
+local function has_melody(melody, s, e)
+	for i = s, e do
+		if melody[i] and melody[i] ~= "-" and melody[i] ~= "" then
+			return true
+		end
+	end
+	return false
+end
+
 -- ── skill helpers ────────────────────────────────────────────────────────────
 
 -- Returns a space-separated skills string for figures[s..e] (1-indexed).
@@ -828,7 +837,8 @@ local function scan_and_emit()
 		local skills0 = skills_for_figures(lesson.figures, 1, N)
 		live_chunks[hash0] = true
 		json_index[hash0] = { level = 0, skills = skills0, children = {}, txt = content0 }
-		io.write("CHUNK_NAME " .. hash0 .. " 0 " .. skills0 .. "\n")
+		local mel0 = has_melody(lesson.melody, 1, N) and "" or " no_melody"
+		io.write("CHUNK_NAME " .. hash0 .. " 0 " .. skills0 .. mel0 .. "\n")
 		io.flush()
 
 		-- ── level-1: 3-bar chunks; level-2: 1-bar chunks ─────────────────────
@@ -857,7 +867,8 @@ local function scan_and_emit()
 			json_index[hash0].children[#json_index[hash0].children + 1] =
 				{ hash = c1.hash, s = c1.s - 1, e = c1.e - 1 }
 			json_index[c1.hash] = { level = 1, skills = c1.skills, children = {}, txt = c1.content }
-			io.write("CHUNK_NAME " .. c1.hash .. " 1 " .. c1.skills .. "\n")
+			local mel1 = has_melody(lesson.melody, c1.s, c1.e) and "" or " no_melody"
+			io.write("CHUNK_NAME " .. c1.hash .. " 1 " .. c1.skills .. mel1 .. "\n")
 			io.flush()
 
 			local chunks2 = compute_bar_children(
@@ -885,7 +896,8 @@ local function scan_and_emit()
 				json_index[c1.hash].children[#json_index[c1.hash].children + 1] =
 					{ hash = c2.hash, s = c2.s - c1.s, e = c2.e - c1.s }
 				json_index[c2.hash] = { level = 2, skills = c2.skills, children = {}, txt = c2.content }
-				io.write("CHUNK_NAME " .. c2.hash .. " 2 " .. c2.skills .. "\n")
+				local mel2 = has_melody(lesson.melody, c2.s, c2.e) and "" or " no_melody"
+				io.write("CHUNK_NAME " .. c2.hash .. " 2 " .. c2.skills .. mel2 .. "\n")
 				io.flush()
 				child2_parts[#child2_parts + 1] = c2.hash .. ":" .. (c2.s - 1) .. ":" .. (c2.e - 1)
 			end
