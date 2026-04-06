@@ -1228,6 +1228,10 @@ for line in io.lines() do
 		local h = line:match("^LOAD_CHUNK (%S+)")
 		if h then
 			current_loaded = h
+			-- Clear stale perf state from any previous karaoke session
+			result_timestamps = {}
+			perf_done_pending = false
+			perf_aborted = false
 			print_stats_line(stats, nil, current_loaded)
 			emit_skill_stats(stats)
 			-- Check if any badges should be awarded retroactively

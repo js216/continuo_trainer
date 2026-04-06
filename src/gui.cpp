@@ -383,6 +383,7 @@ static void suggest_lesson(void)
 	printf("KARAOKE_OFF\n");
 	printf("SUGGEST_LESSON\n");
 	fflush(stdout);
+	state.karaoke_on = false;
 }
 
 static void toggle_karaoke(void)
@@ -2011,6 +2012,10 @@ int main(int, char **)
 		ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
 		glfwSwapBuffers(win);
 	}
+
+	// Silence MIDI hardware before tearing down the pipeline
+	printf("MIDI PANIC\n");
+	fflush(stdout);
 
 	ImGui_ImplOpenGL3_Shutdown();
 	ImGui_ImplGlfw_Shutdown();
