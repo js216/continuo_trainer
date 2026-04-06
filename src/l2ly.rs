@@ -296,6 +296,11 @@ fn interval_to_ly(s: &str) -> String {
         ("", s)
     };
 
+    if num.is_empty() || !num.chars().all(|c| c.is_ascii_digit()) {
+        eprintln!("error: invalid figure token: \"{}\"", s);
+        std::process::exit(1);
+    }
+
     if acc.is_empty() {
         num.to_string()
     } else {
