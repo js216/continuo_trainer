@@ -27,7 +27,12 @@
 //     "0"        → <_>          no figure
 //     "#" / "b"  → <_+> / <_->  raised/lowered third
 //     "#6"/"b6"  → <6+> / <6->
-//     "a/b/c"    → <a b c>      slash-separated stack
+//     "4+" / "+4" → <4\+>        plus sign (= raised); 4+ sets
+//                                figuredBassPlusDirection = #RIGHT,
+//                                +4 sets #LEFT (per-figure switching)
+//     "6\/"      → <6/>         forward slash through figure (= raised)
+//     "6\\"      → <6\\>        backward slash through figure (= raised)
+//     "a/b/c"    → <a b c>      slash-separated stack (\/ and \\ escape /)
 //
 // DIAGNOSTICS
 //     The program exits with an error message if the lesson file cannot be
@@ -247,51 +252,123 @@ fn figures_to_ly(figures: &str, bassline: &str) -> String {
         .filter(|t| !matches!(*t, "~" | "|"))
         .collect();
 
-    figures
-        .split_whitespace()
-        .zip(bass_tokens.iter())
-        .map(|(fig, bass)| {
-            let dur = note_duration(bass);
-            let group = if is_passing(bass) {
-                r"<_\\>".to_string()
-            } else {
-                parse_figure(fig)
-            };
-            format!("{}{}", group, dur)
-        })
-        .collect::<Vec<_>>()
-        .join(" ")
+    let mut plus_dir_is_right = false; // LilyPond default is LEFT
+    let mut result = Vec::new();
+    for (fig, bass) in figures.split_whitespace().zip(bass_tokens.iter()) {
+        let dur = note_duration(bass);
+        let (group, dir) = if is_passing(bass) {
+            (r"<_\\>".to_string(), None)
+        } else {
+            parse_figure(fig)
+        };
+        if let Some(right) = dir {
+            if right != plus_dir_is_right {
+                plus_dir_is_right = right;
+                let val = if right { "#RIGHT" } else { "#LEFT" };
+                result.push(format!("\\set figuredBassPlusDirection = {}", val));
+            }
+        }
+        result.push(format!("{}{}", group, dur));
+    }
+    result.join(" ")
 }
 
 // Convert one figure token to a \figuremode group.
-fn parse_figure(fig: &str) -> String {
+// Returns (ly_string, plus_direction) where plus_direction is
+// Some(true) for RIGHT, Some(false) for LEFT, None if no plus sign.
+fn parse_figure(fig: &str) -> (String, Option<bool>) {
     let fig = fig.trim();
     if fig == "0" {
-        // No figure on this note; empty <_> renders nothing
-        return "<_>".to_string();
+        return ("<_>".to_string(), None);
     }
 
-    // Handle stacked figures separated by '/'
-    let parts: Vec<String> = fig.split('/').map(interval_to_ly).collect();
-    format!("<{}>", parts.join(" "))
+    let tokens = split_figures(fig);
+    let mut dir = None;
+    for t in &tokens {
+        if t.ends_with('+') {
+            dir = Some(true); // RIGHT
+        } else if t.starts_with('+') {
+            dir = Some(false); // LEFT
+        }
+    }
+    let parts: Vec<String> = tokens.iter().map(|s| interval_to_ly(s)).collect();
+    (format!("<{}>", parts.join(" ")), dir)
 }
 
-// Convert a single interval string (possibly with # or b prefix) to a
-// LilyPond figure interval.  LilyPond uses + for sharp, - for flat on
-// the interval number; a bare # means "raise the third" → _+.
+// Split a figure string on '/' but treat '\/' and '\\' as escaped literals.
+fn split_figures(s: &str) -> Vec<String> {
+    let mut parts = Vec::new();
+    let mut cur = String::new();
+    let chars: Vec<char> = s.chars().collect();
+    let mut i = 0;
+    while i < chars.len() {
+        if chars[i] == '\\' && i + 1 < chars.len() && chars[i + 1] == '\\' {
+            cur.push('\\');
+            cur.push('\\');
+            i += 2;
+        } else if chars[i] == '\\' && i + 1 < chars.len() && chars[i + 1] == '/' {
+            cur.push('\\');
+            cur.push('/');
+            i += 2;
+        } else if chars[i] == '/' {
+            parts.push(cur);
+            cur = String::new();
+            i += 1;
+        } else {
+            cur.push(chars[i]);
+            i += 1;
+        }
+    }
+    parts.push(cur);
+    parts
+}
+
+// Convert a single interval token to a LilyPond figure interval.
+//
+// Input        LilyPond    Glyph
+// #            _+          sharp on the 3rd (shorthand)
+// b            _-          flat on the 3rd
+// #6           6+          sharp accidental on 6
+// b6           6-          flat accidental on 6
+// 6+  / +6     6\+         plus sign on 6
+// 6\/          6/          forward slash through 6
+// 6\\          6\\         backward slash through 6
 fn interval_to_ly(s: &str) -> String {
     if s == "#" {
-        // Bare accidental: raise the 3rd (common basso continuo shorthand)
         return "_+".to_string();
     }
     if s == "b" {
         return "_-".to_string();
     }
 
+    // Backward slash through figure: 6\\ → 6\\
+    if s.ends_with("\\\\") {
+        let num = &s[..s.len() - 2];
+        if num.is_empty() || !num.chars().all(|c| c.is_ascii_digit()) {
+            eprintln!("error: invalid figure token: \"{}\"", s);
+            std::process::exit(1);
+        }
+        return format!("{}\\\\", num);
+    }
+
+    // Forward slash through figure: 6\/ → 6/
+    if s.ends_with("\\/") {
+        let num = &s[..s.len() - 2];
+        if num.is_empty() || !num.chars().all(|c| c.is_ascii_digit()) {
+            eprintln!("error: invalid figure token: \"{}\"", s);
+            std::process::exit(1);
+        }
+        return format!("{}/", num);
+    }
+
     let (acc, num) = if s.starts_with('#') {
         ("+", &s[1..])
     } else if s.starts_with('b') {
         ("-", &s[1..])
+    } else if s.ends_with('+') {
+        ("\\+", &s[..s.len() - 1])
+    } else if s.starts_with('+') {
+        ("\\+", &s[1..])
     } else {
         ("", s)
     };

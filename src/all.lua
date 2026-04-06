@@ -75,10 +75,41 @@ end
 
 -- ── skill detection ───────────────────────────────────────────────────────────
 
+local function split_figure_tokens(s)
+	local parts = {}
+	local cur = ""
+	local i = 1
+	while i <= #s do
+		if s:sub(i, i + 1) == "\\\\" then
+			cur = cur .. "\\\\"
+			i = i + 2
+		elseif s:sub(i, i + 1) == "\\/" then
+			cur = cur .. "\\/"
+			i = i + 2
+		elseif s:sub(i, i) == "/" then
+			if cur ~= "" then parts[#parts + 1] = cur end
+			cur = ""
+			i = i + 1
+		else
+			cur = cur .. s:sub(i, i)
+			i = i + 1
+		end
+	end
+	if cur ~= "" then parts[#parts + 1] = cur end
+	return parts
+end
+
 local function fig_nums(fig)
 	local nums = {}
-	for token in fig:gmatch("[^/]+") do
-		local n = token:match("^[#bn]*(%d+)$")
+	for _, token in ipairs(split_figure_tokens(fig)) do
+		-- strip trailing \\, \/, or + and leading +
+		local t = token
+		if t:sub(-2) == "\\\\" then t = t:sub(1, -3)
+		elseif t:sub(-2) == "\\/" then t = t:sub(1, -3)
+		elseif t:sub(-1) == "+" then t = t:sub(1, -2)
+		end
+		if t:sub(1, 1) == "+" then t = t:sub(2) end
+		local n = t:match("^[#bn]*(%d+)$")
 		if n then
 			nums[tonumber(n)] = true
 		end
@@ -99,9 +130,15 @@ end
 
 local function is_3_resolution(fig)
 	if fig == "0" then return true end
-	for token in fig:gmatch("[^/]+") do
-		if token:match("^[#bn]+$") then return true end
-		local n = token:match("^[#bn]*(%d+)$")
+	for _, token in ipairs(split_figure_tokens(fig)) do
+		if token:match("^[#bn%+]+$") or token == "\\/" or token == "\\\\" then return true end
+		local t = token
+		if t:sub(-2) == "\\\\" then t = t:sub(1, -3)
+		elseif t:sub(-2) == "\\/" then t = t:sub(1, -3)
+		elseif t:sub(-1) == "+" then t = t:sub(1, -2)
+		end
+		if t:sub(1, 1) == "+" then t = t:sub(2) end
+		local n = t:match("^[#bn]*(%d+)$")
 		if n and tonumber(n) == 3 then return true end
 	end
 	return false

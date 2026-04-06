@@ -290,6 +290,31 @@ end
 -- Figure parsing
 -- ---------------------------------------------------------------------------
 
+-- Split a figure string on '/' or ',' but treat '\/' and '\\' as literals.
+local function split_figure_tokens(s)
+	local parts = {}
+	local cur = ""
+	local i = 1
+	while i <= #s do
+		if s:sub(i, i + 1) == "\\\\" then
+			cur = cur .. "\\\\"
+			i = i + 2
+		elseif s:sub(i, i + 1) == "\\/" then
+			cur = cur .. "\\/"
+			i = i + 2
+		elseif s:sub(i, i) == "/" or s:sub(i, i) == "," then
+			if cur ~= "" then parts[#parts + 1] = cur end
+			cur = ""
+			i = i + 1
+		else
+			cur = cur .. s:sub(i, i)
+			i = i + 1
+		end
+	end
+	if cur ~= "" then parts[#parts + 1] = cur end
+	return parts
+end
+
 local function parse_one_figure(t)
 	t = t:match("^%s*(.-)%s*$")
 	if t == "" then
@@ -315,6 +340,14 @@ local function parse_one_figure(t)
 		acc, rest = 1, t:sub(3)
 	elseif t:sub(1, 2) == "es" or t:sub(1, 2) == "as" then
 		acc, rest = -1, t:sub(3)
+	elseif t:sub(-2) == "\\\\" then
+		acc, rest = 1, t:sub(1, -3)
+	elseif t:sub(-2) == "\\/" then
+		acc, rest = 1, t:sub(1, -3)
+	elseif t:sub(-1) == "+" then
+		acc, rest = 1, t:sub(1, -2)
+	elseif t:sub(1, 1) == "+" then
+		acc, rest = 1, t:sub(2)
 	else
 		acc, rest = 0, t
 	end
@@ -342,7 +375,7 @@ local function parse_figures(s)
 	end
 
 	local figs = {}
-	for part in s:gmatch("[^/,]+") do
+	for _, part in ipairs(split_figure_tokens(s)) do
 		local fig = parse_one_figure(part)
 		if fig then
 			figs[#figs + 1] = fig

@@ -35,7 +35,11 @@
 //     "#"      → <_+>      raised third
 //     "b"      → <_->      lowered third
 //     "#6"     → <6+>, "b6" → <6->
-//     "a/b/c"  → <a b c>   slash-separated stack
+//     "4+"     → <4\+>     plus sign after (figuredBassPlusDirection = #RIGHT)
+//     "+4"     → <4\+>     plus sign before (#LEFT)
+//     "6\/"    → <6/>      forward slash through figure
+//     "6\\"    → <6\\>     backward slash through figure
+//     "a/b/c"  → <a b c>   slash-separated stack (\/ and \\ escape /)
 //     passing  → <_\>      solidus (passing motion)
 //
 // TIES
@@ -233,6 +237,33 @@ fn realization_token(notes: &[&str], dur: &str, tie: bool) -> String {
 // Figured bass
 // ---------------------------------------------------------------------------
 
+fn split_figures(s: &str) -> Vec<String> {
+    let mut parts = Vec::new();
+    let mut cur = String::new();
+    let chars: Vec<char> = s.chars().collect();
+    let mut i = 0;
+    while i < chars.len() {
+        if chars[i] == '\\' && i + 1 < chars.len() && chars[i + 1] == '\\' {
+            cur.push('\\');
+            cur.push('\\');
+            i += 2;
+        } else if chars[i] == '\\' && i + 1 < chars.len() && chars[i + 1] == '/' {
+            cur.push('\\');
+            cur.push('/');
+            i += 2;
+        } else if chars[i] == '/' {
+            parts.push(cur);
+            cur = String::new();
+            i += 1;
+        } else {
+            cur.push(chars[i]);
+            i += 1;
+        }
+    }
+    parts.push(cur);
+    parts
+}
+
 fn interval_to_ly(s: &str) -> String {
     if s == "#" {
         return "_+".to_string();
@@ -240,13 +271,37 @@ fn interval_to_ly(s: &str) -> String {
     if s == "b" {
         return "_-".to_string();
     }
+    if s.ends_with("\\\\") {
+        let num = &s[..s.len() - 2];
+        if num.is_empty() || !num.chars().all(|c| c.is_ascii_digit()) {
+            eprintln!("error: invalid figure token: \"{}\"", s);
+            std::process::exit(1);
+        }
+        return format!("{}\\\\", num);
+    }
+    if s.ends_with("\\/") {
+        let num = &s[..s.len() - 2];
+        if num.is_empty() || !num.chars().all(|c| c.is_ascii_digit()) {
+            eprintln!("error: invalid figure token: \"{}\"", s);
+            std::process::exit(1);
+        }
+        return format!("{}/", num);
+    }
     let (acc, num) = if s.starts_with('#') {
         ("+", &s[1..])
     } else if s.starts_with('b') {
         ("-", &s[1..])
+    } else if s.ends_with('+') {
+        ("\\+", &s[..s.len() - 1])
+    } else if s.starts_with('+') {
+        ("\\+", &s[1..])
     } else {
         ("", s)
     };
+    if num.is_empty() || !num.chars().all(|c| c.is_ascii_digit()) {
+        eprintln!("error: invalid figure token: \"{}\"", s);
+        std::process::exit(1);
+    }
     if acc.is_empty() {
         num.to_string()
     } else {
@@ -254,29 +309,44 @@ fn interval_to_ly(s: &str) -> String {
     }
 }
 
-fn parse_figure(fig: &str) -> String {
+fn parse_figure(fig: &str) -> (String, Option<bool>) {
     let fig = fig.trim();
     if fig == "0" {
-        return "<_>".to_string();
+        return ("<_>".to_string(), None);
     }
-    let parts: Vec<String> = fig.split('/').map(interval_to_ly).collect();
-    format!("<{}>", parts.join(" "))
+    let tokens = split_figures(fig);
+    let mut dir = None;
+    for t in &tokens {
+        if t.ends_with('+') {
+            dir = Some(true);
+        } else if t.starts_with('+') {
+            dir = Some(false);
+        }
+    }
+    let parts: Vec<String> = tokens.iter().map(|s| interval_to_ly(s)).collect();
+    (format!("<{}>", parts.join(" ")), dir)
 }
 
 fn build_figures(groups: &[Group]) -> String {
-    groups
-        .iter()
-        .map(|g| {
-            let dur = duration_of(&g.bass);
-            let group = if g.passing {
-                r"<_\\>".to_string()
-            } else {
-                parse_figure(&g.figures)
-            };
-            format!("{}{}", group, dur)
-        })
-        .collect::<Vec<_>>()
-        .join(" ")
+    let mut plus_dir_is_right = false;
+    let mut result = Vec::new();
+    for g in groups {
+        let dur = duration_of(&g.bass);
+        let (group, dir) = if g.passing {
+            (r"<_\\>".to_string(), None)
+        } else {
+            parse_figure(&g.figures)
+        };
+        if let Some(right) = dir {
+            if right != plus_dir_is_right {
+                plus_dir_is_right = right;
+                let val = if right { "#RIGHT" } else { "#LEFT" };
+                result.push(format!("\\set figuredBassPlusDirection = {}", val));
+            }
+        }
+        result.push(format!("{}{}", group, dur));
+    }
+    result.join(" ")
 }
 
 // ---------------------------------------------------------------------------
