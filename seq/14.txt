@@ -1,0 +1,24 @@
+title: No. 15: 7-6 suspension
+composer: G. F. Handel
+key: A
+time: 4/4
+bpm: 100
+bar: 9
+
+bassline = {
+  fis4 fis8 e16 d16 e4 e8 d16 cis16
+  d4 d8 cis16 b,16 cis8 b,8 cis8 d8
+  e4 e,4 a,2
+}
+
+figures = {
+  7 6 0 0 7 6 0 0
+  7 6 0 0 7 0 6 0
+  6/4 5/3 0
+}
+
+melody = {
+  r1
+  r1
+  r1
+}
