@@ -178,6 +178,25 @@ local function calculate_power(l_data, alg, power_factor_override)
 	return math.min(mastery, mastery * stability) * (power_factor_override or l_data.power_factor or 1.0)
 end
 
+-- Performance-mode power: uses perf_mastery, perf_ivl, perf_last_date so that
+-- practice-only sessions cannot inflate the performance power stat.
+local function calculate_perf_power(l_data, alg)
+	local mastery = l_data.perf_mastery or 0
+	local ivl = l_data.perf_ivl or 0
+	local last_date = l_data.perf_last_date
+
+	if not last_date or ivl <= 0 then
+		return 0
+	end
+
+	local y, m, d = last_date:match("(%d+)-(%d+)-(%d+)")
+	local last_ts = os.time({ year = y, month = m, day = d, hour = 12 })
+	local days_elapsed = math.floor(os.difftime(os.time(), last_ts) / 86400)
+
+	local stability = math.exp(-alg.power_half_life * (math.max(0, days_elapsed) / ivl))
+	return math.min(mastery, mastery * stability) * (l_data.perf_power_factor or 1.0)
+end
+
 -- Like calculate_power but uses effective (max of direct and transitive) mastery
 -- and last_date.  Used for scheduling decisions.
 local function calculate_effective_power(l_data, alg)
@@ -473,10 +492,9 @@ local function update_entry(entry, sd, alg)
 	}
 end
 
--- Transitive update: only touches t_mastery, t_last_date, and max_groups.
--- Called when this chunk's material is covered as part of a parent session.
--- Independent SRS fields (ease, ivl, n_pass, n_fail, ema_pass, best_avg) are
--- left untouched.
+-- Transitive-only fields: updates t_mastery, t_last_date, and max_groups.
+-- Called alongside update_entry when a child is scored from a parent session,
+-- so that calculate_effective_power can use the transitive values.
 local function update_entry_transitive(entry, sd, alg)
 	local today = get_date_str(alg.midnight_time)
 	if sd.groups > (entry.max_groups or 0) then
@@ -542,7 +560,7 @@ local function print_stats_line(stats, timestamp, chunk_hash)
 		local c = stats.chunks[chunk_hash]
 		if c then
 			local power = calculate_power(c, alg)
-			local perf_power = calculate_power(c, alg, c.perf_power_factor or 1.0)
+			local perf_power = calculate_perf_power(c, alg)
 			local mastery = c.mastery or 0
 			chunk_str = string.format(
 				" chunk=%s[ivl=%d,ease=%.2f,mastery=%.2f,power=%.2f,pract_bpm=%.2f,ema_evenness=%.4f"
@@ -775,7 +793,7 @@ local function check_badges(c, alg, mode)
 	elseif mode == "performance" then
 		-- No perf badges until at least one performance attempt has been made
 		if not c.perf_n_pass and not c.perf_n_fail then return bonus end
-		local power_pct = normalize(calculate_power(c, alg, c.perf_power_factor or 1.0), c)
+		local power_pct = normalize(calculate_perf_power(c, alg), c)
 		-- P' badge: perf power threshold
 		if not c.perf_badge_p and power_pct >= alg.perf_badge_power_thresh then
 			c.perf_badge_p = true
@@ -820,7 +838,7 @@ local function badge_progress(c, alg)
 		return "E", c.ema_evenness or 0, alg.badge_evenness_thresh
 	end
 	if not c.perf_badge_p then
-		return "PP", normalize(calculate_power(c, alg, c.perf_power_factor or 1.0), c), alg.perf_badge_power_thresh
+		return "PP", normalize(calculate_perf_power(c, alg), c), alg.perf_badge_power_thresh
 	end
 	if not c.perf_badge_s then
 		return "PS", c.perf_bpm or 0, alg.perf_badge_speed_thresh
@@ -918,6 +936,7 @@ try_perf_score = function()
 		end
 		local passed = accuracy >= alg.perf_fail_accuracy
 
+		local today = get_date_str(alg.midnight_time)
 		if passed then
 			c.perf_n_pass = (c.perf_n_pass or 0) + 1
 			c.perf_n_fail = 0
@@ -927,8 +946,26 @@ try_perf_score = function()
 				+ (1 - alpha) * (c.perf_ema_evenness or timing_evenness)
 			c.perf_bpm = alpha * actual_bpm
 				+ (1 - alpha) * (c.perf_bpm or actual_bpm)
-			local perf_points = (normalize(c.mastery or 0, c) * alg.power_points_per_pct) * 0.25
-			local today = get_date_str(alg.midnight_time)
+			-- Grow perf_mastery toward practice mastery, gated by accuracy.
+			local old_perf_m = c.perf_mastery or 0
+			local target = c.mastery or 0
+			if target > old_perf_m then
+				c.perf_mastery = old_perf_m + (target - old_perf_m) * alg.mastery_growth
+			end
+			-- SRS for performance interval
+			if accuracy == 100 then
+				if (c.perf_n_pass or 0) == 1 then
+					c.perf_ivl = alg.ivl_first
+				elseif (c.perf_n_pass or 0) == 2 then
+					c.perf_ivl = alg.ivl_second
+				else
+					c.perf_ivl = math.min(alg.ivl_max,
+						math.ceil((c.perf_ivl or 1) * (c.perf_ease or alg.ease_initial)))
+				end
+				c.perf_ease = math.min(alg.ease_max, (c.perf_ease or alg.ease_initial) + alg.ease_pass_delta)
+			end
+			c.perf_last_date = today
+			local perf_points = (normalize(c.perf_mastery or 0, c) * alg.power_points_per_pct) * 0.25
 			stats.daily[today] = stats.daily[today] or { score = 0, duration = 0 }
 			stats.daily[today].score = stats.daily[today].score + perf_points
 			local badge_pts = check_badges(c, alg, "performance")
@@ -937,6 +974,9 @@ try_perf_score = function()
 			c.perf_n_fail = (c.perf_n_fail or 0) + 1
 			c.perf_n_pass = 0
 			c.perf_power_factor = math.max(0, (c.perf_power_factor or 1.0) * (1.0 - alg.mistake_power_penalty))
+			c.perf_ivl = 1
+			c.perf_ease = math.max(alg.ease_min, (c.perf_ease or alg.ease_initial) - alg.ease_fail_delta)
+			c.perf_last_date = today
 		end
 
 		-- Emit per-note timing detail, then pass/fail status
@@ -1147,9 +1187,15 @@ local function finalize()
 	emit_skill_stats(stats)
 	local saved_results = current.results
 	local saved_max_bass_id = current.max_bass_id
+	local saved_beats = current.beats
+	local saved_time_denom = current.time_denom or 4
+	local saved_ref_bpm = current.ref_bpm or 120.0
 	current = nil
-	pending_children[hash] =
-		{ results = saved_results, abs_s = 0, abs_e = saved_max_bass_id, failed_groups = failed_groups }
+	pending_children[hash] = {
+		results = saved_results, abs_s = 0, abs_e = saved_max_bass_id,
+		failed_groups = failed_groups,
+		beats = saved_beats, time_denom = saved_time_denom, ref_bpm = saved_ref_bpm,
+	}
 	io.write("QUERY_CHILDREN " .. hash .. "\n")
 end
 
@@ -1375,7 +1421,7 @@ for line in io.lines() do
 			goto continue
 		end
 
-		-- Finalize query: transitively update each child's stats entry.
+		-- Finalize query: fully score each child from the parent session.
 		local failed_groups = pending.failed_groups or {}
 		for _, ci in ipairs(child_list) do
 			local abs_s = pending.abs_s + ci.s
@@ -1385,6 +1431,8 @@ for line in io.lines() do
 			local c = stats.chunks[ci.hash]
 				or { ease = alg.ease_initial, ivl = 0, mastery = 0, total_duration = 0, max_groups = 0 }
 			if sd then
+				update_entry(c, sd, alg)
+				-- Also maintain transitive fields for calculate_effective_power.
 				update_entry_transitive(c, sd, alg)
 			end
 			-- Apply power_factor: penalise if any failed group falls in this child's range,
@@ -1401,27 +1449,28 @@ for line in io.lines() do
 			else
 				c.power_factor = 1.0
 			end
-			-- Update SRS scheduling from the parent session result so that the
-			-- scheduling algorithm works uniformly across all levels: a clean
-			-- sub-range advances the review interval (child won't surface soon),
-			-- a failed sub-range resets it to 1 day (child surfaces next session).
-			if sd then
-				if not child_has_fail and sd.accuracy == 100 then
-					if (c.ivl or 0) == 0 then
-						c.ivl = alg.ivl_first
-					else
-						c.ivl = math.min(alg.ivl_max, math.ceil(c.ivl * (c.ease or alg.ease_initial)))
+			-- Compute pract_bpm for this child range.
+			if sd and sd.accuracy == 100 and sd.duration > 0 and pending.beats then
+				local bpm_beats = 0
+				for i = abs_s + 1, abs_e do
+					if pending.results[i] and pending.results[i - 1] then
+						bpm_beats = bpm_beats + (pending.beats[i - 1] or 0)
 					end
-					c.ease = math.min(alg.ease_max, (c.ease or alg.ease_initial) + alg.ease_pass_delta)
-				elseif child_has_fail then
-					c.ivl = 1
-					c.ease = math.max(alg.ease_min, (c.ease or alg.ease_initial) - alg.ease_fail_delta)
+				end
+				if bpm_beats > 0 then
+					local actual_bpm = bpm_beats * ((pending.time_denom or 4) / 4.0) * 60.0 / sd.duration
+					local alpha = ema_alpha(alg)
+					c.pract_bpm = alpha * actual_bpm
+						+ (1.0 - alpha) * (c.pract_bpm or c.ema_bpm or pending.ref_bpm or 120.0)
 				end
 			end
 			update_note_emas(c, pending.results, abs_s, abs_e, alg)
 			stats.chunks[ci.hash] = c
-			pending_children[ci.hash] =
-				{ results = pending.results, abs_s = abs_s, abs_e = abs_e, failed_groups = failed_groups }
+			pending_children[ci.hash] = {
+				results = pending.results, abs_s = abs_s, abs_e = abs_e,
+				failed_groups = failed_groups,
+				beats = pending.beats, time_denom = pending.time_denom, ref_bpm = pending.ref_bpm,
+			}
 			io.write("QUERY_CHILDREN " .. ci.hash .. "\n")
 		end
 		save_stats(stats_file, stats)

@@ -710,9 +710,6 @@ local function rule_realization_complete(ctx)
 	for _, n in ipairs(g.inner) do
 		set_insert(present, n % 12)
 	end
-	for _, n in ipairs(g.melody) do
-		set_insert(present, n % 12)
-	end
 
 	for _, fig in ipairs(g.figures) do
 		local required_pc = figure_to_pc(fig, bass_pc, g.bass_letter_idx, key)
