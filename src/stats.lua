@@ -686,14 +686,28 @@ local function suggest_best_hash(stats, exclude_hash)
 	local alg = stats.algorithm
 	local best_unmastered = nil
 	local best_new = nil
+	local best_perf = nil
 	local all_practiced_mastered = true
 
 	for h, c in pairs(stats.chunks) do
 		if h == exclude_hash then
 			goto suggest_continue
 		end
-		-- Skip chunks that already earned all practice badges
-		if c.badge_graduated then
+		local has_all_practice = c.badge_p and c.badge_s and c.badge_e
+		if has_all_practice then
+			-- All practice badges earned: candidate for performance work.
+			if not (c.perf_badge_p and c.perf_badge_s and c.perf_badge_e) then
+				local pp = calculate_perf_power(c, alg)
+				local level = c.level or 0
+				if
+					not best_perf
+					or level > best_perf.level
+					or (level == best_perf.level and pp < best_perf.pp)
+					or (level == best_perf.level and pp == best_perf.pp and h < best_perf.hash)
+				then
+					best_perf = { hash = h, level = level, pp = pp }
+				end
+			end
 			goto suggest_continue
 		end
 		local is_new = not c.last_date and not c.t_last_date
@@ -727,10 +741,13 @@ local function suggest_best_hash(stats, exclude_hash)
 		::suggest_continue::
 	end
 
+	-- Priority: 1) unmastered practice chunks, 2) new chunks, 3) performance work
 	if not all_practiced_mastered then
 		return best_unmastered and best_unmastered.hash or nil
 	elseif best_new then
 		return best_new.hash
+	elseif best_perf then
+		return best_perf.hash
 	end
 	return nil
 end
