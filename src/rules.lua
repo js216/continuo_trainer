@@ -698,19 +698,26 @@ local function rule_realization_not_empty(ctx)
 	return true, nil
 end
 
-local function rule_realization_complete(ctx)
-	local g = ctx.window[#ctx.window]
-	if g.passing then
-		return true, nil
-	end
-	local key = ctx.key
-	local bass_pc = g.bass % 12
+-- Check if a group's figures_raw is a bare "7" (possibly with accidental prefix).
+local function is_bare_figure_7(g)
+	return g.figures_raw:match("^[#bn]*7$") ~= nil
+end
 
+local function is_bare_figure_6(g)
+	return g.figures_raw:match("^[#bn]*6$") ~= nil
+end
+
+-- Deferred completeness check for figure-7 groups: resolved by resolve_pending_7
+-- when the next group arrives (to distinguish 7-6 suspensions from standalone 7ths).
+local pending_7 = nil -- { group = g, key = key }
+
+-- Check completeness for a non-deferred group.
+local function check_completeness(g, key)
+	local bass_pc = g.bass % 12
 	local present = set_new({ bass_pc })
 	for _, n in ipairs(g.inner) do
 		set_insert(present, n % 12)
 	end
-
 	for _, fig in ipairs(g.figures) do
 		local required_pc = figure_to_pc(fig, bass_pc, g.bass_letter_idx, key)
 		if not required_pc then
@@ -721,6 +728,71 @@ local function rule_realization_complete(ctx)
 		end
 	end
 	return true, nil
+end
+
+-- Resolve a deferred figure-7 completeness check.  Called when the next group
+-- arrives (or at lesson boundary).  If the next group forms a 7-6 suspension
+-- (figure 6, same bass), demand exactly 2 inner voices (3rd and 7th only).
+-- Otherwise treat as a standalone 7th and demand full completeness.
+local function resolve_pending_7(next_g)
+	if not pending_7 then return end
+	local prev = pending_7.group
+	local key = pending_7.key
+	pending_7 = nil
+
+	local bass_pc = prev.bass % 12
+	local is_76 = next_g and is_bare_figure_6(next_g)
+		and (next_g.bass % 12 == bass_pc)
+
+	if is_76 then
+		-- 7-6 suspension: demand exactly 2 inner voices (3rd and 7th).
+		if #prev.inner ~= 2 then
+			io.write(string.format(
+				"RESULT %d TIME:%d \27[31mFAIL\27[0m 7-6 suspension requires exactly 2 right-hand voices (had %d)\n",
+				prev.id, prev.time, #prev.inner))
+			return
+		end
+		-- Verify the 2 voices are the 3rd and 7th.
+		local pc_3 = figure_to_pc({ deg = 3, acc = 0 }, bass_pc, prev.bass_letter_idx, key)
+		local pc_7 = figure_to_pc({ deg = 7, acc = 0 }, bass_pc, prev.bass_letter_idx, key)
+		if not pc_3 or not pc_7 then return end
+		local inner_pcs = set_new({})
+		for _, n in ipairs(prev.inner) do
+			set_insert(inner_pcs, n % 12)
+		end
+		if not set_contains(inner_pcs, pc_3) then
+			io.write(string.format(
+				"RESULT %d TIME:%d \27[31mFAIL\27[0m 7-6 suspension: 3rd (%s) is missing\n",
+				prev.id, prev.time, pc_name(pc_3)))
+		elseif not set_contains(inner_pcs, pc_7) then
+			io.write(string.format(
+				"RESULT %d TIME:%d \27[31mFAIL\27[0m 7-6 suspension: 7th (%s) is missing\n",
+				prev.id, prev.time, pc_name(pc_7)))
+		end
+	else
+		-- Standalone 7th: full completeness check.
+		local ok, err = check_completeness(prev, key)
+		if not ok then
+			io.write(string.format(
+				"RESULT %d TIME:%d \27[31mFAIL\27[0m %s\n",
+				prev.id, prev.time, err))
+		end
+	end
+end
+
+local function rule_realization_complete(ctx)
+	local g = ctx.window[#ctx.window]
+	if g.passing then
+		return true, nil
+	end
+
+	-- Defer completeness for figure-7 groups (resolved by resolve_pending_7).
+	if is_bare_figure_7(g) then
+		pending_7 = { group = g, key = ctx.key }
+		return true, nil
+	end
+
+	return check_completeness(g, ctx.key)
 end
 
 local RULES = {
@@ -896,6 +968,7 @@ local function main()
 	for line in io.lines() do
 		line = line:gsub("\r", "")
 		if line:match("^LESSON") then
+			resolve_pending_7(nil) -- flush before reset
 			local k = parse_lesson_key(line)
 			if k then
 				key = k
@@ -905,6 +978,7 @@ local function main()
 			local g = parse_group(line)
 			if g then
 				push_window(g)
+				resolve_pending_7(g)
 				local ok, err = run_rules({
 					window = window,
 					key = key,

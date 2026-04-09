@@ -1,17 +1,17 @@
-STATS time=0 total_today=0.00 goal=1000.00 total_duration_today=0.000 streak=0 mastery_thresh=60 power_thresh=40 chunk=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa[ivl=6,ease=2.50,mastery=80.00,power=80.00,pract_bpm=100.00,ema_evenness=0.8000,perf_power=80.00,perf_bpm=100.00,perf_ema_evenness=0.0000]
+STATS time=0 total_today=0.00 goal=1000.00 total_duration_today=0.000 streak=0 mastery_thresh=60 power_thresh=40 chunk=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa[ivl=6,ease=2.50,mastery=80.00,power=80.00,pract_bpm=100.00,ema_evenness=0.8000,perf_power=0.00,perf_bpm=100.00,perf_ema_evenness=0.0000]
 SKILL_STATS skill=root mastery=80.00
 SKILL_STATS skill=6 mastery=0.00
 BADGE P 25
 BADGE S 25
 BADGE E 25
 BADGE READY 50
-STATS time=0 total_today=125.00 goal=1000.00 total_duration_today=0.000 streak=0 mastery_thresh=60 power_thresh=40 chunk=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa[ivl=6,ease=2.50,mastery=80.00,power=80.00,pract_bpm=100.00,ema_evenness=0.8000,perf_power=80.00,perf_bpm=100.00,perf_ema_evenness=0.0000]
+STATS time=0 total_today=125.00 goal=1000.00 total_duration_today=0.000 streak=0 mastery_thresh=60 power_thresh=40 chunk=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa[ivl=6,ease=2.50,mastery=80.00,power=80.00,pract_bpm=100.00,ema_evenness=0.8000,perf_power=0.00,perf_bpm=100.00,perf_ema_evenness=0.0000]
 BADGE P 0
 BADGE S 0
 BADGE E 0
 BADGE READY 0
 BPM 100.00
-STATS time=1000000 total_today=130.34 goal=1000.00 total_duration_today=2.400 streak=0 mastery_thresh=60 power_thresh=40 chunk=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa[ivl=15,ease=2.60,mastery=81.02,power=81.02]
+STATS time=1000000 total_today=130.34 goal=1000.00 total_duration_today=2.400 streak=0 mastery_thresh=60 power_thresh=40 chunk=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa[ivl=15,ease=2.65,mastery=81.02,power=81.02]
 SKILL_STATS skill=root mastery=81.02
 SKILL_STATS skill=6 mastery=0.00
 QUERY_CHILDREN aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
