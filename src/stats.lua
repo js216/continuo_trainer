@@ -100,6 +100,13 @@ local ALGORITHM_DEFAULTS = {
 	chunk_mastery_thresh = 80, -- normalised % below which a chunk needs practice
 	chunk_power_thresh = 70, -- normalised % below which a chunk needs practice
 	midnight_time = 0, -- hour (UTC) at which the practice day resets (0 = midnight)
+	srs_allowed_mistakes = 0, -- number of failed groups still counted as SRS pass
+	warmup_attempts = 1, -- initial daily attempts that skip SRS penalty
+	daily_repeats_min = 15, -- daily play cap for easy chunks (ema_pass ~ 1)
+	daily_repeats_max = 30, -- daily play cap for hard chunks (ema_pass ~ 0)
+	cross_day_ease_bonus = 0.05, -- extra ease growth when practicing on a new day
+	perf_bpm_step_up = 0.05, -- BPM multiplier increase on karaoke pass
+	perf_bpm_step_down = 0.05, -- BPM multiplier decrease on karaoke fail
 
 	-- EMA tracking for graduation criteria
 
@@ -405,8 +412,9 @@ end
 -------------------------------------------------------------------------------
 
 -- Update a lesson or chunk entry with new score data sd.
+-- is_warmup: if true, SRS penalty is skipped on failure (grace period).
 -- Returns a table of computed factors for the caller's use.
-local function update_entry(entry, sd, alg)
+local function update_entry(entry, sd, alg, is_warmup)
 	local today = get_date_str(alg.midnight_time)
 
 	if sd.groups > (entry.max_groups or 0) then
@@ -457,8 +465,14 @@ local function update_entry(entry, sd, alg)
 		entry.last_updated_mastery = today
 	end
 
-	-- SRS
-	if sd.accuracy == 100 then
+	-- SRS: count failures within tolerance as a pass for scheduling
+	local n_fail_groups = math.floor(sd.groups * (1.0 - sd.accuracy / 100.0) + 0.5)
+	local srs_pass = n_fail_groups <= (alg.srs_allowed_mistakes or 0)
+
+	-- Cross-day ease bonus: reward distributed practice
+	local cross_day = entry.last_date and entry.last_date ~= today
+
+	if srs_pass then
 		entry.n_pass = (entry.n_pass or 0) + 1
 		entry.n_fail = 0
 		entry.n_pass_tot = (entry.n_pass_tot or 0) + 1
@@ -469,14 +483,16 @@ local function update_entry(entry, sd, alg)
 		else
 			entry.ivl = math.min(alg.ivl_max, math.ceil((entry.ivl or 1) * (entry.ease or alg.ease_initial)))
 		end
-		entry.ease = math.min(alg.ease_max, (entry.ease or alg.ease_initial) + alg.ease_pass_delta)
-	else
+		local ease_delta = alg.ease_pass_delta + (cross_day and alg.cross_day_ease_bonus or 0)
+		entry.ease = math.min(alg.ease_max, (entry.ease or alg.ease_initial) + ease_delta)
+	elseif not is_warmup then
 		entry.n_fail = (entry.n_fail or 0) + 1
 		entry.n_pass = 0
 		entry.n_fail_tot = (entry.n_fail_tot or 0) + 1
 		entry.ivl = 1
 		entry.ease = math.max(alg.ease_min, (entry.ease or alg.ease_initial) - alg.ease_fail_delta)
 	end
+	-- Warmup + failed: skip SRS update entirely (no penalty, no advance)
 
 	entry.total_duration = (entry.total_duration or 0) + sd.duration
 	entry.last_date = today
@@ -681,9 +697,15 @@ local function compute_skill_rank(hash, skill_order_str)
 	return rank
 end
 
+-- Difficulty-scaled limit: easy chunks (ema_pass ~ 1) get min, hard chunks get max.
+local function scaled_limit(ema_pass, min_val, max_val)
+	return min_val + (max_val - min_val) * (1.0 - (ema_pass or 1.0))
+end
+
 -- Returns the hash of the best chunk to suggest, or nil. No output.
 local function suggest_best_hash(stats, exclude_hash)
 	local alg = stats.algorithm
+	local today = get_date_str(alg.midnight_time)
 	local best_unmastered = nil
 	local best_new = nil
 	local best_perf = nil
@@ -692,6 +714,18 @@ local function suggest_best_hash(stats, exclude_hash)
 	for h, c in pairs(stats.chunks) do
 		if h == exclude_hash then
 			goto suggest_continue
+		end
+		-- Skip if consecutive overlearn limit reached
+		local overlearn_limit = scaled_limit(c.ema_pass, alg.overlearn_min, alg.overlearn_max)
+		if (c.n_consecutive or 0) >= overlearn_limit then
+			goto suggest_continue
+		end
+		-- Skip if daily repeat cap reached
+		if c.plays_today_date == today then
+			local daily_cap = scaled_limit(c.ema_pass, alg.daily_repeats_min, alg.daily_repeats_max)
+			if (c.plays_today or 0) >= daily_cap then
+				goto suggest_continue
+			end
 		end
 		local has_all_practice = c.badge_p and c.badge_s and c.badge_e
 		if has_all_practice then
@@ -1003,17 +1037,17 @@ try_perf_score = function()
 		end
 		io.write(string.format("PERF_STATUS %s %.1f\n", passed and "pass" or "fail", accuracy))
 
-		-- Adjust play_bpm: +10% on perfect, -10% on fail.
+		-- Adjust play_bpm on pass/fail.
 		-- Don't auto-raise above perf_badge_speed_thresh or auto-lower below
 		-- badge_speed_thresh, but respect a user-set BPM already outside that range.
 		if passed then
 			if accuracy == 100 and bpm < alg.perf_badge_speed_thresh then
-				c.play_bpm = math.min(bpm * 1.1, alg.perf_badge_speed_thresh)
+				c.play_bpm = math.min(bpm * (1 + alg.perf_bpm_step_up), alg.perf_badge_speed_thresh)
 				io.write(string.format("BPM %.2f\n", c.play_bpm))
 			end
 		else
 			if bpm > alg.badge_speed_thresh then
-				c.play_bpm = math.max(bpm * 0.9, alg.badge_speed_thresh)
+				c.play_bpm = math.max(bpm * (1 - alg.perf_bpm_step_down), alg.badge_speed_thresh)
 				io.write(string.format("BPM %.2f\n", c.play_bpm))
 			end
 			if (c.perf_n_fail or 0) >= alg.perf_fail_streak then
@@ -1046,8 +1080,7 @@ local function check_interleave(hash, c, alg)
 	end
 	attempts_since[hash] = 0
 
-	local ema = c.ema_pass or 1.0
-	local required = alg.overlearn_min + (alg.overlearn_max - alg.overlearn_min) * (1.0 - ema)
+	local required = scaled_limit(c.ema_pass, alg.overlearn_min, alg.overlearn_max)
 	if c.n_consecutive < required then
 		return nil
 	end
@@ -1130,7 +1163,15 @@ local function finalize()
 		c.n_consecutive = (c.n_consecutive or 0) + 1
 	end
 	alg.last_lesson_scored = hash
-	local res = update_entry(c, sd, alg)
+	-- Track daily play count; reset on new day (using midnight_time boundary).
+	if c.plays_today_date ~= today then
+		c.plays_today = 1
+		c.plays_today_date = today
+	else
+		c.plays_today = (c.plays_today or 0) + 1
+	end
+	local is_warmup = (c.plays_today or 1) <= alg.warmup_attempts
+	local res = update_entry(c, sd, alg, is_warmup)
 	-- Collect failed group IDs and apply power_factor penalty.
 	local failed_groups = {}
 	for i, r in pairs(current.results) do
