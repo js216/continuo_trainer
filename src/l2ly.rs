@@ -57,8 +57,11 @@ fn main() {
     let figures = extract_block(&content, "figures");
     let melody = extract_block(&content, "melody");
 
-    // LilyPond requires lowercase pitch names for \key
+    // LilyPond requires lowercase pitch names for \key.
+    // Convention: lowercase key letter = minor, uppercase = major.
+    let is_minor = key.chars().next().map(|c| c.is_lowercase()).unwrap_or(false);
     let key_ly = key.to_lowercase();
+    let mode_ly = if is_minor { "\\minor" } else { "\\major" };
 
     // Optional \header block: omitted entirely when neither title nor composer present.
     let header_block = if title.is_empty() && composer.is_empty() {
@@ -132,14 +135,14 @@ passingNoteSolidus = \markup
   <<
     \new Staff = "melody" {{
       \clef treble
-      \key {key_ly} \major
+      \key {key_ly} {mode_ly}
       {time_directive}
       {bar_directive}
       {melody}
     }}
     \new Staff = "continuo" {{
       \clef bass
-      \key {key_ly} \major
+      \key {key_ly} {mode_ly}
       {time_directive}
       <<
         \new Voice = "bassline" {{
@@ -156,6 +159,7 @@ passingNoteSolidus = \markup
 }}"#,
         header_block = header_block,
         key_ly = key_ly,
+        mode_ly = mode_ly,
         time_directive = time_directive,
         bar_directive = bar_directive,
         melody = melody_to_ly(&melody),

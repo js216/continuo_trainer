@@ -435,6 +435,7 @@ fn build_bass_expected(groups: &[Group]) -> String {
 fn main() {
     let stdin = io::stdin();
     let mut key = String::from("c");
+    let mut mode = String::from("\\major");
     let mut time = String::from("4/4");
     let mut title = String::from("Untitled");
     let mut groups: Vec<Group> = Vec::new();
@@ -447,6 +448,11 @@ fn main() {
         }
         if line.starts_with("LESSON ") {
             if let Some((k, t, ttl)) = parse_lesson(line) {
+                mode = if k.chars().next().map(|c| c.is_lowercase()).unwrap_or(false) {
+                    "\\minor".to_string()
+                } else {
+                    "\\major".to_string()
+                };
                 key = k.to_lowercase();
                 time = t;
                 title = ttl;
@@ -481,17 +487,17 @@ passingNoteSolidus = \markup \override #'(thickness . 1.4) \draw-line #'(0.55 . 
 
 \score {{
   <<
-    \new Staff = "melody" {{ \clef treble \key {key} \major \time {time} {melody} }}
-    \new Staff = "real-treble" {{ \clef treble \key {key} \major \time {time} {real_treble} }}
+    \new Staff = "melody" {{ \clef treble \key {key} {mode} \time {time} {melody} }}
+    \new Staff = "real-treble" {{ \clef treble \key {key} {mode} \time {time} {real_treble} }}
     \new Staff = "real-bass" {{
-      \clef bass \key {key} \major \time {time}
+      \clef bass \key {key} {mode} \time {time}
       <<
         \new Voice = "bass-actual" {{ \voiceOne {bass_actual} }}
         \new Voice = "real-bass-notes" {{ \voiceTwo {real_bass} }}
       >>
     }}
     \new Staff = "bass" {{
-      \clef bass \key {key} \major \time {time}
+      \clef bass \key {key} {mode} \time {time}
       <<
         \new Voice = "bass-expected" {{ {bass_expected} }}
         \new FiguredBass {{ \figuremode {{ {figures} }} }}
@@ -501,6 +507,7 @@ passingNoteSolidus = \markup \override #'(thickness . 1.4) \draw-line #'(0.55 . 
 }}"#,
         title = title,
         key = key,
+        mode = mode,
         time = time,
         melody = melody,
         real_treble = real_treble,
