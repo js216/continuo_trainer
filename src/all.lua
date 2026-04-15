@@ -778,6 +778,10 @@ local function load_lesson(n)
 		melody[i] = groups[i] ~= "" and groups[i] or "-"
 	end
 
+	if #bass ~= #raw.figures then
+		die("Length mismatch in %s: bass=%d figures=%d", path, #bass, #raw.figures)
+	end
+
 	return {
 		n = n,
 		key = raw.key,

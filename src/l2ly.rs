@@ -57,6 +57,19 @@ fn main() {
     let figures = extract_block(&content, "figures");
     let melody = extract_block(&content, "melody");
 
+    // Validate bass/figure count match.
+    let bass_count = bassline.split_whitespace()
+        .filter(|t| !matches!(*t, "~" | "|"))
+        .count();
+    let fig_count = figures.split_whitespace().count();
+    if bass_count != fig_count {
+        eprintln!(
+            "error: length mismatch: bassline has {} tokens but figures has {}",
+            bass_count, fig_count
+        );
+        std::process::exit(1);
+    }
+
     // LilyPond requires lowercase pitch names for \key.
     // Convention: lowercase key letter = minor, uppercase = major.
     let is_minor = key.chars().next().map(|c| c.is_lowercase()).unwrap_or(false);
