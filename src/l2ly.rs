@@ -229,9 +229,9 @@ fn note_duration(token: &str) -> &str {
 
 fn is_passing(token: &str) -> bool {
     let b = token.as_bytes();
-    b.last() == Some(&b'p')
-        && b.len() > 1
-        && (b[b.len() - 2].is_ascii_digit() || b[b.len() - 2] == b'.')
+    // A trailing 'p' marks passing notes.  No LilyPond pitch name ends in 'p',
+    // so this is unambiguous as long as the token is longer than one character.
+    b.last() == Some(&b'p') && b.len() > 1
 }
 
 // Convert the figures block into \figuremode tokens, attaching the duration
@@ -257,9 +257,11 @@ fn figures_to_ly(figures: &str, bassline: &str) -> String {
         .collect();
 
     let mut plus_dir_is_right = false; // LilyPond default is LEFT
+    let mut last_dur = "";
     let mut result = Vec::new();
     for (fig, bass) in figures.split_whitespace().zip(bass_tokens.iter()) {
-        let dur = note_duration(bass);
+        let raw_dur = note_duration(bass);
+        let dur = if raw_dur.is_empty() { last_dur } else { last_dur = raw_dur; raw_dur };
         let (group, dir) = if is_passing(bass) {
             (r"<_\\>".to_string(), None)
         } else {

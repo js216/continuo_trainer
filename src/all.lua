@@ -397,7 +397,25 @@ local function build_chunk_content(
 	lines[#lines + 1] = ""
 	lines[#lines + 1] = "bassline = {"
 	for i = s, e do
-		local tok = passing[i] and (bass[i] .. "p") or bass[i]
+		local tok = bass[i]
+		-- Ensure the first bass token in the chunk has an explicit duration,
+		-- since LilyPond duration inheritance won't carry across chunks.
+		if i == s and not dur_sixteenths(tok) then
+			local inherited = 4 -- default quarter note in sixteenths
+			for j = 1, s - 1 do
+				local d = dur_sixteenths(bass[j])
+				if d then inherited = d end
+			end
+			-- Convert sixteenths back to LilyPond duration string
+			local dur_map = { [16]="1", [12]="2.", [8]="2", [6]="4.", [4]="4", [3]="8.", [2]="8", [1]="16" }
+			local dur_str = dur_map[inherited] or "4"
+			-- Insert duration after pitch+octave, before trailing 'p' if any
+			local pitch = tok:match("^([a-z]+[',]*)")
+			if pitch then
+				tok = pitch .. dur_str .. tok:sub(#pitch + 1)
+			end
+		end
+		tok = passing[i] and (tok .. "p") or tok
 		lines[#lines + 1] = "  " .. tok
 	end
 	lines[#lines + 1] = "}"
@@ -511,11 +529,9 @@ end
 -- ── LOAD_CHUNK: parse chunk file and emit protocol ───────────────────────────
 
 local function is_passing_tok(tok)
-	if tok:sub(-1) ~= "p" then
-		return false
-	end
-	local pre = tok:sub(-2, -2)
-	return pre:match("%d") ~= nil or pre == "."
+	-- A trailing 'p' marks passing notes.  No LilyPond pitch name ends in 'p',
+	-- so this is unambiguous as long as the token is longer than one character.
+	return #tok > 1 and tok:sub(-1) == "p"
 end
 
 local function parse_chunk(content)
