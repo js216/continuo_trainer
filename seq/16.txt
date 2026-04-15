@@ -1,0 +1,24 @@
+title: No. 2
+composer: G. F. Handel
+key: C
+time: 4/4
+bpm: 100
+bar: 1
+
+bassline = {
+  g,4 g4 e4 c4
+  d4 b,4 e4 a,4
+  d4 g,4 c4 a,4
+}
+
+figures = {
+  0 0 0 0
+  0 0 0 0
+  0 0 0 0
+}
+
+melody = {
+  r1
+  r1
+  r1
+}

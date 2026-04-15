@@ -1,0 +1,39 @@
+title: No. 4
+composer: G. F. Handel
+key: d
+time: 3/2
+bpm: 100
+bar: 1
+
+bassline = {
+  d1.
+  a1 d2
+  g1 c2
+  f1.
+  d
+  g
+  a1 a,2
+  d1.
+}
+
+figures = {
+  0
+  # 0
+  0 0
+  0
+  0
+  0
+  # #
+  0
+}
+
+melody = {
+  r1.
+  r
+  r
+  r
+  r
+  r
+  r
+  r
+}
