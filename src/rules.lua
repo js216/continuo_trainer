@@ -396,6 +396,11 @@ local function parse_figures(s)
 		figs[#figs + 1] = { deg = 8, acc = 0 }
 	end
 
+	if #figs == 1 and figs[1].deg == 5 then
+		figs[#figs + 1] = { deg = 3, acc = 0 }
+		figs[#figs + 1] = { deg = 8, acc = 0 }
+	end
+
 	if #figs == 1 and figs[1].deg == 6 then
 		table.insert(figs, 1, { deg = 3, acc = 0 })
 	end
@@ -598,6 +603,9 @@ local function rule_check_realization(ctx)
 	if g.passing then
 		return true, nil
 	end
+	if g.in_rising_56 then
+		return true, nil
+	end
 	local key = ctx.key
 	local bass_pc = g.bass % 12
 
@@ -692,6 +700,9 @@ local function rule_realization_not_empty(ctx)
 	if g.passing then
 		return true, nil
 	end
+	if g.in_rising_56 then
+		return true, nil
+	end
 	if #g.inner == 0 then
 		return false, "No realization provided (inner voices are empty)"
 	end
@@ -701,6 +712,10 @@ end
 -- Check if a group's figures_raw is a bare "7" (possibly with accidental prefix).
 local function is_bare_figure_7(g)
 	return g.figures_raw:match("^[#bn]*7$") ~= nil
+end
+
+local function is_bare_figure_5(g)
+	return g.figures_raw:match("^[#bn]*5$") ~= nil
 end
 
 local function is_bare_figure_6(g)
@@ -785,6 +800,9 @@ local function rule_realization_complete(ctx)
 	if g.passing then
 		return true, nil
 	end
+	if g.in_rising_56 then
+		return true, nil
+	end
 
 	-- Defer completeness for figure-7 groups (resolved by resolve_pending_7).
 	if is_bare_figure_7(g) then
@@ -795,7 +813,344 @@ local function rule_realization_complete(ctx)
 	return check_completeness(g, ctx.key)
 end
 
+-- 5-6 rising: validate voice leading in a decorated rising-scale pattern.
+-- When the lesson marks consecutive non-passing beats with figure "5" then
+-- figure "6" (and the bass drops a diatonic 3rd from "5" to "6"), the two
+-- beats form a pair.  On the "5" beat the right hand plays the 3rd and 5th
+-- of the bass; on the "6" beat the 3rd is held and the 5th moves up one
+-- diatonic step.  This rule must run before rule_check_realization; it marks
+-- paired beats with g.in_rising_56 so standard checks are skipped.
+
+local rising_56_state = nil -- { main_pc, main_letter_idx }
+
+local function rule_rising_56(ctx)
+	local g = ctx.window[#ctx.window]
+	if g.passing then
+		return true, nil
+	end
+	local key = ctx.key
+
+	if is_bare_figure_5(g) then
+		local bass_pc = g.bass % 12
+		rising_56_state = {
+			main_pc = bass_pc,
+			main_letter_idx = g.bass_letter_idx,
+		}
+		g.in_rising_56 = true
+
+		if #g.inner ~= 2 then
+			return false, string.format(
+				"5-6 rising: expected 2 right-hand voices (had %d)", #g.inner)
+		end
+
+		local pc_3 = figure_to_pc({ deg = 3, acc = 0 }, bass_pc, g.bass_letter_idx, key)
+		local pc_5 = figure_to_pc({ deg = 5, acc = 0 }, bass_pc, g.bass_letter_idx, key)
+		if not pc_3 or not pc_5 then
+			return true, nil
+		end
+
+		local inner_pcs = {}
+		for _, n in ipairs(g.inner) do
+			inner_pcs[n % 12] = true
+		end
+
+		if not inner_pcs[pc_3] then
+			return false, string.format("5-6 rising: 3rd (%s) is missing", pc_name(pc_3))
+		end
+		if not inner_pcs[pc_5] then
+			return false, string.format("5-6 rising: 5th (%s) is missing", pc_name(pc_5))
+		end
+
+		return true, nil
+	end
+
+	if is_bare_figure_6(g) and rising_56_state then
+		local bass_pc = g.bass % 12
+		local main_pc = rising_56_state.main_pc
+		local main_letter_idx = rising_56_state.main_letter_idx
+
+		-- Verify bass is a diatonic 3rd below the main note.
+		local third_above = figure_to_pc(
+			{ deg = 3, acc = 0 }, bass_pc, g.bass_letter_idx, key)
+		if third_above ~= main_pc then
+			rising_56_state = nil
+			return true, nil -- not a 5-6 pair; let standard rules handle
+		end
+
+		g.in_rising_56 = true
+		rising_56_state = nil -- pair consumed
+
+		if #g.inner ~= 2 then
+			return false, string.format(
+				"5-6 rising: expected 2 right-hand voices (had %d)", #g.inner)
+		end
+
+		local pc_3 = figure_to_pc({ deg = 3, acc = 0 }, main_pc, main_letter_idx, key)
+		local pc_6 = figure_to_pc({ deg = 6, acc = 0 }, main_pc, main_letter_idx, key)
+		if not pc_3 or not pc_6 then
+			return true, nil
+		end
+
+		local inner_pcs = {}
+		for _, n in ipairs(g.inner) do
+			inner_pcs[n % 12] = true
+		end
+
+		if not inner_pcs[pc_3] then
+			return false, string.format(
+				"5-6 rising: 3rd (%s) should be held from previous chord",
+				pc_name(pc_3))
+		end
+		if not inner_pcs[pc_6] then
+			return false, string.format(
+				"5-6 rising: 5th should move up to %s", pc_name(pc_6))
+		end
+
+		return true, nil
+	end
+
+	-- Not part of a 5-6 pair; reset state.
+	if not g.passing then
+		rising_56_state = nil
+	end
+
+	return true, nil
+end
+
+-- Cadence top-note rule: when a beat is marked with the "c" cadence modifier
+-- and the previous non-passing chord's highest inner voice is the 5th of the
+-- current chord (= root of the dominant), the current chord's top voice should
+-- drop to the 3rd rather than repeating the 5th.
+local function rule_cadence_top_note(ctx)
+	local g = ctx.window[#ctx.window]
+	if not g.cadence or g.passing then
+		return true, nil
+	end
+	if #g.inner == 0 then
+		return true, nil
+	end
+
+	-- Find previous non-passing group.
+	local prev = nil
+	for i = #ctx.window - 1, 1, -1 do
+		if not ctx.window[i].passing then
+			prev = ctx.window[i]
+			break
+		end
+	end
+	if not prev or #prev.inner == 0 then
+		return true, nil
+	end
+
+	local key = ctx.key
+	local bass_pc = g.bass % 12
+	local pc_5 = figure_to_pc({ deg = 5, acc = 0 }, bass_pc, g.bass_letter_idx, key)
+	local pc_3 = figure_to_pc({ deg = 3, acc = 0 }, bass_pc, g.bass_letter_idx, key)
+	if not pc_5 or not pc_3 then
+		return true, nil
+	end
+
+	-- Was the previous chord's top voice the 5th of the current chord?
+	local prev_top = prev.inner[#prev.inner]
+	if prev_top % 12 ~= pc_5 then
+		return true, nil
+	end
+
+	-- It was: the current chord's top voice must be the 3rd, not the 5th.
+	local curr_top = g.inner[#g.inner]
+	if curr_top % 12 == pc_5 then
+		return false, string.format(
+			"Cadence: drop the top voice to the 3rd (%s) instead of repeating the 5th (%s)",
+			pc_name(pc_3), pc_name(pc_5))
+	end
+
+	return true, nil
+end
+
+-- Sequence rule: when the bass forms a repeating two-interval pattern (e.g.
+-- up-5th/down-3rd), the student must use the same voicing factor (3rd, 5th,
+-- or root on top) at corresponding positions across pairs, and different
+-- factors on the two notes within each pair.
+
+local seq_np_buf = {}       -- recent non-passing: {letter_idx, bass_semi, factor}
+local seq_active = false
+local seq_motif = nil       -- {within_pair_interval, between_pair_interval}
+local seq_next_pos = 0      -- expected position of NEXT note (1 or 2)
+local seq_factors = {}      -- [1]=factor at pos 1, [2]=factor at pos 2
+local seq_prev_factor = nil -- factor of previous note in the sequence
+
+local function diatonic_interval(from_letter, from_semi, to_letter, to_semi)
+	if to_semi == from_semi then
+		return 0
+	end
+	local letter_diff = (to_letter - from_letter + 7) % 7
+	if letter_diff == 0 then
+		return to_semi > from_semi and 7 or -7
+	end
+	if to_semi > from_semi then
+		return letter_diff
+	else
+		return -(7 - letter_diff)
+	end
+end
+
+local FACTOR_NAME = { [3] = "3rd", [5] = "5th", [8] = "root" }
+
+local function top_voice_factor(g, key)
+	if #g.inner == 0 then
+		return nil
+	end
+	local top_pc = g.inner[#g.inner] % 12
+	local bass_pc = g.bass % 12
+	if top_pc == bass_pc then
+		return 8
+	end
+	local pc_3 = figure_to_pc({ deg = 3, acc = 0 }, bass_pc, g.bass_letter_idx, key)
+	if pc_3 and top_pc == pc_3 then
+		return 3
+	end
+	local pc_5 = figure_to_pc({ deg = 5, acc = 0 }, bass_pc, g.bass_letter_idx, key)
+	if pc_5 and top_pc == pc_5 then
+		return 5
+	end
+	return nil
+end
+
+local function seq_reset()
+	seq_np_buf = {}
+	seq_active = false
+	seq_motif = nil
+	seq_factors = {}
+	seq_prev_factor = nil
+end
+
+local function rule_sequence(ctx)
+	local g = ctx.window[#ctx.window]
+	if g.passing or g.in_rising_56 or g.cadence then
+		return true, nil
+	end
+	if g.figures_raw ~= "0" then
+		-- Only applies to plain root-position triads.
+		if not g.passing then
+			seq_active = false
+		end
+		return true, nil
+	end
+
+	local key = ctx.key
+	local factor = top_voice_factor(g, key)
+	local entry = {
+		letter_idx = g.bass_letter_idx,
+		bass_semi = g.bass,
+		factor = factor,
+	}
+
+	-- Compute diatonic interval from previous non-passing note.
+	local interval = nil
+	if #seq_np_buf > 0 then
+		local prev = seq_np_buf[#seq_np_buf]
+		interval = diatonic_interval(
+			prev.letter_idx, prev.bass_semi,
+			entry.letter_idx, entry.bass_semi)
+	end
+
+	-- Push to buffer (keep last 5).
+	seq_np_buf[#seq_np_buf + 1] = entry
+	if #seq_np_buf > 5 then
+		table.remove(seq_np_buf, 1)
+	end
+
+	-- ── Active sequence: verify interval and voicing ────────────────────
+	if seq_active and interval then
+		local expected
+		if seq_next_pos == 1 then
+			expected = seq_motif[2] -- between-pair step
+		else
+			expected = seq_motif[1] -- within-pair interval
+		end
+
+		if interval ~= expected then
+			seq_active = false
+			seq_motif = nil
+			seq_factors = {}
+			seq_prev_factor = nil
+			-- Fall through to detection.
+		else
+			-- Cross-pair consistency.
+			if factor and seq_factors[seq_next_pos] then
+				if factor ~= seq_factors[seq_next_pos] then
+					local name = FACTOR_NAME[seq_factors[seq_next_pos]]
+						or tostring(seq_factors[seq_next_pos])
+					seq_prev_factor = factor
+					seq_next_pos = seq_next_pos == 1 and 2 or 1
+					return false, string.format(
+						"Sequence: keep the %s on top (matching previous pairs)", name)
+				end
+			elseif factor then
+				seq_factors[seq_next_pos] = factor
+			end
+
+			-- Within-pair variety (position 2 only).
+			if seq_next_pos == 2 and factor and seq_prev_factor
+				and factor == seq_prev_factor then
+				local name = FACTOR_NAME[factor] or tostring(factor)
+				seq_prev_factor = factor
+				seq_next_pos = 1
+				return false, string.format(
+					"Sequence: avoid repeating the %s on top within this pair", name)
+			end
+
+			seq_prev_factor = factor
+			seq_next_pos = seq_next_pos == 1 and 2 or 1
+			return true, nil
+		end
+	end
+
+	-- ── Detection: check if last 4 entries form a repeating pattern ─────
+	if #seq_np_buf >= 4 and interval then
+		local n = #seq_np_buf
+		local i1 = diatonic_interval(
+			seq_np_buf[n - 3].letter_idx, seq_np_buf[n - 3].bass_semi,
+			seq_np_buf[n - 2].letter_idx, seq_np_buf[n - 2].bass_semi)
+		local i2 = diatonic_interval(
+			seq_np_buf[n - 2].letter_idx, seq_np_buf[n - 2].bass_semi,
+			seq_np_buf[n - 1].letter_idx, seq_np_buf[n - 1].bass_semi)
+		local i3 = interval -- from buf[n-1] to buf[n]
+
+		if i1 == i3 and i1 ~= 0 then
+			-- Pattern confirmed: motif = (within-pair, between-pair).
+			seq_active = true
+			seq_motif = { i1, i2 }
+			seq_next_pos = 1 -- next note starts pair 3
+			seq_factors = {
+				[1] = seq_np_buf[n - 3].factor,
+				[2] = seq_np_buf[n - 2].factor,
+			}
+			seq_prev_factor = factor
+
+			-- Check current note (pos 2 of pair 2) against established pos 2.
+			if factor and seq_factors[2] and factor ~= seq_factors[2] then
+				local name = FACTOR_NAME[seq_factors[2]]
+					or tostring(seq_factors[2])
+				return false, string.format(
+					"Sequence: keep the %s on top (matching previous pairs)", name)
+			end
+
+			-- Within-pair: current (pos 2) vs pair-2 pos-1 factor.
+			local pair2_pos1 = seq_np_buf[n - 1].factor
+			if factor and pair2_pos1 and factor == pair2_pos1 then
+				local name = FACTOR_NAME[factor] or tostring(factor)
+				return false, string.format(
+					"Sequence: avoid repeating the %s on top within this pair", name)
+			end
+		end
+	end
+
+	return true, nil
+end
+
 local RULES = {
+	rule_rising_56,
 	rule_no_parallel_fifths,
 	rule_no_parallel_octaves,
 	rule_bass_leap,
@@ -805,6 +1160,8 @@ local RULES = {
 	rule_not_past_end,
 	rule_realization_not_empty,
 	rule_realization_complete,
+	rule_cadence_top_note,
+	rule_sequence,
 }
 
 -- ---------------------------------------------------------------------------
@@ -832,6 +1189,7 @@ local function parse_group(line)
 	local bass = 0
 	local bass_letter_idx = nil -- 1-based index into NATURAL_PCS for the bass letter
 	local bass_notated_raw = ""
+	local cadence = false
 	local figures = parse_figures("0")
 	local figures_raw = ""
 	local inner = {}
@@ -872,7 +1230,12 @@ local function parse_group(line)
 		v = t:match("^FIGURES:(.+)$")
 		if v then
 			figures_raw = v
-			figures = parse_figures(v)
+			local fig_for_parse = v
+			if fig_for_parse:sub(-1) == "c" then
+				cadence = true
+				fig_for_parse = fig_for_parse:sub(1, -2)
+			end
+			figures = parse_figures(fig_for_parse)
 		end
 
 		v = t:match("^REALIZATION:(.+)$")
@@ -920,6 +1283,7 @@ local function parse_group(line)
 	return {
 		id = id,
 		passing = passing,
+		cadence = cadence,
 		bass = bass,
 		bass_letter_idx = bass_letter_idx,
 		bass_notated = bass_notated,
@@ -969,6 +1333,8 @@ local function main()
 		line = line:gsub("\r", "")
 		if line:match("^LESSON") then
 			resolve_pending_7(nil) -- flush before reset
+			rising_56_state = nil
+			seq_reset()
 			local k = parse_lesson_key(line)
 			if k then
 				key = k

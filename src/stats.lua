@@ -729,8 +729,9 @@ local function suggest_best_hash(stats, exclude_hash)
 		end
 		local has_all_practice = c.badge_p and c.badge_s and c.badge_e
 		if has_all_practice then
-			-- All practice badges earned: candidate for performance work.
-			if not (c.perf_badge_p and c.perf_badge_s and c.perf_badge_e) then
+			-- All practice badges earned: candidate for performance work
+			-- (only if chunk has melody).
+			if not c.no_melody and not (c.perf_badge_p and c.perf_badge_s and c.perf_badge_e) then
 				local pp = calculate_perf_power(c, alg)
 				local level = c.level or 0
 				if
@@ -842,6 +843,7 @@ local function check_badges(c, alg, mode)
 			io.write(string.format("BADGE READY %d\n", alg.badge_graduate_bonus))
 		end
 	elseif mode == "performance" then
+		if c.no_melody then return bonus end
 		-- No perf badges until at least one performance attempt has been made
 		if not c.perf_n_pass and not c.perf_n_fail then return bonus end
 		local power_pct = normalize(calculate_perf_power(c, alg), c)
@@ -887,6 +889,9 @@ local function badge_progress(c, alg)
 	end
 	if not c.badge_e then
 		return "E", c.ema_evenness or 0, alg.badge_evenness_thresh
+	end
+	if c.no_melody then
+		return nil
 	end
 	if not c.perf_badge_p then
 		return "PP", normalize(calculate_perf_power(c, alg), c), alg.perf_badge_power_thresh
@@ -1360,10 +1365,12 @@ for line in io.lines() do
 				if c.badge_s then io.write("BADGE S 0\n") end
 				if c.badge_e then io.write("BADGE E 0\n") end
 				if c.badge_graduated then io.write("BADGE READY 0\n") end
-				if c.perf_badge_p then io.write("BADGE PP 0\n") end
-				if c.perf_badge_s then io.write("BADGE PS 0\n") end
-				if c.perf_badge_e then io.write("BADGE PE 0\n") end
-				if c.badge_mastered then io.write("BADGE MASTERED 0\n") end
+				if not c.no_melody then
+					if c.perf_badge_p then io.write("BADGE PP 0\n") end
+					if c.perf_badge_s then io.write("BADGE PS 0\n") end
+					if c.perf_badge_e then io.write("BADGE PE 0\n") end
+					if c.badge_mastered then io.write("BADGE MASTERED 0\n") end
+				end
 			end
 		end
 

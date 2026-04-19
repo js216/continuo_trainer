@@ -1,26 +1,27 @@
 title: No. 3
 composer: G. F. Handel
-key: C
+key: F
 time: 4/4
 bpm: 100
 bar: 3
+partial: 2
 
 bassline = {
   a,8 g,p f, a,p
-  b, a,p g, b,p c b,p a, cp
-  d cp d ep f4 b,
-  c2 f, r
+  bes, a,p g, bes,p c bes,p a, cp
+  d cp d ep f4 bes,
+  c2 f,
 }
 
 figures = {
-  0 0 0 0
-  0 0 0 0 0 0 0 0
+  5 0 6 0
+  5 0 6 0 5 0 6 0
   0 0 0 0 0 0
-  0 0 0
+  0 0
 }
 
 melody = {
-  r1
+  r2
   r1
   r1
   r1

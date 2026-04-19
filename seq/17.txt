@@ -3,16 +3,19 @@ composer: G. F. Handel
 key: C
 time: 4/4
 bpm: 100
-bar: 4
+bar: 3
+partial: 4
 
 bassline = {
+  a,4
   e4 c4 g4 e4
-  b4 g4 d'4 d4
+  b4 g4 d'4 d4p
   e4 c4 d2
   g,1
 }
 
 figures = {
+  0
   0 0 0 0
   0 0 0 0
   0 0 0
@@ -20,6 +23,7 @@ figures = {
 }
 
 melody = {
+  r4
   r1
   r1
   r1

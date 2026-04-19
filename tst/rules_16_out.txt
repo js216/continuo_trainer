@@ -1,0 +1,27 @@
+RESULT 0 TIME:100 [32mOK[0m
+RESULT 1 TIME:200 [32mOK[0m
+RESULT 2 TIME:300 [32mOK[0m
+RESULT 3 TIME:400 [32mOK[0m
+RESULT 0 TIME:100 [32mOK[0m
+RESULT 1 TIME:200 [32mOK[0m
+RESULT 2 TIME:300 [32mOK[0m
+RESULT 3 TIME:400 [31mFAIL[0m Sequence: keep the 5th on top (matching previous pairs)
+RESULT 0 TIME:100 [32mOK[0m
+RESULT 1 TIME:200 [31mFAIL[0m Parallel fifths: (a,, e) -> (e, b)
+RESULT 2 TIME:300 [31mFAIL[0m Parallel fifths: (e, b) -> (c, g)
+RESULT 3 TIME:400 [31mFAIL[0m Sequence: avoid repeating the 3rd on top within this pair
+RESULT 0 TIME:100 [32mOK[0m
+RESULT 1 TIME:200 [32mOK[0m
+RESULT 2 TIME:300 [32mOK[0m
+RESULT 3 TIME:400 [32mOK[0m
+RESULT 4 TIME:500 [32mOK[0m
+RESULT 5 TIME:600 [32mOK[0m
+RESULT 0 TIME:100 [32mOK[0m
+RESULT 1 TIME:200 [32mOK[0m
+RESULT 2 TIME:300 [32mOK[0m
+RESULT 3 TIME:400 [32mOK[0m
+RESULT 4 TIME:500 [31mFAIL[0m Sequence: keep the 3rd on top (matching previous pairs)
+RESULT 0 TIME:100 [32mOK[0m
+RESULT 1 TIME:200 [32mOK[0m
+RESULT 2 TIME:300 [32mOK[0m
+RESULT 3 TIME:400 [32mOK[0m

@@ -99,6 +99,12 @@ local function split_figure_tokens(s)
 	return parts
 end
 
+-- Strip cadence modifier suffix from a figure string.
+local function fig_clean(fig)
+	if fig:sub(-1) == "c" then return fig:sub(1, -2) end
+	return fig
+end
+
 local function fig_nums(fig)
 	local nums = {}
 	for _, token in ipairs(split_figure_tokens(fig)) do
@@ -122,6 +128,7 @@ local function has_num(fig, n)
 end
 
 local function is_suspension_4(fig)
+	fig = fig_clean(fig)
 	if fig == "0" then
 		return false
 	end
@@ -129,6 +136,7 @@ local function is_suspension_4(fig)
 end
 
 local function is_3_resolution(fig)
+	fig = fig_clean(fig)
 	if fig == "0" then return true end
 	for _, token in ipairs(split_figure_tokens(fig)) do
 		if token:match("^[#bn%+]+$") or token == "\\/" or token == "\\\\" then return true end
@@ -145,6 +153,7 @@ local function is_3_resolution(fig)
 end
 
 local function is_suspension_7(fig)
+	fig = fig_clean(fig)
 	if fig == "0" then return false end
 	return has_num(fig, 7)
 end
@@ -154,6 +163,7 @@ local function is_6_resolution(fig)
 end
 
 local function skill_of_single(fig)
+	fig = fig_clean(fig)
 	if fig == "0" then
 		return "root"
 	end
@@ -239,6 +249,10 @@ local function dur_sixteenths(token)
 	return total
 end
 
+local SIXTEENTHS_TO_DUR = {
+	[16] = "1", [12] = "2.", [8] = "2", [6] = "4.", [4] = "4", [3] = "8.", [2] = "8", [1] = "16",
+}
+
 local function bar_sixteenths(time_sig)
 	local n, d = time_sig:match("^(%d+)/(%d+)$")
 	if not n then
@@ -263,16 +277,29 @@ local function build_offsets(bass)
 	return offsets
 end
 
-local function bar_split(time_sig, ps, pe, offsets, step_bars)
+local function bar_split(time_sig, ps, pe, offsets, step_bars, lesson_partial)
+	lesson_partial = lesson_partial or 0
 	local bar_len = bar_sixteenths(time_sig)
 	local ps_time = offsets[ps]
 	local pe_time = offsets[pe + 1]
 	local step = step_bars * bar_len
+
+	-- Bar boundaries fall at: lesson_partial, lesson_partial + bar_len, ...
+	-- Find the first bar boundary at or after ps_time.
+	local grid_start
+	if ps_time <= lesson_partial then
+		grid_start = lesson_partial
+	else
+		local bars = math.ceil((ps_time - lesson_partial) / bar_len)
+		grid_start = lesson_partial + bars * bar_len
+	end
+
 	local chunks = {}
 	local k = 0
 
 	while true do
-		local chunk_start_time = ps_time + k * step
+		-- First chunk may include a pickup before grid_start.
+		local chunk_start_time = k == 0 and ps_time or (grid_start + k * step)
 		if chunk_start_time >= pe_time then
 			break
 		end
@@ -286,7 +313,7 @@ local function bar_split(time_sig, ps, pe, offsets, step_bars)
 			end
 		end
 
-		local next_boundary = ps_time + (k + 1) * step
+		local next_boundary = grid_start + (k + 1) * step
 		if next_boundary >= pe_time then
 			chunks[#chunks + 1] = { s = s, e = pe }
 			break
@@ -319,7 +346,8 @@ local function bar_split(time_sig, ps, pe, offsets, step_bars)
 	return chunks
 end
 
-local function chunk_bar(bass, time_sig, lesson_bar, start_idx)
+local function chunk_bar(bass, time_sig, lesson_bar, start_idx, lesson_partial)
+	lesson_partial = lesson_partial or 0
 	if start_idx == 1 then
 		return lesson_bar
 	end
@@ -332,12 +360,13 @@ local function chunk_bar(bass, time_sig, lesson_bar, start_idx)
 		end
 		offset = offset + last_dur
 	end
-	return lesson_bar + math.floor(offset / bar_len)
+	return lesson_bar + math.floor((offset - lesson_partial) / bar_len)
 end
 
-local function chunk_partial_sixteenths(bass, time_sig, start_idx)
+local function chunk_partial_sixteenths(bass, time_sig, start_idx, lesson_partial)
+	lesson_partial = lesson_partial or 0
 	if start_idx == 1 then
-		return 0
+		return lesson_partial
 	end
 	local bar_len = bar_sixteenths(time_sig)
 	local offset, last_dur = 0, 4
@@ -348,7 +377,7 @@ local function chunk_partial_sixteenths(bass, time_sig, start_idx)
 		end
 		offset = offset + last_dur
 	end
-	local offset_in_bar = offset % bar_len
+	local offset_in_bar = (offset - lesson_partial) % bar_len
 	if offset_in_bar == 0 then
 		return 0
 	end
@@ -391,7 +420,9 @@ local function build_chunk_content(
 		lines[#lines + 1] = "bar: " .. bar
 	end
 	if partial > 0 then
-		lines[#lines + 1] = "partial: " .. partial
+		local dur = SIXTEENTHS_TO_DUR[partial]
+		if not dur then die("Cannot express partial=%d as a LilyPond duration", partial) end
+		lines[#lines + 1] = "partial: " .. dur
 	end
 	lines[#lines + 1] = "level: " .. level
 	lines[#lines + 1] = ""
@@ -440,7 +471,7 @@ end
 
 local function has_melody(melody, s, e)
 	for i = s, e do
-		if melody[i] and melody[i] ~= "-" and melody[i] ~= "" then
+		if melody[i] and melody[i]:find("[a-g]") then
 			return true
 		end
 	end
@@ -475,6 +506,7 @@ local function compute_bar_children(
 	time_sig,
 	bpm,
 	lesson_bar,
+	lesson_partial,
 	title,
 	composer,
 	bass,
@@ -486,7 +518,7 @@ local function compute_bar_children(
 	offsets,
 	step_bars
 )
-	local splits = bar_split(time_sig, ps, pe, offsets, step_bars)
+	local splits = bar_split(time_sig, ps, pe, offsets, step_bars, lesson_partial)
 	-- A single split always covers the full parent range — identical to parent, skip.
 	if #splits <= 1 then return {} end
 	local children = {}
@@ -497,8 +529,8 @@ local function compute_bar_children(
 
 		local skills_str = skills_for_figures(figures, s, e)
 
-		local bar = chunk_bar(bass, time_sig, lesson_bar, s)
-		local partial = chunk_partial_sixteenths(bass, time_sig, s)
+		local bar = chunk_bar(bass, time_sig, lesson_bar, s, lesson_partial)
+		local partial = chunk_partial_sixteenths(bass, time_sig, s, lesson_partial)
 		local content = build_chunk_content(
 			key,
 			title,
@@ -542,6 +574,7 @@ local function parse_chunk(content)
 		time = "4/4",
 		bpm = 120,
 		bar = 1,
+		partial = 0,
 		bass = {},
 		figures = {},
 		melody = {},
@@ -549,6 +582,7 @@ local function parse_chunk(content)
 	local mode = ""
 	for line in (content .. "\n"):gmatch("([^\n]*)\n") do
 		local l = line:match("^%s*(.-)%s*$")
+		l = l:gsub("%s*%-%-.*$", "")
 		if l == "" then
 			goto cont
 		end
@@ -582,6 +616,11 @@ local function parse_chunk(content)
 			v = l:match("^bar:%s*(%d+)%s*$")
 			if v then
 				r.bar = tonumber(v) or r.bar
+				goto cont
+			end
+			v = l:match("^partial:%s*(.-)%s*$")
+			if v and v ~= "" then
+				r.partial = dur_sixteenths(v) or 0
 				goto cont
 			end
 			if l:match("^bassline") then
@@ -788,6 +827,7 @@ local function load_lesson(n)
 		time = raw.time,
 		bpm = raw.bpm,
 		bar = raw.bar,
+		partial = raw.partial,
 		title = raw.title,
 		composer = raw.composer,
 		bass = bass,
@@ -880,7 +920,7 @@ local function scan_and_emit()
 			lesson.bpm,
 			0,
 			lesson.bar,
-			0,
+			lesson.partial,
 			lesson.bass,
 			lesson.passing,
 			lesson.figures,
@@ -906,6 +946,7 @@ local function scan_and_emit()
 			lesson.time,
 			lesson.bpm,
 			lesson.bar,
+			lesson.partial,
 			lesson.title,
 			lesson.composer,
 			lesson.bass,
@@ -934,6 +975,7 @@ local function scan_and_emit()
 				lesson.time,
 				lesson.bpm,
 				lesson.bar,
+				lesson.partial,
 				lesson.title,
 				lesson.composer,
 				lesson.bass,
@@ -981,11 +1023,12 @@ local function scan_and_emit()
 	ls:close()
 	if #stale > 0 then
 		table.sort(stale)
-		io.stderr:write("Error: stale chunk files in chn/ (not derived from any current lesson):\n")
 		for _, h in ipairs(stale) do
-			io.stderr:write("  " .. h .. "\n")
+			for _, ext in ipairs({ ".txt", ".ly", ".png", ".svg" }) do
+				os.remove("chn/" .. h .. ext)
+			end
+			io.stderr:write("removed stale chunk " .. h .. "\n")
 		end
-		os.exit(1)
 	end
 
 	-- ── skill summary ─────────────────────────────────────────────────────────

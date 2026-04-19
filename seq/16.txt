@@ -6,9 +6,9 @@ bpm: 100
 bar: 1
 
 bassline = {
-  g,4 g4 e4 c4
+  g,4 g4p e4 c4
   d4 b,4 e4 a,4
-  d4 g,4 c4 a,4
+  d4 g,4 c4 r4
 }
 
 figures = {

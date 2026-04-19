@@ -92,15 +92,16 @@ fn main() {
     };
 
     // Optional time signature.  When present, also emit \partial if the chunk
-    // starts mid-bar (partial: field holds remaining sixteenths in first bar).
-    let partial: u32 = extract_field(&content, "partial").parse().unwrap_or(0);
+    // starts mid-bar (partial: field holds a LilyPond duration, e.g. "4" for
+    // a quarter-note pickup).
+    let partial = extract_field(&content, "partial");
     let time_directive = if time.is_empty() {
         r"\cadenzaOn".to_string()
-    } else if partial > 0 {
+    } else if !partial.is_empty() {
         format!(
             "\\time {}\n      \\partial {}",
             time,
-            sixteenths_to_duration(partial)
+            partial
         )
     } else {
         format!(r"\time {}", time)
@@ -296,7 +297,7 @@ fn figures_to_ly(figures: &str, bassline: &str) -> String {
 // Returns (ly_string, plus_direction) where plus_direction is
 // Some(true) for RIGHT, Some(false) for LEFT, None if no plus sign.
 fn parse_figure(fig: &str) -> (String, Option<bool>) {
-    let fig = fig.trim();
+    let fig = fig.trim().trim_end_matches('c');
     if fig == "0" {
         return ("<_>".to_string(), None);
     }
@@ -404,27 +405,4 @@ fn interval_to_ly(s: &str) -> String {
     }
 }
 
-// Convert a duration expressed in sixteenth-note units to a LilyPond duration
-// string (e.g. 16 → "1", 12 → "2.", 8 → "2").  Panics for values that cannot
-// be expressed as a single note value with at most two dots.
-fn sixteenths_to_duration(n: u32) -> String {
-    match n {
-        1 => "16",
-        2 => "8",
-        3 => "8.",
-        4 => "4",
-        6 => "4.",
-        7 => "4..",
-        8 => "2",
-        12 => "2.",
-        14 => "2..",
-        16 => "1",
-        24 => "1.",
-        28 => "1..",
-        _ => panic!(
-            "partial bar of {} sixteenths cannot be expressed as a single LilyPond duration",
-            n
-        ),
-    }
-    .to_string()
-}
+
