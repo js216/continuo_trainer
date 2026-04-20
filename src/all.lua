@@ -711,8 +711,16 @@ local function load_chunk(hash)
 
 	local groups = group_melody_tokens(lesson.bass, lesson.melody)
 
+	-- Rests in the bassline carry no realization demand: strip any trailing
+	-- rest tokens so the lesson completes after the last sounding bass note.
+	local last_idx = #lesson.bass
+	while last_idx > 0 and lesson.bass[last_idx]:sub(1, 1) == "r" do
+		last_idx = last_idx - 1
+	end
+
 	io.write(string.format("LESSON %s %s %s %d %d\n", hash, lesson.key, lesson.time, lesson.bpm, lesson.bar))
-	for i, tok in ipairs(lesson.bass) do
+	for i = 1, last_idx do
+		local tok = lesson.bass[i]
 		local passing = is_passing_tok(tok)
 		local clean = passing and tok:sub(1, -2) or tok
 		if passing then
