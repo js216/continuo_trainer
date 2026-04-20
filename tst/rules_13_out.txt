@@ -1,4 +1,4 @@
-RESULT 0 TIME:100 [32mOK[0m
+RESULT 0 TIME:100 [32mOK[0m FACTOR:5
 RESULT 1 TIME:200 [32mOK[0m
 RESULT 2 TIME:300 [32mOK[0m
 RESULT 3 TIME:400 [32mOK[0m
@@ -9,13 +9,13 @@ RESULT 7 TIME:800 [32mOK[0m
 RESULT 8 TIME:900 [32mOK[0m
 RESULT 9 TIME:1000 [32mOK[0m
 RESULT 10 TIME:1100 [32mOK[0m
-RESULT 0 TIME:100 [31mFAIL[0m 5-6 rising: expected 2 right-hand voices (had 3)
+RESULT 0 TIME:100 [31mFAIL[0m 5-6 rising: expected 2 right-hand voices (had 3) FACTOR:8
 RESULT 0 TIME:100 [31mFAIL[0m 5-6 rising: 5th (e) is missing
-RESULT 0 TIME:100 [32mOK[0m
+RESULT 0 TIME:100 [32mOK[0m FACTOR:5
 RESULT 1 TIME:200 [31mFAIL[0m 5-6 rising: 3rd (c) should be held from previous chord
-RESULT 0 TIME:100 [32mOK[0m
+RESULT 0 TIME:100 [32mOK[0m FACTOR:5
 RESULT 1 TIME:200 [31mFAIL[0m 5-6 rising: expected 2 right-hand voices (had 3)
 RESULT 0 TIME:100 [32mOK[0m
-RESULT 0 TIME:100 [31mFAIL[0m 5-6 rising: 3rd (c) is missing
-RESULT 0 TIME:100 [32mOK[0m
+RESULT 0 TIME:100 [31mFAIL[0m 5-6 rising: 3rd (c) is missing FACTOR:5
+RESULT 0 TIME:100 [32mOK[0m FACTOR:5
 RESULT 1 TIME:200 [31mFAIL[0m 5-6 rising: 5th should move up to f

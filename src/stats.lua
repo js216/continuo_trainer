@@ -224,6 +224,158 @@ local function calculate_effective_power(l_data, alg)
 	return math.min(mastery, mastery * stability) * (l_data.power_factor or 1.0)
 end
 
+-------------------------------------------------------------------------------
+-- SOPRANO STARTING POSITIONS
+-------------------------------------------------------------------------------
+-- Each (chunk, position) pair is a first-class SRS entity with its own
+-- mastery, interval, ease, and EMAs.  Chunk-level mastery/power become
+-- min-across-positions so the user can't achieve full chunk mastery by
+-- grinding a single starting position.
+
+local POSITION_FACTORS = { 8, 3, 5 }  -- root, 3rd, 5th
+local POSITION_NAMES = { [8] = "root", [3] = "3rd", [5] = "5th" }
+
+local function init_position(alg)
+	return {
+		mastery = 0, power_factor = 1.0,
+		ivl = 0, ease = alg.ease_initial,
+		ema_pass = 1.0, ema_evenness = 0,
+		n_pass = 0, n_fail = 0, n_pass_tot = 0,
+		total_duration = 0, pract_bpm = 0,
+		best_avg = 0, max_groups = 0,
+	}
+end
+
+-- Ensure c.positions is a fully-initialised table.  Migrates legacy
+-- positions_practiced booleans to modest starting masteries so users don't
+-- lose progress when this feature lands.
+local function ensure_positions(c, alg)
+	if not c.positions then
+		c.positions = {}
+		for _, f in ipairs(POSITION_FACTORS) do
+			c.positions[f] = init_position(alg)
+		end
+		-- Migration: bootstrap from legacy positions_practiced
+		if c.positions_practiced then
+			for f in pairs(c.positions_practiced) do
+				local p = c.positions[f]
+				if p then
+					p.n_pass_tot = 1
+					p.n_pass = 1
+					p.mastery = (c.mastery or 0) * 0.5
+					p.ema_pass = c.ema_pass or 1.0
+					p.ivl = math.max(1, math.floor((c.ivl or 1) / 2))
+					p.ease = c.ease or alg.ease_initial
+					p.last_date = c.last_date
+					p.last_updated_mastery = c.last_updated_mastery
+				end
+			end
+			c.positions_practiced = nil
+		end
+	end
+	for _, f in ipairs(POSITION_FACTORS) do
+		if not c.positions[f] then
+			c.positions[f] = init_position(alg)
+		end
+	end
+end
+
+-- Returns true if any position has been practiced at least once.
+local function any_position_practiced(c)
+	if not c.positions then return false end
+	for _, f in ipairs(POSITION_FACTORS) do
+		local p = c.positions[f]
+		if p and (p.n_pass_tot or 0) > 0 then return true end
+	end
+	return false
+end
+
+-- Effective chunk mastery: min across positions once position tracking has
+-- begun (any n_pass_tot > 0), counting unpracticed positions as 0.  Before
+-- any position is tracked, fall back to c.mastery so existing users don't
+-- lose accumulated mastery overnight.  The moment they practice one
+-- position, their effective mastery drops until they cover the other two —
+-- which is exactly the nudge we want.
+local function effective_mastery(c)
+	if not any_position_practiced(c) then return c.mastery or 0 end
+	local min_m = math.huge
+	for _, f in ipairs(POSITION_FACTORS) do
+		local p = c.positions[f]
+		local m = (p and (p.n_pass_tot or 0) > 0) and (p.mastery or 0) or 0
+		if m < min_m then min_m = m end
+	end
+	return min_m
+end
+
+local function effective_power(c, alg)
+	if not any_position_practiced(c) then return calculate_power(c, alg) end
+	local min_p = math.huge
+	for _, f in ipairs(POSITION_FACTORS) do
+		local p = c.positions[f]
+		local pw = (p and (p.n_pass_tot or 0) > 0) and calculate_power(p, alg) or 0
+		if pw < min_p then min_p = pw end
+	end
+	return min_p
+end
+
+-- Position state: 0 = unpracticed, 1 = learning, 2 = earned.
+local function position_state(c, f, alg)
+	if not c.positions or not c.positions[f] then return 0 end
+	local p = c.positions[f]
+	if (p.n_pass_tot or 0) == 0 then return 0 end
+	if (p.mastery or 0) >= alg.chunk_mastery_thresh then return 2 end
+	return 1
+end
+
+local function all_positions_earned(c, alg)
+	for _, f in ipairs(POSITION_FACTORS) do
+		if position_state(c, f, alg) ~= 2 then return false end
+	end
+	return true
+end
+
+local function emit_positions(hash, c, alg)
+	local parts = {}
+	for _, f in ipairs(POSITION_FACTORS) do
+		parts[#parts + 1] = string.format("%d=%d", f, position_state(c, f, alg))
+	end
+	io.write(string.format("POSITIONS %s %s\n", hash, table.concat(parts, ",")))
+end
+
+-- Pick next position for this chunk: unpracticed (canonical R → 3 → 5) first,
+-- then the weakest-power learning position (most overdue for review).
+local function pick_next_position(c, alg)
+	for _, f in ipairs(POSITION_FACTORS) do
+		if position_state(c, f, alg) == 0 then return f end
+	end
+	local best_f, best_pw = nil, math.huge
+	for _, f in ipairs(POSITION_FACTORS) do
+		if position_state(c, f, alg) ~= 2 then
+			local pw = calculate_power(c.positions[f], alg)
+			if pw < best_pw then
+				best_f, best_pw = f, pw
+			end
+		end
+	end
+	return best_f
+end
+
+-- Suggestion token prompting the user to try a specific position, or nil if
+-- all three are earned.  Avoids suggesting the position just played.
+local function position_suggestion(c, alg, just_played)
+	if all_positions_earned(c, alg) then return nil end
+	local next_f = pick_next_position(c, alg)
+	if next_f and next_f ~= just_played then
+		return "try_" .. POSITION_NAMES[next_f] .. "_on_top"
+	end
+	for _, f in ipairs(POSITION_FACTORS) do
+		if f ~= just_played and position_state(c, f, alg) ~= 2 then
+			return "try_" .. POSITION_NAMES[f] .. "_on_top"
+		end
+	end
+	return nil
+end
+
 local function calculate_streak(data)
 	local streak = 0
 	local mt = data.algorithm.midnight_time or 0
@@ -549,6 +701,16 @@ local function apply_mastery_decay(stats)
 					c.t_mastery = (c.t_mastery or 0) * factor
 					changed = true
 				end
+				-- Decay each position's mastery too, since they carry the
+				-- real SRS state now.
+				if c.positions then
+					for _, p in pairs(c.positions) do
+						if (p.mastery or 0) > 0 then
+							p.mastery = p.mastery * factor
+							changed = true
+						end
+					end
+				end
 			end
 		end
 		-- Always refresh the date so the next startup measures from today.
@@ -575,9 +737,9 @@ local function print_stats_line(stats, timestamp, chunk_hash)
 	if chunk_hash then
 		local c = stats.chunks[chunk_hash]
 		if c then
-			local power = calculate_power(c, alg)
+			local power = effective_power(c, alg)
 			local perf_power = calculate_perf_power(c, alg)
-			local mastery = c.mastery or 0
+			local mastery = effective_mastery(c)
 			chunk_str = string.format(
 				" chunk=%s[ivl=%d,ease=%.2f,mastery=%.2f,power=%.2f,pract_bpm=%.2f,ema_evenness=%.4f"
 				.. ",perf_power=%.2f,perf_bpm=%.2f,perf_ema_evenness=%.4f]",
@@ -649,7 +811,7 @@ local function emit_skill_stats(stats)
 	for hash, c in pairs(stats.chunks) do
 		local sk_str = chunk_skills[hash] or (c.skills or "")
 		if sk_str ~= "" then
-			local m = normalize(math.max(c.mastery or 0, c.t_mastery or 0), c)
+			local m = normalize(math.max(effective_mastery(c), c.t_mastery or 0), c)
 			for _, sk in ipairs(skills) do
 				if (" " .. sk_str .. " "):find(" " .. sk .. " ", 1, true) then
 					sum[sk]   = sum[sk]   + m
@@ -746,7 +908,10 @@ local function suggest_best_hash(stats, exclude_hash)
 			goto suggest_continue
 		end
 		local is_new = not c.last_date and not c.t_last_date
-		local m_pct = normalize(math.max(c.mastery or 0, c.t_mastery or 0), c)
+		-- Use effective (min-across-positions) mastery/power when positions
+		-- exist, else fall back to transitive mastery for parent chunks.
+		local eff_m = effective_mastery(c)
+		local m_pct = normalize(math.max(eff_m, c.t_mastery or 0), c)
 		local level = c.level or 0
 
 		if is_new then
@@ -762,7 +927,9 @@ local function suggest_best_hash(stats, exclude_hash)
 		else
 			if m_pct < alg.chunk_mastery_thresh then
 				all_practiced_mastered = false
-				local p = calculate_effective_power(c, alg)
+				-- effective_power pairs with effective_mastery; for parents
+				-- without positions it's equivalent to calculate_effective_power.
+				local p = (c.positions and effective_power(c, alg)) or calculate_effective_power(c, alg)
 				if
 					not best_unmastered
 					or level > best_unmastered.level
@@ -817,7 +984,10 @@ local function check_badges(c, alg, mode)
 	local bonus = 0
 
 	if mode == "practice" then
-		local power_pct = normalize(calculate_power(c, alg), c)
+		-- Effective power/mastery: gated on all three starting positions having
+		-- been practiced.  This is what makes the P badge (and thus graduation)
+		-- require balanced competence across R/3/5.
+		local power_pct = normalize(effective_power(c, alg), c)
 		-- P badge: power threshold
 		if not c.badge_p and power_pct >= alg.badge_power_thresh then
 			c.badge_p = true
@@ -836,8 +1006,11 @@ local function check_badges(c, alg, mode)
 			bonus = bonus + alg.badge_evenness_bonus
 			io.write(string.format("BADGE E %d\n", alg.badge_evenness_bonus))
 		end
-		-- All three practice badges: graduate bonus (only if chunk has melody for karaoke)
-		if c.badge_p and c.badge_s and c.badge_e and not c.badge_graduated and not c.no_melody then
+		-- All three practice badges AND all three positions earned: graduate
+		-- bonus (only if chunk has melody for karaoke).  Requiring positions
+		-- prevents performing a chunk the user can only start one way.
+		if c.badge_p and c.badge_s and c.badge_e and all_positions_earned(c, alg)
+			and not c.badge_graduated and not c.no_melody then
 			c.badge_graduated = true
 			bonus = bonus + alg.badge_graduate_bonus
 			io.write(string.format("BADGE READY %d\n", alg.badge_graduate_bonus))
@@ -882,7 +1055,7 @@ end
 -- Returns tag, current, target (or nil if all earned).
 local function badge_progress(c, alg)
 	if not c.badge_p then
-		return "P", normalize(calculate_power(c, alg), c), alg.badge_power_thresh
+		return "P", normalize(effective_power(c, alg), c), alg.badge_power_thresh
 	end
 	if not c.badge_s then
 		return "S", c.pract_bpm or c.ema_bpm or 0, alg.badge_speed_thresh
@@ -1002,9 +1175,11 @@ try_perf_score = function()
 				+ (1 - alpha) * (c.perf_ema_evenness or timing_evenness)
 			c.perf_bpm = alpha * actual_bpm
 				+ (1 - alpha) * (c.perf_bpm or actual_bpm)
-			-- Grow perf_mastery toward practice mastery, gated by accuracy.
+			-- Grow perf_mastery toward effective practice mastery (min across
+			-- starting positions).  Prevents performing a chunk the user can
+			-- only start one way.
 			local old_perf_m = c.perf_mastery or 0
-			local target = c.mastery or 0
+			local target = effective_mastery(c)
 			if target > old_perf_m then
 				c.perf_mastery = old_perf_m + (target - old_perf_m) * alg.mastery_growth
 			end
@@ -1204,9 +1379,34 @@ local function finalize()
 		local alpha = ema_alpha(alg)
 		c.pract_bpm = alpha * actual_bpm + (1.0 - alpha) * (c.pract_bpm or c.ema_bpm or ref_bpm)
 	end
+	-- Per-position SRS: update the specific position played (if detectable).
+	ensure_positions(c, alg)
+	local pos_res = nil
+	if current.start_factor then
+		local p = c.positions[current.start_factor]
+		if p then
+			-- Daily-reset + cross-day flags are handled inside update_entry via
+			-- last_date/today; power_factor is tracked per-position too.
+			if sd.accuracy == 100 then
+				p.power_factor = 1.0
+			else
+				p.power_factor = math.max(0, (p.power_factor or 1.0) * (1.0 - alg.mistake_power_penalty))
+			end
+			if sd.accuracy == 100 and sd.duration > 0 and bpm_beats > 0 then
+				local actual_bpm = bpm_beats * (time_denom / 4.0) * 60.0 / sd.duration
+				local alpha = ema_alpha(alg)
+				p.pract_bpm = alpha * actual_bpm + (1.0 - alpha) * (p.pract_bpm or ref_bpm)
+			end
+			pos_res = update_entry(p, sd, alg, is_warmup)
+		end
+	end
 	stats.chunks[hash] = c
-	local points = normalize(res.m_delta, c) * alg.mastery_points_per_pct
-		+ normalize(res.p_delta, c) * alg.power_points_per_pct
+	-- Points: credit the position's m/p gains when available, else fall back
+	-- to chunk-level gains.  This rewards progress where it actually happens.
+	local m_delta = (pos_res and pos_res.m_delta) or res.m_delta
+	local p_delta = (pos_res and pos_res.p_delta) or res.p_delta
+	local points = normalize(m_delta, c) * alg.mastery_points_per_pct
+		+ normalize(p_delta, c) * alg.power_points_per_pct
 	-- Length bonus: longer lessons earn proportionally more
 	local extra_groups = math.max(0, sd.groups - alg.length_bonus_threshold)
 	local length_mult = 1.0 + extra_groups * alg.length_bonus_per_group
@@ -1218,7 +1418,8 @@ local function finalize()
 	stats.daily[today].score = stats.daily[today].score + points
 	stats.daily[today].duration = stats.daily[today].duration + sd.duration
 	save_stats(stats_file, stats)
-	local power = calculate_power(c, alg)
+	local eff_m = effective_mastery(c)
+	local eff_p = effective_power(c, alg)
 	local d = stats.daily[today]
 	local streak = calculate_streak(stats)
 	local interleave_hash = check_interleave(hash, c, alg)
@@ -1227,6 +1428,10 @@ local function finalize()
 		suggestion = "try_another_lesson"
 		io.write(string.format("INTERLEAVE %s\n", interleave_hash))
 	end
+	if not suggestion then
+		suggestion = position_suggestion(c, alg, current.start_factor)
+	end
+	emit_positions(hash, c, alg)
 	io.write(
 		string.format(
 			"STATS time=%.0f total_today=%.2f goal=%.2f total_duration_today=%.3f streak=%d"
@@ -1242,8 +1447,8 @@ local function finalize()
 			hash,
 			math.floor(c.ivl or 0),
 			c.ease or alg.ease_initial,
-			normalize(c.mastery or 0, c),
-			normalize(power, c),
+			normalize(eff_m, c),
+			normalize(eff_p, c),
 			suggestion and (" suggestion=" .. suggestion) or ""
 		)
 	)
@@ -1371,6 +1576,9 @@ for line in io.lines() do
 					if c.perf_badge_e then io.write("BADGE PE 0\n") end
 					if c.badge_mastered then io.write("BADGE MASTERED 0\n") end
 				end
+				-- Emit persisted soprano starting-position state
+				ensure_positions(c, alg)
+				emit_positions(h, c, alg)
 			end
 		end
 
@@ -1430,6 +1638,10 @@ for line in io.lines() do
 					status = line:find("OK") and "OK" or "FAIL",
 					time = tonumber(rtime),
 				}
+				if id_val == 0 then
+					local fv = line:match("FACTOR:(%d+)")
+					if fv then current.start_factor = tonumber(fv) end
+				end
 				if id_val == current.max_bass_id then
 					finalize()
 				end

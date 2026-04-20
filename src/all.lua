@@ -771,6 +771,7 @@ local function handle_query_children(hash)
 		raw.time,
 		raw.bpm,
 		raw.bar,
+		raw.partial or 0,
 		raw.title,
 		raw.composer,
 		bass,

@@ -133,6 +133,10 @@ struct state {
 	bool badge_graduated = false;
 	bool badge_mastered = false;
 
+	// Soprano starting-position tracking (from POSITIONS messages)
+	// State: 0 = unpracticed, 1 = learning, 2 = earned
+	int pos_state_root = 0, pos_state_3rd = 0, pos_state_5th = 0;
+
 	// Badge progress (from BADGE_PROGRESS messages or computed)
 	char badge_progress_tag[4] = "";
 	float badge_progress_cur = 0.0f;
@@ -354,6 +358,7 @@ static void clear_badges(void)
 	state.badge_pp = state.badge_ps = state.badge_pe = false;
 	state.badge_graduated = state.badge_mastered = false;
 	state.badge_progress_tag[0] = '\0';
+	state.pos_state_root = state.pos_state_3rd = state.pos_state_5th = 0;
 }
 
 static void clear_status(void)
@@ -761,6 +766,28 @@ static void parse_line(const char *buf)
 		state.badge_celebration_time = glfwGetTime();
 		return;
 	}
+	// POSITIONS <hash> 8=<state>,3=<state>,5=<state> — soprano starting
+	// position state per factor (0=unpracticed, 1=learning, 2=earned).
+	if (strncmp(buf, "POSITIONS ", 10) == 0) {
+		state.pos_state_root = state.pos_state_3rd = state.pos_state_5th = 0;
+		const char *list = strchr(buf + 10, ' ');
+		if (list) {
+			++list;
+			int f, s;
+			const char *p = list;
+			while (*p) {
+				if (sscanf(p, "%d=%d", &f, &s) == 2) {
+					if (f == 8) state.pos_state_root = s;
+					else if (f == 3) state.pos_state_3rd = s;
+					else if (f == 5) state.pos_state_5th = s;
+				}
+				const char *comma = strchr(p, ',');
+				if (!comma) break;
+				p = comma + 1;
+			}
+		}
+		return;
+	}
 	// PERF_NOTE <id> <+/-ms> <ok|late> — per-note timing detail
 	if (strncmp(buf, "PERF_NOTE ", 10) == 0) {
 		int id, delta;
@@ -1119,6 +1146,12 @@ static const char *expand_suggestion(const char *s)
 		return "Needs more practice.";
 	if (strcmp(s, "new_lesson") == 0)
 		return "New lesson!";
+	if (strcmp(s, "try_root_on_top") == 0)
+		return "Try with root on top!";
+	if (strcmp(s, "try_3rd_on_top") == 0)
+		return "Try with 3rd on top!";
+	if (strcmp(s, "try_5th_on_top") == 0)
+		return "Try with 5th on top!";
 	return s; // fallback: show the raw token
 }
 
@@ -1186,6 +1219,30 @@ static void show_stats_bar(void)
 	DrawBadgeSquare("S", state.badge_ps, blue, tip[4], true);
 	ImGui::SameLine(0, sp);
 	DrawBadgeSquare("E", state.badge_pe, orange, tip[5], true);
+
+	// Soprano starting-position indicators: [R] [3] [5] with 3 states:
+	// 0 = unpracticed (grey outline), 1 = learning (orange), 2 = earned (green)
+	ImGui::SameLine(0, sp + 4.0f);
+	ImU32 pos_green  = IM_COL32(80, 200, 120, 255);
+	ImU32 pos_orange = IM_COL32(220, 160, 30, 255);
+	auto draw_pos = [&](const char *label, int st, const char *tip) {
+		ImU32 col = (st == 2) ? pos_green : pos_orange;
+		DrawBadgeSquare(label, st > 0, col, tip, false);
+	};
+	draw_pos("R", state.pos_state_root,
+		state.pos_state_root == 2 ? "Root on top: mastered"
+		: state.pos_state_root == 1 ? "Root on top: learning"
+		: "Root on top: not yet practiced");
+	ImGui::SameLine(0, sp);
+	draw_pos("3", state.pos_state_3rd,
+		state.pos_state_3rd == 2 ? "3rd on top: mastered"
+		: state.pos_state_3rd == 1 ? "3rd on top: learning"
+		: "3rd on top: not yet practiced");
+	ImGui::SameLine(0, sp);
+	draw_pos("5", state.pos_state_5th,
+		state.pos_state_5th == 2 ? "5th on top: mastered"
+		: state.pos_state_5th == 1 ? "5th on top: learning"
+		: "5th on top: not yet practiced");
 
 	// Progress bar for next unearned badge (if any)
 	if (!state.badge_mastered) {

@@ -1318,12 +1318,13 @@ local function run_rules(ctx)
 	return false, errors
 end
 
-local function print_result(g, ok, errors)
+local function print_result(g, ok, errors, factor)
+	local suffix = factor and string.format(" FACTOR:%d", factor) or ""
 	if ok then
-		io.write(string.format("RESULT %d TIME:%d \27[32mOK\27[0m\n", g.id, g.time))
+		io.write(string.format("RESULT %d TIME:%d \27[32mOK\27[0m%s\n", g.id, g.time, suffix))
 	else
 		for _, err in ipairs(errors) do
-			io.write(string.format("RESULT %d TIME:%d \27[31mFAIL\27[0m %s\n", g.id, g.time, err))
+			io.write(string.format("RESULT %d TIME:%d \27[31mFAIL\27[0m %s%s\n", g.id, g.time, err, suffix))
 		end
 	end
 end
@@ -1349,7 +1350,9 @@ local function main()
 					window = window,
 					key = key,
 				})
-				print_result(g, ok, err)
+				local factor = (g.id == 0 and not g.passing)
+					and top_voice_factor(g, key) or nil
+				print_result(g, ok, err, factor)
 			end
 		end
 	end
