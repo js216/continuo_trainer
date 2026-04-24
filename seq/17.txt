@@ -1,6 +1,6 @@
 title: No. 2
 composer: G. F. Handel
-key: C
+key: G
 time: 4/4
 bpm: 100
 bar: 3
