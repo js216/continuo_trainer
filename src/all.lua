@@ -505,6 +505,41 @@ local function has_melody(melody, s, e)
 	return false
 end
 
+-- Which starting-position factors ({3, 5, 8}, subset) are traditionally
+-- reachable for this chunk?  The first non-passing figure determines the
+-- chord's voice count:
+--   bare 5 (5-6 sequence start)         → bass + 3 + 5 (3 voices), top ∈ {3, 5}
+--   bare 6 (descending 5-6 or 6 chord)  → bass + 3 + 6 (3 voices), top = 3 or 6;
+--                                         only 3 is in our tracked vocabulary
+--   bare 7 (7-6 suspension chain start) → bass + 3 + 7 or bass + 5 + 7;
+--                                         top is usually 7, but 3 and 5 are
+--                                         possible in voicing variants
+--   anything else                       → assume 4-voice triad, top ∈ {3, 5, 8}
+-- Accidentals before the bare figure ([#bn]*) don't change the voice count.
+local function compute_achievable(figures, passing, s, e)
+	local first_fig
+	for i = s, e do
+		if not passing[i] then
+			first_fig = figures[i]
+			break
+		end
+	end
+	if not first_fig then return { 3, 5, 8 } end
+	if first_fig:match("^[#bn]*5$") then return { 3, 5 } end
+	if first_fig:match("^[#bn]*6$") then return { 3 } end
+	if first_fig:match("^[#bn]*7$") then return { 3, 5 } end
+	return { 3, 5, 8 }
+end
+
+local function achievable_suffix(figures, passing, s, e)
+	local ach = compute_achievable(figures, passing, s, e)
+	local parts = {}
+	for _, f in ipairs(ach) do
+		parts[#parts + 1] = tostring(f)
+	end
+	return " achievable=" .. table.concat(parts, ",")
+end
+
 -- ── skill helpers ────────────────────────────────────────────────────────────
 
 -- Returns a space-separated skills string for figures[s..e] (1-indexed).
@@ -971,7 +1006,8 @@ local function scan_and_emit()
 		live_chunks[hash0] = true
 		json_index[hash0] = { level = 0, skills = skills0, children = {}, txt = content0 }
 		local mel0 = has_melody(lesson.melody, 1, N) and "" or " no_melody"
-		io.write("CHUNK_NAME " .. hash0 .. " 0 " .. skills0 .. mel0 .. "\n")
+		local ach0 = achievable_suffix(lesson.figures, lesson.passing, 1, N)
+		io.write("CHUNK_NAME " .. hash0 .. " 0 " .. skills0 .. mel0 .. ach0 .. "\n")
 		io.flush()
 
 		-- ── level-1: 3-bar chunks; level-2: 1-bar chunks ─────────────────────
@@ -994,6 +1030,16 @@ local function scan_and_emit()
 			offsets,
 			3
 		)
+		-- Lessons <=4 bars can't produce 3-bar-stepped children (the bar_split
+		-- merges them back into the parent).  Fall back to 1-bar slices so the
+		-- [E]asier button still has somewhere to zoom into.
+		if #chunks1 == 0 then
+			chunks1 = compute_bar_children(
+				1, lesson.key, lesson.time, lesson.bpm, lesson.bar, lesson.partial,
+				lesson.title, lesson.composer, lesson.bass, lesson.passing,
+				lesson.figures, lesson.melody, 1, N, offsets, 1
+			)
+		end
 		local child1_parts = { hash0 }
 		for _, c1 in ipairs(chunks1) do
 			live_chunks[c1.hash] = true
@@ -1002,7 +1048,8 @@ local function scan_and_emit()
 				{ hash = c1.hash, s = c1.s - 1, e = c1.e - 1 }
 			json_index[c1.hash] = { level = 1, skills = c1.skills, children = {}, txt = c1.content }
 			local mel1 = has_melody(lesson.melody, c1.s, c1.e) and "" or " no_melody"
-			io.write("CHUNK_NAME " .. c1.hash .. " 1 " .. c1.skills .. mel1 .. "\n")
+			local ach1 = achievable_suffix(lesson.figures, lesson.passing, c1.s, c1.e)
+			io.write("CHUNK_NAME " .. c1.hash .. " 1 " .. c1.skills .. mel1 .. ach1 .. "\n")
 			io.flush()
 
 			local chunks2 = compute_bar_children(
@@ -1032,7 +1079,8 @@ local function scan_and_emit()
 					{ hash = c2.hash, s = c2.s - c1.s, e = c2.e - c1.s }
 				json_index[c2.hash] = { level = 2, skills = c2.skills, children = {}, txt = c2.content }
 				local mel2 = has_melody(lesson.melody, c2.s, c2.e) and "" or " no_melody"
-				io.write("CHUNK_NAME " .. c2.hash .. " 2 " .. c2.skills .. mel2 .. "\n")
+				local ach2 = achievable_suffix(lesson.figures, lesson.passing, c2.s, c2.e)
+				io.write("CHUNK_NAME " .. c2.hash .. " 2 " .. c2.skills .. mel2 .. ach2 .. "\n")
 				io.flush()
 				child2_parts[#child2_parts + 1] = c2.hash .. ":" .. (c2.s - 1) .. ":" .. (c2.e - 1)
 			end

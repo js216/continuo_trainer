@@ -14,6 +14,7 @@
 // KEYBOARD SHORTCUTS
 //     ESC / X     Close the current lesson display (X also clicks the X button).
 //     R           Reload: re-emit LOAD_CHUNK for the current item.
+//     E           Easier: zoom into the first child (SUGGEST_EASIER).
 //     SPACE       Practice: SUGGEST_LESSON.  Performance: start/abort karaoke.
 //     K           Toggle karaoke mode (emits KARAOKE_ON / KARAOKE_OFF).
 //     P           Toggle practice/performance mode (emits MODE).
@@ -133,9 +134,13 @@ struct state {
 	bool badge_graduated = false;
 	bool badge_mastered = false;
 
-	// Soprano starting-position tracking (from POSITIONS messages)
-	// State: 0 = unpracticed, 1 = learning, 2 = earned
+	// Soprano starting-position tracking (from POSITIONS messages).
+	// State: 0 = unpracticed, 1 = learning, 2 = earned.
+	// Achievable flag is false when the chunk's first chord is a
+	// traditional 3-voice voicing that precludes this factor — e.g. bare 5
+	// allows only {3,5} on top, not root.  Non-achievable squares are hidden.
 	int pos_state_root = 0, pos_state_3rd = 0, pos_state_5th = 0;
+	bool pos_ach_root = false, pos_ach_3rd = false, pos_ach_5th = false;
 
 	// Badge progress (from BADGE_PROGRESS messages or computed)
 	char badge_progress_tag[4] = "";
@@ -359,6 +364,7 @@ static void clear_badges(void)
 	state.badge_graduated = state.badge_mastered = false;
 	state.badge_progress_tag[0] = '\0';
 	state.pos_state_root = state.pos_state_3rd = state.pos_state_5th = 0;
+	state.pos_ach_root = state.pos_ach_3rd = state.pos_ach_5th = false;
 }
 
 static void clear_status(void)
@@ -398,6 +404,19 @@ static void suggest_lesson(void)
 	state.karaoke_on = false;
 }
 
+// Ask stats.lua for the first child of the current chunk so the user can
+// zoom into a smaller, less daunting slice without waiting for the algorithm
+// to downgrade.  stats.lua replies with a SUGGESTION line; no-op if the
+// chunk has no children.
+static void easier_lesson(void)
+{
+	if (!state.current_chunk[0]) return;
+	printf("KARAOKE_OFF\n");
+	printf("SUGGEST_EASIER %s\n", state.current_chunk);
+	fflush(stdout);
+	state.karaoke_on = false;
+}
+
 static void toggle_karaoke(void)
 {
 	state.karaoke_on = !state.karaoke_on;
@@ -422,6 +441,9 @@ static void key_callback(GLFWwindow *window, int key, int scancode, int action,
 		break;
 	case GLFW_KEY_R:
 		reload_lesson();
+		break;
+	case GLFW_KEY_E:
+		easier_lesson();
 		break;
 	case GLFW_KEY_SPACE:
 		suggest_lesson();
@@ -766,10 +788,12 @@ static void parse_line(const char *buf)
 		state.badge_celebration_time = glfwGetTime();
 		return;
 	}
-	// POSITIONS <hash> 8=<state>,3=<state>,5=<state> — soprano starting
-	// position state per factor (0=unpracticed, 1=learning, 2=earned).
+	// POSITIONS <hash> <factor>=<state>[,...] — soprano starting position
+	// state per achievable factor (0=unpracticed, 1=learning, 2=earned).
+	// Only achievable factors are listed; missing factors aren't displayed.
 	if (strncmp(buf, "POSITIONS ", 10) == 0) {
 		state.pos_state_root = state.pos_state_3rd = state.pos_state_5th = 0;
+		state.pos_ach_root = state.pos_ach_3rd = state.pos_ach_5th = false;
 		const char *list = strchr(buf + 10, ' ');
 		if (list) {
 			++list;
@@ -777,9 +801,16 @@ static void parse_line(const char *buf)
 			const char *p = list;
 			while (*p) {
 				if (sscanf(p, "%d=%d", &f, &s) == 2) {
-					if (f == 8) state.pos_state_root = s;
-					else if (f == 3) state.pos_state_3rd = s;
-					else if (f == 5) state.pos_state_5th = s;
+					if (f == 8) {
+						state.pos_state_root = s;
+						state.pos_ach_root = true;
+					} else if (f == 3) {
+						state.pos_state_3rd = s;
+						state.pos_ach_3rd = true;
+					} else if (f == 5) {
+						state.pos_state_5th = s;
+						state.pos_ach_5th = true;
+					}
 				}
 				const char *comma = strchr(p, ',');
 				if (!comma) break;
@@ -1221,28 +1252,36 @@ static void show_stats_bar(void)
 	DrawBadgeSquare("E", state.badge_pe, orange, tip[5], true);
 
 	// Soprano starting-position indicators: [R] [3] [5] with 3 states:
-	// 0 = unpracticed (grey outline), 1 = learning (orange), 2 = earned (green)
-	ImGui::SameLine(0, sp + 4.0f);
+	// 0 = unpracticed (grey outline), 1 = learning (orange), 2 = earned (green).
+	// Traditional 3-voice voicings (5-6, 7-6 sequences) restrict which top
+	// voices are achievable; we only draw squares for the achievable factors.
 	ImU32 pos_green  = IM_COL32(80, 200, 120, 255);
 	ImU32 pos_orange = IM_COL32(220, 160, 30, 255);
+	bool pos_first = true;
 	auto draw_pos = [&](const char *label, int st, const char *tip) {
+		ImGui::SameLine(0, pos_first ? sp + 4.0f : sp);
+		pos_first = false;
 		ImU32 col = (st == 2) ? pos_green : pos_orange;
 		DrawBadgeSquare(label, st > 0, col, tip, false);
 	};
-	draw_pos("R", state.pos_state_root,
-		state.pos_state_root == 2 ? "Root on top: mastered"
-		: state.pos_state_root == 1 ? "Root on top: learning"
-		: "Root on top: not yet practiced");
-	ImGui::SameLine(0, sp);
-	draw_pos("3", state.pos_state_3rd,
-		state.pos_state_3rd == 2 ? "3rd on top: mastered"
-		: state.pos_state_3rd == 1 ? "3rd on top: learning"
-		: "3rd on top: not yet practiced");
-	ImGui::SameLine(0, sp);
-	draw_pos("5", state.pos_state_5th,
-		state.pos_state_5th == 2 ? "5th on top: mastered"
-		: state.pos_state_5th == 1 ? "5th on top: learning"
-		: "5th on top: not yet practiced");
+	if (state.pos_ach_root) {
+		draw_pos("R", state.pos_state_root,
+			state.pos_state_root == 2 ? "Root on top: mastered"
+			: state.pos_state_root == 1 ? "Root on top: learning"
+			: "Root on top: not yet practiced");
+	}
+	if (state.pos_ach_3rd) {
+		draw_pos("3", state.pos_state_3rd,
+			state.pos_state_3rd == 2 ? "3rd on top: mastered"
+			: state.pos_state_3rd == 1 ? "3rd on top: learning"
+			: "3rd on top: not yet practiced");
+	}
+	if (state.pos_ach_5th) {
+		draw_pos("5", state.pos_state_5th,
+			state.pos_state_5th == 2 ? "5th on top: mastered"
+			: state.pos_state_5th == 1 ? "5th on top: learning"
+			: "5th on top: not yet practiced");
+	}
 
 	// Progress bar for next unearned badge (if any)
 	if (!state.badge_mastered) {
@@ -1496,9 +1535,10 @@ static void show_top_bar(void)
 		}
 	}
 	float reload_w = ImGui::CalcTextSize("[R]eload").x + fp * 2.0f;
+	float easier_w = ImGui::CalcTextSize("[E]asier").x + fp * 2.0f;
 	float settings_w = ImGui::CalcTextSize("[S]ettings").x + fp * 2.0f;
 	float x_w      = ImGui::CalcTextSize("X").x       + fp * 2.0f;
-	float right_w  = chunk_w + reload_w + sp + settings_w + sp + x_w;
+	float right_w  = chunk_w + reload_w + sp + easier_w + sp + settings_w + sp + x_w;
 	float right_x  = win_w - pad - right_w;
 
 	ImGui::SameLine();
@@ -1512,6 +1552,9 @@ static void show_top_bar(void)
 	}
 	if (ImGui::Button("[R]eload"))
 		reload_lesson();
+	ImGui::SameLine();
+	if (ImGui::Button("[E]asier"))
+		easier_lesson();
 	ImGui::SameLine();
 	ImGui::PushItemFlag(ImGuiItemFlags_NoNav, true);
 	if (ImGui::Button("[S]ettings")) {

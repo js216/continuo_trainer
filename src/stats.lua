@@ -232,8 +232,24 @@ end
 -- min-across-positions so the user can't achieve full chunk mastery by
 -- grinding a single starting position.
 
-local POSITION_FACTORS = { 8, 3, 5 }  -- root, 3rd, 5th
+local POSITION_FACTORS = { 8, 3, 5 }  -- root, 3rd, 5th (all trackable top-voice factors)
 local POSITION_NAMES = { [8] = "root", [3] = "3rd", [5] = "5th" }
+
+-- Factors worth tracking for THIS chunk.  Defaults to all three; chunks
+-- whose first chord is a traditional 3-voice voicing (e.g. 5-6 or 7-6
+-- sequences) carry a smaller achievable_positions list set by all.lua.
+-- Preserves POSITION_FACTORS' canonical order (R → 3 → 5).
+local function achievable_factors(c)
+	local ach = c and c.achievable_positions
+	if not ach or #ach == 0 then return POSITION_FACTORS end
+	local set = {}
+	for _, f in ipairs(ach) do set[f] = true end
+	local out = {}
+	for _, f in ipairs(POSITION_FACTORS) do
+		if set[f] then out[#out + 1] = f end
+	end
+	return out
+end
 
 local function init_position(alg)
 	-- Leave best_avg and max_groups unset (nil): update_entry's guards treat
@@ -337,26 +353,24 @@ local function assert_chunk_consistent(hash, c)
 	end
 end
 
--- Returns true if any position has been practiced at least once.
+-- Returns true if any achievable position has been practiced at least once.
 local function any_position_practiced(c)
 	if not c.positions then return false end
-	for _, f in ipairs(POSITION_FACTORS) do
+	for _, f in ipairs(achievable_factors(c)) do
 		local p = c.positions[f]
 		if p and (p.n_pass_tot or 0) > 0 then return true end
 	end
 	return false
 end
 
--- Effective chunk mastery: min across positions once position tracking has
--- begun (any n_pass_tot > 0), counting unpracticed positions as 0.  Before
--- any position is tracked, fall back to c.mastery so existing users don't
--- lose accumulated mastery overnight.  The moment they practice one
--- position, their effective mastery drops until they cover the other two —
--- which is exactly the nudge we want.
+-- Effective chunk mastery: min across achievable positions once position
+-- tracking has begun (any n_pass_tot > 0), counting unpracticed positions as
+-- 0.  Before any achievable position is tracked, fall back to c.mastery so
+-- existing users don't lose accumulated mastery overnight.
 local function effective_mastery(c)
 	if not any_position_practiced(c) then return c.mastery or 0 end
 	local min_m = math.huge
-	for _, f in ipairs(POSITION_FACTORS) do
+	for _, f in ipairs(achievable_factors(c)) do
 		local p = c.positions[f]
 		local m = (p and (p.n_pass_tot or 0) > 0) and (p.mastery or 0) or 0
 		if m < min_m then min_m = m end
@@ -367,7 +381,7 @@ end
 local function effective_power(c, alg)
 	if not any_position_practiced(c) then return calculate_power(c, alg) end
 	local min_p = math.huge
-	for _, f in ipairs(POSITION_FACTORS) do
+	for _, f in ipairs(achievable_factors(c)) do
 		local p = c.positions[f]
 		local pw = (p and (p.n_pass_tot or 0) > 0) and calculate_power(p, alg) or 0
 		if pw < min_p then min_p = pw end
@@ -385,28 +399,30 @@ local function position_state(c, f, alg)
 end
 
 local function all_positions_earned(c, alg)
-	for _, f in ipairs(POSITION_FACTORS) do
+	for _, f in ipairs(achievable_factors(c)) do
 		if position_state(c, f, alg) ~= 2 then return false end
 	end
 	return true
 end
 
+-- Emit only achievable factors; gui omits badges for any not listed.
 local function emit_positions(hash, c, alg)
 	local parts = {}
-	for _, f in ipairs(POSITION_FACTORS) do
+	for _, f in ipairs(achievable_factors(c)) do
 		parts[#parts + 1] = string.format("%d=%d", f, position_state(c, f, alg))
 	end
 	io.write(string.format("POSITIONS %s %s\n", hash, table.concat(parts, ",")))
 end
 
--- Pick next position for this chunk: unpracticed (canonical R → 3 → 5) first,
--- then the weakest-power learning position (most overdue for review).
+-- Pick next position for this chunk: unpracticed (canonical order within
+-- achievable set) first, then the weakest-power learning position.
 local function pick_next_position(c, alg)
-	for _, f in ipairs(POSITION_FACTORS) do
+	local factors = achievable_factors(c)
+	for _, f in ipairs(factors) do
 		if position_state(c, f, alg) == 0 then return f end
 	end
 	local best_f, best_pw = nil, math.huge
-	for _, f in ipairs(POSITION_FACTORS) do
+	for _, f in ipairs(factors) do
 		if position_state(c, f, alg) ~= 2 then
 			local pw = calculate_power(c.positions[f], alg)
 			if pw < best_pw then
@@ -418,14 +434,14 @@ local function pick_next_position(c, alg)
 end
 
 -- Suggestion token prompting the user to try a specific position, or nil if
--- all three are earned.  Avoids suggesting the position just played.
+-- all achievable ones are earned.  Avoids suggesting the position just played.
 local function position_suggestion(c, alg, just_played)
 	if all_positions_earned(c, alg) then return nil end
 	local next_f = pick_next_position(c, alg)
 	if next_f and next_f ~= just_played then
 		return "try_" .. POSITION_NAMES[next_f] .. "_on_top"
 	end
-	for _, f in ipairs(POSITION_FACTORS) do
+	for _, f in ipairs(achievable_factors(c)) do
 		if f ~= just_played and position_state(c, f, alg) ~= 2 then
 			return "try_" .. POSITION_NAMES[f] .. "_on_top"
 		end
@@ -924,7 +940,9 @@ local function scaled_limit(ema_pass, min_val, max_val)
 end
 
 -- Returns the hash of the best chunk to suggest, or nil. No output.
-local function suggest_best_hash(stats, exclude_hash)
+-- candidate_set, if non-nil, restricts consideration to those hashes — used
+-- by [E]asier to pick the best child of the current chunk.
+local function suggest_best_hash(stats, exclude_hash, candidate_set)
 	local alg = stats.algorithm
 	local today = get_date_str(alg.midnight_time)
 	local best_unmastered = nil
@@ -934,6 +952,9 @@ local function suggest_best_hash(stats, exclude_hash)
 
 	for h, c in pairs(stats.chunks) do
 		if h == exclude_hash then
+			goto suggest_continue
+		end
+		if candidate_set and not candidate_set[h] then
 			goto suggest_continue
 		end
 		-- Skip if consecutive overlearn limit reached
@@ -1567,7 +1588,21 @@ for line in io.lines() do
 		scanned_chunks[h] = true
 		local tail = line:match("^CHUNK_NAME %S+ %d+ (.+)$")
 		local no_melody = tail and tail:find("no_melody", 1, true) and true or false
-		local skills_str = tail and tail:gsub("%s*no_melody%s*", ""):match("^%s*(.-)%s*$")
+		-- Parse achievable=<csv> suffix (traditional voice-count restriction).
+		local ach_csv = tail and tail:match("achievable=([%d,]+)")
+		local achievable = nil
+		if ach_csv then
+			achievable = {}
+			for n in ach_csv:gmatch("(%d+)") do
+				achievable[#achievable + 1] = tonumber(n)
+			end
+		end
+		local skills_str = tail
+		if skills_str then
+			skills_str = skills_str:gsub("%s*no_melody%s*", " ")
+			skills_str = skills_str:gsub("%s*achievable=[%d,]+%s*", " ")
+			skills_str = skills_str:match("^%s*(.-)%s*$")
+		end
 		if skills_str == "" then skills_str = nil end
 		if skills_str and not chunk_skills[h] then
 			chunk_skills[h] = skills_str
@@ -1599,6 +1634,20 @@ for line in io.lines() do
 		elseif not no_melody and stats.chunks[h].no_melody then
 			stats.chunks[h].no_melody = nil
 			needs_save = true
+		end
+		-- Persist achievable positions (derived deterministically from figures).
+		if achievable then
+			local existing = stats.chunks[h].achievable_positions
+			local changed = not existing or #existing ~= #achievable
+			if not changed then
+				for i, v in ipairs(achievable) do
+					if existing[i] ~= v then changed = true; break end
+				end
+			end
+			if changed then
+				stats.chunks[h].achievable_positions = achievable
+				needs_save = true
+			end
 		end
 		if needs_save then
 			save_stats(stats_file, stats)
@@ -1902,6 +1951,30 @@ for line in io.lines() do
 			handle_suggest(stats)
 		else
 			pending_suggest = true
+		end
+	elseif line:match("^SUGGEST_EASIER ") then
+		-- Zoom into the best child of the current chunk (weakest / most in
+		-- need of practice by the same ranking suggest_best_hash uses for
+		-- global suggestions).  Used when a big lesson feels daunting and
+		-- the algorithm hasn't yet decided to downgrade.
+		local h = line:match("^SUGGEST_EASIER (%S+)")
+		local kids = h and children_of[h]
+		if kids and #kids > 0 then
+			local set = {}
+			for _, k in ipairs(kids) do set[k] = true end
+			local best = suggest_best_hash(stats, nil, set)
+			-- Fallback: if none of the children meet the ranking criteria
+			-- (e.g. all fully mastered), still pick one so [E] does something.
+			best = best or kids[1]
+			local c = stats.chunks[best]
+			local is_new = c and not c.last_date and not c.t_last_date
+			io.write(string.format(
+				"SUGGESTION chunk=%s level=%d skills=%s reason=%s\n",
+				best,
+				(c and c.level) or 0,
+				chunk_skills[best] or "?",
+				is_new and "easier_new" or "easier"
+			))
 		end
 	elseif line:match("^ALL_SCANNED") then
 		local stale = {}
