@@ -607,12 +607,19 @@ local function rule_check_realization(ctx)
 		return true, nil
 	end
 	local key = ctx.key
-	local bass_pc = g.bass % 12
+	-- Compute the required chord from the NOTATED bass (what the score
+	-- shows), not the played bass — otherwise a wrong bass note would
+	-- silently shift all figure-implied pitches and produce confusing
+	-- messages like "Figure 3 (gis) is missing" when the score said A
+	-- with #3 (meaning C#).  The played bass pitch is admitted as an
+	-- inner-voice doubling (users may play the bass above the lowest note).
+	local notated_pc = g.bass_notated % 12
+	local played_pc = g.bass % 12
 
-	local allowed = set_new({ bass_pc })
+	local allowed = set_new({ played_pc })
 
 	for _, fig in ipairs(g.figures) do
-		local pc = figure_to_pc(fig, bass_pc, g.bass_letter_idx, key)
+		local pc = figure_to_pc(fig, notated_pc, g.bass_notated_letter_idx, key)
 		if pc then
 			set_insert(allowed, pc)
 		else
@@ -623,7 +630,7 @@ local function rule_check_realization(ctx)
 	-- suspension resolution: admit prev pitches if bass is held
 	if #ctx.window >= 2 then
 		local prev = ctx.window[#ctx.window - 1]
-		if prev.bass % 12 == bass_pc then
+		if prev.bass % 12 == played_pc then
 			for _, n in ipairs(prev.inner) do
 				set_insert(allowed, n % 12)
 			end
@@ -726,15 +733,21 @@ end
 -- when the next group arrives (to distinguish 7-6 suspensions from standalone 7ths).
 local pending_7 = nil -- { group = g, key = key }
 
--- Check completeness for a non-deferred group.
+-- Check completeness for a non-deferred group.  Required pitches come from
+-- the NOTATED bass (score), not the played bass, so a wrong-bass error
+-- doesn't mutate the expected chord.  `present` is strictly what the user
+-- played: if they played a wrong bass and thus failed to sound the notated
+-- root, the missing-root message still fires — correctly naming the root
+-- the score asked for.
 local function check_completeness(g, key)
-	local bass_pc = g.bass % 12
-	local present = set_new({ bass_pc })
+	local played_pc = g.bass % 12
+	local notated_pc = g.bass_notated % 12
+	local present = set_new({ played_pc })
 	for _, n in ipairs(g.inner) do
 		set_insert(present, n % 12)
 	end
 	for _, fig in ipairs(g.figures) do
-		local required_pc = figure_to_pc(fig, bass_pc, g.bass_letter_idx, key)
+		local required_pc = figure_to_pc(fig, notated_pc, g.bass_notated_letter_idx, key)
 		if not required_pc then
 			return true, nil
 		end
@@ -1188,6 +1201,7 @@ local function parse_group(line)
 	local passing = line:find("passing") ~= nil
 	local bass = 0
 	local bass_letter_idx = nil -- 1-based index into NATURAL_PCS for the bass letter
+	local bass_notated_letter_idx = nil -- same, but for the notated (score) bass
 	local bass_notated_raw = ""
 	local cadence = false
 	local figures = parse_figures("0")
@@ -1215,6 +1229,9 @@ local function parse_group(line)
 		v = t:match("^BASS:(.+)$")
 		if v then
 			bass_notated_raw = v
+			local letter_str = v:gsub("[%d%.]+$", ""):sub(1, 1):lower()
+			local letter_map = { c = 1, d = 2, e = 3, f = 4, g = 5, a = 6, b = 7 }
+			bass_notated_letter_idx = letter_map[letter_str]
 		end
 
 		v = t:match("^BASS_ACTUAL:(.+)$")
@@ -1280,6 +1297,12 @@ local function parse_group(line)
 
 	local melody_raw = table.concat(melody_raw_parts, " ")
 
+	-- If the notated bass was omitted or unparseable, fall back to the
+	-- played letter index so figure computations still work.
+	if not bass_notated_letter_idx then
+		bass_notated_letter_idx = bass_letter_idx
+	end
+
 	return {
 		id = id,
 		passing = passing,
@@ -1288,6 +1311,7 @@ local function parse_group(line)
 		bass_letter_idx = bass_letter_idx,
 		bass_notated = bass_notated,
 		bass_notated_raw = bass_notated_raw,
+		bass_notated_letter_idx = bass_notated_letter_idx,
 		figures = figures,
 		figures_raw = figures_raw,
 		inner = inner,

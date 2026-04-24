@@ -1,0 +1,6 @@
+LESSON 1 d 3/2 notated A with # figure: correct realization passes
+GROUP ID:0 BASS:a, FIGURES:# BASS_ACTUAL:a, TIME:100 REALIZATION:e/cis'
+LESSON 2 d 3/2 notated A with # figure: missing cis reports cis (not gis)
+GROUP ID:0 BASS:a, FIGURES:# BASS_ACTUAL:a, TIME:100 REALIZATION:e/a
+LESSON 3 d 3/2 notated A with # figure: wrong played bass still reports cis
+GROUP ID:0 BASS:a, FIGURES:# BASS_ACTUAL:e, TIME:100 REALIZATION:e'/a
