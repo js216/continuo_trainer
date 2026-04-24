@@ -250,7 +250,8 @@ local function dur_sixteenths(token)
 end
 
 local SIXTEENTHS_TO_DUR = {
-	[16] = "1", [12] = "2.", [8] = "2", [6] = "4.", [4] = "4", [3] = "8.", [2] = "8", [1] = "16",
+	[24] = "1.", [16] = "1", [12] = "2.", [8] = "2", [6] = "4.", [4] = "4",
+	[3] = "8.", [2] = "8", [1] = "16",
 }
 
 local function bar_sixteenths(time_sig)
@@ -437,9 +438,7 @@ local function build_chunk_content(
 				local d = dur_sixteenths(bass[j])
 				if d then inherited = d end
 			end
-			-- Convert sixteenths back to LilyPond duration string
-			local dur_map = { [16]="1", [12]="2.", [8]="2", [6]="4.", [4]="4", [3]="8.", [2]="8", [1]="16" }
-			local dur_str = dur_map[inherited] or "4"
+			local dur_str = SIXTEENTHS_TO_DUR[inherited] or "4"
 			-- Insert duration after pitch+octave, before trailing 'p' if any
 			local pitch = tok:match("^([a-z]+[',]*)")
 			if pitch then
@@ -458,9 +457,37 @@ local function build_chunk_content(
 	lines[#lines + 1] = "}"
 	lines[#lines + 1] = ""
 	lines[#lines + 1] = "melody = {"
+	-- Same duration-inheritance rule as bassline: the first melody token in
+	-- the chunk must carry an explicit duration, since LilyPond inheritance
+	-- doesn't carry across chunks.  Find the last explicit duration in the
+	-- parent's melody groups before s, and inject it on the first token.
+	local first_emitted = true
 	for i = s, e do
 		local m = melody[i]
 		if m and m ~= "-" and m ~= "" then
+			if first_emitted then
+				local first_tok = m:match("^(%S+)")
+				if first_tok and not dur_sixteenths(first_tok) then
+					local inherited = 4
+					for j = 1, s - 1 do
+						local prior = melody[j]
+						if prior and prior ~= "-" and prior ~= "" then
+							for tok in prior:gmatch("%S+") do
+								local d = dur_sixteenths(tok)
+								if d then inherited = d end
+							end
+						end
+					end
+					local dur_str = SIXTEENTHS_TO_DUR[inherited] or "4"
+					local pitch = first_tok:match("^([a-zA-Z]+[',]*)")
+						or first_tok:match("^r")
+					if pitch then
+						local new_first = pitch .. dur_str .. first_tok:sub(#pitch + 1)
+						m = new_first .. m:sub(#first_tok + 1)
+					end
+				end
+				first_emitted = false
+			end
 			lines[#lines + 1] = "  " .. m
 		end
 	end
