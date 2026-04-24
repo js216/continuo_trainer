@@ -236,13 +236,15 @@ local POSITION_FACTORS = { 8, 3, 5 }  -- root, 3rd, 5th
 local POSITION_NAMES = { [8] = "root", [3] = "3rd", [5] = "5th" }
 
 local function init_position(alg)
+	-- Leave best_avg and max_groups unset (nil): update_entry's guards treat
+	-- nil as "first use" and initialise correctly.  Setting these to 0
+	-- would silently freeze speed_factor at 0 because Lua's `not 0` is false.
 	return {
 		mastery = 0, power_factor = 1.0,
 		ivl = 0, ease = alg.ease_initial,
 		ema_pass = 1.0, ema_evenness = 0,
 		n_pass = 0, n_fail = 0, n_pass_tot = 0,
 		total_duration = 0, pract_bpm = 0,
-		best_avg = 0, max_groups = 0,
 	}
 end
 
@@ -276,6 +278,61 @@ local function ensure_positions(c, alg)
 	for _, f in ipairs(POSITION_FACTORS) do
 		if not c.positions[f] then
 			c.positions[f] = init_position(alg)
+		end
+	end
+end
+
+-- Heal positions corrupted by an earlier zero-init of best_avg.  Once 0,
+-- Lua's `not 0` kept update_entry from ever resetting it, which froze
+-- speed_factor at 0 and mastery at 0 regardless of play quality.
+local function repair_positions(c)
+	if not c.positions then return end
+	for _, p in pairs(c.positions) do
+		if p.best_avg ~= nil and p.best_avg <= 0 then
+			p.best_avg = nil
+		end
+	end
+end
+
+-- Fail loudly on inconsistent stats so corruption can't masquerade as a
+-- legit low score.  Invariants checked (applied to chunks and positions):
+--   n_pass_tot > 0  =>  last_date set AND ivl > 0   (passed sessions must be scheduled)
+--   best_avg        =>  > 0 if present               (0 silently freezes speed_factor)
+-- Warmup fails can set last_date without incrementing any count, so we do
+-- not assert the reverse direction.
+local function assert_entry_consistent(kind, id, e, fail)
+	if (e.n_pass_tot or 0) > 0 then
+		if not e.last_date then
+			fail("%s %s: n_pass_tot=%d but last_date unset",
+				kind, id, e.n_pass_tot)
+		end
+		if (e.ivl or 0) <= 0 then
+			fail("%s %s: n_pass_tot=%d but ivl=%s",
+				kind, id, e.n_pass_tot, tostring(e.ivl or 0))
+		end
+	end
+	if e.best_avg ~= nil and e.best_avg <= 0 then
+		fail("%s %s: best_avg=%s (must be > 0 or nil)",
+			kind, id, tostring(e.best_avg))
+	end
+end
+
+local function assert_chunk_consistent(hash, c)
+	local function fail(msg, ...)
+		io.stderr:write(string.format(
+			"stats.lua: corrupt stats for chunk %s: " .. msg
+			.. "\n  delete log/stats.log to recover (progress will be lost).\n",
+			hash, ...))
+		os.exit(1)
+	end
+
+	assert_entry_consistent("chunk", hash, c, fail)
+	if c.positions then
+		for _, f in ipairs(POSITION_FACTORS) do
+			local p = c.positions[f]
+			if p then
+				assert_entry_consistent("position", tostring(f), p, fail)
+			end
 		end
 	end
 end
@@ -582,10 +639,12 @@ local function update_entry(entry, sd, alg, is_warmup)
 	entry.ema_pass = entry.ema_pass and (alpha * pass_this_session + (1 - alpha) * entry.ema_pass)
 		or pass_this_session
 
-	-- Speed factor
+	-- Speed factor.  Treat best_avg <= 0 (including legacy zero-init) as
+	-- "not yet set" — Lua's `not 0` is false, so an explicit 0 would
+	-- otherwise freeze best_avg forever and make speed_factor = 0.
 	local speed_factor
 	if sd.average > 0 then
-		if not entry.best_avg or sd.average < entry.best_avg then
+		if not entry.best_avg or entry.best_avg <= 0 or sd.average < entry.best_avg then
 			entry.best_avg = sd.average
 		end
 		speed_factor = math.min(1.0, entry.best_avg / sd.average)
@@ -1417,6 +1476,7 @@ local function finalize()
 	stats.daily[today] = stats.daily[today] or { score = 0, duration = 0 }
 	stats.daily[today].score = stats.daily[today].score + points
 	stats.daily[today].duration = stats.daily[today].duration + sd.duration
+	assert_chunk_consistent(hash, c)
 	save_stats(stats_file, stats)
 	local eff_m = effective_mastery(c)
 	local eff_p = effective_power(c, alg)
@@ -1475,6 +1535,12 @@ local pending_suggest = false -- defer SUGGEST_LESSON until children_of map is r
 
 stats = load_stats(stats_file)
 apply_mastery_decay(stats)
+
+-- Repair known legacy corruption (best_avg zero-init), then validate.
+for h, c in pairs(stats.chunks) do
+	repair_positions(c)
+	assert_chunk_consistent(h, c)
+end
 
 -- Fast startup: pre-populate from stats file; no scan or QUERY_CHILDREN needed.
 for h, c in pairs(stats.chunks) do
