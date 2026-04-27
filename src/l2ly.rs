@@ -94,17 +94,27 @@ fn main() {
     // Optional time signature.  When present, also emit \partial if the chunk
     // starts mid-bar (partial: field holds a LilyPond duration, e.g. "4" for
     // a quarter-note pickup).
+    //
+    // "c" / "C" are common-time abbreviations: numerically 4/4, but rendered
+    // as the C symbol on the staff.  We normalise to "4/4" for the \time
+    // directive and prepend a TimeSignature.style override for display.
     let partial = extract_field(&content, "partial");
-    let time_directive = if time.is_empty() {
+    let (time_numeric, time_style) = match time.as_str() {
+        "c" | "C" => (
+            "4/4".to_string(),
+            "\\override Staff.TimeSignature.style = #'C\n      ".to_string(),
+        ),
+        _ => (time.clone(), String::new()),
+    };
+    let time_directive = if time_numeric.is_empty() {
         r"\cadenzaOn".to_string()
     } else if !partial.is_empty() {
         format!(
-            "\\time {}\n      \\partial {}",
-            time,
-            partial
+            "{}\\time {}\n      \\partial {}",
+            time_style, time_numeric, partial
         )
     } else {
-        format!(r"\time {}", time)
+        format!("{}\\time {}", time_style, time_numeric)
     };
     // Bar number directive: only meaningful when a time signature is present.
     // 1. Set the starting number.
@@ -348,8 +358,10 @@ fn split_figures(s: &str) -> Vec<String> {
 // Input        LilyPond    Glyph
 // #            _+          sharp on the 3rd (shorthand)
 // b            _-          flat on the 3rd
+// n            _!          natural on the 3rd (shorthand)
 // #6           6+          sharp accidental on 6
 // b6           6-          flat accidental on 6
+// n6           6!          natural accidental on 6
 // 6+  / +6     6\+         plus sign on 6
 // 6\/          6/          forward slash through 6
 // 6\\          6\\         backward slash through 6
@@ -359,6 +371,9 @@ fn interval_to_ly(s: &str) -> String {
     }
     if s == "b" {
         return "_-".to_string();
+    }
+    if s == "n" {
+        return "_!".to_string();
     }
 
     // Backward slash through figure: 6\\ → 6\\
@@ -385,6 +400,8 @@ fn interval_to_ly(s: &str) -> String {
         ("+", &s[1..])
     } else if s.starts_with('b') {
         ("-", &s[1..])
+    } else if s.starts_with('n') {
+        ("!", &s[1..])
     } else if s.ends_with('+') {
         ("\\+", &s[..s.len() - 1])
     } else if s.starts_with('+') {
