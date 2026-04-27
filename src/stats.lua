@@ -140,6 +140,19 @@ local ALGORITHM_DEFAULTS = {
 	-- Length bonus: reward completing longer lessons
 	length_bonus_threshold = 3, -- groups up to this count get no bonus
 	length_bonus_per_group = 0.25, -- extra fraction per group above threshold
+
+	-- Comeback support: when the streak is broken (today partial AND yesterday
+	-- missed), this fraction of suggestions surface a known-easy chunk so the
+	-- session starts with a win instead of a fight.
+	streak_broken_easy_mix = 0.25,
+
+	-- Plateau detection: only nudge the user to switch chunks when this many
+	-- consecutive sessions on the current chunk yielded zero progress
+	-- (m_delta = p_delta = 0, no badge earned, ema_pass not improving, BPM
+	-- not increasing).  Replaces the old session-count gate, which fired
+	-- mid-improvement and felt punitive.  overlearn_max remains as a hard
+	-- absolute ceiling.
+	interleave_no_progress_thresh = 3,
 }
 
 local stats_file = arg[1]
@@ -434,9 +447,15 @@ local function pick_next_position(c, alg)
 end
 
 -- Suggestion token prompting the user to try a specific position, or nil if
--- all achievable ones are earned.  Avoids suggesting the position just played.
+-- all achievable ones are earned.  Don't nudge to a different factor while
+-- the current one is still being earned (state != 2): switching mid-mastery
+-- is demotivating.  Once the current factor is fully earned, point at the
+-- weakest remaining one.
 local function position_suggestion(c, alg, just_played)
 	if all_positions_earned(c, alg) then return nil end
+	if just_played and position_state(c, just_played, alg) ~= 2 then
+		return nil
+	end
 	local next_f = pick_next_position(c, alg)
 	if next_f and next_f ~= just_played then
 		return "try_" .. POSITION_NAMES[next_f] .. "_on_top"
@@ -648,6 +667,7 @@ local function update_entry(entry, sd, alg, is_warmup)
 
 	local old_mastery = entry.mastery or 0
 	local old_power = calculate_power(entry, alg)
+	local old_ema_pass = entry.ema_pass or 0
 
 	-- EMA pass rate
 	local pass_this_session = (sd.accuracy >= alg.pass_accuracy) and 1.0 or 0.0
@@ -729,6 +749,7 @@ local function update_entry(entry, sd, alg, is_warmup)
 		old_mastery = old_mastery,
 		m_delta = math.max(0, (entry.mastery or 0) - old_mastery),
 		p_delta = math.max(0, new_power - old_power),
+		ema_pass_delta = (entry.ema_pass or 0) - old_ema_pass,
 		quality = quality,
 		speed_factor = speed_factor,
 		evenness_factor = evenness_factor,
@@ -939,12 +960,52 @@ local function scaled_limit(ema_pass, min_val, max_val)
 	return min_val + (max_val - min_val) * (1.0 - (ema_pass or 1.0))
 end
 
+-- Pick a uniformly random "known-easy" chunk: power% already at or above
+-- chunk_power_thresh, and not skipped by the same overlearn / daily-cap
+-- guards used in suggest_best_hash.  Returns nil if the pool is empty.
+local function pick_random_easy(stats, exclude_hash, alg, today)
+	local pool = {}
+	for h, c in pairs(stats.chunks) do
+		if h ~= exclude_hash then
+			local skip = false
+			if c.plays_today_date == today then
+				local daily_cap = scaled_limit(c.ema_pass, alg.daily_repeats_min, alg.daily_repeats_max)
+				if (c.plays_today or 0) >= daily_cap then skip = true end
+			end
+			if not skip then
+				local overlearn_limit = scaled_limit(c.ema_pass, alg.overlearn_min, alg.overlearn_max)
+				if (c.n_consecutive or 0) >= overlearn_limit then skip = true end
+			end
+			if not skip then
+				local p_pct = normalize(effective_power(c, alg), c)
+				if p_pct >= alg.chunk_power_thresh then
+					pool[#pool + 1] = h
+				end
+			end
+		end
+	end
+	if #pool == 0 then return nil end
+	return pool[math.random(#pool)]
+end
+
 -- Returns the hash of the best chunk to suggest, or nil. No output.
 -- candidate_set, if non-nil, restricts consideration to those hashes — used
 -- by [E]asier to pick the best child of the current chunk.
+-- May return a second value "confidence_break" when the streak-broken easy-mix
+-- path fired, so callers can label the SUGGESTION reason accordingly.
 local function suggest_best_hash(stats, exclude_hash, candidate_set)
 	local alg = stats.algorithm
 	local today = get_date_str(alg.midnight_time)
+
+	-- Streak-broken comeback: surface an easy chunk a fraction of the time.
+	-- Skipped when candidate_set is set (e.g. [E]asier explicitly restricts
+	-- the pool to children of the current chunk).
+	if not candidate_set and calculate_streak(stats) == 0
+			and math.random() < (alg.streak_broken_easy_mix or 0) then
+		local easy = pick_random_easy(stats, exclude_hash, alg, today)
+		if easy then return easy, "confidence_break" end
+	end
+
 	local best_unmastered = nil
 	local best_new = nil
 	local best_perf = nil
@@ -1035,17 +1096,18 @@ local function suggest_best_hash(stats, exclude_hash, candidate_set)
 end
 
 local function handle_suggest(stats)
-	local best_hash = suggest_best_hash(stats, current_loaded)
+	local best_hash, reason_override = suggest_best_hash(stats, current_loaded)
 	if best_hash then
 		local c = stats.chunks[best_hash]
 		local is_new = not c.last_date and not c.t_last_date
+		local reason = reason_override or (is_new and "new_chunk" or "weak_chunk")
 		io.write(
 			string.format(
 				"SUGGESTION chunk=%s level=%d skills=%s reason=%s\n",
 				best_hash,
 				c.level or 0,
 				chunk_skills[best_hash] or "?",
-				is_new and "new_chunk" or "weak_chunk"
+				reason
 			)
 		)
 		return
@@ -1340,8 +1402,12 @@ local function check_interleave(hash, c, alg)
 	end
 	attempts_since[hash] = 0
 
-	local required = scaled_limit(c.ema_pass, alg.overlearn_min, alg.overlearn_max)
-	if c.n_consecutive < required then
+	-- Only nudge the user to switch when they're actually stuck (no progress
+	-- for several sessions) or have ground out the absolute hard ceiling.
+	-- Mid-improvement nudges are demotivating.
+	local plateau_thresh = alg.interleave_no_progress_thresh or 3
+	local hard_cap = alg.overlearn_max or math.huge
+	if (c.no_progress_streak or 0) < plateau_thresh and (c.n_consecutive or 0) < hard_cap then
 		return nil
 	end
 
@@ -1431,6 +1497,7 @@ local function finalize()
 		c.plays_today = (c.plays_today or 0) + 1
 	end
 	local is_warmup = (c.plays_today or 1) <= alg.warmup_attempts
+	local old_pract_bpm = c.pract_bpm or 0
 	local res = update_entry(c, sd, alg, is_warmup)
 	-- Collect failed group IDs and apply power_factor penalty.
 	local failed_groups = {}
@@ -1479,6 +1546,14 @@ local function finalize()
 			end
 			pos_res = update_entry(p, sd, alg, is_warmup)
 		end
+		-- Track how many consecutive sessions targeted the same factor.
+		-- position_suggestion uses this to gate the "try X on top" prompt.
+		if c.current_position == current.start_factor then
+			c.consecutive_position_plays = (c.consecutive_position_plays or 0) + 1
+		else
+			c.current_position = current.start_factor
+			c.consecutive_position_plays = 1
+		end
 	end
 	stats.chunks[hash] = c
 	-- Points: credit the position's m/p gains when available, else fall back
@@ -1494,6 +1569,19 @@ local function finalize()
 	-- Badge progression (finalize only runs for practice play-throughs)
 	local badge_pts = check_badges(c, alg, "practice")
 	points = points + badge_pts
+	-- Plateau tracking: counts consecutive sessions on this chunk that yielded
+	-- no measurable improvement.  check_interleave consults this so the user
+	-- only gets nudged to switch when actually stuck, not mid-improvement.
+	local made_progress = res.m_delta > 0
+		or res.p_delta > 0
+		or (res.ema_pass_delta or 0) > 0
+		or badge_pts > 0
+		or (c.pract_bpm or 0) > old_pract_bpm
+	if made_progress then
+		c.no_progress_streak = 0
+	else
+		c.no_progress_streak = (c.no_progress_streak or 0) + 1
+	end
 	stats.daily[today] = stats.daily[today] or { score = 0, duration = 0 }
 	stats.daily[today].score = stats.daily[today].score + points
 	stats.daily[today].duration = stats.daily[today].duration + sd.duration
@@ -1553,6 +1641,8 @@ end
 -------------------------------------------------------------------------------
 
 local pending_suggest = false -- defer SUGGEST_LESSON until children_of map is ready
+
+math.randomseed(os.time())
 
 stats = load_stats(stats_file)
 apply_mastery_decay(stats)

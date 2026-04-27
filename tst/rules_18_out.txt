@@ -1,0 +1,3 @@
+RESULT 0 TIME:100 [31mFAIL[0m Incorrect realization of figure 3/5/7: ais
+RESULT 0 TIME:200 [31mFAIL[0m Incorrect realization of figure 3/5/7: ais
+RESULT 0 TIME:200 [31mFAIL[0m Figure 5 (g) is missing from the realization

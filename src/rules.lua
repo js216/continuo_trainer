@@ -1014,17 +1014,25 @@ local function top_voice_factor(g, key)
 		return nil
 	end
 	local top_pc = g.inner[#g.inner] % 12
-	local bass_pc = g.bass % 12
+	-- Use the NOTATED bass (and its letter index) so the factor reflects
+	-- what the score asks for, not what the user happened to play in the
+	-- bass.  For figures with accidentals (e.g. "#" = sharp 3), we must
+	-- match against the figure-implied pitch (e.g. C# above A) — not the
+	-- plain diatonic 3rd (C natural in d minor) — otherwise a correctly
+	-- played sharp third would never be credited.
+	local bass_pc = g.bass_notated % 12
 	if top_pc == bass_pc then
 		return 8
 	end
-	local pc_3 = figure_to_pc({ deg = 3, acc = 0 }, bass_pc, g.bass_letter_idx, key)
-	if pc_3 and top_pc == pc_3 then
-		return 3
-	end
-	local pc_5 = figure_to_pc({ deg = 5, acc = 0 }, bass_pc, g.bass_letter_idx, key)
-	if pc_5 and top_pc == pc_5 then
-		return 5
+	for _, fig in ipairs(g.figures) do
+		local pc = figure_to_pc(fig, bass_pc, g.bass_notated_letter_idx, key)
+		if pc and top_pc == pc then
+			local d = ((fig.deg - 1) % 7) + 1
+			if d == 3 then return 3 end
+			if d == 5 then return 5 end
+			if d == 1 then return 8 end -- octave / root doubling
+			return nil -- 6, 7, etc. not tracked as factors
+		end
 	end
 	return nil
 end
@@ -1354,10 +1362,22 @@ local function print_result(g, ok, errors, factor)
 end
 
 local function main()
+	local current_lesson_id = nil
 	for line in io.lines() do
 		line = line:gsub("\r", "")
 		if line:match("^LESSON") then
-			resolve_pending_7(nil) -- flush before reset
+			-- Distinguish a genuine lesson change from a reload of the same
+			-- lesson.  On reload we drop any stale pending_7 silently — the
+			-- user is starting over and shouldn't get a FAIL for a 7-chord
+			-- they're about to replay.  On a real lesson change, flush so
+			-- the previous lesson's last 7-chord still gets validated.
+			local new_id = line:match("^LESSON%s+(%S+)")
+			if current_lesson_id and new_id ~= current_lesson_id then
+				resolve_pending_7(nil)
+			else
+				pending_7 = nil
+			end
+			current_lesson_id = new_id
 			rising_56_state = nil
 			seq_reset()
 			local k = parse_lesson_key(line)
