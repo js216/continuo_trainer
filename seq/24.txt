@@ -1,0 +1,26 @@
+title: No. 7: 6 chords
+composer: G. F. Handel
+key: G
+time: c
+bpm: 100
+bar: 1
+
+bassline = {
+  g,8 gp fis d e fis g b,
+  c d e fis g fisp g ep
+  a fis g a d d' b a
+  g fis e c d g, d d,p
+  g1
+}
+
+figures = {
+  0 0 6 0 6 6 0 6
+  6 6 6 6 0 0 6 0
+  # 6 0 # 0 0 6 6
+  6 6 6 0 0 0 0 0
+  0
+}
+
+melody = {
+  r1 r r r r
+}

@@ -1,0 +1,30 @@
+title: No. 6
+composer: G. F. Handel
+key: C
+time: c
+bpm: 100
+bar: 1
+
+bassline = {
+  c4 c g g
+  d d a a
+  f d e a,
+  e2 a,4 a,
+  d d g, g,
+  c c f4 d
+  g c g g,
+  c1
+}
+
+figures = {
+  3 b 3 b
+  # n # n
+  0 0 # 0
+  # 3 #
+  3 # b n b n 0 0 0 0 0 0 0
+}
+
+melody = {
+  r1 r r r
+  r r r r
+}

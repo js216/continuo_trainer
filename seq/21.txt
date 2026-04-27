@@ -1,0 +1,27 @@
+title: No. 5
+composer: G. F. Handel
+key: g
+time: 3/2
+bpm: 100
+bar: 1
+
+bassline = {
+  g4 ap besp c'p d' dp
+  g dp gp ap bes dp
+  ees fp gp ap bes bes,p
+  f eesp dp cp bes, dp
+}
+
+figures = {
+  0 0 0 0 # 0
+  0 0 0 0 0 0
+  0 0 0 0 0 0
+  0 0 0 0 0 0
+}
+
+melody = {
+  r1.
+  r
+  r
+  r
+}
