@@ -1,5 +1,6 @@
 RESULT 0 TIME:1772228940145 [31mFAIL[0m No realization provided (inner voices are empty)
 RESULT 0 TIME:1772228940145 [31mFAIL[0m Figure 3 (e) is missing from the realization
 RESULT 1 TIME:1772228940466 [31mFAIL[0m Passing bass: expected d, got c
+RESULT 2 TIME:1772228940857 [31mFAIL[0m Wrong bass: expected e, got c
 RESULT 2 TIME:1772228940857 [31mFAIL[0m No realization provided (inner voices are empty)
 RESULT 2 TIME:1772228940857 [31mFAIL[0m Figure 3 (g) is missing from the realization

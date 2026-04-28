@@ -669,6 +669,30 @@ local function rule_passing_bass(ctx)
 		pc_name(g.bass_notated), pc_name(g.bass))
 end
 
+-- The bass the user played must match the notated bass (mod 12) for any
+-- non-passing group.  rule_passing_bass covers the passing case with its
+-- own message, and rule_bass_in_key catches non-diatonic notes with a more
+-- specific "not diatonic" message.  This fills the gap for diatonic-but-
+-- wrong notes (e.g. playing E in a chord notated over C in C major), which
+-- previously slipped through silently.
+local function rule_bass_matches_notated(ctx)
+	local g = ctx.window[#ctx.window]
+	if g.passing then return true, nil end
+	if g.bass_notated_raw == "?" then return true, nil end  -- wildcard
+	local bass_pc = g.bass % 12
+	local notated_pc = g.bass_notated % 12
+	if bass_pc == notated_pc then return true, nil end
+	-- Defer to rule_bass_in_key for non-diatonic notes so the user gets
+	-- the more informative "not diatonic" message.
+	for _, pc in ipairs(ctx.key.scale_pcs) do
+		if pc == bass_pc then
+			return false, string.format("Wrong bass: expected %s, got %s",
+				pc_name(g.bass_notated), pc_name(g.bass))
+		end
+	end
+	return true, nil
+end
+
 local function rule_bass_in_key(ctx)
 	local g = ctx.window[#ctx.window]
 	if g.passing then
@@ -1176,6 +1200,7 @@ local RULES = {
 	rule_no_parallel_octaves,
 	rule_bass_leap,
 	rule_passing_bass,
+	rule_bass_matches_notated,
 	rule_check_realization,
 	rule_bass_in_key,
 	rule_not_past_end,
