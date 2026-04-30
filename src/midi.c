@@ -559,10 +559,33 @@ static void panic_midi_out(State *s)
 		out_status("No MIDI output connected");
 		return;
 	}
+	/* CC 64 = 0 releases the sustain pedal so notes aren't re-held by a
+	 * stuck pedal state, CC 120 (All Sound Off) cuts even sustained
+	 * voices, and CC 123 (All Notes Off) silences sounding notes on the
+	 * channel.  Sending all three on every channel covers what every
+	 * General MIDI / GM2 / GS / XG synth supports.
+	 *
+	 * NOTE: an earlier version of this function also emitted Note Off
+	 * (0x80) for every pitch (0..127) on every channel as a brute-force
+	 * fallback — 2048 extra messages, sent as fast as rtmidi could push
+	 * them.  Some hardware synths overflow their input buffer on that
+	 * burst and lock up entirely until power-cycled.  The CC trio is
+	 * enough for any compliant synth, so the brute-force sweep is gone. */
+	unsigned char cc[3];
 	for (int ch = 0; ch < 16; ch++) {
-		unsigned char msg[3] = {(unsigned char)(0xB0 | ch), 123, 0};
-		rtmidi_out_send_message(s->midi_out, msg, 3);
+		cc[0] = (unsigned char)(0xB0 | ch);
+		cc[1] = 64; cc[2] = 0;
+		rtmidi_out_send_message(s->midi_out, cc, 3);
+		cc[1] = 120; cc[2] = 0;
+		rtmidi_out_send_message(s->midi_out, cc, 3);
+		cc[1] = 123; cc[2] = 0;
+		rtmidi_out_send_message(s->midi_out, cc, 3);
 	}
+	/* Brief sleep so the CC messages flush over USB-MIDI / virtual MIDI
+	 * before the port is closed at process exit.  rtmidi has no
+	 * synchronous flush. */
+	struct timespec ts = { .tv_sec = 0, .tv_nsec = 20 * 1000000L };
+	nanosleep(&ts, NULL);
 	out_status("MIDI panic sent");
 }
 
