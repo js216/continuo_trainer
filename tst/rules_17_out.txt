@@ -1,4 +1,4 @@
-RESULT 0 TIME:100 [32mOK[0m FACTOR:3
-RESULT 0 TIME:100 [31mFAIL[0m Figure 3 (cis) is missing from the realization FACTOR:8
+RESULT 0 TIME:100 [31mFAIL[0m Figure 8 (a) is missing from the right hand FACTOR:3
+RESULT 0 TIME:100 [31mFAIL[0m Figure 3 (cis) is missing from the right hand FACTOR:8
 RESULT 0 TIME:100 [31mFAIL[0m Wrong bass: expected a, got e FACTOR:5
-RESULT 0 TIME:100 [31mFAIL[0m Figure 3 (cis) is missing from the realization FACTOR:5
+RESULT 0 TIME:100 [31mFAIL[0m Figure 3 (cis) is missing from the right hand FACTOR:5

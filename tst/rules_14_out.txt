@@ -1,11 +1,13 @@
 RESULT 0 TIME:100 [32mOK[0m FACTOR:8
+RESULT 1 TIME:200 [31mFAIL[0m Figure 8 (c) is missing from the right hand
 RESULT 1 TIME:200 [31mFAIL[0m Cadence: drop the top voice to the 3rd (e) instead of repeating the 5th (g)
 RESULT 0 TIME:100 [32mOK[0m FACTOR:8
-RESULT 1 TIME:200 [32mOK[0m
+RESULT 1 TIME:200 [31mFAIL[0m Figure 8 (c) is missing from the right hand
+RESULT 0 TIME:100 [32mOK[0m FACTOR:8
+RESULT 1 TIME:200 [31mFAIL[0m Figure 8 (c) is missing from the right hand
+RESULT 0 TIME:100 [31mFAIL[0m Figure 8 (g) is missing from the right hand FACTOR:5
+RESULT 1 TIME:200 [31mFAIL[0m Figure 8 (c) is missing from the right hand
 RESULT 0 TIME:100 [32mOK[0m FACTOR:8
 RESULT 1 TIME:200 [32mOK[0m
-RESULT 0 TIME:100 [32mOK[0m FACTOR:5
-RESULT 1 TIME:200 [32mOK[0m
-RESULT 0 TIME:100 [32mOK[0m FACTOR:8
-RESULT 1 TIME:200 [32mOK[0m
+RESULT 2 TIME:300 [31mFAIL[0m Figure 8 (c) is missing from the right hand
 RESULT 2 TIME:300 [31mFAIL[0m Cadence: drop the top voice to the 3rd (e) instead of repeating the 5th (g)

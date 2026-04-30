@@ -1,9 +1,9 @@
 RESULT 0 TIME:1772227710513 [31mFAIL[0m Bass note cis is not diatonic to the key
 RESULT 0 TIME:1772227710513 [31mFAIL[0m No realization provided (inner voices are empty)
-RESULT 0 TIME:1772227710513 [31mFAIL[0m Figure 3 (e) is missing from the realization
+RESULT 0 TIME:1772227710513 [31mFAIL[0m Figure 3 (e) is missing from the right hand
 RESULT 1 TIME:1772227710731 [31mFAIL[0m Passing bass: expected d, got cis
 RESULT 2 TIME:1772227710916 [31mFAIL[0m Bass note cis is not diatonic to the key
 RESULT 2 TIME:1772227710916 [31mFAIL[0m No realization provided (inner voices are empty)
-RESULT 2 TIME:1772227710916 [31mFAIL[0m Figure 3 (g) is missing from the realization
+RESULT 2 TIME:1772227710916 [31mFAIL[0m Figure 3 (g) is missing from the right hand
 RESULT 3 TIME:1772227711807 [31mFAIL[0m Group is past the end of the lesson
 RESULT 3 TIME:1772227711807 [31mFAIL[0m No realization provided (inner voices are empty)

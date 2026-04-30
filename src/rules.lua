@@ -661,6 +661,24 @@ local function rule_check_realization(ctx)
 	return true, nil
 end
 
+-- An octave-jump in the bass (same pitch class as the previous group, but
+-- a different absolute pitch — e.g. c4 → c2) carries the same harmony and
+-- realization as the previous note.  Mark the group as passing so the
+-- harmonic rules apply to the previous beat only and the user isn't
+-- penalised for "incomplete" right-hand voicing on the jump.  Must run
+-- before any rule that consults g.passing.
+local function rule_mark_octave_jump(ctx)
+	local g = ctx.window[#ctx.window]
+	if g.passing then return true, nil end
+	if #ctx.window < 2 then return true, nil end
+	local prev = ctx.window[#ctx.window - 1]
+	if g.bass_notated % 12 == prev.bass_notated % 12
+		and g.bass_notated ~= prev.bass_notated then
+		g.passing = true
+	end
+	return true, nil
+end
+
 local function rule_passing_bass(ctx)
 	local g = ctx.window[#ctx.window]
 	if not g.passing then return true, nil end
@@ -759,24 +777,25 @@ local pending_7 = nil -- { group = g, key = key }
 
 -- Check completeness for a non-deferred group.  Required pitches come from
 -- the NOTATED bass (score), not the played bass, so a wrong-bass error
--- doesn't mutate the expected chord.  `present` is strictly what the user
--- played: if they played a wrong bass and thus failed to sound the notated
--- root, the missing-root message still fires — correctly naming the root
--- the score asked for.
+-- doesn't mutate the expected chord.  Each figure pc must appear in the
+-- RIGHT HAND (g.inner) — the bass providing that pc isn't enough.  Figure
+-- "3" means the implicit triad 3/5/8, so right hand needs three voices
+-- spanning those three pcs (octave doubling of the bass goes in the right
+-- hand, not just the left).  Without this, a 2-voice realization (e.g.
+-- e/g over C bass) slipped through despite being a thin voicing.
 local function check_completeness(g, key)
-	local played_pc = g.bass % 12
 	local notated_pc = g.bass_notated % 12
-	local present = set_new({ played_pc })
+	local upper_pcs = set_new({})
 	for _, n in ipairs(g.inner) do
-		set_insert(present, n % 12)
+		set_insert(upper_pcs, n % 12)
 	end
 	for _, fig in ipairs(g.figures) do
 		local required_pc = figure_to_pc(fig, notated_pc, g.bass_notated_letter_idx, key)
 		if not required_pc then
 			return true, nil
 		end
-		if not set_contains(present, required_pc) then
-			return false, string.format("Figure %d (%s) is missing from the realization", fig.deg, pc_name(required_pc))
+		if not set_contains(upper_pcs, required_pc) then
+			return false, string.format("Figure %d (%s) is missing from the right hand", fig.deg, pc_name(required_pc))
 		end
 	end
 	return true, nil
@@ -1031,7 +1050,11 @@ local function diatonic_interval(from_letter, from_semi, to_letter, to_semi)
 	end
 end
 
-local FACTOR_NAME = { [3] = "3rd", [5] = "5th", [8] = "root" }
+local FACTOR_NAME = {
+	[2] = "2nd", [3] = "3rd", [4] = "4th",
+	[5] = "5th", [6] = "6th", [7] = "7th",
+	[8] = "root",
+}
 
 local function top_voice_factor(g, key)
 	if #g.inner == 0 then
@@ -1051,11 +1074,16 @@ local function top_voice_factor(g, key)
 	for _, fig in ipairs(g.figures) do
 		local pc = figure_to_pc(fig, bass_pc, g.bass_notated_letter_idx, key)
 		if pc and top_pc == pc then
+			-- Normalise compound intervals (9→2, 10→3, …) so all eight
+			-- diatonic positions land in the small canonical set tracked
+			-- by stats.lua's POSITION_FACTORS.
 			local d = ((fig.deg - 1) % 7) + 1
-			if d == 3 then return 3 end
-			if d == 5 then return 5 end
 			if d == 1 then return 8 end -- octave / root doubling
-			return nil -- 6, 7, etc. not tracked as factors
+			if d == 2 or d == 3 or d == 4
+				or d == 5 or d == 6 or d == 7 then
+				return d
+			end
+			return nil
 		end
 	end
 	return nil
@@ -1195,6 +1223,7 @@ local function rule_sequence(ctx)
 end
 
 local RULES = {
+	rule_mark_octave_jump,
 	rule_rising_56,
 	rule_no_parallel_fifths,
 	rule_no_parallel_octaves,

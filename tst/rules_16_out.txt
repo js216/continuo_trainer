@@ -1,27 +1,32 @@
-RESULT 0 TIME:100 [32mOK[0m FACTOR:3
-RESULT 1 TIME:200 [32mOK[0m
-RESULT 2 TIME:300 [32mOK[0m
-RESULT 3 TIME:400 [32mOK[0m
-RESULT 0 TIME:100 [32mOK[0m FACTOR:3
-RESULT 1 TIME:200 [32mOK[0m
-RESULT 2 TIME:300 [32mOK[0m
+RESULT 0 TIME:100 [31mFAIL[0m Figure 8 (a) is missing from the right hand FACTOR:3
+RESULT 1 TIME:200 [31mFAIL[0m Figure 8 (e) is missing from the right hand
+RESULT 2 TIME:300 [31mFAIL[0m Figure 8 (c) is missing from the right hand
+RESULT 3 TIME:400 [31mFAIL[0m Figure 8 (g) is missing from the right hand
+RESULT 0 TIME:100 [31mFAIL[0m Figure 8 (a) is missing from the right hand FACTOR:3
+RESULT 1 TIME:200 [31mFAIL[0m Figure 8 (e) is missing from the right hand
+RESULT 2 TIME:300 [31mFAIL[0m Figure 8 (c) is missing from the right hand
+RESULT 3 TIME:400 [31mFAIL[0m Figure 8 (g) is missing from the right hand
 RESULT 3 TIME:400 [31mFAIL[0m Sequence: keep the 5th on top (matching previous pairs)
-RESULT 0 TIME:100 [32mOK[0m FACTOR:3
+RESULT 0 TIME:100 [31mFAIL[0m Figure 8 (a) is missing from the right hand FACTOR:3
 RESULT 1 TIME:200 [31mFAIL[0m Parallel fifths: (a,, e) -> (e, b)
+RESULT 1 TIME:200 [31mFAIL[0m Figure 8 (e) is missing from the right hand
 RESULT 2 TIME:300 [31mFAIL[0m Parallel fifths: (e, b) -> (c, g)
+RESULT 2 TIME:300 [31mFAIL[0m Figure 8 (c) is missing from the right hand
+RESULT 3 TIME:400 [31mFAIL[0m Figure 8 (g) is missing from the right hand
 RESULT 3 TIME:400 [31mFAIL[0m Sequence: avoid repeating the 3rd on top within this pair
-RESULT 0 TIME:100 [32mOK[0m FACTOR:3
-RESULT 1 TIME:200 [32mOK[0m
-RESULT 2 TIME:300 [32mOK[0m
-RESULT 3 TIME:400 [32mOK[0m
-RESULT 4 TIME:500 [32mOK[0m
-RESULT 5 TIME:600 [32mOK[0m
-RESULT 0 TIME:100 [32mOK[0m FACTOR:3
-RESULT 1 TIME:200 [32mOK[0m
-RESULT 2 TIME:300 [32mOK[0m
-RESULT 3 TIME:400 [32mOK[0m
+RESULT 0 TIME:100 [31mFAIL[0m Figure 8 (a) is missing from the right hand FACTOR:3
+RESULT 1 TIME:200 [31mFAIL[0m Figure 8 (e) is missing from the right hand
+RESULT 2 TIME:300 [31mFAIL[0m Figure 8 (c) is missing from the right hand
+RESULT 3 TIME:400 [31mFAIL[0m Figure 8 (g) is missing from the right hand
+RESULT 4 TIME:500 [31mFAIL[0m Figure 8 (e) is missing from the right hand
+RESULT 5 TIME:600 [31mFAIL[0m Figure 8 (b) is missing from the right hand
+RESULT 0 TIME:100 [31mFAIL[0m Figure 8 (a) is missing from the right hand FACTOR:3
+RESULT 1 TIME:200 [31mFAIL[0m Figure 8 (e) is missing from the right hand
+RESULT 2 TIME:300 [31mFAIL[0m Figure 8 (c) is missing from the right hand
+RESULT 3 TIME:400 [31mFAIL[0m Figure 8 (g) is missing from the right hand
+RESULT 4 TIME:500 [31mFAIL[0m Figure 8 (e) is missing from the right hand
 RESULT 4 TIME:500 [31mFAIL[0m Sequence: keep the 3rd on top (matching previous pairs)
-RESULT 0 TIME:100 [32mOK[0m FACTOR:3
-RESULT 1 TIME:200 [32mOK[0m
-RESULT 2 TIME:300 [32mOK[0m
-RESULT 3 TIME:400 [32mOK[0m
+RESULT 0 TIME:100 [31mFAIL[0m Figure 8 (a) is missing from the right hand FACTOR:3
+RESULT 1 TIME:200 [31mFAIL[0m Figure 8 (e) is missing from the right hand
+RESULT 2 TIME:300 [31mFAIL[0m Figure 8 (f) is missing from the right hand
+RESULT 3 TIME:400 [31mFAIL[0m Figure 8 (c) is missing from the right hand
