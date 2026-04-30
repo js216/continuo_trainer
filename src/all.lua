@@ -507,15 +507,43 @@ end
 
 -- Which starting-position factors ({3, 5, 8}, subset) are traditionally
 -- reachable for this chunk?  The first non-passing figure determines the
--- chord's voice count:
---   bare 5 (5-6 sequence start)         → bass + 3 + 5 (3 voices), top ∈ {3, 5}
---   bare 6 (descending 5-6 or 6 chord)  → bass + 3 + 6 (3 voices), top = 3 or 6;
---                                         only 3 is in our tracked vocabulary
---   bare 7 (7-6 suspension chain start) → bass + 3 + 7 or bass + 5 + 7;
---                                         top is usually 7, but 3 and 5 are
---                                         possible in voicing variants
---   anything else                       → assume 4-voice triad, top ∈ {3, 5, 8}
--- Accidentals before the bare figure ([#bn]*) don't change the voice count.
+-- Traditional continuo: which intervals above the bass may legitimately
+-- appear as the soprano of the FIRST sounding chord, given its figure?
+-- A figure "N" says interval N is sounded; the soprano can be any of those
+-- intervals, plus the bass octave "8" for chords that allow root-doubling.
+-- Centralised here so the rule set can be tweaked in one place.
+--
+--   ""/"0"/"3"/"5"   root-position triad             → {8, 3, 5}
+--   "6"/"6/3"        first inversion (6/3 sixth)     → {3, 6}
+--   "6/4"            second inversion (cadential 6/4)→ {8, 4, 6}
+--   "7" (alone)      root-position seventh           → {8, 3, 5, 7}
+--   "6/5"            first-inversion seventh         → {3, 5, 6}
+--   "4/3"            second-inversion seventh        → {3, 4, 6}
+--   "4/2" or "2"     third-inversion seventh         → {2, 4, 6}
+--   "4" (4-3 sus.)   suspended fourth, soprano on 4  → {4, 5}
+--   anything else    fall back to triad              → {8, 3, 5}
+-- Accidentals ([#bn]*) before the digits don't change the structure.
+local function achievable_for_figure(fig)
+	if not fig or fig == "" then return { 8, 3, 5 } end
+	-- Strip a passing-chord 'p' suffix and a cadence 'c' suffix.
+	fig = fig:gsub("p$", ""):gsub("c$", "")
+	-- Strip leading accidentals so e.g. "#6" matches "6".
+	local stripped = fig:gsub("^[#bn]+", "")
+	if stripped == "" or stripped == "0" then return { 8, 3, 5 } end
+	-- Strip accidentals before each component of compound figures
+	-- ("#6/4" -> "6/4", "6/#4" -> "6/4").
+	stripped = stripped:gsub("/[#bn]+", "/")
+	if stripped == "3" or stripped == "5" or stripped == "5/3" then return { 8, 3, 5 } end
+	if stripped == "6" or stripped == "6/3" then return { 3, 6 } end
+	if stripped == "6/4" then return { 8, 4, 6 } end
+	if stripped == "7" or stripped == "7/5/3" then return { 8, 3, 5, 7 } end
+	if stripped == "6/5" or stripped == "6/5/3" then return { 3, 5, 6 } end
+	if stripped == "4/3" or stripped == "6/4/3" then return { 3, 4, 6 } end
+	if stripped == "4/2" or stripped == "2" or stripped == "6/4/2" then return { 2, 4, 6 } end
+	if stripped == "4" or stripped == "5/4" then return { 4, 5 } end
+	return { 8, 3, 5 }
+end
+
 local function compute_achievable(figures, passing, s, e)
 	local first_fig
 	for i = s, e do
@@ -524,11 +552,7 @@ local function compute_achievable(figures, passing, s, e)
 			break
 		end
 	end
-	if not first_fig then return { 3, 5, 8 } end
-	if first_fig:match("^[#bn]*5$") then return { 3, 5 } end
-	if first_fig:match("^[#bn]*6$") then return { 3 } end
-	if first_fig:match("^[#bn]*7$") then return { 3, 5 } end
-	return { 3, 5, 8 }
+	return achievable_for_figure(first_fig)
 end
 
 local function achievable_suffix(figures, passing, s, e)
