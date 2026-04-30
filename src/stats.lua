@@ -153,6 +153,14 @@ local ALGORITHM_DEFAULTS = {
 	-- mid-improvement and felt punitive.  overlearn_max remains as a hard
 	-- absolute ceiling.
 	interleave_no_progress_thresh = 3,
+
+	-- Position-switch cool-down: number of consecutive plays on the same
+	-- starting factor that must accumulate before position_suggestion will
+	-- prompt the user to try a different factor.  Prevents the "try X on
+	-- top!" message from firing immediately after a single play on chunks
+	-- that arrived already mastered (e.g. via the chunk-level → per-factor
+	-- migration), giving the user time to settle into the current factor.
+	position_switch_cooldown = 3,
 }
 
 local stats_file = arg[1]
@@ -245,8 +253,21 @@ end
 -- min-across-positions so the user can't achieve full chunk mastery by
 -- grinding a single starting position.
 
-local POSITION_FACTORS = { 8, 3, 5 }  -- root, 3rd, 5th (all trackable top-voice factors)
-local POSITION_NAMES = { [8] = "root", [3] = "3rd", [5] = "5th" }
+-- Canonical order for displaying / iterating soprano factors.  Includes
+-- every interval-above-bass that achievable_for_figure (in all.lua) might
+-- emit: bass-octave, 3rd, 5th, 7th, 6th, 4th, 2nd.  Each chunk's actual
+-- achievable set is a subset of this list (set on c.achievable_positions
+-- by all.lua based on the first chord's figure).
+local POSITION_FACTORS = { 8, 3, 5, 7, 6, 4, 2 }
+local POSITION_NAMES = {
+	[8] = "root",
+	[3] = "3rd",
+	[5] = "5th",
+	[7] = "7th",
+	[6] = "6th",
+	[4] = "4th",
+	[2] = "2nd",
+}
 
 -- Factors worth tracking for THIS chunk.  Defaults to all three; chunks
 -- whose first chord is a traditional 3-voice voicing (e.g. 5-6 or 7-6
@@ -265,32 +286,63 @@ local function achievable_factors(c)
 end
 
 local function init_position(alg)
-	-- Leave best_avg and max_groups unset (nil): update_entry's guards treat
-	-- nil as "first use" and initialise correctly.  Setting these to 0
-	-- would silently freeze speed_factor at 0 because Lua's `not 0` is false.
+	-- Leave best_avg, max_groups, and pract_bpm unset (nil): update_entry
+	-- and the BPM EMA treat nil as "first use" and seed from ref_bpm.
+	-- Setting them to 0 would be silently truthy in Lua, so the EMA would
+	-- drag the first measured BPM down to alpha*actual (e.g. 0.18*60≈11).
+	-- badge_p/s/e are per-factor: each factor independently earns its
+	-- Power/Speed/Evenness badges.  c.badge_p/s/e are derived as AND
+	-- across achievable factors (used for graduation/mastered gating).
 	return {
 		mastery = 0, power_factor = 1.0,
 		ivl = 0, ease = alg.ease_initial,
 		ema_pass = 1.0, ema_evenness = 0,
 		n_pass = 0, n_fail = 0, n_pass_tot = 0,
-		total_duration = 0, pract_bpm = 0,
+		total_duration = 0,
+		badge_p = false, badge_s = false, badge_e = false,
 	}
 end
 
--- Ensure c.positions is a fully-initialised table.  Migrates legacy
--- positions_practiced booleans to modest starting masteries so users don't
--- lose progress when this feature lands.
+-- Ensure c.positions is a fully-initialised table.  When the chunk has
+-- prior chunk-level practice data (mastery/EMAs/badges) we clone it into
+-- every position on first creation, so users don't lose progress when
+-- per-factor tracking takes over.  Each position keeps its own state from
+-- there onward; subsequent plays differentiate them.
 local function ensure_positions(c, alg)
 	if not c.positions then
 		c.positions = {}
+		local has_chunk_data = (c.n_pass_tot or 0) > 0
 		for _, f in ipairs(POSITION_FACTORS) do
-			c.positions[f] = init_position(alg)
+			local p = init_position(alg)
+			if has_chunk_data then
+				-- Lift chunk-level state into the position so check_badges
+				-- can fire per-factor on legacy chunks (the chunk's mastery
+				-- and EMAs represent however the user got here, before we
+				-- distinguished factors).
+				p.mastery = c.mastery or 0
+				p.ema_pass = c.ema_pass or 1.0
+				p.ema_evenness = c.ema_evenness or 0
+				p.pract_bpm = c.pract_bpm or c.ema_bpm
+				p.ivl = c.ivl or 0
+				p.ease = c.ease or alg.ease_initial
+				p.n_pass = c.n_pass or 0
+				p.n_pass_tot = c.n_pass_tot or 0
+				p.n_fail = c.n_fail or 0
+				p.last_date = c.last_date
+				p.last_updated_mastery = c.last_updated_mastery
+				p.power_factor = c.power_factor or 1.0
+				p.best_avg = c.best_avg
+				p.max_groups = c.max_groups
+			end
+			p.badge_p = c.badge_p and true or false
+			p.badge_s = c.badge_s and true or false
+			p.badge_e = c.badge_e and true or false
+			c.positions[f] = p
 		end
-		-- Migration: bootstrap from legacy positions_practiced
 		if c.positions_practiced then
 			for f in pairs(c.positions_practiced) do
 				local p = c.positions[f]
-				if p then
+				if p and (p.n_pass_tot or 0) == 0 then
 					p.n_pass_tot = 1
 					p.n_pass = 1
 					p.mastery = (c.mastery or 0) * 0.5
@@ -308,6 +360,12 @@ local function ensure_positions(c, alg)
 		if not c.positions[f] then
 			c.positions[f] = init_position(alg)
 		end
+		-- Backfill badge fields on positions that were initialised before
+		-- per-factor badges existed.
+		local p = c.positions[f]
+		if p.badge_p == nil then p.badge_p = c.badge_p and true or false end
+		if p.badge_s == nil then p.badge_s = c.badge_s and true or false end
+		if p.badge_e == nil then p.badge_e = c.badge_e and true or false end
 	end
 end
 
@@ -319,6 +377,15 @@ local function repair_positions(c)
 	for _, p in pairs(c.positions) do
 		if p.best_avg ~= nil and p.best_avg <= 0 then
 			p.best_avg = nil
+		end
+		-- init_position used to set pract_bpm = 0, and Lua's `or` keeps a
+		-- truthy 0, so the first EMA update collapsed to alpha*actual_bpm
+		-- (e.g. 0.18 * 60 ≈ 11).  Any position-level pract_bpm well below
+		-- the slowest plausible practice tempo is almost certainly that
+		-- bug rather than legitimate slow play; clear so the next update
+		-- seeds from ref_bpm instead.
+		if (p.pract_bpm or 0) > 0 and p.pract_bpm < 30 then
+			p.pract_bpm = nil
 		end
 	end
 end
@@ -376,32 +443,6 @@ local function any_position_practiced(c)
 	return false
 end
 
--- Effective chunk mastery: min across achievable positions once position
--- tracking has begun (any n_pass_tot > 0), counting unpracticed positions as
--- 0.  Before any achievable position is tracked, fall back to c.mastery so
--- existing users don't lose accumulated mastery overnight.
-local function effective_mastery(c)
-	if not any_position_practiced(c) then return c.mastery or 0 end
-	local min_m = math.huge
-	for _, f in ipairs(achievable_factors(c)) do
-		local p = c.positions[f]
-		local m = (p and (p.n_pass_tot or 0) > 0) and (p.mastery or 0) or 0
-		if m < min_m then min_m = m end
-	end
-	return min_m
-end
-
-local function effective_power(c, alg)
-	if not any_position_practiced(c) then return calculate_power(c, alg) end
-	local min_p = math.huge
-	for _, f in ipairs(achievable_factors(c)) do
-		local p = c.positions[f]
-		local pw = (p and (p.n_pass_tot or 0) > 0) and calculate_power(p, alg) or 0
-		if pw < min_p then min_p = pw end
-	end
-	return min_p
-end
-
 -- Position state: 0 = unpracticed, 1 = learning, 2 = earned.
 local function position_state(c, f, alg)
 	if not c.positions or not c.positions[f] then return 0 end
@@ -418,6 +459,81 @@ local function all_positions_earned(c, alg)
 	return true
 end
 
+-- The algorithm's "currently active" factor: the first non-mastered factor
+-- in canonical order.  Deterministic — the user is free to practice any
+-- other factor (their choice still updates that factor's stats), but the
+-- active highlight, the per-factor badges, and the progress bar all stay
+-- on this factor until it's mastered.  When the active factor reaches
+-- state 2, focus_factor naturally moves to the next non-mastered one.
+-- Returns nil only when every achievable factor is mastered (phase 2).
+local function focus_factor(c, alg)
+	for _, f in ipairs(achievable_factors(c)) do
+		if position_state(c, f, alg) ~= 2 then return f end
+	end
+	return nil
+end
+
+-- Effective chunk mastery / power: while learning, mirror the *current
+-- factor's* progress so the gauge fills 0 → full scale as the user practices
+-- it.  When that factor reaches state 2 (mastery >= chunk_mastery_thresh)
+-- position_suggestion fires "try X on top"; the user switches and the gauge
+-- resets to the next factor's progress.  Once every achievable factor is at
+-- state 2, switch to a plain average across the achievable set so the gauge
+-- reflects overall standing, not whichever factor was last played.
+--
+-- Falls back to chunk-level when no position has been practiced yet, so
+-- existing users don't lose progress overnight on legacy chunks.
+--
+-- Achievable-set handling: chunks whose first bassnote can't host all three
+-- factors (e.g. 5-6 sequences with achievable={3,5}) only iterate their
+-- achievable set, both for the all-mastered check and the average.
+-- Until at least one factor has been practiced we don't know which factor the
+-- user is focused on, so fall back to chunk-level mastery/power.  Once a
+-- factor has any pass count, switch to phase 1 (current factor's progress)
+-- and eventually phase 2 (average) once every achievable factor is mastered.
+local function effective_mastery(c, alg)
+	if not c.positions or not any_position_practiced(c) then
+		return c.mastery or 0
+	end
+	local factors = achievable_factors(c)
+	if alg and #factors > 0 and all_positions_earned(c, alg) then
+		local sum, count = 0, 0
+		for _, f in ipairs(factors) do
+			sum = sum + ((c.positions[f] and c.positions[f].mastery) or 0)
+			count = count + 1
+		end
+		return count > 0 and (sum / count) or 0
+	end
+	if alg then
+		local f = focus_factor(c, alg)
+		if f and c.positions[f] then
+			return c.positions[f].mastery or 0
+		end
+	end
+	return c.mastery or 0
+end
+
+local function effective_power(c, alg)
+	if not c.positions or not any_position_practiced(c) then
+		return calculate_power(c, alg)
+	end
+	local factors = achievable_factors(c)
+	if #factors > 0 and all_positions_earned(c, alg) then
+		local sum, count = 0, 0
+		for _, f in ipairs(factors) do
+			sum = sum + (c.positions[f]
+				and calculate_power(c.positions[f], alg) or 0)
+			count = count + 1
+		end
+		return count > 0 and (sum / count) or 0
+	end
+	local f = focus_factor(c, alg)
+	if f and c.positions[f] then
+		return calculate_power(c.positions[f], alg)
+	end
+	return calculate_power(c, alg)
+end
+
 -- Emit only achievable factors; gui omits badges for any not listed.
 local function emit_positions(hash, c, alg)
 	local parts = {}
@@ -425,6 +541,32 @@ local function emit_positions(hash, c, alg)
 		parts[#parts + 1] = string.format("%d=%d", f, position_state(c, f, alg))
 	end
 	io.write(string.format("POSITIONS %s %s\n", hash, table.concat(parts, ",")))
+end
+
+-- Emit the authoritative badge state for the focus factor (practice P/S/E)
+-- and the chunk-level perf badges.  GUI uses this to set its booleans
+-- explicitly — both setting AND clearing — so when the focus factor shifts
+-- (e.g. one factor just got mastered, suggestion fires, user moves to the
+-- next factor with no badges yet), the displayed P/S/E squares update to
+-- the new factor's state instead of carrying stale "earned" indicators.
+local function emit_badge_state(c, alg)
+	local pf = c.positions and focus_factor(c, alg)
+	local p = pf and c.positions and c.positions[pf] or nil
+	local has_p, has_s, has_e
+	if p then
+		has_p, has_s, has_e = p.badge_p, p.badge_s, p.badge_e
+	else
+		has_p, has_s, has_e = c.badge_p, c.badge_s, c.badge_e
+	end
+	io.write(string.format("BADGE_STATE p=%d s=%d e=%d pp=%d ps=%d pe=%d g=%d m=%d\n",
+		has_p and 1 or 0,
+		has_s and 1 or 0,
+		has_e and 1 or 0,
+		c.perf_badge_p and 1 or 0,
+		c.perf_badge_s and 1 or 0,
+		c.perf_badge_e and 1 or 0,
+		c.badge_graduated and 1 or 0,
+		c.badge_mastered and 1 or 0))
 end
 
 -- Pick next position for this chunk: unpracticed (canonical order within
@@ -449,11 +591,18 @@ end
 -- Suggestion token prompting the user to try a specific position, or nil if
 -- all achievable ones are earned.  Don't nudge to a different factor while
 -- the current one is still being earned (state != 2): switching mid-mastery
--- is demotivating.  Once the current factor is fully earned, point at the
--- weakest remaining one.
+-- is demotivating.  Even when the factor IS earned, hold the nudge until
+-- the user has played the same factor at least position_switch_cooldown
+-- consecutive times — a single play (especially on a chunk that arrived
+-- mastered via migration) shouldn't fire the prompt before the user has
+-- had a chance to practice the factor.
 local function position_suggestion(c, alg, just_played)
 	if all_positions_earned(c, alg) then return nil end
 	if just_played and position_state(c, just_played, alg) ~= 2 then
+		return nil
+	end
+	local cooldown = alg.position_switch_cooldown or 3
+	if (c.consecutive_position_plays or 0) < cooldown then
 		return nil
 	end
 	local next_f = pick_next_position(c, alg)
@@ -835,20 +984,34 @@ local function print_stats_line(stats, timestamp, chunk_hash)
 		if c then
 			local power = effective_power(c, alg)
 			local perf_power = calculate_perf_power(c, alg)
-			local mastery = effective_mastery(c)
+			local mastery = effective_mastery(c, alg)
+			-- Name the factor whose progress the gauge mirrors in phase 1.
+			-- Emitted whenever the chunk has per-factor tracking, even on
+			-- fresh chunks (defaults to canonical first achievable factor)
+			-- so the GUI tooltip can label the gauge from the very first
+			-- frame.  Absent on legacy chunks (no positions table).
+			local pf = c.positions and focus_factor(c, alg)
+			local pf_str = pf and string.format(",power_for=%d", pf) or ""
+			-- pract_bpm and ema_evenness mirror the focus factor too — so
+			-- the S/E badge bars and tooltips report the same factor's
+			-- numbers as the P bar.  Falls back to chunk-level for legacy.
+			local pp = pf and c.positions[pf] or nil
+			local disp_bpm = (pp and pp.pract_bpm) or c.pract_bpm or c.ema_bpm or 0
+			local disp_even = (pp and pp.ema_evenness) or c.ema_evenness or 0
 			chunk_str = string.format(
 				" chunk=%s[ivl=%d,ease=%.2f,mastery=%.2f,power=%.2f,pract_bpm=%.2f,ema_evenness=%.4f"
-				.. ",perf_power=%.2f,perf_bpm=%.2f,perf_ema_evenness=%.4f]",
+				.. ",perf_power=%.2f,perf_bpm=%.2f,perf_ema_evenness=%.4f%s]",
 				chunk_hash,
 				math.floor(c.ivl or 0),
 				c.ease or alg.ease_initial,
 				normalize(mastery, c),
 				normalize(power, c),
-				c.pract_bpm or c.ema_bpm or 0,
-				c.ema_evenness or 0,
+				disp_bpm,
+				disp_even,
 				normalize(perf_power, c),
 				c.perf_bpm or 0,
-				c.perf_ema_evenness or 0
+				c.perf_ema_evenness or 0,
+				pf_str
 			)
 		end
 	end
@@ -907,7 +1070,7 @@ local function emit_skill_stats(stats)
 	for hash, c in pairs(stats.chunks) do
 		local sk_str = chunk_skills[hash] or (c.skills or "")
 		if sk_str ~= "" then
-			local m = normalize(math.max(effective_mastery(c), c.t_mastery or 0), c)
+			local m = normalize(math.max(effective_mastery(c, alg), c.t_mastery or 0), c)
 			for _, sk in ipairs(skills) do
 				if (" " .. sk_str .. " "):find(" " .. sk .. " ", 1, true) then
 					sum[sk]   = sum[sk]   + m
@@ -1049,9 +1212,10 @@ local function suggest_best_hash(stats, exclude_hash, candidate_set)
 			goto suggest_continue
 		end
 		local is_new = not c.last_date and not c.t_last_date
-		-- Use effective (min-across-positions) mastery/power when positions
-		-- exist, else fall back to transitive mastery for parent chunks.
-		local eff_m = effective_mastery(c)
+		-- Use effective (per-current-factor in phase 1; avg across factors
+		-- once all are mastered) mastery/power when positions exist, else
+		-- fall back to transitive mastery for parent chunks.
+		local eff_m = effective_mastery(c, alg)
 		local m_pct = normalize(math.max(eff_m, c.t_mastery or 0), c)
 		local level = c.level or 0
 
@@ -1119,38 +1283,71 @@ end
 -- BADGE PROGRESSION
 -------------------------------------------------------------------------------
 
--- Check and award badges for a chunk after an attempt.
--- mode: "practice" or "performance"
--- Returns total bonus points earned this check.
+-- Derive c.badge_p/s/e from positions: chunk-level badge is "earned" when
+-- every achievable factor has independently earned that badge.  Used for
+-- graduation/mastered gating and for legacy chunks without c.positions
+-- (in which case we keep the persisted chunk-level badge as-is).
+local function chunk_has_badge(c, key)
+	if not c.positions then return c[key] and true or false end
+	for _, f in ipairs(achievable_factors(c)) do
+		local p = c.positions[f]
+		if not (p and p[key]) then return false end
+	end
+	return true
+end
+
+-- Award practice badges per-factor: each achievable factor independently
+-- progresses through P → S → E based on its own power, pract_bpm, and
+-- ema_evenness.  Chunk-level c.badge_p/s/e are derived as AND across
+-- factors so existing graduation/mastered logic still works.  BADGE
+-- messages emit only when a NEW badge fires (pts > 0) and only when the
+-- factor is the focused factor (so the GUI's single set of P/S/E squares
+-- shows whichever factor the user is currently working on).
 local function check_badges(c, alg, mode)
 	local bonus = 0
 
 	if mode == "practice" then
-		-- Effective power/mastery: gated on all three starting positions having
-		-- been practiced.  This is what makes the P badge (and thus graduation)
-		-- require balanced competence across R/3/5.
-		local power_pct = normalize(effective_power(c, alg), c)
-		-- P badge: power threshold
-		if not c.badge_p and power_pct >= alg.badge_power_thresh then
-			c.badge_p = true
-			bonus = bonus + alg.badge_power_bonus
-			io.write(string.format("BADGE P %d\n", alg.badge_power_bonus))
+		-- Need positions to gate per-factor.  ensure_positions populates
+		-- them in finalize before this is called; for legacy paths
+		-- (LOAD_CHUNK retro-check before any play) skip silently.
+		if not c.positions then return 0 end
+		local focus = focus_factor(c, alg)
+		for _, f in ipairs(achievable_factors(c)) do
+			local p = c.positions[f]
+			if p and (p.n_pass_tot or 0) > 0 then
+				local power_pct = normalize(calculate_power(p, alg), c)
+				local is_focus = (f == focus)
+				if not p.badge_p and power_pct >= alg.badge_power_thresh then
+					p.badge_p = true
+					if is_focus then
+						bonus = bonus + alg.badge_power_bonus
+						io.write(string.format("BADGE P %d\n", alg.badge_power_bonus))
+					end
+				end
+				if p.badge_p and not p.badge_s
+					and (p.pract_bpm or 0) >= alg.badge_speed_thresh then
+					p.badge_s = true
+					if is_focus then
+						bonus = bonus + alg.badge_speed_bonus
+						io.write(string.format("BADGE S %d\n", alg.badge_speed_bonus))
+					end
+				end
+				if p.badge_s and not p.badge_e
+					and (p.ema_evenness or 0) >= alg.badge_evenness_thresh then
+					p.badge_e = true
+					if is_focus then
+						bonus = bonus + alg.badge_evenness_bonus
+						io.write(string.format("BADGE E %d\n", alg.badge_evenness_bonus))
+					end
+				end
+			end
 		end
-		-- S badge: pract_bpm threshold (requires P)
-		if c.badge_p and not c.badge_s and (c.pract_bpm or c.ema_bpm or 0) >= alg.badge_speed_thresh then
-			c.badge_s = true
-			bonus = bonus + alg.badge_speed_bonus
-			io.write(string.format("BADGE S %d\n", alg.badge_speed_bonus))
-		end
-		-- E badge: ema_evenness threshold (requires S)
-		if c.badge_s and not c.badge_e and (c.ema_evenness or 0) >= alg.badge_evenness_thresh then
-			c.badge_e = true
-			bonus = bonus + alg.badge_evenness_bonus
-			io.write(string.format("BADGE E %d\n", alg.badge_evenness_bonus))
-		end
-		-- All three practice badges AND all three positions earned: graduate
-		-- bonus (only if chunk has melody for karaoke).  Requiring positions
-		-- prevents performing a chunk the user can only start one way.
+		-- Refresh derived chunk-level booleans (used by graduation/mastered).
+		c.badge_p = chunk_has_badge(c, "badge_p")
+		c.badge_s = chunk_has_badge(c, "badge_s")
+		c.badge_e = chunk_has_badge(c, "badge_e")
+		-- All practice badges across all factors AND all positions earned at
+		-- mastery level: graduate (only if chunk has melody for karaoke).
 		if c.badge_p and c.badge_s and c.badge_e and all_positions_earned(c, alg)
 			and not c.badge_graduated and not c.no_melody then
 			c.badge_graduated = true
@@ -1193,21 +1390,38 @@ local function check_badges(c, alg, mode)
 	return bonus
 end
 
--- Compute badge progress for the next unearned badge (sequential).
--- Returns tag, current, target (or nil if all earned).
+-- Compute badge progress for the next unearned badge for the focus factor
+-- (sequential).  Returns tag, current, target (or nil if all earned).  By
+-- mirroring the focused factor, the bar advances cleanly through P → S → E
+-- as the user works on whichever factor is currently being practised.
 local function badge_progress(c, alg)
-	if not c.badge_p then
-		return "P", normalize(effective_power(c, alg), c), alg.badge_power_thresh
+	local p = nil
+	local f = c.positions and focus_factor(c, alg)
+	if f then p = c.positions[f] end
+	-- Practice badges for the focus factor.
+	if p then
+		if not p.badge_p then
+			return "P", normalize(calculate_power(p, alg), c), alg.badge_power_thresh
+		end
+		if not p.badge_s then
+			return "S", p.pract_bpm or 0, alg.badge_speed_thresh
+		end
+		if not p.badge_e then
+			return "E", p.ema_evenness or 0, alg.badge_evenness_thresh
+		end
+	else
+		-- Legacy chunk: fall back to chunk-level metrics.
+		if not c.badge_p then
+			return "P", normalize(calculate_power(c, alg), c), alg.badge_power_thresh
+		end
+		if not c.badge_s then
+			return "S", c.pract_bpm or c.ema_bpm or 0, alg.badge_speed_thresh
+		end
+		if not c.badge_e then
+			return "E", c.ema_evenness or 0, alg.badge_evenness_thresh
+		end
 	end
-	if not c.badge_s then
-		return "S", c.pract_bpm or c.ema_bpm or 0, alg.badge_speed_thresh
-	end
-	if not c.badge_e then
-		return "E", c.ema_evenness or 0, alg.badge_evenness_thresh
-	end
-	if c.no_melody then
-		return nil
-	end
+	if c.no_melody then return nil end
 	if not c.perf_badge_p then
 		return "PP", normalize(calculate_perf_power(c, alg), c), alg.perf_badge_power_thresh
 	end
@@ -1317,11 +1531,11 @@ try_perf_score = function()
 				+ (1 - alpha) * (c.perf_ema_evenness or timing_evenness)
 			c.perf_bpm = alpha * actual_bpm
 				+ (1 - alpha) * (c.perf_bpm or actual_bpm)
-			-- Grow perf_mastery toward effective practice mastery (min across
-			-- starting positions).  Prevents performing a chunk the user can
-			-- only start one way.
+			-- Grow perf_mastery toward effective practice mastery (per-factor
+			-- in phase 1, avg in phase 2).  Prevents performing a chunk the
+			-- user can only start one way.
 			local old_perf_m = c.perf_mastery or 0
-			local target = effective_mastery(c)
+			local target = effective_mastery(c, alg)
 			if target > old_perf_m then
 				c.perf_mastery = old_perf_m + (target - old_perf_m) * alg.mastery_growth
 			end
@@ -1524,7 +1738,12 @@ local function finalize()
 	if sd.accuracy == 100 and sd.duration > 0 and bpm_beats > 0 then
 		local actual_bpm = bpm_beats * (time_denom / 4.0) * 60.0 / sd.duration
 		local alpha = ema_alpha(alg)
-		c.pract_bpm = alpha * actual_bpm + (1.0 - alpha) * (c.pract_bpm or c.ema_bpm or ref_bpm)
+		-- Treat 0 as "uninitialised": Lua's `or` keeps a truthy 0, which
+		-- would drag the EMA toward zero on the first update.
+		local prev = ((c.pract_bpm or 0) > 0) and c.pract_bpm
+			or ((c.ema_bpm or 0) > 0) and c.ema_bpm
+			or ref_bpm
+		c.pract_bpm = alpha * actual_bpm + (1.0 - alpha) * prev
 	end
 	-- Per-position SRS: update the specific position played (if detectable).
 	ensure_positions(c, alg)
@@ -1542,7 +1761,11 @@ local function finalize()
 			if sd.accuracy == 100 and sd.duration > 0 and bpm_beats > 0 then
 				local actual_bpm = bpm_beats * (time_denom / 4.0) * 60.0 / sd.duration
 				local alpha = ema_alpha(alg)
-				p.pract_bpm = alpha * actual_bpm + (1.0 - alpha) * (p.pract_bpm or ref_bpm)
+				-- Same 0-vs-nil guard as the chunk-level update.  Existing
+				-- positions persisted with pract_bpm=0 from earlier init
+				-- would otherwise drag the EMA to zero on first update.
+				local prev = ((p.pract_bpm or 0) > 0) and p.pract_bpm or ref_bpm
+				p.pract_bpm = alpha * actual_bpm + (1.0 - alpha) * prev
 			end
 			pos_res = update_entry(p, sd, alg, is_warmup)
 		end
@@ -1587,7 +1810,7 @@ local function finalize()
 	stats.daily[today].duration = stats.daily[today].duration + sd.duration
 	assert_chunk_consistent(hash, c)
 	save_stats(stats_file, stats)
-	local eff_m = effective_mastery(c)
+	local eff_m = effective_mastery(c, alg)
 	local eff_p = effective_power(c, alg)
 	local d = stats.daily[today]
 	local streak = calculate_streak(stats)
@@ -1601,11 +1824,20 @@ local function finalize()
 		suggestion = position_suggestion(c, alg, current.start_factor)
 	end
 	emit_positions(hash, c, alg)
+	emit_badge_state(c, alg)
+	-- Include power_for so the GUI's "currently active" highlight stays
+	-- consistent across the LOAD_CHUNK / finalize STATS lines.  Without
+	-- this, an abandoned-play finalize on LOAD_CHUNK reset the GUI's
+	-- power_for to 0 (its parser zeroes it before each STATS line and
+	-- only restores it from the field if present), so the active factor
+	-- vanished until the user pressed [R] again.
+	local pf = c.positions and focus_factor(c, alg)
+	local pf_str = pf and string.format(",power_for=%d", pf) or ""
 	io.write(
 		string.format(
 			"STATS time=%.0f total_today=%.2f goal=%.2f total_duration_today=%.3f streak=%d"
 				.. " mastery_thresh=%d power_thresh=%d"
-				.. " chunk=%s[ivl=%d,ease=%.2f,mastery=%.2f,power=%.2f]%s\n",
+				.. " chunk=%s[ivl=%d,ease=%.2f,mastery=%.2f,power=%.2f%s]%s\n",
 			sd.time,
 			d.score,
 			alg.score_goal,
@@ -1618,6 +1850,7 @@ local function finalize()
 			c.ease or alg.ease_initial,
 			normalize(eff_m, c),
 			normalize(eff_p, c),
+			pf_str,
 			suggestion and (" suggestion=" .. suggestion) or ""
 		)
 	)
@@ -1650,6 +1883,14 @@ apply_mastery_decay(stats)
 -- Repair known legacy corruption (best_avg zero-init), then validate.
 for h, c in pairs(stats.chunks) do
 	repair_positions(c)
+	-- Chunk-level analog of repair_positions's pract_bpm reset: the bassnote
+	-- duration-inheritance bug let bpm_beats drop to ~1 (only the first
+	-- explicitly-durated note counted), so actual_bpm came out ~1/N of real
+	-- and the EMA dragged c.pract_bpm well below any plausible practice
+	-- tempo.  Clear so the next play seeds from ref_bpm/ema_bpm instead.
+	if (c.pract_bpm or 0) > 0 and c.pract_bpm < 30 then
+		c.pract_bpm = nil
+	end
 	assert_chunk_consistent(h, c)
 end
 
@@ -1751,11 +1992,16 @@ for line in io.lines() do
 			result_timestamps = {}
 			perf_done_pending = false
 			perf_aborted = false
+			-- Order matters: ensure_positions must populate c.positions
+			-- before check_badges (which is now per-factor) so legacy chunks
+			-- with chunk-level mastery still trigger the retroactive
+			-- badge awards via the migrated position state.
+			local c = stats.chunks[h]
+			local alg = stats.algorithm
+			if c then ensure_positions(c, alg) end
 			print_stats_line(stats, nil, current_loaded)
 			emit_skill_stats(stats)
 			-- Check if any badges should be awarded retroactively
-			local c = stats.chunks[h]
-			local alg = stats.algorithm
 			if c then
 				local badge_pts = check_badges(c, alg, "practice")
 					+ check_badges(c, alg, "performance")
@@ -1768,21 +2014,12 @@ for line in io.lines() do
 					print_stats_line(stats, nil, current_loaded)
 				end
 			end
-			-- Emit persisted badge state so GUI can reconstruct on chunk load
-			c = stats.chunks[h]
+			-- Emit persisted badge state so GUI can reconstruct on chunk
+			-- load.  BADGE_STATE is authoritative (sets AND clears the
+			-- GUI's badge booleans) so when the focus factor changes
+			-- between sessions the squares reflect the new factor.
 			if c then
-				if c.badge_p then io.write("BADGE P 0\n") end
-				if c.badge_s then io.write("BADGE S 0\n") end
-				if c.badge_e then io.write("BADGE E 0\n") end
-				if c.badge_graduated then io.write("BADGE READY 0\n") end
-				if not c.no_melody then
-					if c.perf_badge_p then io.write("BADGE PP 0\n") end
-					if c.perf_badge_s then io.write("BADGE PS 0\n") end
-					if c.perf_badge_e then io.write("BADGE PE 0\n") end
-					if c.badge_mastered then io.write("BADGE MASTERED 0\n") end
-				end
-				-- Emit persisted soprano starting-position state
-				ensure_positions(c, alg)
+				emit_badge_state(c, alg)
 				emit_positions(h, c, alg)
 			end
 		end
@@ -1818,18 +2055,26 @@ for line in io.lines() do
 			end
 			-- Store note duration in quarter-note beats, indexed by bass-note ID.
 			-- Token format: <note>[accidentals][octave]<dur>[dots], e.g. g2, fis2., b,4
+			-- A bare token (e.g. "d" or "a,") inherits the previous note's
+			-- duration — Lilypond convention.  Without this fallback, bpm_beats
+			-- only counted the first note's duration and BPM came out ~1/N
+			-- of the actual tempo.
 			local tok = line:match("^BASSNOTE %d+: (%S+)")
 			if tok then
 				tok = tok:gsub("p$", "") -- strip passing-chord marker
 				local dur_str, dots_str = tok:match("(%d+)(%.*)$")
+				local beats
 				if dur_str then
 					local dur = tonumber(dur_str) or 4
-					local beats = 4.0 / dur
+					beats = 4.0 / dur
 					for _ in dots_str:gmatch("%.") do
 						beats = beats * 1.5
 					end
-					current.beats[bid] = beats
+					current.last_beats = beats
+				else
+					beats = current.last_beats or 1.0
 				end
+				current.beats[bid] = beats
 			end
 		end
 
@@ -1942,8 +2187,11 @@ for line in io.lines() do
 				if bpm_beats > 0 then
 					local actual_bpm = bpm_beats * ((pending.time_denom or 4) / 4.0) * 60.0 / sd.duration
 					local alpha = ema_alpha(alg)
-					c.pract_bpm = alpha * actual_bpm
-						+ (1.0 - alpha) * (c.pract_bpm or c.ema_bpm or pending.ref_bpm or 120.0)
+					-- 0-vs-nil guard (see chunk-level update at line ~1591).
+					local prev = ((c.pract_bpm or 0) > 0) and c.pract_bpm
+						or ((c.ema_bpm or 0) > 0) and c.ema_bpm
+						or (pending.ref_bpm or 120.0)
+					c.pract_bpm = alpha * actual_bpm + (1.0 - alpha) * prev
 				end
 			end
 			update_note_emas(c, pending.results, abs_s, abs_e, alg)

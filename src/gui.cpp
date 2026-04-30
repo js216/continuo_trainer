@@ -89,6 +89,8 @@ struct status_line {
 	float perf_power = 0.0f;
 	float perf_bpm = 0.0f;
 	float perf_ema_evenness = 0.0f;
+	int power_for = 0; // 8/3/5 = factor the power gauge currently mirrors;
+			   // 0 = phase 2 (avg) or no positions (chunk-level)
 
 	// today
 	int pts = 0;
@@ -124,6 +126,9 @@ struct state {
 	bool triggered_today = false;
 	bool stats_initialized = false; // true after first STATS line;
 					// suppresses startup celebration
+	double suppress_celebration_until = -1e9; // brief window after [R]eload
+						  // during which +pts toasts
+						  // are suppressed
 	bool karaoke_on = false;
 	int current_chunk_level = -1; // level from last SUGGESTION chunk= line
 	float bpm = 120.0f;           // current BPM; updated by BPM command
@@ -135,12 +140,15 @@ struct state {
 	bool badge_mastered = false;
 
 	// Soprano starting-position tracking (from POSITIONS messages).
-	// State: 0 = unpracticed, 1 = learning, 2 = earned.
-	// Achievable flag is false when the chunk's first chord is a
-	// traditional 3-voice voicing that precludes this factor — e.g. bare 5
-	// allows only {3,5} on top, not root.  Non-achievable squares are hidden.
-	int pos_state_root = 0, pos_state_3rd = 0, pos_state_5th = 0;
-	bool pos_ach_root = false, pos_ach_3rd = false, pos_ach_5th = false;
+	// Each entry has the interval-above-bass (8/3/5/7/6/4/2) and a state:
+	//   0 = unattempted   1 = in progress   2 = mastered
+	// Display logic also highlights whichever factor matches
+	// state.status.power_for as "currently active" (the algorithm-chosen
+	// next factor to practise).  POSITIONS includes only the achievable
+	// factors for this chunk — set by all.lua's per-figure rules.
+	struct PosFactor { int factor; int state; };
+	PosFactor pos_factors[8];
+	int num_pos_factors = 0;
 
 	// Badge progress (from BADGE_PROGRESS messages or computed)
 	char badge_progress_tag[4] = "";
@@ -363,8 +371,7 @@ static void clear_badges(void)
 	state.badge_pp = state.badge_ps = state.badge_pe = false;
 	state.badge_graduated = state.badge_mastered = false;
 	state.badge_progress_tag[0] = '\0';
-	state.pos_state_root = state.pos_state_3rd = state.pos_state_5th = 0;
-	state.pos_ach_root = state.pos_ach_3rd = state.pos_ach_5th = false;
+	state.num_pos_factors = 0;
 }
 
 static void clear_status(void)
@@ -394,6 +401,12 @@ static void reload_lesson(void)
 		       state.level0_hashes[state.current_level0_idx]);
 	fflush(stdout);
 	clear_status();
+	// Suppress any in-flight "+pts" toast and the celebration that would
+	// otherwise fire if LOAD_CHUNK's retroactive check_badges credits
+	// points.  The user reloaded; that's not an achievement.
+	state.status.pts_delta = 0;
+	state.status.pts_delta_time = -1e9;
+	state.suppress_celebration_until = glfwGetTime() + 0.5;
 }
 
 static void suggest_lesson(void)
@@ -602,6 +615,13 @@ static void handle_stats(const char *buf)
 	if (p)
 		sscanf(p, "perf_ema_evenness=%f", &state.status.perf_ema_evenness);
 
+	// power_for=<8|3|5> identifies the factor that the power gauge mirrors
+	// in phase 1.  Absent ⇒ phase 2 (avg across factors) or chunk-level.
+	state.status.power_for = 0;
+	p = strstr(buf, "power_for=");
+	if (p)
+		sscanf(p, "power_for=%d", &state.status.power_for);
+
 	p = strstr(buf, "suggestion=");
 	if (p) {
 		// Don't overwrite a recent "ready for karaoke" message
@@ -620,15 +640,21 @@ static void handle_stats(const char *buf)
 	}
 
 	int new_pts = (int)(total + 0.5f);
-	// Accumulate the delta — do NOT clear it here. The second STATS line
-	// (from LOAD_LESSON) will add 0, leaving the delta intact until the
-	// next attempt starts. Clearing happens in handle_result on id == 0.
-	state.status.pts_delta += new_pts - state.status.pts;
-	// Only celebrate points earned during this session, never on the
-	// initial load of existing totals from the stats file.
-	if (state.stats_initialized && state.status.pts_delta > 0 &&
-	    new_pts > state.status.pts)
-		state.status.pts_delta_time = glfwGetTime();
+	if (glfwGetTime() < state.suppress_celebration_until) {
+		// Reload window: keep pts in sync but never celebrate.
+		state.status.pts_delta = 0;
+	} else {
+		// Accumulate the delta — do NOT clear it here. The second STATS
+		// line (from LOAD_LESSON) will add 0, leaving the delta intact
+		// until the next attempt starts. Clearing happens in
+		// handle_result on id == 0.
+		state.status.pts_delta += new_pts - state.status.pts;
+		// Only celebrate points earned during this session, never on
+		// the initial load of existing totals from the stats file.
+		if (state.stats_initialized && state.status.pts_delta > 0 &&
+		    new_pts > state.status.pts)
+			state.status.pts_delta_time = glfwGetTime();
+	}
 	state.status.pts = new_pts;
 	state.status.goal_met = (total >= goal && goal > 0.0f);
 	state.stats_initialized = true;
@@ -752,6 +778,26 @@ static void parse_line(const char *buf)
 		fflush(stdout);
 		return;
 	}
+	// BADGE_STATE p=N s=N e=N pp=N ps=N pe=N g=N m=N — authoritative
+	// snapshot of the focus factor's badges (and chunk-level perf/graduation
+	// flags).  Sets AND clears, so when stats.lua's focus factor shifts to
+	// another factor the GUI's P/S/E squares update to that factor's state
+	// instead of carrying stale "earned" indicators from the previous one.
+	if (strncmp(buf, "BADGE_STATE", 11) == 0) {
+		int p = 0, s = 0, e = 0, pp = 0, ps = 0, pe = 0, g = 0, m = 0;
+		sscanf(buf, "BADGE_STATE p=%d s=%d e=%d pp=%d ps=%d pe=%d g=%d m=%d",
+		       &p, &s, &e, &pp, &ps, &pe, &g, &m);
+		state.badge_p = (p != 0);
+		state.badge_s = (s != 0);
+		state.badge_e = (e != 0);
+		state.badge_pp = (pp != 0);
+		state.badge_ps = (ps != 0);
+		state.badge_pe = (pe != 0);
+		state.badge_graduated = (g != 0);
+		state.badge_mastered = (m != 0);
+		return;
+	}
+
 	// BADGE <tag> <pts>  — badge earned
 	if (strncmp(buf, "BADGE ", 6) == 0) {
 		char tag[16] = "";
@@ -789,28 +835,21 @@ static void parse_line(const char *buf)
 		return;
 	}
 	// POSITIONS <hash> <factor>=<state>[,...] — soprano starting position
-	// state per achievable factor (0=unpracticed, 1=learning, 2=earned).
-	// Only achievable factors are listed; missing factors aren't displayed.
+	// state per achievable factor (0=unattempted, 1=in progress, 2=mastered).
+	// Order in the message is the canonical display order (set by
+	// achievable_factors in stats.lua); we preserve it here.
 	if (strncmp(buf, "POSITIONS ", 10) == 0) {
-		state.pos_state_root = state.pos_state_3rd = state.pos_state_5th = 0;
-		state.pos_ach_root = state.pos_ach_3rd = state.pos_ach_5th = false;
+		state.num_pos_factors = 0;
 		const char *list = strchr(buf + 10, ' ');
 		if (list) {
 			++list;
 			int f, s;
 			const char *p = list;
-			while (*p) {
+			while (*p && state.num_pos_factors < 8) {
 				if (sscanf(p, "%d=%d", &f, &s) == 2) {
-					if (f == 8) {
-						state.pos_state_root = s;
-						state.pos_ach_root = true;
-					} else if (f == 3) {
-						state.pos_state_3rd = s;
-						state.pos_ach_3rd = true;
-					} else if (f == 5) {
-						state.pos_state_5th = s;
-						state.pos_ach_5th = true;
-					}
+					state.pos_factors[state.num_pos_factors].factor = f;
+					state.pos_factors[state.num_pos_factors].state = s;
+					state.num_pos_factors++;
 				}
 				const char *comma = strchr(p, ',');
 				if (!comma) break;
@@ -1231,13 +1270,108 @@ static void show_stats_bar(void)
 	ImU32 blue   = IM_COL32(50, 120, 220, 255);
 	ImU32 orange = IM_COL32(220, 160, 30, 255);
 
-	char tip[6][96];
-	snprintf(tip[0], 96, "Power: %.1f / %.0f%%", s.power, alg_param_value("badge_power_thresh", 40));
-	snprintf(tip[1], 96, "Speed: %.1f / %.0f BPM", s.pract_bpm, alg_param_value("badge_speed_thresh", 60));
-	snprintf(tip[2], 96, "Evenness: %.2f / %.2f", s.ema_evenness, alg_param_value("badge_evenness_thresh", 0.70f));
-	snprintf(tip[3], 96, "Perf Power: %.1f / %.0f%%", s.perf_power, alg_param_value("perf_badge_power_thresh", 60));
-	snprintf(tip[4], 96, "Perf Speed: %.1f / %.0f BPM", s.perf_bpm, alg_param_value("perf_badge_speed_thresh", 120));
-	snprintf(tip[5], 96, "Perf Evenness: %.2f / %.2f", s.perf_ema_evenness, alg_param_value("perf_badge_evenness_thresh", 0.85f));
+	// Build a tooltip suffix explaining what the power gauge currently
+	// reflects.  Phase 1: gauge mirrors a single factor's progress (the one
+	// stats.lua announced via power_for=<8|3|5>); when it's fully mastered,
+	// position_suggestion fires "try X on top" and the gauge resets to the
+	// next factor.  Phase 2 (no power_for emitted): all factors mastered, so
+	// gauge shows the average across the achievable set.
+	int n_ach = state.num_pos_factors;
+	int n_earned = 0;
+	for (int i = 0; i < n_ach; i++)
+		if (state.pos_factors[i].state == 2) n_earned++;
+	auto factor_short_name = [](int f) -> const char * {
+		switch (f) {
+		case 8: return "root";
+		case 7: return "7th";
+		case 6: return "6th";
+		case 5: return "5th";
+		case 4: return "4th";
+		case 3: return "3rd";
+		case 2: return "2nd";
+		}
+		return "?";
+	};
+	auto factor_label = [](int f) -> const char * {
+		switch (f) {
+		case 8: return "R";
+		case 7: return "7";
+		case 6: return "6";
+		case 5: return "5";
+		case 4: return "4";
+		case 3: return "3";
+		case 2: return "2";
+		}
+		return "?";
+	};
+	const char *pf_name = (state.status.power_for != 0)
+		? factor_short_name(state.status.power_for) : nullptr;
+	char pos_suffix[160] = "";
+	if (n_ach > 0) {
+		if (pf_name)
+			snprintf(pos_suffix, sizeof(pos_suffix),
+				 "\n(currently for %s on top; %d of %d factor%s mastered)",
+				 pf_name, n_earned, n_ach, n_ach == 1 ? "" : "s");
+		else if (n_earned == n_ach)
+			snprintf(pos_suffix, sizeof(pos_suffix),
+				 "\n(average across all %d starting position%s)",
+				 n_ach, n_ach == 1 ? "" : "s");
+		// otherwise: chunk-level (no factor practiced yet); no suffix
+	}
+
+	// Factor squares come FIRST in the line so the user always sees which
+	// soprano position they should be working on at a glance.  Four states:
+	//   unattempted  → grey outline
+	//   in progress  → yellow      (state 1: played correctly at least once)
+	//   currently    → bright orange (algorithm-chosen focus_factor; the
+	//   active                       one to practise now — overrides the
+	//                                in-progress colour even if its state
+	//                                is also 1)
+	//   mastered     → green       (state 2)
+	ImU32 col_inprog   = IM_COL32(220, 200, 80, 255);
+	ImU32 col_active   = IM_COL32(220, 130, 30, 255);
+	ImU32 col_mastered = IM_COL32(80, 200, 120, 255);
+	for (int i = 0; i < state.num_pos_factors; i++) {
+		int f = state.pos_factors[i].factor;
+		int st = state.pos_factors[i].state;
+		bool is_active = (state.status.power_for == f);
+		const char *fname = factor_short_name(f);
+		const char *flabel = factor_label(f);
+		ImU32 col;
+		const char *state_word;
+		bool earned;
+		if (st == 2) {
+			col = col_mastered;
+			state_word = "mastered";
+			earned = true;
+		} else if (is_active) {
+			col = col_active;
+			state_word = (st == 1) ? "currently active (in progress)"
+					       : "currently active";
+			earned = true;
+		} else if (st == 1) {
+			col = col_inprog;
+			state_word = "in progress";
+			earned = true;
+		} else {
+			col = IM_COL32(0, 0, 0, 0); // ignored when !earned
+			state_word = "unattempted";
+			earned = false;
+		}
+		char tip_str[128];
+		snprintf(tip_str, sizeof(tip_str), "%s on top: %s", fname, state_word);
+		if (i > 0) ImGui::SameLine(0, sp);
+		DrawBadgeSquare(flabel, earned, col, tip_str, false);
+	}
+	if (state.num_pos_factors > 0) ImGui::SameLine(0, sp + 4.0f);
+
+	char tip[6][192];
+	snprintf(tip[0], sizeof(tip[0]), "Power: %.1f / %.0f%%%s", s.power, alg_param_value("badge_power_thresh", 40), pos_suffix);
+	snprintf(tip[1], sizeof(tip[1]), "Speed: %.1f / %.0f BPM", s.pract_bpm, alg_param_value("badge_speed_thresh", 60));
+	snprintf(tip[2], sizeof(tip[2]), "Evenness: %.2f / %.2f", s.ema_evenness, alg_param_value("badge_evenness_thresh", 0.70f));
+	snprintf(tip[3], sizeof(tip[3]), "Perf Power: %.1f / %.0f%%%s", s.perf_power, alg_param_value("perf_badge_power_thresh", 60), pos_suffix);
+	snprintf(tip[4], sizeof(tip[4]), "Perf Speed: %.1f / %.0f BPM", s.perf_bpm, alg_param_value("perf_badge_speed_thresh", 120));
+	snprintf(tip[5], sizeof(tip[5]), "Perf Evenness: %.2f / %.2f", s.perf_ema_evenness, alg_param_value("perf_badge_evenness_thresh", 0.85f));
 
 	DrawBadgeSquare("P", state.badge_p, green, tip[0], false);
 	ImGui::SameLine(0, sp);
@@ -1251,38 +1385,6 @@ static void show_stats_bar(void)
 	ImGui::SameLine(0, sp);
 	DrawBadgeSquare("E", state.badge_pe, orange, tip[5], true);
 
-	// Soprano starting-position indicators: [R] [3] [5] with 3 states:
-	// 0 = unpracticed (grey outline), 1 = learning (orange), 2 = earned (green).
-	// Traditional 3-voice voicings (5-6, 7-6 sequences) restrict which top
-	// voices are achievable; we only draw squares for the achievable factors.
-	ImU32 pos_green  = IM_COL32(80, 200, 120, 255);
-	ImU32 pos_orange = IM_COL32(220, 160, 30, 255);
-	bool pos_first = true;
-	auto draw_pos = [&](const char *label, int st, const char *tip) {
-		ImGui::SameLine(0, pos_first ? sp + 4.0f : sp);
-		pos_first = false;
-		ImU32 col = (st == 2) ? pos_green : pos_orange;
-		DrawBadgeSquare(label, st > 0, col, tip, false);
-	};
-	if (state.pos_ach_root) {
-		draw_pos("R", state.pos_state_root,
-			state.pos_state_root == 2 ? "Root on top: mastered"
-			: state.pos_state_root == 1 ? "Root on top: learning"
-			: "Root on top: not yet practiced");
-	}
-	if (state.pos_ach_3rd) {
-		draw_pos("3", state.pos_state_3rd,
-			state.pos_state_3rd == 2 ? "3rd on top: mastered"
-			: state.pos_state_3rd == 1 ? "3rd on top: learning"
-			: "3rd on top: not yet practiced");
-	}
-	if (state.pos_ach_5th) {
-		draw_pos("5", state.pos_state_5th,
-			state.pos_state_5th == 2 ? "5th on top: mastered"
-			: state.pos_state_5th == 1 ? "5th on top: learning"
-			: "5th on top: not yet practiced");
-	}
-
 	// Progress bar for next unearned badge (if any)
 	if (!state.badge_mastered) {
 		ImGui::SameLine();
@@ -1291,7 +1393,24 @@ static void show_stats_bar(void)
 		const char *tip_label = "";
 		float tip_cur = 0.0f, tip_tgt = 0.0f;
 		char bar_label[16] = "";
-		if (!state.badge_p) {
+		// Position-progression stage: while there are unmastered factors,
+		// the bar shows the current factor's mastery progressing toward
+		// state 2 (chunk_mastery_thresh).  When that factor reaches state
+		// 2, position_suggestion fires "try X on top" and the bar resets
+		// to the next factor's mastery.  Once every achievable factor is
+		// mastered, this stage ends and the bar moves on to P/S/E.
+		if (n_ach > 0 && n_earned < n_ach) {
+			tip_label = "Mastery";
+			tip_tgt = s.mastery_thresh;
+			tip_cur = s.mastery;
+			frac = (tip_tgt > 0) ? fminf(s.mastery / tip_tgt, 1.0f) : 0.0f;
+			if (pf_name)
+				snprintf(bar_label, sizeof(bar_label),
+					 "%s %.0f%%", pf_name, frac * 100.0f);
+			else
+				snprintf(bar_label, sizeof(bar_label),
+					 "Pos %.0f%%", frac * 100.0f);
+		} else if (!state.badge_p) {
 			tip_label = "Power";
 			tip_tgt = alg_param_value("badge_power_thresh", 40);
 			tip_cur = s.power;
@@ -1331,8 +1450,16 @@ static void show_stats_bar(void)
 		ImGui::PushStyleColor(ImGuiCol_PlotHistogram, ImVec4(0.5f, 0.5f, 0.8f, 1.0f));
 		ImGui::ProgressBar(frac, ImVec2(bar_w, bar_h), bar_label);
 		ImGui::PopStyleColor();
-		if (ImGui::IsItemHovered())
-			ImGui::SetTooltip("%s: %.2f / %.2f", tip_label, tip_cur, tip_tgt);
+		if (ImGui::IsItemHovered()) {
+			// Mastery (position-progression stage) and the practice Power
+			// bar are both per-factor in phase 1; append the factor info.
+			// Speed/Evenness/perf bars are chunk-level — keep them clean.
+			bool include_pos = (strcmp(tip_label, "Mastery") == 0
+					    || strcmp(tip_label, "Power") == 0);
+			ImGui::SetTooltip("%s: %.2f / %.2f%s",
+					  tip_label, tip_cur, tip_tgt,
+					  include_pos ? pos_suffix : "");
+		}
 		ImGui::PopStyleColor();
 	}
 
