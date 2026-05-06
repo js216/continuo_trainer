@@ -83,8 +83,8 @@ local ALGORITHM_DEFAULTS = {
 	dominance_margin = 0.2, -- how much lower the bottleneck must be than the others
 	min_quality = 0.1, -- quality below this triggers a "raise quality" suggestion
 	power_score_frac = 0.7, -- skip suggesting a chunk whose power is already >= this fraction of its mastery
-	overlearn_min = 5, -- min consecutive attempts before suggesting another chunk (ema_pass = 1)
-	overlearn_max = 15, -- max consecutive attempts before suggesting another chunk (ema_pass = 0)
+	overlearn_min = 50, -- min consecutive attempts before suggesting another chunk (ema_pass = 1)
+	overlearn_max = 150, -- max consecutive attempts before suggesting another chunk (ema_pass = 0)
 	mistake_power_penalty = 0.15, -- power_factor multiplied by (1-penalty) per failed session
 	mastery_decay_half_life = 90, -- days for mastery to halve without a mastery-improving session
 	skill_order = "root 6 4-3_sus 6/4 7 7-6_sus", -- space-separated skill names; lower index = introduced earlier
@@ -152,7 +152,7 @@ local ALGORITHM_DEFAULTS = {
 	-- not increasing).  Replaces the old session-count gate, which fired
 	-- mid-improvement and felt punitive.  overlearn_max remains as a hard
 	-- absolute ceiling.
-	interleave_no_progress_thresh = 3,
+	interleave_no_progress_thresh = 30,
 
 	-- Position-switch cool-down: number of consecutive plays on the same
 	-- starting factor that must accumulate before position_suggestion will
@@ -160,7 +160,7 @@ local ALGORITHM_DEFAULTS = {
 	-- top!" message from firing immediately after a single play on chunks
 	-- that arrived already mastered (e.g. via the chunk-level → per-factor
 	-- migration), giving the user time to settle into the current factor.
-	position_switch_cooldown = 3,
+	position_switch_cooldown = 30,
 }
 
 local stats_file = arg[1]
