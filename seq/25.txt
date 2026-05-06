@@ -8,7 +8,7 @@ bar: 1
 bassline = {
   e4 fis g8 ep a fisp
   b ap d ep a gp fis dp
-  g fisp e s cis4 d8 e
+  g fisp e d cis4 d8 e
   fis fis,p fis ep dis b, cis dis
   e4 a, b,2
   e1
